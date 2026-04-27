@@ -1,11 +1,3 @@
-
----
-
-# `docs/IMPLEMENTATION_GUIDE.md`
-
-Det här är den direkta motsvarigheten till MiniDAWLab-dokumentet, men med spel-/4X-riskerna i stället för audio-thread-riskerna.
-
-```markdown
 # Empire of Minds — Implementation Guide
 
 This document defines how implementation work must be carried out in Empire of Minds.
@@ -71,7 +63,7 @@ Before implementation begins, do all of the following:
 
 After implementation, do all of the following:
 
-1. validate against `PROJECT_BRIEF.md`
+1. validate against `docs/PROJECT_BRIEF.md`
 2. validate against `docs/ARCHITECTURE_PRINCIPLES.md`
 3. validate against `docs/VALIDATION_CHECKLIST.md`
 4. state what remains weak, risky, or provisional
@@ -323,3 +315,68 @@ Every implementation response must use this structure:
 
 12. **Next narrow task**
    - One recommended next step.
+
+## Plausible Wrong Implementations That Might Appear To Work
+
+The agent must actively avoid implementations that appear functional but violate the long-term architecture.
+
+Examples:
+
+### 1. Sprite-first unit movement
+
+Wrong:
+- clicking a tile moves the Godot sprite
+- unit position is updated implicitly from sprite position
+
+Correct:
+- movement is represented as a MoveUnit action
+- action is validated
+- domain state updates unit hex coordinate
+- rendering animates from old state to new state
+
+### 2. UI-owned turn logic
+
+Wrong:
+- End Turn button directly toggles local UI state
+
+Correct:
+- EndTurn is an action or explicit turn-controller request
+- turn state is updated in the domain/session layer
+- UI reflects the updated turn state
+
+### 3. AI bypasses rules
+
+Wrong:
+- AI picks a unit node and changes its position
+
+Correct:
+- AI receives legal actions
+- AI returns selected actions
+- actions are validated and applied normally
+
+### 4. Map exists only as visual tiles
+
+Wrong:
+- map is a collection of rendered hex nodes with terrain in node names
+
+Correct:
+- map is domain data
+- renderer creates visual representation from map state
+
+### 5. Text-only action log
+
+Wrong:
+- action log is only strings like “Unit moved east”
+
+Correct:
+- action log stores structured action records
+- human-readable text can be derived later
+
+### 6. Client-authoritative assumptions
+
+Wrong:
+- local client directly owns all future game truth
+
+Correct:
+- local Phase 1 can be authoritative locally
+- action/state model remains compatible with future server authority

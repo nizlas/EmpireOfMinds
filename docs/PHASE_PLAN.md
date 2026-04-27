@@ -1,10 +1,3 @@
-## Phase 1.0 — Godot Skeleton
-
----
-
-# `docs/PHASE_PLAN.md`
-
-```markdown
 # Empire of Minds — Phase Plan
 
 ## Phase 0 — Steering Foundation
@@ -13,17 +6,20 @@ Goal:
 Create the documentation and agent constraints before implementation.
 
 Outputs:
-- PROJECT_BRIEF.md
-- ARCHITECTURE.md
-- PHASE_PLAN.md
-- AI_DESIGN.md
-- CLOUD_PLAY.md
-- LICENSE_STRATEGY.md
-- VALIDATION_CHECKLIST.md
-- DECISION_LOG.md
+
+- docs/PROJECT_BRIEF.md
+- docs/ARCHITECTURE_PRINCIPLES.md
+- docs/IMPLEMENTATION_GUIDE.md
+- docs/PHASE_PLAN.md
+- docs/AI_DESIGN.md
+- docs/CLOUD_PLAY.md
+- docs/LICENSE_STRATEGY.md
+- docs/VALIDATION_CHECKLIST.md
+- docs/DECISION_LOG.md
 - Cursor rules/skill
 
 Exit criteria:
+
 - documents exist
 - non-negotiable architecture principles are explicit
 - Phase 1 scope is narrow and testable
@@ -35,6 +31,7 @@ Goal:
 Tiny playable local vertical slice.
 
 Features:
+
 - Godot project
 - hex grid
 - static or generated test map
@@ -46,6 +43,7 @@ Features:
 - deterministic action log
 
 Exit criteria:
+
 - player can select a unit and move it legally
 - illegal movement is rejected
 - end turn advances to AI
@@ -54,12 +52,173 @@ Exit criteria:
 - game can be replayed or inspected at basic level
 - core rules are not hidden inside rendering nodes
 
+## Phase 1.0 — Godot Skeleton
+
+Goal:
+Create a blank runnable Godot project.
+
+Must not:
+
+- implement map
+- implement units
+- implement AI
+- introduce gameplay state
+
+Validation:
+
+- project opens/runs
+- no external dependencies
+
+## Phase 1.1 — Domain Hex Coordinates
+
+Goal:
+Implement the smallest domain representation of hex coordinates and neighbor queries.
+
+Must not:
+
+- render map yet
+- implement pathfinding
+- implement units
+
+Validation:
+
+- coordinate neighbor tests pass
+- coordinate system is documented
+
+## Phase 1.2 — Domain Map Model
+
+Goal:
+Represent a tiny fixed map in domain state.
+
+Must not:
+
+- procedural generation
+- resources
+- fog of war
+
+Validation:
+
+- map has known size
+- terrain can be queried by coordinate
+
+## Phase 1.3 — Render Map From Domain State
+
+Goal:
+Render the domain map in Godot.
+
+Must not:
+
+- let rendered tiles own map truth
+- implement movement
+
+Validation:
+
+- rendered tiles match domain map
+- coordinate labels optional but useful
+
+## Phase 1.4 — Unit Domain Model
+
+Goal:
+Add one or more units to domain state.
+
+Must not:
+
+- animate movement yet
+- implement combat
+- implement production
+
+Validation:
+
+- unit has owner, id, and hex coordinate
+- renderer displays unit from domain state
+
+## Phase 1.5 — Selection and Legal Movement Query
+
+Goal:
+Allow selecting a unit and querying legal movement.
+
+Must not:
+
+- move unit yet
+- implement pathfinding beyond adjacent/simple range
+
+Validation:
+
+- selected unit is clear
+- legal destinations come from rules/query layer
+
+## Phase 1.6 — MoveUnit Action
+
+Goal:
+Implement structured MoveUnit action, validation, and application.
+
+Must not:
+
+- let UI directly mutate unit coordinates
+- implement AI movement yet
+
+Validation:
+
+- legal move succeeds
+- illegal move is rejected
+- action log records structured MoveUnit
+
+## Phase 1.7 — EndTurn Action / Turn Controller
+
+Goal:
+Implement turn advancement.
+
+Must not:
+
+- implement diplomacy
+- implement production
+- implement cloud
+
+Validation:
+
+- current player changes
+- actions are only accepted for current player
+
+## Phase 1.8 — RuleBasedAIPlayer
+
+Goal:
+Implement simple AI that chooses from legal actions.
+
+Must not:
+
+- introduce LLM
+- bypass validation
+- add strategic planner yet
+
+Validation:
+
+- AI receives legal actions
+- AI selects one or more
+- validator still checks them
+- AI ends turn
+
+## Phase 1.9 — Minimal Replay/Debug Action Log
+
+Goal:
+Make the action sequence inspectable and replay-oriented.
+
+Must not:
+
+- build full save/load UI
+- build backend persistence
+
+Validation:
+
+- log contains structured action entries
+- log can be printed/exported for debugging
+
 ## Phase 2 — Core Loop
 
 Goal:
 Add minimal 4X loop.
 
 Features:
+
 - city
 - production
 - basic resources
@@ -68,6 +227,7 @@ Features:
 - save/load using snapshot + action log
 
 Exit criteria:
+
 - player has a reason to move/expand
 - city can produce something
 - save/load preserves state
@@ -80,6 +240,7 @@ Goal:
 Make AI behavior interesting.
 
 Features:
+
 - expansion planner
 - military planner
 - city production priorities
@@ -87,6 +248,7 @@ Features:
 - diplomacy skeleton
 
 Exit criteria:
+
 - AI has inspectable plans
 - different personalities make different choices
 - AI still only chooses legal actions
@@ -98,6 +260,7 @@ Goal:
 Server-authoritative asynchronous play.
 
 Features:
+
 - backend API
 - PostgreSQL
 - create/join game
@@ -107,6 +270,7 @@ Features:
 - AI worker for AI players
 
 Exit criteria:
+
 - two clients can play asynchronously
 - server rejects illegal actions
 - server persists game state
@@ -119,6 +283,7 @@ Goal:
 Make self-hosting practical.
 
 Features:
+
 - Docker Compose server
 - backend health check
 - connect-to-server UI
@@ -127,6 +292,7 @@ Features:
 - setup docs
 
 Exit criteria:
+
 - user can run backend locally or on VPS
 - client can connect by URL
 - server health check works
@@ -138,151 +304,13 @@ Goal:
 Reduce friction for private cloud hosting.
 
 Features:
+
 - SSH installer
 - existing VPS setup flow
 - later provider integrations
 
 Exit criteria:
+
 - user can configure an existing VPS with guided setup
 - provider API integration remains optional
 - official cloud is not required
-
-
-Goal:
-Create a blank runnable Godot project.
-
-Must not:
-- implement map
-- implement units
-- implement AI
-- introduce gameplay state
-
-Validation:
-- project opens/runs
-- no external dependencies
-
-## Phase 1.1 — Domain Hex Coordinates
-
-Goal:
-Implement the smallest domain representation of hex coordinates and neighbor queries.
-
-Must not:
-- render map yet
-- implement pathfinding
-- implement units
-
-Validation:
-- coordinate neighbor tests pass
-- coordinate system is documented
-
-## Phase 1.2 — Domain Map Model
-
-Goal:
-Represent a tiny fixed map in domain state.
-
-Must not:
-- procedural generation
-- resources
-- fog of war
-
-Validation:
-- map has known size
-- terrain can be queried by coordinate
-
-## Phase 1.3 — Render Map From Domain State
-
-Goal:
-Render the domain map in Godot.
-
-Must not:
-- let rendered tiles own map truth
-- implement movement
-
-Validation:
-- rendered tiles match domain map
-- coordinate labels optional but useful
-
-## Phase 1.4 — Unit Domain Model
-
-Goal:
-Add one or more units to domain state.
-
-Must not:
-- animate movement yet
-- implement combat
-- implement production
-
-Validation:
-- unit has owner, id, and hex coordinate
-- renderer displays unit from domain state
-
-## Phase 1.5 — Selection and Legal Movement Query
-
-Goal:
-Allow selecting a unit and querying legal movement.
-
-Must not:
-- move unit yet
-- implement pathfinding beyond adjacent/simple range
-
-Validation:
-- selected unit is clear
-- legal destinations come from rules/query layer
-
-## Phase 1.6 — MoveUnit Action
-
-Goal:
-Implement structured MoveUnit action, validation, and application.
-
-Must not:
-- let UI directly mutate unit coordinates
-- implement AI movement yet
-
-Validation:
-- legal move succeeds
-- illegal move is rejected
-- action log records structured MoveUnit
-
-## Phase 1.7 — EndTurn Action / Turn Controller
-
-Goal:
-Implement turn advancement.
-
-Must not:
-- implement diplomacy
-- implement production
-- implement cloud
-
-Validation:
-- current player changes
-- actions are only accepted for current player
-
-## Phase 1.8 — RuleBasedAIPlayer
-
-Goal:
-Implement simple AI that chooses from legal actions.
-
-Must not:
-- introduce LLM
-- bypass validation
-- add strategic planner yet
-
-Validation:
-- AI receives legal actions
-- AI selects one or more
-- validator still checks them
-- AI ends turn
-
-## Phase 1.9 — Minimal Replay/Debug Action Log
-
-Goal:
-Make the action sequence inspectable and replay-oriented.
-
-Must not:
-- build full save/load UI
-- build backend persistence
-
-Validation:
-- log contains structured action entries
-- log can be printed/exported for debugging
-

@@ -1,9 +1,3 @@
-
----
-
-# `docs/CLOUD_PLAY.md`
-
-```markdown
 # Empire of Minds — Cloud Play Strategy
 
 ## Vision
@@ -44,4 +38,6 @@ Godot Client
   -> Backend
   -> PostgreSQL
   -> Worker for AI turns / notifications
-  
+```
+
+Alignment with [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md): in cloud mode, the server owns canonical state; clients submit candidate actions; validation and application happen server-side. Phase 1 remains local-only; concrete backend work is deferred to the phase where it is in scope ([PHASE_PLAN.md](PHASE_PLAN.md)).

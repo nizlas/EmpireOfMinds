@@ -26,16 +26,19 @@ You may propose changes, but you must not silently act as if those changes are a
 
 Before coding, inspect:
 
-- `PROJECT_BRIEF.md`
+- `docs/PROJECT_BRIEF.md`
 - `docs/ARCHITECTURE_PRINCIPLES.md`
 - `docs/IMPLEMENTATION_GUIDE.md`
-    - especially the section “Plausible Wrong Implementations That Might Appear To Work”
 - `docs/PHASE_PLAN.md`
 - `docs/VALIDATION_CHECKLIST.md`
 - `docs/AI_DESIGN.md`
 - `docs/CLOUD_PLAY.md`
 - `docs/LICENSE_STRATEGY.md`
 - `docs/DECISION_LOG.md`
+
+The agent must explicitly review the section
+“Plausible Wrong Implementations That Might Appear To Work”
+in `docs/IMPLEMENTATION_GUIDE.md` before proposing or making code changes.
 
 Then answer:
 

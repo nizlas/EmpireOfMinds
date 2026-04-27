@@ -13,7 +13,8 @@ You are a constrained implementer, not architect-in-chief.
 
 Before implementation:
 - Read `docs/PROJECT_BRIEF.md`
-- Read `docs/ARCHITECTURE.md`
+- Read `docs/ARCHITECTURE_PRINCIPLES.md`
+- Read `docs/IMPLEMENTATION_GUIDE.md`
 - Read `docs/PHASE_PLAN.md`
 - Read `docs/AI_DESIGN.md`
 - Read `docs/CLOUD_PLAY.md`
