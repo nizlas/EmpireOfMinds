@@ -52,3 +52,14 @@ Rationale:
 
 Caveat:
 C# may be reconsidered later only with an explicit steering decision to accept the .NET dependency.
+
+## 2026-04-27 — Axial hex coordinates (Phase 1.1)
+
+Decision:
+Phase 1.1 uses axial (q, r) hex coordinates in the domain layer; cube conversion is deferred; distance-style helpers are deferred until a later phase needs them.
+
+Rationale:
+- Minimal representation, simple neighbor lookup, orientation-neutral at the domain layer, and compatible with later cube math for distance, line, and range.
+
+Caveat:
+Later phases may add `to_cube()`, `distance()`, or range helpers when movement or other rules need them; the steering documents should be updated when that happens.
