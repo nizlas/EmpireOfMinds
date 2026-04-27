@@ -41,3 +41,14 @@ Rationale:
 
 Caveat:
 Server-authoritative architecture must be preserved for future cloud mode.
+
+## 2026-04-27 — Scripting language for Godot (Phase 1.x)
+
+Decision:
+Phase 1.x uses Godot 4.x with GDScript as the default scripting language; C# is deferred to avoid introducing a .NET dependency during early prototyping.
+
+Rationale:
+- GDScript ships with Godot; no separate .NET SDK or Mono build required on the machine or in the repo for contributors to open and run the project.
+
+Caveat:
+C# may be reconsidered later only with an explicit steering decision to accept the .NET dependency.
