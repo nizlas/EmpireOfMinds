@@ -27,6 +27,14 @@ func terrain_at(coord: _HexCoordT) -> int:
 func size() -> int:
 	return _cells.size()
 
+## All hex coordinates in this map. Public API is HexCoord only; internal keys remain Vector2i. Iteration order is unspecified; do not rely on order unless a future phase documents it.
+func coords() -> Array:
+	var out: Array = []
+	for k in _cells:
+		var vi: Vector2i = k
+		out.append(_HexCoordT.new(vi.x, vi.y))
+	return out
+
 static func make_tiny_test_map():
 	# 7 cells: center and six neighbors; one WATER tile. Canonical fixture for tests and later phases.
 	var c := {

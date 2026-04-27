@@ -31,6 +31,24 @@ func _init() -> void:
 		m.has(a) and m.has(b),
 		"has() should be true for two separately constructed HexCoord(0,0) (value keys, not object identity)"
 	)
+	# coords() read-only iteration for presentation and rules; ordering unspecified.
+	var cl = m.coords()
+	_check(cl.size() == 7, "coords() should return 7 entries for the tiny test map")
+	for c in cl:
+		_check(
+			c is HexCoordScript,
+			"coords() entries should be HexCoord instances, not raw Vector2i"
+		)
+		_check(m.has(c), "every coord from coords() should satisfy has(coord)")
+	var has00 := false
+	var hasW := false
+	for c in cl:
+		if c is HexCoordScript and c.equals(HexCoordScript.new(0, 0)):
+			has00 = true
+		if c is HexCoordScript and c.equals(HexCoordScript.new(-1, 0)):
+			hasW = true
+	_check(has00, "coords() should include (0, 0)")
+	_check(hasW, "coords() should include (-1, 0) (W water tile)")
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

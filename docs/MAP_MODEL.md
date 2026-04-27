@@ -33,6 +33,7 @@ Direction names in the table are **labels** for axial neighbors; see [HEX_COORDI
 - `has(HexCoord)` — whether the coordinate is on the map.
 - `terrain_at(HexCoord)` — terrain tag; **only valid** when `has` is true (asserts otherwise).
 - `size()` — number of cells.
+- `coords()` — read-only list of all cells as `HexCoord` instances. Does not expose `Vector2i` keys. **Order is unspecified** in Phase 1.2; a future phase may document deterministic ordering if required (e.g. for replay or UI).
 - `make_tiny_test_map()` — static factory for the table above.
 
 ## Layer boundary

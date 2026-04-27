@@ -76,3 +76,14 @@ Rationale:
 
 Caveat:
 Later phases will likely introduce a `Cell` or richer `Terrain` model (costs, ownership, etc.); that will require an explicit steering update before implementation.
+
+## 2026-04-27 — HexMap.read_coords (Phase 1.2 follow-up for Phase 1.3)
+
+Decision:
+`HexMap` adds **`coords()`** — a read-only list of all occupied cells as `HexCoord` instances, without exposing the internal `Vector2i` dictionary keys. **Iteration order is unspecified** in Phase 1.2.
+
+Rationale:
+Presentation (e.g. rendering) must **derive** what to draw from domain state, not hand-duplicate a coordinate list. `coords()` gives a single source of truth for “which cells exist” without mutating the map or returning raw storage types.
+
+Caveat:
+If a future system needs a stable order (e.g. deterministic serialisation), the steering documents and API must be updated to specify it.
