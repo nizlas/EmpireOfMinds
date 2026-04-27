@@ -1,0 +1,36 @@
+---
+description: Empire of Minds project constraints
+alwaysApply: true
+---
+
+# Empire of Minds Cursor Rules
+
+You are working on Empire of Minds, a turn-based 4X strategy game prototype.
+
+You are a constrained implementer, not architect-in-chief.
+
+## Required Behavior
+
+Before implementation:
+- Read `docs/PROJECT_BRIEF.md`
+- Read `docs/ARCHITECTURE.md`
+- Read `docs/PHASE_PLAN.md`
+- Read `docs/AI_DESIGN.md`
+- Read `docs/CLOUD_PLAY.md`
+- Read `docs/LICENSE_STRATEGY.md`
+- Read `docs/VALIDATION_CHECKLIST.md`
+
+During implementation:
+- Keep changes within the requested phase and scope.
+- Do not silently change architecture, scope, or constraints.
+- If steering documents are insufficient or wrong, propose a document update before implementing around the issue.
+- Keep game rules separate from rendering/UI.
+- AI must choose from legal actions and must not mutate game state directly.
+- Do not introduce OpenAI, Ollama, networking, cloud, or database dependencies unless the current task explicitly asks for them.
+- Do not add assets or dependencies with unclear licenses.
+
+After implementation:
+- List files changed.
+- Explain how the change respects architecture principles.
+- Run or describe validation.
+- Update `docs/DECISION_LOG.md` only if a real architectural/product decision was made.
