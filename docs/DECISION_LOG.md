@@ -63,3 +63,16 @@ Rationale:
 
 Caveat:
 Later phases may add `to_cube()`, `distance()`, or range helpers when movement or other rules need them; the steering documents should be updated when that happens.
+
+## 2026-04-27 — Domain map model (Phase 1.2)
+
+Decision:
+Phase 1.2 introduces **`HexMap`**: a finite set of cells stored as `Dictionary[Vector2i -> int]`, with **public queries taking `HexCoord`**. `Terrain` is a minimal inline enum (`PLAINS`, `WATER`) with no gameplay effects in 1.2. A single canonical 7-hex test map is provided by the static `HexMap.make_tiny_test_map()`.
+
+Rationale:
+- `Vector2i` keys are value-based and work correctly with `has()`; `HexCoord` remains the domain identity at the API.
+- Two terrain values are enough to exercise `terrain_at` without pre-committing to a full 4X terrain taxonomy.
+- One factory method keeps the fixture consistent for later rendering and rules phases.
+
+Caveat:
+Later phases will likely introduce a `Cell` or richer `Terrain` model (costs, ownership, etc.); that will require an explicit steering update before implementation.
