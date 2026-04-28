@@ -42,3 +42,9 @@ func _ready() -> void:
 	end_turn_controller.selection_view = selection_view
 	end_turn_controller.units_view = units_view
 	end_turn_controller.turn_label = turn_label
+	var ai_turn_controller = $AITurnController
+	ai_turn_controller.game_state = game_state
+	ai_turn_controller.selection = selection
+	ai_turn_controller.selection_view = selection_view
+	ai_turn_controller.units_view = units_view
+	ai_turn_controller.turn_label = turn_label

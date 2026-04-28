@@ -12,7 +12,15 @@ intent
   -> presentation reflects new Scenario
 ```
 
-**Phase 1.6** introduces **`move_unit`**, **`GameState`**, and **`ActionLog`**. **Phase 1.7** adds **`TurnState`**, **`end_turn`**, and a **common current-player gate** in **`GameState.try_apply`** (see [TURNS.md](TURNS.md)).
+**Phase 1.6** introduces **`move_unit`**, **`GameState`**, and **`ActionLog`**. **Phase 1.7** adds **`TurnState`**, **`end_turn`**, and a **common current-player gate** in **`GameState.try_apply`** (see [TURNS.md](TURNS.md)). **Phase 1.8** adds **legal-action enumeration** for the current player (see below, [AI_LAYER.md](AI_LAYER.md)).
+
+## Legal action enumeration (Phase 1.8)
+
+**`LegalActions.for_current_player(game_state) -> Array`** in [legal_actions.gd](../game/domain/legal_actions.gd) returns a **deterministically ordered** list of action **`Dictionary`** values: every **`MoveUnit.make(...)`** that is legal for **`game_state.scenario`** under **`MovementRules.legal_destinations`** for each **current-player** unit, followed by exactly one **`EndTurn.make(current_player_id)`**. Returns **`[]`** if **`game_state`** is **`null`**.
+
+Enumeration is a **read-only query**: it does not mutate **`GameState`**. **AI and debug UI** pick one entry from this list (or pass it to **`RuleBasedAIPlayer.decide`**) and still submit only through **`GameState.try_apply`**, so validation and logging remain centralized.
+
+**Phase 1.8b:** AI turn length is gated only in the AI layer by **`RuleBasedAIPolicy.has_actor_moved_this_turn`** ([rule_based_ai_policy.gd](../game/ai/rule_based_ai_policy.gd)): **`RuleBasedAIPlayer.decide`** may return **`EndTurn`** after the current player has already logged an accepted **`move_unit`** since the last **`end_turn`** in **`ActionLog`**. **`try_apply`**, **`LegalActions`**, and action **schemas** are unchanged (see [AI_LAYER.md](AI_LAYER.md)).
 
 ## MoveUnit schema (Dictionary)
 
@@ -91,14 +99,14 @@ On **accept**: updates **`scenario`** and/or **`turn_state`**, appends **deep-co
 
 ## Presentation boundary
 
-- **[selection_controller.gd](../game/presentation/selection_controller.gd)** submits **`MoveUnit`** via **`try_apply`** on **left-click**. **[end_turn_controller.gd](../game/presentation/end_turn_controller.gd)** submits **`EndTurn`** on **Space**. Neither assigns **`unit.position`** or re-builds **`Scenario`** outside **`try_apply`**.
+- **[selection_controller.gd](../game/presentation/selection_controller.gd)** submits **`MoveUnit`** via **`try_apply`** on **left-click**. **[end_turn_controller.gd](../game/presentation/end_turn_controller.gd)** submits **`EndTurn`** on **Space**. **[ai_turn_controller.gd](../game/presentation/ai_turn_controller.gd)** drives **one** **`try_apply`** per **`A`** key press using **`LegalActions`** + **`RuleBasedAIPlayer.decide`**. None assign **`unit.position`** or re-build **`Scenario`** outside **`try_apply`**.
 - After an **accepted** **`MoveUnit`**, **`SelectionController`** re-points **`selection_view.scenario`**, **`units_view.scenario`**, and its optional **`scenario`** mirror to **`game_state.scenario`**, **clears selection**, **`queue_redraw()`**, and **`turn_label.refresh()`** when **`turn_label`** is wired.
 - After an **accepted** **`EndTurn`**, **`EndTurnController`** **clears selection**, re-points **`selection_view` / `units_view`**, **`queue_redraw()`**, **`turn_label.refresh()`**.
 
 ## Explicitly deferred
 
 - Turn **phases** (movement vs production), **lobby / seating**, **async** turn submission.
-- **AI** choosing actions — Phase 1.8+ (still must call **`try_apply`**).
+- Broader **AI** (LLM, planners, multi-action plans per turn, auto-run) — later phases; every submitted action still uses **`try_apply`**.
 - **Save/load**, JSON/binary serialization, network transport — later phases.
 - **Animation** of movement; units **teleport** in Phase 1.6.
 - **Combat, production, cities**, multi-hex pathfinding, movement points, stacking rules.

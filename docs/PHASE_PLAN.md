@@ -215,10 +215,26 @@ Must not:
 
 Validation:
 
-- AI receives legal actions
-- AI selects one or more
-- validator still checks them
-- AI ends turn
+- **`LegalActions`**, **`RuleBasedAIPlayer`**, **`AITurnController`**, and headless tests as documented in [AI_LAYER.md](AI_LAYER.md).
+- Run **`.\scripts\run-godot-tests.ps1`**: every test listed there must **`PASS`**; runner exits **0** (do not rely on **`godot`** on **`PATH`** alone).
+- **Editor (F5):** AI **`KEY_A`** walkthrough per [AI_LAYER.md](AI_LAYER.md). Mouse and **Space** unchanged.
+
+## Phase 1.8b — Deterministic AI turn policy (one move per turn)
+
+Goal:
+Make the rule-based AI complete a turn deterministically without indefinite **`MoveUnit`** chains on the canonical map.
+
+Must not:
+
+- change **`LegalActions`**, **`GameState.try_apply`**, action schemas, **`AITurnController`**, or add **`_process`** / automation
+- introduce movement points, global mutable AI state, or LLM
+
+Validation:
+
+- **`RuleBasedAIPolicy.has_actor_moved_this_turn`** derives from **`ActionLog`** only (**newest-first** scan; **`end_turn`** boundary).
+- **`RuleBasedAIPlayer.decide`** consults the policy; one **`KEY_A`** press still applies **one** action.
+- **`test_rule_based_ai_policy`**, extended **`test_rule_based_ai_player`**, and **`test_ai_turn_flow`** (no manual **`EndTurn`** fallback; **`MAX_AI_STEPS`** guard; exact **`move_unit`** / **`end_turn`** counts) pass.
+- Run **`.\scripts\run-godot-tests.ps1`**: every test in the runner **`PASS`**; exit **0**.
 
 ## Phase 1.9 — Minimal Replay/Debug Action Log
 
