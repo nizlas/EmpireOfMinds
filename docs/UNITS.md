@@ -33,11 +33,15 @@ The static factory **`Scenario.make_tiny_test_scenario()`** builds a scenario on
 - All unit positions are on **PLAINS** hexes: `(0,0)`, `(1,0)`, and `(0,-1)`.
 - The **WATER** hex at **`(-1,0)`** is **intentionally empty** (no unit there) so water vs land placement stays obvious in tests and docs.
 
+## Presentation note (Phase 1.4b)
+
+Simple **unit markers** (drawn circles, placeholder owner colors) are implemented in [game/presentation/units_view.gd](../game/presentation/units_view.gd) as a **read-only, derived** view of `Scenario.units()`. This is not gameplay state and does not add rules.
+
 ## Explicitly deferred
 
 The following are **out of scope** for Phase 1.4 and must not be assumed from the current types:
 
-- Rendering of units (sprites, labels, health bars)
+- Sprite, label, and health-bar **rendering** of units
 - Selection and highlighting
 - Movement, pathfinding, and actions
 - Turn state, phases, and action points
@@ -45,5 +49,5 @@ The following are **out of scope** for Phase 1.4 and must not be assumed from th
 - Combat resolution
 - Save/load
 - Ownership transfer, renaming, and rich `Player` modeling
-- Owner color palette
+- A final **owner color palette** (placeholders in presentation only for 1.4b)
 - Stacking, zone of control, and similar tactical rules

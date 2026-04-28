@@ -132,6 +132,22 @@ Validation:
 - unit has owner, id, and hex coordinate
 - renderer displays unit from domain state
 
+## Phase 1.4b — Render Unit Markers
+
+Goal:
+Render simple markers for units that exist in domain state.
+
+Must not:
+
+- implement selection, movement, or input
+- implement animation, sprites, or an art/asset pipeline
+- make rendered markers the source of truth for unit positions (markers must derive from `Scenario.units()`)
+
+Validation:
+
+- the renderer shows markers **derived from** `Scenario.units()`; the map (terrain) remains the same as Phase 1.3 visually aside from the added markers
+- unit identity and position remain in domain; markers are a derived view only
+
 ## Phase 1.5 — Selection and Legal Movement Query
 
 Goal:

@@ -35,3 +35,9 @@ This is not final art, branding, or a committed palette for release.
 - **Animation** (`Tween` / `AnimationPlayer`) for map cells.
 - **Theme**, custom **fonts** (other than default).
 - Shipped **art** and a **final** terrain palette and accessibility contrast review.
+
+## Phase 1.4b — Unit markers
+
+- **[UnitsView](../game/presentation/units_view.gd)** is a **sibling** of **MapView** (both are `Node2D` under `Main` in [main.tscn](../game/main.tscn), with **UnitsView** listed after **MapView** so markers are drawn on top of terrain). **[main.gd](../game/main.gd)** creates one **`Scenario.make_tiny_test_scenario()`** and one **`HexLayout`**, then assigns `scenario.map` and `layout` to **MapView** and the same **`scenario`** and **`layout`** to **UnitsView**, so both layers always agree on the map and on axial \((q,r) \to\) world position.
+- **MapView** still derives which hexes to draw and terrain colors from **`HexMap`** (via `coords()` / `terrain_at()`). **UnitsView** derives marker positions, colors, and count **only** from **`Scenario.units()`** through the static **`UnitsView.compute_marker_items(scenario, layout)`** — not from a hand-authored coordinate list. Markers are **simple filled circles** with a thin **`draw_arc` outline**; **owner_id** maps to a **placeholder** warm yellow / red / magenta via **`_owner_to_color`**. Markers are a **derived view**; **`Unit` / `Scenario` remain the source of truth** for which units exist and where.
+- **Not in Phase 1.4b:** input, **selection**, **movement**, **animation**, **sprites**, the warrior asset, **labels**, health bars, an asset pipeline, a final owner palette, or any gameplay rules.
