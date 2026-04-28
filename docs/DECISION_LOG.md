@@ -186,3 +186,14 @@ Makes the **append-only** log visible in the prototype while keeping the action 
 
 Caveat:
 **Structured export**, **filter/search**, **rich replay UI**, and **rejected-action logging** remain **deferred**.
+
+## 2026-04-28 — Long-term phase roadmap clarified (Phases 1–7)
+
+Decision:
+The forward roadmap in [PHASE_PLAN.md](PHASE_PLAN.md) is restructured into **Phases 2–7** (**core 4X loop**, **game content foundation** with **3.0–3.5**, **visual identity / presentation** with **4.0–4.5**, **strategic dynamics**, **Empire of Minds worldbuilding and identity**, **balance / content iteration**). Prior **cloud** milestones (**Async Cloud**, **Private Cloud / Self-Host**, **Server Manager**) are preserved verbatim in a **Deferred — Cloud / Self-Host roadmap** appendix and **[CLOUD_PLAY.md](CLOUD_PLAY.md)** remains canonical cloud steering — decoupled from gameplay numbering so **Phases 2–7** can be refined without renumbering infrastructure.
+
+Rationale:
+Separates **core systems**, **content model**, **visual presentation**, **world identity**, and **balance iteration** to limit **scope bleed** and keep each phase narrow enough to validate per [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md).
+
+Caveat:
+**Phases 2–7** are **roadmap-level**; **Must not** and **Validation** will be refined as **Phase 2** progresses. **Placeholder** rendering may continue in **Phase 2.x / 3.x**; **full visual identity** belongs to **Phase 4**.

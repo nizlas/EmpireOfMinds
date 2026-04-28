@@ -255,49 +255,181 @@ Validation:
 - Run **`.\scripts\run-godot-tests.ps1`**: every test in the runner **`PASS`**; exit **0**.
 - **Editor (F5):** **`LogView`** empty at start; after moves / **Space** / **`A`**, lines append; with more than **`MAX_ENTRIES`** accepts, only the tail is visible.
 
-## Phase 2 — Core Loop
+## Roadmap framing (Phases 2–7)
+
+Phases **2–7** below are **roadmap-level**: goals and boundaries are fixed here, but **Must not** and **Validation** will be refined as **Phase 2** implementation is planned.
+
+**Visual placeholders** (e.g. distinct marker shapes, city markers) may land in **Phase 2.x** or **Phase 3.x** for playability; **full visual identity** (art direction, cohesive shipped-quality presentation) is owned by **Phase 4**.
+
+**Phase 3** establishes **content and rules definitions**, not **final balance** — tuning belongs in **Phase 7**.
+
+This roadmap **separates** core **systems** (Phase 2), **content model** (Phase 3), **presentation / visual identity** (Phase 4), **strategic dynamics** (Phase 5), **worldbuilding and non-Civ identity** (Phase 6), and **balance iteration** (Phase 7) to reduce **scope bleed**.
+
+## Phase 2 — Core 4X loop
 
 Goal:
-Add minimal 4X loop.
+Minimal playable **4X** loop: **cities**, **production**, **founding**, **producing units**, **basic economy**.
 
-Features:
+Features (roadmap):
 
-- city
-- production
-- basic resources
-- basic combat
-- fog of war
-- save/load using snapshot + action log
+- city placement / ownership in domain state
+- founding and production rules (versioned actions where applicable)
+- basic resources feeding production
+- economy small enough to validate headlessly where possible
 
-Exit criteria:
+Must not (roadmap):
 
-- player has a reason to move/expand
-- city can produce something
-- save/load preserves state
-- combat is deterministic or explicitly seeded
-- action schemas are versioned
+- treat this phase alone as **complete** combat, fog of war, diplomacy, or **save/load** — those may follow in later tranches or be steered separately
+- commit to **final** art or **Phase 4** visual identity
 
-## Phase 3 — AI Identity
+Note:
+**Phase 2.x** may include **rendering cities as placeholder markers** (derived from domain; same layering as **`UnitsView`**-style markers). **Full city visuals** belong to **Phase 4.3**.
+
+Validation:
+To be detailed when **Phase 2** is broken into implementable steps; any new automated coverage must keep **`.\scripts\run-godot-tests.ps1`** **PASS** for listed tests.
+
+## Phase 3 — Game content foundation
 
 Goal:
-Make AI behavior interesting.
+**Definitions** and **rules** for units, terrain, city projects, early tech/progress, and a first **faction / world** pass — **data- and domain-shaped**, not shipped balance.
 
-Features:
+Must not (roadmap):
 
-- expansion planner
-- military planner
-- city production priorities
-- leader personality profiles
-- diplomacy skeleton
+- lock **final** numbers (costs, ranges, yields) — reserve tuning for **Phase 7**
+- let presentation work **replace** **Phase 4** ownership of final visual identity
 
-Exit criteria:
+Note:
+**Phase 3.x** may include **rendering unit types distinctly** (e.g. placeholder marker variation by unit type). **Final unit visuals** are **Phase 4.2**.
 
-- AI has inspectable plans
-- different personalities make different choices
-- AI still only chooses legal actions
-- no LLM is required for core gameplay
+### Phase 3.0 — Content model checkpoint
 
-## Phase 4 — Async Cloud
+Goal:
+Align on how **definitions** live in the **domain** (IDs, registries, immutability, versioning) before expanding content surface.
+
+### Phase 3.1 — Unit definitions
+
+Goal:
+**Unit types** (stats, roles, production prerequisites) as **data** + validation, separate from balance polish.
+
+### Phase 3.2 — Terrain rules and movement costs
+
+Goal:
+Terrain affects **movement cost** and **legality** beyond Phase 1 neighbor rules; keep **`MovementRules`** (or successor) as the legality oracle.
+
+### Phase 3.3 — City project definitions
+
+Goal:
+**City projects** / build-queue elements as structured definitions and actions.
+
+### Phase 3.4 — First tech / progress definitions
+
+Goal:
+Minimal **tech** or **civic** **progress** slice: prerequisites and unlocks; full flavor leans on **Phase 6**.
+
+### Phase 3.5 — First faction / world identity pass
+
+Goal:
+Early **faction** or **civ** knobs (traits, start-bias stubs) and **world** parameters — **mechanical** first; narrative depth in **Phase 6**.
+
+Validation:
+To be detailed per subphase; preserve **domain / presentation** split from [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md).
+
+## Phase 4 — Visual identity and presentation foundation
+
+Goal:
+**Art direction** and **presentation** quality: map **readability**, **terrain** and **unit** and **city** reads, **UI** style, **camera** feel, **perspective** experiments (e.g. fake-isometric), **animation** principles.
+
+Must not (roadmap):
+
+- embed **final balance** or new **win conditions** inside art milestones
+- bypass **domain** truth for “looks-only” authoritative game state
+
+Note:
+**Placeholders** from **Phase 2.x** / **Phase 3.x** may remain until replaced here; **Phase 4** owns **coherent visual identity**.
+
+### Phase 4.0 — Visual direction checkpoint
+
+Goal:
+Lock **look-and-feel** pillars (palette, readability, tone) before heavy asset work.
+
+### Phase 4.1 — Terrain visual style
+
+Goal:
+Terrain **readability** and silhouette; beyond flat debug fills.
+
+### Phase 4.2 — Unit visual style
+
+Goal:
+**Sprites** or agreed **markers**, **owner** clarity, hooks for **selection** / **motion**.
+
+### Phase 4.3 — City visual style
+
+Goal:
+Cities **read** at a glance; scale with zoom.
+
+### Phase 4.4 — UI / HUD style
+
+Goal:
+**HUD**, panels, **typography** — consistent with **Phase 6** copy where applicable.
+
+### Phase 4.5 — Camera / perspective / animation pass
+
+Goal:
+**Camera** UX, **perspective** experiments, **motion** principles (no gameplay truth hidden in tween-only client state).
+
+Validation:
+Editor and checklist-driven; headless tests only for **pure** layout/formatting helpers if introduced.
+
+## Phase 5 — Strategic dynamics
+
+Goal:
+**Combat**, **expansion pressure**, **terrain / value** tradeoffs, **production** tradeoffs, **AI priorities** — still **legal-actions**-driven; **no LLM** required for core play.
+
+Features (roadmap):
+
+- deterministic combat resolution path
+- pressure to expand and defend
+- AI **prioritization** over existing **enumeration** / **`GameState.try_apply`** pipeline
+
+Must not (roadmap):
+
+- require **LLM** for core loop
+- mutate rules state outside **`GameState.try_apply`** (or documented server equivalent)
+
+Validation:
+To be detailed; AI must still submit only **validated** actions per [AI_DESIGN.md](AI_DESIGN.md).
+
+## Phase 6 — Empire of Minds worldbuilding and identity
+
+Goal:
+**Lore**, **factions**, **aesthetics**, **naming**, **tech tree flavor**, **UI language**, and **explicit non-Civ** identity — aligned with [PROJECT_BRIEF.md](PROJECT_BRIEF.md) **IP boundary**.
+
+Must not (roadmap):
+
+- copy **Civilization** or other commercial IP (names, visuals, text)
+- use flavor to **override** **domain** rules without a steered schema change
+
+Validation:
+Copy and asset review against **IP** checklist; mechanical content stays versioned.
+
+## Phase 7 — Balance / content iteration
+
+Goal:
+**Costs**, **movement ranges**, **production rates**, **unit roles**, **map tuning**, **AI behavior tuning** — after **Phase 3** foundation exists.
+
+Must not (roadmap):
+
+- rebalance **without** regression tests or documented baselines where feasible
+- blur **Phase 3** “definition” vs **Phase 7** “tuning” without updating this plan
+
+Validation:
+Repeatable scenarios, **`ActionLog`**, and tests for **regressions** where practical.
+
+## Deferred — Cloud / Self-Host roadmap
+
+Canonical steering for asynchronous, server-authoritative play and hosting remains **[CLOUD_PLAY.md](CLOUD_PLAY.md)**. The subsections below preserve the **prior phase-plan forward milestones** for **cloud** work; they are **decoupled** from the **gameplay** numbering **above** so **Phases 2–7** can evolve without **renumbering** infrastructure phases.
+
+### Async Cloud
 
 Goal:
 Server-authoritative asynchronous play.
@@ -320,7 +452,7 @@ Exit criteria:
 - AI turns can be run by worker
 - client never owns canonical cloud state
 
-## Phase 5 — Private Cloud / Self-Host
+### Private Cloud / Self-Host
 
 Goal:
 Make self-hosting practical.
@@ -341,7 +473,7 @@ Exit criteria:
 - server health check works
 - backup/export path exists
 
-## Phase 6 — Server Manager
+### Server Manager
 
 Goal:
 Reduce friction for private cloud hosting.
