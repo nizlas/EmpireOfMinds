@@ -55,7 +55,7 @@ Built with **`MoveUnit.make(actor_id, unit_id, from_q, from_r, to_q, to_r)`** in
 **`MoveUnit.apply(scenario, action)`** may run only when **`validate`** returned **`ok`**.
 
 - **Does not** mutate the input **`Unit`** or **`Scenario`**.
-- Builds a **new** **`Unit`** for the moved id with the new **`HexCoord`**, copies other unit references from **`scenario.units()`**, and returns **`Scenario.new(scenario.map, new_units)`**.
+- Builds a **new** **`Unit`** for the moved id with the new **`HexCoord`**, copies other unit references from **`scenario.units()`**, and returns **`Scenario.new(...)`** passing forward **`scenario.map`**, **`new_units`**, **`scenario.cities()`**, **`scenario.peek_next_unit_id()`**, and **`scenario.peek_next_city_id()`** (see [CITIES.md](CITIES.md)) — **no** city or counter recomputation from remaining entities in **`apply`**.
 
 ## EndTurn schema (Phase 1.7)
 

@@ -197,3 +197,25 @@ Separates **core systems**, **content model**, **visual presentation**, **world 
 
 Caveat:
 **Phases 2–7** are **roadmap-level**; **Must not** and **Validation** will be refined as **Phase 2** progresses. **Placeholder** rendering may continue in **Phase 2.x / 3.x**; **full visual identity** belongs to **Phase 4**.
+
+## 2026-04-28 — City domain + CitiesView (Phase 2.1)
+
+Decision:
+**Phase 2.1** adds **`City`** ([city.gd](../game/domain/city.gd)), extends **`Scenario`** ([scenario.gd](../game/domain/scenario.gd)) with **`cities()`**, **`city_by_id`**, **`cities_at`**, **`cities_owned_by`**, and **replay-safe** **`peek_next_unit_id()` / `peek_next_city_id()`** with **`Scenario.new(map, units)`** backward compatibility and **auto** counters from listed entities when not explicit. **`CitiesView`** ([cities_view.gd](../game/presentation/cities_view.gd)) provides **`compute_marker_items`** placeholder diamonds; [main.tscn](../game/main.tscn) draw order is **MapView → CitiesView → SelectionView → UnitsView**. **No** new actions, **no** **`GameState.try_apply`** changes; **`make_tiny_test_scenario()`** stays city-free.
+
+Rationale:
+Establishes cities in the **immutable domain bundle** before **FoundCity**; counters default safely for **two-arg** **`Scenario.new`** while allowing explicit pass-forward for future consumption/removal. Presentation stays **derived-only**.
+
+Caveat:
+**`main.gd`** does not re-point **`CitiesView`** after moves; acceptable while the canonical loop has **zero** cities.
+
+## 2026-04-28 — Scenario pass-forward hardening (Phase 2.2a)
+
+Decision:
+**`MoveUnit.apply`** now returns **`Scenario.new(map, new_units, cities, peek_next_unit_id, peek_next_city_id)`** read from the input **`Scenario`**, so **cities** and **replay-safe counters** are not dropped on move.
+
+Rationale:
+Prevents silent loss of city state and **id** monotonicity before **`FoundCity`** and production; **`apply`** still replaces only the moved **`Unit`** and allocates **no** new ids inside **`apply`**.
+
+Caveat:
+Every **future** domain path that constructs a **`Scenario`** from a prior snapshot must **explicitly** pass **`cities`** and **`peek_*`** values (or deliberately document a reset); see [CITIES.md](CITIES.md).

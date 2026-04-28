@@ -48,6 +48,7 @@ $Tests = @(
 	"res://domain/tests/test_scenario.gd",
 	"res://domain/tests/test_movement_rules.gd",
 	"res://domain/tests/test_move_unit.gd",
+	"res://domain/tests/test_move_unit_preserves_scenario_state.gd",
 	"res://domain/tests/test_action_log.gd",
 	"res://domain/tests/test_game_state.gd",
 	"res://domain/tests/test_turn_state.gd",
@@ -62,7 +63,10 @@ $Tests = @(
 	"res://ai/tests/test_rule_based_ai_player.gd",
 	"res://ai/tests/test_rule_based_ai_policy.gd",
 	"res://ai/tests/test_ai_turn_flow.gd",
-	"res://presentation/tests/test_log_view.gd"
+	"res://presentation/tests/test_log_view.gd",
+	"res://domain/tests/test_city.gd",
+	"res://domain/tests/test_scenario_cities.gd",
+	"res://presentation/tests/test_cities_view_draw.gd"
 )
 
 if (-not (Test-Path -LiteralPath $GamePath)) {

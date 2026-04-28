@@ -1,7 +1,8 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Script" path="res://presentation/map_view.gd" id="2_mapview"]
+[ext_resource type="Script" path="res://presentation/cities_view.gd" id="10_citiesview"]
 [ext_resource type="Script" path="res://presentation/selection_view.gd" id="3_selectionview"]
 [ext_resource type="Script" path="res://presentation/units_view.gd" id="4_unitsview"]
 [ext_resource type="Script" path="res://presentation/selection_controller.gd" id="5_selectioncontroller"]
@@ -24,6 +25,10 @@ script = ExtResource("6_turnlabel")
 [node name="MapView" type="Node2D" parent="."]
 position = Vector2(400, 300)
 script = ExtResource("2_mapview")
+
+[node name="CitiesView" type="Node2D" parent="."]
+position = Vector2(400, 300)
+script = ExtResource("10_citiesview")
 
 [node name="SelectionView" type="Node2D" parent="."]
 position = Vector2(400, 300)

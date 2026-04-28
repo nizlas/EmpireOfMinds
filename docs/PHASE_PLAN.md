@@ -285,8 +285,21 @@ Must not (roadmap):
 Note:
 **Phase 2.x** may include **rendering cities as placeholder markers** (derived from domain; same layering as **`UnitsView`**-style markers). **Full city visuals** belong to **Phase 4.3**.
 
+### Phase 2.1 — City domain model and placeholder rendering (implemented)
+
+Goal:
+Immutable **`City`** type, **`Scenario.cities`**, replay-safe **`peek_next_unit_id` / `peek_next_city_id`**, and **`CitiesView`** placeholder markers. No actions, no **`try_apply`** changes.
+
+Must not:
+
+- add **`FoundCity`**, production, or economy rules
+- mutate domain from presentation; **`CitiesView`** is derived-only
+
 Validation:
-To be detailed when **Phase 2** is broken into implementable steps; any new automated coverage must keep **`.\scripts\run-godot-tests.ps1`** **PASS** for listed tests.
+
+- Headless: **`test_city`**, **`test_scenario_cities`**, **`test_cities_view_draw`** (see [CITIES.md](CITIES.md), [RENDERING.md](RENDERING.md)).
+- Run **`.\scripts\run-godot-tests.ps1`**: every test **`PASS`**; exit **0**.
+- **Editor (F5):** canonical scenario shows **no** city markers; **`CitiesView`** is wired. **Map / selection / units / AI** unchanged.
 
 ## Phase 3 — Game content foundation
 

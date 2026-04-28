@@ -91,4 +91,10 @@ static func apply(a_scenario, action):
 		else:
 			new_units.append(u)
 		i = i + 1
-	return ScenarioScript.new(a_scenario.map, new_units)
+	return ScenarioScript.new(
+		a_scenario.map,
+		new_units,
+		a_scenario.cities(),
+		a_scenario.peek_next_unit_id(),
+		a_scenario.peek_next_city_id()
+	)

@@ -16,6 +16,10 @@ func _ready() -> void:
 	map_view.map = scenario.map
 	map_view.layout = layout
 	map_view.queue_redraw()
+	var cities_view = $CitiesView
+	cities_view.scenario = scenario
+	cities_view.layout = layout
+	cities_view.queue_redraw()
 	var units_view = $UnitsView
 	units_view.scenario = scenario
 	units_view.layout = layout
