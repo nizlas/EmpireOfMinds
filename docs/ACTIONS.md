@@ -97,6 +97,8 @@ On **accept**: updates **`scenario`** and/or **`turn_state`**, appends **deep-co
 
 **Rejected** moves are **not** logged (return reason only); rejection logging / replay of failures is deferred.
 
+**Phase 1.9:** presentation **`LogView`** ([log_view.gd](../game/presentation/log_view.gd)) surfaces **`ActionLog`** **read-only** (tail of accepted entries, explicit **`refresh()`** from input controllers). **`ActionLog`** append semantics, schemas, and **`GameState.try_apply`** behavior are **unchanged**.
+
 ## Presentation boundary
 
 - **[selection_controller.gd](../game/presentation/selection_controller.gd)** submits **`MoveUnit`** via **`try_apply`** on **left-click**. **[end_turn_controller.gd](../game/presentation/end_turn_controller.gd)** submits **`EndTurn`** on **Space**. **[ai_turn_controller.gd](../game/presentation/ai_turn_controller.gd)** drives **one** **`try_apply`** per **`A`** key press using **`LegalActions`** + **`RuleBasedAIPlayer.decide`**. None assign **`unit.position`** or re-build **`Scenario`** outside **`try_apply`**.

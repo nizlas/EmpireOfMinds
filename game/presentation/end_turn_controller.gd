@@ -12,6 +12,7 @@ var selection
 var selection_view
 var units_view
 var turn_label
+var log_view
 
 func _unhandled_input(event: InputEvent) -> void:
 	assert(GameStateScript != null)
@@ -37,5 +38,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				selection_view.queue_redraw()
 				units_view.queue_redraw()
 				turn_label.refresh()
+				if log_view != null:
+					log_view.refresh()
 			else:
 				push_warning("EndTurn rejected: %s" % result["reason"])

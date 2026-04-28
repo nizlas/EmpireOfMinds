@@ -61,7 +61,8 @@ $Tests = @(
 	"res://domain/tests/test_legal_actions.gd",
 	"res://ai/tests/test_rule_based_ai_player.gd",
 	"res://ai/tests/test_rule_based_ai_policy.gd",
-	"res://ai/tests/test_ai_turn_flow.gd"
+	"res://ai/tests/test_ai_turn_flow.gd",
+	"res://presentation/tests/test_log_view.gd"
 )
 
 if (-not (Test-Path -LiteralPath $GamePath)) {

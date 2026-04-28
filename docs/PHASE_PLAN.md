@@ -236,20 +236,24 @@ Validation:
 - **`test_rule_based_ai_policy`**, extended **`test_rule_based_ai_player`**, and **`test_ai_turn_flow`** (no manual **`EndTurn`** fallback; **`MAX_AI_STEPS`** guard; exact **`move_unit`** / **`end_turn`** counts) pass.
 - Run **`.\scripts\run-godot-tests.ps1`**: every test in the runner **`PASS`**; exit **0**.
 
-## Phase 1.9 — Minimal Replay/Debug Action Log
+## Phase 1.9 — Action log debug surfacing (read-only)
 
 Goal:
-Make the action sequence inspectable and replay-oriented.
+Expose the **accepted** **`ActionLog`** in the local prototype for debugging (not replay execution).
 
 Must not:
 
-- build full save/load UI
-- build backend persistence
+- replay, undo, or redo actions from the UI
+- mutate **`ActionLog`** or action schemas from presentation
+- add **`ActionLog`** APIs beyond existing **`size()`** / **`get_entry`**
+- poll or automate refresh (**no** **`_process`** on **`LogView`**)
 
 Validation:
 
-- log contains structured action entries
-- log can be printed/exported for debugging
+- **`LogView`** ([log_view.gd](../game/presentation/log_view.gd)): **`Label`**, last **`N`** entries (**`MAX_ENTRIES` = 10**), newest at bottom, **`compute_text`** / **`format_entry`** covered by [test_log_view.gd](../game/presentation/tests/test_log_view.gd).
+- **`SelectionController`**, **`EndTurnController`**, **`AITurnController`**: **`log_view.refresh()`** after each **accepted** action (**`log_view`** optional / null-safe).
+- Run **`.\scripts\run-godot-tests.ps1`**: every test in the runner **`PASS`**; exit **0**.
+- **Editor (F5):** **`LogView`** empty at start; after moves / **Space** / **`A`**, lines append; with more than **`MAX_ENTRIES`** accepts, only the tail is visible.
 
 ## Phase 2 — Core Loop
 

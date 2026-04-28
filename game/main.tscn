@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Script" path="res://presentation/map_view.gd" id="2_mapview"]
@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://presentation/turn_label.gd" id="6_turnlabel"]
 [ext_resource type="Script" path="res://presentation/end_turn_controller.gd" id="7_endturncontroller"]
 [ext_resource type="Script" path="res://presentation/ai_turn_controller.gd" id="8_aiturncontroller"]
+[ext_resource type="Script" path="res://presentation/log_view.gd" id="9_logview"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -43,3 +44,11 @@ script = ExtResource("7_endturncontroller")
 [node name="AITurnController" type="Node2D" parent="."]
 position = Vector2(0, 0)
 script = ExtResource("8_aiturncontroller")
+
+[node name="LogView" type="Label" parent="."]
+offset_left = 20.0
+offset_top = 480.0
+offset_right = 800.0
+offset_bottom = 720.0
+text = ""
+script = ExtResource("9_logview")
