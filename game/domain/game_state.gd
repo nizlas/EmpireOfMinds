@@ -11,6 +11,7 @@ const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 const TurnStateScript = preload("res://domain/turn_state.gd")
 const ProductionTickScript = preload("res://domain/production_tick.gd")
+const ProductionDeliveryScript = preload("res://domain/production_delivery.gd")
 const _GAME_STATE_SCRIPT = preload("res://domain/game_state.gd")
 
 var scenario
@@ -21,6 +22,16 @@ func _init(initial_scenario) -> void:
 	scenario = initial_scenario
 	log = ActionLogScript.new()
 	turn_state = TurnStateScript.new([0, 1], 0, 1)
+	var init_delivery = ProductionDeliveryScript.deliver_pending_for_player(
+		scenario,
+		turn_state.current_player_id()
+	)
+	scenario = init_delivery["scenario"]
+	var init_ev = init_delivery["events"] as Array
+	var iv = 0
+	while iv < init_ev.size():
+		log.append(init_ev[iv])
+		iv = iv + 1
 
 func try_apply(action) -> Dictionary:
 	if action == null:
@@ -114,6 +125,16 @@ func try_apply(action) -> Dictionary:
 			"result": "accepted",
 		}
 		var e_idx = log.append(e_entry)
+		var delivery_result = ProductionDeliveryScript.deliver_pending_for_player(
+			scenario,
+			turn_state.current_player_id()
+		)
+		scenario = delivery_result["scenario"]
+		var del_ev = delivery_result["events"] as Array
+		var di = 0
+		while di < del_ev.size():
+			log.append(del_ev[di])
+			di = di + 1
 		return {"accepted": true, "reason": "", "index": e_idx}
 	return {"accepted": false, "reason": "unknown_action_type", "index": -1}
 

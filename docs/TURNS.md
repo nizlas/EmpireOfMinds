@@ -4,7 +4,7 @@
 
 **Turn order** and **whose actions are accepted** live in the domain as **`TurnState`** ([turn_state.gd](../game/domain/turn_state.gd)): an immutable snapshot with **`players`** (ordered player ids), **`current_index`**, and **`turn_number`**. Advancement is **`TurnState.advance()`**, which returns a **new** instance (**`current_index`** moves with wrap; **`turn_number`** increments only when the index wraps to **0**).
 
-Session state is **`GameState`** ([game_state.gd](../game/domain/game_state.gd)): **`scenario`**, **`turn_state`**, and **`log`**. Only **`try_apply`** mutates **`GameState`**.
+Session state is **`GameState`** ([game_state.gd](../game/domain/game_state.gd)): **`scenario`**, **`turn_state`**, and **`log`**. **`try_apply`** is the mutation entry for actions; **`GameState._init`** may append **`unit_produced`** when the initial **`Scenario`** has **pending** (**`ready`**) production for the opening current player.
 
 ## EndTurn action
 
@@ -16,9 +16,9 @@ Session state is **`GameState`** ([game_state.gd](../game/domain/game_state.gd))
 
 Accepted **`EndTurn`** entries in **`ActionLog`** include **`turn_number_before`**, **`next_player_id`**, and **`result: "accepted"`** (plus schema, type, **`actor_id`**).
 
-### Production progress (Phase 2.4a, engine)
+### Production tick and delivery (Phase 2.4a–c, engine)
 
-When **`GameState.try_apply`** accepts **`end_turn`**, it first runs **`ProductionTick.apply_for_player(scenario, ending_player_id)`**: each ending-player city with **`current_project != null`** gains **`progress` += 1** (see [production_tick.gd](../game/domain/production_tick.gd), [ACTIONS.md](ACTIONS.md)). **`production_progress`** log entries are appended in **ascending `city.id` order**, **then** the **`end_turn`** entry. **`TurnState`** advances **after** the tick and those log appends.
+When **`GameState.try_apply`** accepts **`end_turn`**, it runs **`ProductionTick.apply_for_player(scenario, ending_player_id)`** (**`production_progress`**, **`0..N`**), then **`EndTurn.apply`**, appends **`end_turn`**, then **`ProductionDelivery.deliver_pending_for_player(scenario, new_current_player)`** (**`unit_produced`**, **`0..M`**) — see [production_tick.gd](../game/domain/production_tick.gd), [production_delivery.gd](../game/domain/production_delivery.gd), [ACTIONS.md](ACTIONS.md).
 
 ## Presentation
 

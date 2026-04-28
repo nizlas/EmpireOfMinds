@@ -107,6 +107,20 @@ func _init() -> void:
 		}
 	)
 	_check(pr_fmt == "[3] P0 production c1 produce_unit 0->1/2", "production_progress format")
+	var up_fmt = LogViewScript.format_entry(
+		{
+			"index": 42,
+			"action_type": "unit_produced",
+			"actor_id": 0,
+			"city_id": 1,
+			"unit_id": 99,
+			"position": [2, -3],
+			"project_type": "produce_unit",
+			"source": "engine",
+			"result": "accepted",
+		}
+	)
+	_check(up_fmt == "[42] P0 produced u99 at (2,-3) from c1", "unit_produced format")
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

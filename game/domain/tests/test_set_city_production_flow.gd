@@ -31,7 +31,7 @@ func _init() -> void:
 	var cty = gs.scenario.city_by_id(1)
 	var pr = cty.current_project as Dictionary
 	_check(
-		pr["project_type"] == "produce_unit" and pr["progress"] == 0 and pr["cost"] == 2,
+		pr["project_type"] == "produce_unit" and pr["progress"] == 0 and pr["cost"] == 2 and pr["ready"] == false,
 		"scenario city project"
 	)
 	_check(gs.scenario.unit_by_id(1) != null, "units preserved")

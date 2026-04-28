@@ -180,7 +180,7 @@ func _init() -> void:
 	_check(c5n != null and c5n.current_project != null, "has project")
 	var pr = c5n.current_project as Dictionary
 	_check(
-		pr["project_type"] == "produce_unit" and pr["progress"] == 0 and pr["cost"] == 2,
+		pr["project_type"] == "produce_unit" and pr["progress"] == 0 and pr["cost"] == 2 and pr["ready"] == false,
 		"produce shape"
 	)
 	_check(new_sc.city_by_id(6) == sc.city_by_id(6), "other city same ref")

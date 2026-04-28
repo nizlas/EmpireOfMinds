@@ -45,6 +45,10 @@ Simple **unit markers** (drawn circles, placeholder owner colors) are implemente
 
 See [SELECTION.md](SELECTION.md) and [MOVEMENT_RULES.md](MOVEMENT_RULES.md).
 
+## Production spawn (Phase 2.4b–c, engine)
+
+When a **`produce_unit`** project is **`ready`** (**`progress` >= `cost`** after a tick), **`ProductionDelivery`** (on **`GameState`** **`end_turn`** after **`TurnState.advance`**, or during **`GameState._init`** if the opening scenario already has **`ready`** work) appends a **`Unit`** with **`unit_id`** from **`peek_next_unit_id()`** at **`city.position`**. The new unit is owned by the **city owner** and appears when **that player** becomes **`current_player_id`**, not during the opponent’s turn. **Multiple** units per hex remain **allowed**. Not a **`ProduceUnit`** player action ([ACTIONS.md](ACTIONS.md)).
+
 ## FoundCity (Phase 2.2b)
 
 **`FoundCity`** **consumes** the founding **unit**: after an **accepted** apply, that **`unit_id`** is **not** in **`Scenario.units()`**. **Phase 2.2b** allows **any** **current-player** unit to found (temporary scaffold); **settler** and **unit-type** eligibility rules are **Phase 3.1** (unit definitions).
@@ -62,4 +66,4 @@ The following are **out of scope** for Phase 1.4 and must not be assumed from th
 - Save/load
 - Ownership transfer, renaming, and rich `Player` modeling
 - A final **owner color palette** (placeholders in presentation only for 1.4b)
-- Stacking, zone of control, and similar tactical rules
+- Stacking **limits**, zone of control, and similar tactical rules (**multiple** units per hex are **allowed** after engine delivery at cities)

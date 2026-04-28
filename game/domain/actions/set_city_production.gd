@@ -70,6 +70,7 @@ static func _make_produce_unit_project() -> Dictionary:
 	new_pr["project_type"] = PROJECT_TYPE_PRODUCE_UNIT
 	new_pr["progress"] = 0
 	new_pr["cost"] = 2
+	new_pr["ready"] = false
 	return new_pr
 
 static func apply(a_scenario, action):

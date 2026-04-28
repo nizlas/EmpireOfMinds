@@ -252,3 +252,25 @@ Keeps **player** **`action_type`** surface unchanged while making **production**
 
 Caveat:
 **`production_progress`** must **not** become a **`try_apply`** action or **`LegalActions`** entry.
+
+## 2026-04-28 — Production completion on EndTurn (Phase 2.4b)
+
+Decision:
+**Phase 2.4b** extends **`ProductionTick.apply_for_player`** ([production_tick.gd](../game/domain/production_tick.gd)) so that when **`progress_after` >= `cost`** and **`project_type`** is **`produce_unit`**, the engine emits **`unit_produced`** immediately after that city’s **`production_progress`**, appends **one** **`Unit`** at **`city.position`**, sets **`current_project`** to **`null`**, increments **`peek_next_unit_id()`** by the number of completions, and leaves **`peek_next_city_id()`** unchanged. **No** overflow carry. **`unit_produced`** is **not** a player action; **`LogView`** formats **`unit_produced`** lines.
+
+Rationale:
+Completes the minimal **produce_unit** loop while keeping **`try_apply`** and **`LegalActions`** surfaces unchanged.
+
+Caveat:
+**No** production queues or **`ProduceUnit`** **player** action; stacking remains **unlimited** on a hex for this phase.
+
+## 2026-04-28 — Pending production delivery (Phase 2.4c)
+
+Decision:
+**Phase 2.4c** splits **completion** from **delivery**: **`ProductionTick`** only increments **`progress`** and sets **`ready: true`** when **`produce_unit`** reaches **`cost`**; **`ProductionDelivery.deliver_pending_for_player`** ([production_delivery.gd](../game/domain/production_delivery.gd)) runs in **`GameState.try_apply`** **after** **`turn_state` advances** and **after** the **`end_turn`** log entry, spawning **Units** and appending **`unit_produced`** for the **incoming** **`current_player_id`**. **`GameState._init`** runs the same delivery for the **opening** current player when the **`Scenario`** already contains **`ready`** projects. There is **no** separate **StartTurn** action.
+
+Rationale:
+Prevents the **opponent** from interacting with **newly completed** production **before** the **owner**’s **next** turn.
+
+Caveat:
+**Replay** / tools that assumed **`unit_produced`** immediately after **`production_progress`** must update to **post-`end_turn`** ordering.

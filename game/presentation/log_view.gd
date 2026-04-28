@@ -8,6 +8,7 @@ const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 const ProductionTickScript = preload("res://domain/production_tick.gd")
+const ProductionDeliveryScript = preload("res://domain/production_delivery.gd")
 
 const MAX_ENTRIES: int = 10
 
@@ -94,6 +95,21 @@ static func format_entry(entry: Dictionary) -> String:
 		if entry.has("cost") and typeof(entry["cost"]) == TYPE_INT:
 			co = entry["cost"]
 		return "[%d] P%d production c%d %s %d->%d/%d" % [idx, actor_id, cid_pr, ptt, pb, pa, co]
+	if at == ProductionDeliveryScript.EVENT_TYPE:
+		var cid_up = 0
+		var uid_up = 0
+		var uq = 0
+		var ur = 0
+		if entry.has("city_id") and typeof(entry["city_id"]) == TYPE_INT:
+			cid_up = entry["city_id"]
+		if entry.has("unit_id") and typeof(entry["unit_id"]) == TYPE_INT:
+			uid_up = entry["unit_id"]
+		if entry.has("position"):
+			var pos_a = entry["position"] as Array
+			if pos_a.size() >= 2:
+				uq = int(pos_a[0])
+				ur = int(pos_a[1])
+		return "[%d] P%d produced u%d at (%d,%d) from c%d" % [idx, actor_id, uid_up, uq, ur, cid_up]
 	return "[%d] P%d %s" % [idx, actor_id, at]
 
 

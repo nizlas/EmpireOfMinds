@@ -346,6 +346,25 @@ Validation:
 
 - **`test_production_tick`**, **`test_end_turn_production_flow`**, **`test_log_view`**, **`test_turn_flow`**, full **`run-godot-tests.ps1`** green.
 
+### Phase 2.4b — Production completion marks ready (implemented; delivery timing superseded by 2.4c)
+
+Goal:
+**`ProductionTick`** sets **`ready: true`** on **`produce_unit`** when **`progress_after` >= `cost`** during the **ending** player’s tick. **Spawning** and **`unit_produced`** were moved to **`ProductionDelivery`** on **turn transition** in **Phase 2.4c** (this block documents the original **2.4b** intent; **immediate** spawn after each **`production_progress`** is **obsolete**).
+
+### Phase 2.4c — Pending production delivery on turn start (implemented)
+
+Goal:
+**`unit_produced`** and **Units** appear **after** **`end_turn`** when **`ProductionDelivery`** runs for the **new** **`current_player_id`**, so the opponent does **not** get a full turn with access to units the owner has not “received” yet. **`GameState._init`** may deliver **`ready`** work for the opening current player. Log order: **`production_progress*` → `end_turn` → `unit_produced*`**.
+
+Must not:
+
+- add **`unit_produced`** as **`try_apply`** type or to **`LegalActions`** / **AI**
+- **`ProduceUnit`** player action
+
+Validation:
+
+- **`test_production_tick`**, **`test_production_delivery`**, **`test_end_turn_production_flow`**, **`test_log_view`**, full **`run-godot-tests.ps1`** green.
+
 ## Phase 3 — Game content foundation
 
 Goal:

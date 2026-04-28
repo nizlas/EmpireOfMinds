@@ -1,4 +1,4 @@
-# Engine-only production progress when a player ends their turn. Not a player action; invoked from GameState end_turn only.
+# Engine-only production progress when a player ends their turn. Marks produce_unit ready; does not spawn units.
 # See docs/ACTIONS.md, docs/CITIES.md, docs/TURNS.md
 class_name ProductionTick
 extends RefCounted
@@ -6,6 +6,7 @@ extends RefCounted
 const SCHEMA_VERSION: int = 1
 const EVENT_TYPE: String = "production_progress"
 const PRODUCTION_PER_TURN: int = 1
+const PRODUCE_UNIT_TYPE: String = "produce_unit"
 
 const ScenarioScript = preload("res://domain/scenario.gd")
 const CityScript = preload("res://domain/city.gd")
@@ -23,13 +24,26 @@ static func _sort_int_ids_asc(ids: Array) -> void:
 		a = a + 1
 
 
+static func _eligible_for_tick(city, owner_id: int) -> bool:
+	if city.owner_id != owner_id:
+		return false
+	if city.current_project == null:
+		return false
+	if typeof(city.current_project) != TYPE_DICTIONARY:
+		return false
+	var pd = city.current_project as Dictionary
+	if bool(pd.get("ready", false)):
+		return false
+	return true
+
+
 static func apply_for_player(a_scenario, owner_id: int) -> Dictionary:
 	var clist = a_scenario.cities()
 	var ids_to_tick: Array = []
 	var hi = 0
 	while hi < clist.size():
 		var hc = clist[hi]
-		if hc.owner_id == owner_id and hc.current_project != null:
+		if _eligible_for_tick(hc, owner_id):
 			ids_to_tick.append(hc.id)
 		hi = hi + 1
 	_sort_int_ids_asc(ids_to_tick)
@@ -37,40 +51,44 @@ static func apply_for_player(a_scenario, owner_id: int) -> Dictionary:
 		return {"scenario": a_scenario, "events": []}
 
 	var events: Array = []
+	var new_project_by_id: Dictionary = {}
 	var ei = 0
 	while ei < ids_to_tick.size():
 		var cid = ids_to_tick[ei] as int
 		var c = a_scenario.city_by_id(cid)
 		var proj_src = c.current_project as Dictionary
-		var proj_for_event = proj_src.duplicate(true)
-		var old_progress = int(proj_for_event["progress"])
+		var project = proj_src.duplicate(true)
+		var old_progress = int(project["progress"])
 		var new_progress = old_progress + PRODUCTION_PER_TURN
-		var cost_v = int(proj_for_event["cost"])
-		var ptype = proj_for_event["project_type"]
-		var ptype_str = str(ptype)
-		var ev: Dictionary = {}
-		ev["schema_version"] = SCHEMA_VERSION
-		ev["action_type"] = EVENT_TYPE
-		ev["actor_id"] = owner_id
-		ev["city_id"] = cid
-		ev["project_type"] = ptype_str
-		ev["progress_before"] = old_progress
-		ev["progress_after"] = new_progress
-		ev["cost"] = cost_v
-		ev["source"] = "engine"
-		ev["result"] = "accepted"
-		events.append(ev)
+		project["progress"] = new_progress
+		var cost_v = int(project["cost"])
+		var ptype_str = str(project["project_type"])
+		if ptype_str == PRODUCE_UNIT_TYPE and new_progress >= cost_v:
+			project["ready"] = true
+		else:
+			project["ready"] = false
+		new_project_by_id[cid] = project
+		var ev_prog: Dictionary = {}
+		ev_prog["schema_version"] = SCHEMA_VERSION
+		ev_prog["action_type"] = EVENT_TYPE
+		ev_prog["actor_id"] = owner_id
+		ev_prog["city_id"] = cid
+		ev_prog["project_type"] = ptype_str
+		ev_prog["progress_before"] = old_progress
+		ev_prog["progress_after"] = new_progress
+		ev_prog["cost"] = cost_v
+		ev_prog["source"] = "engine"
+		ev_prog["result"] = "accepted"
+		events.append(ev_prog)
 		ei = ei + 1
 
 	var new_cities: Array = []
 	var ci = 0
 	while ci < clist.size():
 		var c2 = clist[ci]
-		if c2.owner_id == owner_id and c2.current_project != null:
-			var proj_new = (c2.current_project as Dictionary).duplicate(true)
-			var op = int(proj_new["progress"])
-			proj_new["progress"] = op + PRODUCTION_PER_TURN
-			new_cities.append(CityScript.new(c2.id, c2.owner_id, c2.position, proj_new))
+		if new_project_by_id.has(c2.id):
+			var pr = new_project_by_id[c2.id] as Dictionary
+			new_cities.append(CityScript.new(c2.id, c2.owner_id, c2.position, pr))
 		else:
 			new_cities.append(c2)
 		ci = ci + 1

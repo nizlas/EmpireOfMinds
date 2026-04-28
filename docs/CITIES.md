@@ -7,7 +7,7 @@
 - **`id`**: `int` — unique among cities **within** a **`Scenario`** (enforced at construction).
 - **`owner_id`**: `int` — same convention as **`Unit.owner_id`** (see [UNITS.md](UNITS.md)).
 - **`position`**: **`HexCoord`** — city tile; must be on the map and **not** **`HexMap.Terrain.WATER`**.
-- **`current_project`**: **`null`** **or** a **primitive** **`Dictionary`** — **Phase 2.3+** current build / production state. **`null`** means **no** project. When a **`Dictionary`** is passed to **`City._init`**, the constructor stores **`duplicate(true)`** so later mutation of the caller’s **`Dictionary`** does **not** affect the **`City`**.
+- **`current_project`**: **`null`** **or** a **primitive** **`Dictionary`** — **Phase 2.3+** current build / production state. **`null`** means **no** project. For **`produce_unit`**, the shape includes **`progress`**, **`cost`**, and **`ready`** (**`bool`**, **`false`** until **`progress` >= `cost`** on an **accepted** **`end_turn`** tick, **Phase 2.4c**). When a **`Dictionary`** is passed to **`City._init`**, the constructor stores **`duplicate(true)`** so later mutation of the caller’s **`Dictionary`** does **not** affect the **`City`**.
 
 Cities are **immutable** (no mutators): changes happen only via **`GameState.try_apply`** **player** actions (e.g. **`FoundCity`**, **`SetCityProduction`**) **or** via **engine** steps tied to an accepted **`end_turn`** (Phase **2.4a** **`production_progress`**, see [ACTIONS.md](ACTIONS.md)) that return a **new** **`Scenario`**.
 
@@ -40,21 +40,21 @@ The canonical **`make_tiny_test_scenario()`** fixture has **no cities** in Phase
 
 ## Phase 2.3 — `current_project` and SetCityProduction
 
-**`SetCityProduction`** ([set_city_production.gd](../game/domain/actions/set_city_production.gd)) updates **one** city’s **`current_project`** via **`GameState.try_apply`**. Supported **`project_type`** values: **`"produce_unit"`** (canonical shape **`{"project_type":"produce_unit","progress":0,"cost":2}`**, **fixed** in Phase 2.3) and **`"none"`** (**`current_project`** becomes **`null`**). **No** **unit** creation, **no** economy when setting production; **`progress`** increments on each **accepted** **`end_turn`** (Phase **2.4a**).
+**`SetCityProduction`** ([set_city_production.gd](../game/domain/actions/set_city_production.gd)) updates **one** city’s **`current_project`** via **`GameState.try_apply`**. Supported **`project_type`** values: **`"produce_unit"`** (canonical shape includes **`"ready": false`**, **`progress`**, **`cost`**) and **`"none"`** (**`current_project`** becomes **`null`**). **No** **unit** creation when setting production; **`progress`** increments on **accepted** **`end_turn`** (**`ProductionTick`**).
 
 **`SetCityProduction.validate`** does **not** check **`current_player_id`** (**`not_current_player`** is only **`GameState.try_apply`**). Idempotent requests (**`project_already_set`**) are **rejected** (no log).
 
 **`LegalActions` / AI** do **not** emit **`set_city_production`** in this phase (same pattern as **`found_city`** until a later integration phase).
 
-## Phase 2.4a — Production progress on EndTurn (no completion)
+## Phase 2.4a–c — Production on EndTurn (engine)
 
-On **accepted** **`end_turn`**, **`ProductionTick`** ([production_tick.gd](../game/domain/production_tick.gd)) increments **`current_project["progress"]`** by **1** for each **ending-player** city with **`current_project != null`**, in **ascending `city.id` order**. **`progress`** may **exceed** **`cost`**. **No** **`ProduceUnit`**, **no** project **clear**, **no** **`peek_next_unit_id()`** / **`peek_next_city_id()`** change. **`ActionLog`** entries **`production_progress`** ( **`source`: `"engine"`** ) precede the **`end_turn`** entry (see [ACTIONS.md](ACTIONS.md), [TURNS.md](TURNS.md)).
+On **accepted** **`end_turn`**, **`ProductionTick`** ([production_tick.gd](../game/domain/production_tick.gd)) increments **`progress`** and may set **`ready: true`** for **`produce_unit`** when **`progress` >= `cost`**; **`production_progress`** log lines are appended **before** **`turn_state`** advances and **before** the **`end_turn`** entry. **`ProductionDelivery`** ([production_delivery.gd](../game/domain/production_delivery.gd)) runs **after** **`end_turn`** for the **new** **`current_player_id`**, appending **`unit_produced`** and spawning **Units** (see [ACTIONS.md](ACTIONS.md), [TURNS.md](TURNS.md), [UNITS.md](UNITS.md)). Initial **`GameState`** construction may deliver **`ready`** projects for the opening current player.
 
 **[CitiesView](../game/presentation/cities_view.gd)** continues to draw cities from **`Scenario.cities()`**. **`SelectionController`** re-points **`cities_view.scenario`** after an **accepted** **`FoundCity`** (see [RENDERING.md](RENDERING.md)).
 
 ## Explicitly deferred
 
-- **`ProduceUnit`**, **project completion** / **overflow rules**, economy/yields.
+- **`ProduceUnit`** **player** action, economy/yields beyond this minimal completion rule.
 - City **names**, **population**, **tiles worked**, **garrison**, **zone of control**.
 - **Combat**, **conquest**, **fog**, **save/load**.
 - **Final** economy numbers and **Phase 4** visual identity.

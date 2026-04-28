@@ -54,6 +54,7 @@ $Tests = @(
 	"res://domain/tests/test_set_city_production.gd",
 	"res://domain/tests/test_set_city_production_flow.gd",
 	"res://domain/tests/test_production_tick.gd",
+	"res://domain/tests/test_production_delivery.gd",
 	"res://domain/tests/test_end_turn_production_flow.gd",
 	"res://domain/tests/test_action_log.gd",
 	"res://domain/tests/test_game_state.gd",
