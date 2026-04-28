@@ -176,12 +176,14 @@ Must not:
 
 - let UI directly mutate unit coordinates
 - implement AI movement yet
+- add EndTurn, current-player enforcement, save/load, cloud, or animation
 
 Validation:
 
-- legal move succeeds
-- illegal move is rejected
-- action log records structured MoveUnit
+- legal move succeeds via **`GameState.try_apply`** (new **`Scenario`**, immutable **`Unit`** replacement)
+- illegal move is rejected with a stable **`reason`**; **`scenario`** and **`ActionLog`** unchanged
+- **`ActionLog`** records **accepted** **`MoveUnit`** entries only (deep-copied); rejections are not logged in 1.6
+- presentation refreshes **`UnitsView`** / **`SelectionView`** from **`game_state.scenario`** after accept; selection **cleared**
 
 ## Phase 1.7 — EndTurn Action / Turn Controller
 

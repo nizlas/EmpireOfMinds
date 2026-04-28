@@ -1,13 +1,15 @@
-# Wires Scenario, HexLayout, MapView, UnitsView, SelectionView, and SelectionController. No gameplay loop, no autoloads.
+# Wires GameState, Scenario, HexLayout, MapView, UnitsView, SelectionView, and SelectionController. No gameplay loop, no autoloads.
 # See docs/RENDERING.md, docs/SELECTION.md
 extends Node2D
 
 const ScenarioScript = preload("res://domain/scenario.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
+const GameStateScript = preload("res://domain/game_state.gd")
 
 func _ready() -> void:
 	var scenario = ScenarioScript.make_tiny_test_scenario()
+	var game_state = GameStateScript.new(scenario)
 	var layout = HexLayoutScript.new()
 	var selection = SelectionStateScript.new()
 	var map_view = $MapView
@@ -25,6 +27,8 @@ func _ready() -> void:
 	selection_view.queue_redraw()
 	var selection_controller = $SelectionController
 	selection_controller.scenario = scenario
+	selection_controller.game_state = game_state
 	selection_controller.layout = layout
 	selection_controller.selection = selection
 	selection_controller.selection_view = selection_view
+	selection_controller.units_view = units_view

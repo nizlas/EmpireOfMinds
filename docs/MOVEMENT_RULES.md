@@ -17,7 +17,7 @@
 
 Returns **`[]`** if `scenario` is **`null`**, **`unit_id`** is unknown, or the unit is missing from the scenario.
 
-**No** pathfinding, **no** range beyond one hex, **no** movement points, **no** movement actions, **no** state mutation.
+**No** pathfinding, **no** range beyond one hex, **no** movement points. **`MoveUnit`** validation **reuses** this list for legality; **state change** is **`MoveUnit.apply`** + **`GameState`** (see [ACTIONS.md](ACTIONS.md)).
 
 ## Layer boundary
 
@@ -27,6 +27,5 @@ Returns **`[]`** if `scenario` is **`null`**, **`unit_id`** is unknown, or the u
 
 - Range > 1, movement points, terrain **costs**, roads, railways.
 - Stacking, zone of control, friendly/enemy blocking beyond “occupied”.
-- **`MoveUnit`** action, validation, application, action log (Phase 1.6+).
 - Pathfinding (A*, etc.).
 - Turn ownership (“only current player may query”) — Phase 1.7+.
