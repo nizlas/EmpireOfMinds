@@ -17,6 +17,7 @@ var layout
 var selection
 var selection_view
 var units_view
+var turn_label
 @export var marker_hit_radius_ratio: float = 0.35
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -60,6 +61,8 @@ func _unhandled_input(event: InputEvent) -> void:
 						selection.clear()
 						selection_view.queue_redraw()
 						units_view.queue_redraw()
+						if turn_label != null:
+							turn_label.refresh()
 					else:
 						push_warning("MoveUnit rejected: %s" % result["reason"])
 					return

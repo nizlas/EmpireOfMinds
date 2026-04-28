@@ -1,20 +1,23 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Script" path="res://presentation/map_view.gd" id="2_mapview"]
 [ext_resource type="Script" path="res://presentation/selection_view.gd" id="3_selectionview"]
 [ext_resource type="Script" path="res://presentation/units_view.gd" id="4_unitsview"]
 [ext_resource type="Script" path="res://presentation/selection_controller.gd" id="5_selectioncontroller"]
+[ext_resource type="Script" path="res://presentation/turn_label.gd" id="6_turnlabel"]
+[ext_resource type="Script" path="res://presentation/end_turn_controller.gd" id="7_endturncontroller"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
 
-[node name="Label" type="Label" parent="."]
+[node name="TurnLabel" type="Label" parent="."]
 offset_left = 20.0
 offset_top = 20.0
 offset_right = 800.0
 offset_bottom = 100.0
-text = "Empire of Minds — Phase 1.0"
+text = ""
+script = ExtResource("6_turnlabel")
 
 [node name="MapView" type="Node2D" parent="."]
 position = Vector2(400, 300)
@@ -31,3 +34,7 @@ script = ExtResource("4_unitsview")
 [node name="SelectionController" type="Node2D" parent="."]
 position = Vector2(400, 300)
 script = ExtResource("5_selectioncontroller")
+
+[node name="EndTurnController" type="Node2D" parent="."]
+position = Vector2(0, 0)
+script = ExtResource("7_endturncontroller")

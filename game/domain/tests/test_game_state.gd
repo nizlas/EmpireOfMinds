@@ -11,7 +11,7 @@ func _init() -> void:
 	var gs = GameStateScript.make_tiny_test_state()
 	_check(gs.scenario.units().size() == 3, "tiny state 3 units")
 	_check(gs.log.size() == 0, "log starts empty")
-	var bad_t = gs.try_apply({"action_type": "end_turn"})
+	var bad_t = gs.try_apply({"action_type": "no_such_action"})
 	_check(
 		not bad_t["accepted"] and bad_t["reason"] == "unknown_action_type" and bad_t["index"] == -1,
 		"unknown action type"

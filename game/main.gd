@@ -32,3 +32,13 @@ func _ready() -> void:
 	selection_controller.selection = selection
 	selection_controller.selection_view = selection_view
 	selection_controller.units_view = units_view
+	var turn_label = $TurnLabel
+	turn_label.game_state = game_state
+	turn_label.refresh()
+	selection_controller.turn_label = turn_label
+	var end_turn_controller = $EndTurnController
+	end_turn_controller.game_state = game_state
+	end_turn_controller.selection = selection
+	end_turn_controller.selection_view = selection_view
+	end_turn_controller.units_view = units_view
+	end_turn_controller.turn_label = turn_label
