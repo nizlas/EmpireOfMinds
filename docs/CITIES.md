@@ -34,7 +34,7 @@ The canonical **`make_tiny_test_scenario()`** fixture has **no cities** in Phase
 
 **Phase 2.2b:** **`FoundCity`** ([found_city.gd](../game/domain/actions/found_city.gd)) creates a **`City`** at the founder **unit’s hex**, assigns **`city_id = peek_next_city_id()`**, increments **`peek_next_city_id()` by 1** in the returned **`Scenario`**, and **removes** that **unit** from the unit list. **`GameState.try_apply`** dispatches **`FoundCity`** like other versioned actions; **`FoundCity.validate`** does **not** check **`current_player_id`** (**`not_current_player`** is only the common **`try_apply`** gate).
 
-**Temporary rule (Phase 2.2b scaffold):** **any** **current-player** **unit** may found (**settler** / **unit-type** eligibility is **Phase 3.1** — see [UNITS.md](UNITS.md)). **`LegalActions`**, **AI**, and **F5** menu wiring for **`FoundCity`** enumeration are **deferred** (e.g. Phase **2.6** for AI); the **F-key** path in **`SelectionController`** is the manual presentation entry in this phase.
+**Temporary rule (Phase 2.2b scaffold):** **any** **current-player** **unit** may found (**settler** / **unit-type** eligibility is **Phase 3.1** — see [UNITS.md](UNITS.md)). The **F-key** path in **`SelectionController`** remains a manual presentation entry. **Phase 2.5:** **` LegalActions`** and **`RuleBasedAIPlayer`** may choose **`FoundCity`** and **`SetCityProduction`** from the legal list (see [AI_LAYER.md](AI_LAYER.md)); **no** new action schemas.
 
 **Domain validation (structural only):** founder must **own** the **`actor_id`**, sit at **`position`**, on **land** (**not** **WATER**), on the **map**, on a hex **without** an existing **city**.
 
@@ -44,7 +44,7 @@ The canonical **`make_tiny_test_scenario()`** fixture has **no cities** in Phase
 
 **`SetCityProduction.validate`** does **not** check **`current_player_id`** (**`not_current_player`** is only **`GameState.try_apply`**). Idempotent requests (**`project_already_set`**) are **rejected** (no log).
 
-**`LegalActions` / AI** do **not** emit **`set_city_production`** in this phase (same pattern as **`found_city`** until a later integration phase).
+**Phase 2.5 (AI / legal list):** **`LegalActions`** may emit **`set_city_production`** for cities with **`current_project == null`** ( **`produce_unit`** only when valid). **`RuleBasedAIPlayer`** prefers filling an empty project before movement. **`"none"`** clears are **not** enumerated in **2.5**.
 
 ## Phase 2.4a–c — Production on EndTurn (engine)
 

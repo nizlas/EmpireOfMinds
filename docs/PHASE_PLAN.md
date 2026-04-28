@@ -365,6 +365,22 @@ Validation:
 
 - **`test_production_tick`**, **`test_production_delivery`**, **`test_end_turn_production_flow`**, **`test_log_view`**, full **`run-godot-tests.ps1`** green.
 
+### Phase 2.5 — LegalActions + RuleBasedAIPlayer city loop (implemented)
+
+Goal:
+Enumerate **`found_city`** and **`set_city_production`** in **`LegalActions.for_current_player`** (validators only, deterministic order) so **`RuleBasedAIPlayer`** can run the basic city loop: found first city, set **`produce_unit`**, then existing one-**`move_unit`**-per-segment behavior and **`end_turn`**. **No** engine events in the legal list.
+
+Must not:
+
+- add **new** action **schemas** or **`try_apply`** branches; change **`ProductionTick`**, **`ProductionDelivery`**, **FoundCity** / **SetCityProduction** validators except to fix a surfaced bug (reported explicitly)
+- add **`production_progress`**, **`unit_produced`**, or raw production-progress fields to **`LegalActions`**
+- mutate domain state outside **`GameState.try_apply`** from AI; change **`main.*`**, **`project.godot`**, presentation controllers, or **denylisted** docs (**`IMPLEMENTATION_GUIDE`**, **`ARCHITECTURE_PRINCIPLES`**, **TURNS**, **UNITS**, **RENDERING**, etc. per task steering)
+
+Validation:
+
+- **`test_legal_actions`**, **`test_rule_based_ai_player`**, **`test_ai_turn_flow`** updated; full **`run-godot-tests.ps1`** green.
+- **Editor:** **`KEY_A`** on canonical start → AI **`found_city`**, then **`set_city_production`**, then move/end policy; log shows engine lines only from **`end_turn`**, never as AI-chosen actions.
+
 ## Phase 3 — Game content foundation
 
 Goal:

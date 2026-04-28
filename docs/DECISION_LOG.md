@@ -1,5 +1,16 @@
 # Empire of Minds — Decision Log
 
+## 2026-04-28 — Phase 2.5: city actions in LegalActions + rule-based AI
+
+Decision:
+**`FoundCity`** and **`SetCityProduction`** are enumerated in **`LegalActions.for_current_player`** (legality-only; deterministic order after **`MoveUnit`** entries), and **`RuleBasedAIPlayer.decide`** selects them before the existing one-**`move_unit`**-per-segment / **`end_turn`** policy when the scenario calls for it.
+
+Rationale:
+The rule-based AI can drive the core **found → set production → move → end** loop using existing action schemas and **`GameState.try_apply`** only, without new types or engine-event “actions.”
+
+Caveat:
+Policy stays deterministic and shallow (no scoring, planning, or LLM). **`LegalActions`** lists every validator-legal city action; it does not encode “only one city” or other strategic cuts.
+
 ## 2026-04-27 — Initial Engine Direction
 
 Decision:

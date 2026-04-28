@@ -14,13 +14,20 @@ intent
 
 **Phase 1.6** introduces **`move_unit`**, **`GameState`**, and **`ActionLog`**. **Phase 1.7** adds **`TurnState`**, **`end_turn`**, and a **common current-player gate** in **`GameState.try_apply`** (see [TURNS.md](TURNS.md)). **Phase 1.8** adds **legal-action enumeration** for the current player (see below, [AI_LAYER.md](AI_LAYER.md)). **Phase 2.2b** adds **`found_city`** (`FoundCity`): structural validation and **`Scenario`** rebuild that consumes the founding unit and appends a **`City`** with **`city_id = peek_next_city_id()`** before apply (see [CITIES.md](CITIES.md)). **Phase 2.3** adds **`set_city_production`** (`SetCityProduction`): sets a city’s **`current_project`** primitive **`Dictionary`** (or **`null`** to clear); **no** production progress or unit creation in that phase (see [CITIES.md](CITIES.md)). **Phase 2.4a** adds an **engine** **`production_progress`** log step on **accepted** **`end_turn`**. **Phase 2.4b** introduced **`produce_unit`** **completion** (threshold) on tick. **Phase 2.4c** **defers** **`unit_produced`** / unit spawn until the **owner** becomes **`current_player_id`** again (**`ProductionDelivery`** after **`end_turn`**); see **Production on EndTurn (Phase 2.4a–c, engine)** below.
 
-## Legal action enumeration (Phase 1.8)
+## Legal action enumeration (Phase 1.8, extended Phase 2.5)
 
-**`LegalActions.for_current_player(game_state) -> Array`** in [legal_actions.gd](../game/domain/legal_actions.gd) returns a **deterministically ordered** list of action **`Dictionary`** values: every **`MoveUnit.make(...)`** that is legal for **`game_state.scenario`** under **`MovementRules.legal_destinations`** for each **current-player** unit, followed by exactly one **`EndTurn.make(current_player_id)`**. Returns **`[]`** if **`game_state`** is **`null`**.
+**`LegalActions.for_current_player(game_state) -> Array`** in [legal_actions.gd](../game/domain/legal_actions.gd) returns a **deterministically ordered** list of player-action **`Dictionary`** values:
 
-Enumeration is a **read-only query**: it does not mutate **`GameState`**. **AI and debug UI** pick one entry from this list (or pass it to **`RuleBasedAIPlayer.decide`**) and still submit only through **`GameState.try_apply`**, so validation and logging remain centralized.
+1. All legal **`MoveUnit.make(...)`** for **`game_state.scenario`** under **`MovementRules.legal_destinations`** for each **current-player** unit (deterministic unit and destination order; see [AI_LAYER.md](AI_LAYER.md)).
+2. **Phase 2.5:** each **current-player** unit’s **`FoundCity.make`** at its current tile, **only** if **`FoundCity.validate`** passes (policy-agnostic; multiple cities per player are still enumerated if legal).
+3. **Phase 2.5:** for each **current-player** city with **`current_project == null`**, **`SetCityProduction.make(..., "produce_unit")`** **only** if **`SetCityProduction.validate`** passes. Cities with any non-**`null`** project (including **`ready: true`**) emit **no** **`set_city_production`** here; **`"none"`** clear actions are **not** enumerated in this phase.
+4. Exactly one **`EndTurn.make(current_player_id)`**, **last**.
 
-**Phase 1.8b:** AI turn length is gated only in the AI layer by **`RuleBasedAIPolicy.has_actor_moved_this_turn`** ([rule_based_ai_policy.gd](../game/ai/rule_based_ai_policy.gd)): **`RuleBasedAIPlayer.decide`** may return **`EndTurn`** after the current player has already logged an accepted **`move_unit`** since the last **`end_turn`** in **`ActionLog`**. **`try_apply`**, **`LegalActions`**, and action **schemas** are unchanged (see [AI_LAYER.md](AI_LAYER.md)).
+**`production_progress`** and **`unit_produced`** remain **engine-only** log types and are **never** included in this list. Returns **`[]`** if **`game_state`** is **`null`**.
+
+Enumeration is a **read-only query**: it does not mutate **`GameState`**, call **`try_apply`**, or filter by AI taste. **AI and debug UI** pick one entry from this list (or pass it to **`RuleBasedAIPlayer.decide`**) and still submit only through **`GameState.try_apply`**.
+
+**Phase 1.8b:** AI turn length for **movement** is still gated by **`RuleBasedAIPolicy.has_actor_moved_this_turn`** ([rule_based_ai_policy.gd](../game/ai/rule_based_ai_policy.gd)). **Phase 2.5:** **`found_city`** and **`set_city_production`** do **not** count as **`move_unit`** for that policy (see [AI_LAYER.md](AI_LAYER.md)).
 
 ## MoveUnit schema (Dictionary)
 

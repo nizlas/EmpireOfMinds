@@ -6,6 +6,8 @@ extends RefCounted
 const MovementRulesScript = preload("res://domain/movement_rules.gd")
 const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
+const FoundCityScript = preload("res://domain/actions/found_city.gd")
+const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 
 static func _sort_units_by_id(units: Array) -> void:
 	var a = 0
@@ -21,6 +23,22 @@ static func _sort_units_by_id(units: Array) -> void:
 			b = b + 1
 		a = a + 1
 
+
+static func _sort_cities_by_id(cities: Array) -> void:
+	var a = 0
+	while a < cities.size():
+		var b = a + 1
+		while b < cities.size():
+			var ca = cities[a]
+			var cb = cities[b]
+			if cb.id < ca.id:
+				var tc = cities[a]
+				cities[a] = cities[b]
+				cities[b] = tc
+			b = b + 1
+		a = a + 1
+
+
 static func _sort_coords_by_qr(coords: Array) -> void:
 	var a = 0
 	while a < coords.size():
@@ -34,6 +52,7 @@ static func _sort_coords_by_qr(coords: Array) -> void:
 				coords[b] = t
 			b = b + 1
 		a = a + 1
+
 
 static func for_current_player(game_state) -> Array:
 	if game_state == null:
@@ -63,5 +82,28 @@ static func for_current_player(game_state) -> Array:
 			)
 			di = di + 1
 		ui = ui + 1
+	var fi = 0
+	while fi < owned.size():
+		var u3 = owned[fi]
+		var fc = FoundCityScript.make(cp, u3.id, u3.position.q, u3.position.r)
+		var fv = FoundCityScript.validate(scenario, fc)
+		if fv["ok"]:
+			out.append(fc)
+		fi = fi + 1
+	var p0cities = scenario.cities_owned_by(cp)
+	_sort_cities_by_id(p0cities)
+	var cj = 0
+	while cj < p0cities.size():
+		var cy = p0cities[cj]
+		if cy.current_project == null:
+			var sp = SetCityProductionScript.make(
+				cp,
+				cy.id,
+				SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT
+			)
+			var sv = SetCityProductionScript.validate(scenario, sp)
+			if sv["ok"]:
+				out.append(sp)
+		cj = cj + 1
 	out.append(EndTurnScript.make(cp))
 	return out
