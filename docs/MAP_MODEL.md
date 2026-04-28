@@ -40,6 +40,10 @@ Direction names in the table are **labels** for axial neighbors; see [HEX_COORDI
 
 Code under `game/domain/` must not depend on Godot scene nodes, rendering, UI, input, networking, or LLMs; see [game/domain/README.md](../game/domain/README.md).
 
+## Phase 1.5 note (terrain vs movement rules)
+
+**`HexMap`** and **`Terrain`** remain **unchanged** in Phase 1.5: terrain values are still **tags** with no movement semantics baked into the map type. The first interpretation that **WATER is impassable** for unit movement lives in **[MOVEMENT_RULES.md](MOVEMENT_RULES.md)** (`MovementRules.legal_destinations`), not in new `HexMap` APIs.
+
 ## Explicitly deferred
 
 - A dedicated **cell** or **terrain** type with gameplay fields (owner, resources, move cost, etc.)

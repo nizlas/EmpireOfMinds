@@ -157,11 +157,15 @@ Must not:
 
 - move unit yet
 - implement pathfinding beyond adjacent/simple range
+- add `MoveUnit` actions validation/application or action log
+- mutate `Unit` or `Scenario` from selection or overlays
 
 Validation:
 
-- selected unit is clear
-- legal destinations come from rules/query layer
+- selected unit is clear from **presentation** `SelectionState` (not stored on domain objects)
+- legal destinations come from **`MovementRules`** (domain query only)
+- overlays are **derived** from scenario + selection; **not** a source of truth
+- **no** unit movement and **no** actions in this phase
 
 ## Phase 1.6 — MoveUnit Action
 

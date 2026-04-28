@@ -37,12 +37,16 @@ The static factory **`Scenario.make_tiny_test_scenario()`** builds a scenario on
 
 Simple **unit markers** (drawn circles, placeholder owner colors) are implemented in [game/presentation/units_view.gd](../game/presentation/units_view.gd) as a **read-only, derived** view of `Scenario.units()`. This is not gameplay state and does not add rules.
 
+## Selection (Phase 1.5)
+
+**Presentation-only** unit focus and **legal-movement overlays** (ring + destination tints) live in [selection_state.gd](../game/presentation/selection_state.gd), [selection_controller.gd](../game/presentation/selection_controller.gd), and [selection_view.gd](../game/presentation/selection_view.gd). **`SelectionState` holds a `unit_id` only**; it does **not** mutate **`Unit`** or **`Scenario`**. Legal destinations come from [movement_rules.gd](../game/domain/movement_rules.gd). See [SELECTION.md](SELECTION.md) and [MOVEMENT_RULES.md](MOVEMENT_RULES.md).
+
 ## Explicitly deferred
 
 The following are **out of scope** for Phase 1.4 and must not be assumed from the current types:
 
 - Sprite, label, and health-bar **rendering** of units
-- Selection and highlighting
+- **Action-driven** selection or highlighting (e.g. only after a server-validated action); Phase 1.5 UI selection does not emit actions
 - Movement, pathfinding, and actions
 - Turn state, phases, and action points
 - AI and automation
