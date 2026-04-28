@@ -7,8 +7,9 @@
 - **`id`**: `int` — unique among cities **within** a **`Scenario`** (enforced at construction).
 - **`owner_id`**: `int` — same convention as **`Unit.owner_id`** (see [UNITS.md](UNITS.md)).
 - **`position`**: **`HexCoord`** — city tile; must be on the map and **not** **`HexMap.Terrain.WATER`**.
+- **`current_project`**: **`null`** **or** a **primitive** **`Dictionary`** — **Phase 2.3+** current build / production state. **`null`** means **no** project. When a **`Dictionary`** is passed to **`City._init`**, the constructor stores **`duplicate(true)`** so later mutation of the caller’s **`Dictionary`** does **not** affect the **`City`**.
 
-Cities are **immutable** (no mutators): changes happen only via future **`GameState.try_apply`** actions that return a **new** **`Scenario`**.
+Cities are **immutable** (no mutators): changes happen only via **`GameState.try_apply`** **player** actions (e.g. **`FoundCity`**, **`SetCityProduction`**) **or** via **engine** steps tied to an accepted **`end_turn`** (Phase **2.4a** **`production_progress`**, see [ACTIONS.md](ACTIONS.md)) that return a **new** **`Scenario`**.
 
 ## Scenario bundle
 
@@ -27,13 +28,33 @@ The canonical **`make_tiny_test_scenario()`** fixture has **no cities** in Phase
 
 ## Presentation (Phase 2.1)
 
-**[CitiesView](../game/presentation/cities_view.gd)** draws **placeholder diamond** markers from **`Scenario.cities()`** via **`compute_marker_items`**. **[main.tscn](../game/main.tscn)** orders **MapView → CitiesView → SelectionView → UnitsView** so terrain sits under cities, selection under units. **`main.gd`** wires the initial **`scenario`** only; **controllers do not re-point **`CitiesView`** yet** (no cities in the canonical game loop this phase).
+**[CitiesView](../game/presentation/cities_view.gd)** draws **placeholder diamond** markers from **`Scenario.cities()`** via **`compute_marker_items`**. **[main.tscn](../game/main.tscn)** orders **MapView → CitiesView → SelectionView → UnitsView** so terrain sits under cities, selection under units. **`main.gd`** wires **`cities_view.scenario`** at startup; **`SelectionController`** re-points **`cities_view`** after **accepted** **`FoundCity`** (Phase 2.2b). **`MoveUnit`** alone does not require **`cities_view`** updates unless cities already exist on the map.
 
 **Phase 2.2a:** **`MoveUnit.apply`** ([move_unit.gd](../game/domain/actions/move_unit.gd)) passes **`cities()`** and **`peek_next_unit_id()` / `peek_next_city_id()`** forward into the returned **`Scenario`** so moves do not drop cities or replay counters (see [test_move_unit_preserves_scenario_state.gd](../game/domain/tests/test_move_unit_preserves_scenario_state.gd)). **Future** actions that rebuild **`Scenario`** must use the same explicit pass-forward pattern.
 
+**Phase 2.2b:** **`FoundCity`** ([found_city.gd](../game/domain/actions/found_city.gd)) creates a **`City`** at the founder **unit’s hex**, assigns **`city_id = peek_next_city_id()`**, increments **`peek_next_city_id()` by 1** in the returned **`Scenario`**, and **removes** that **unit** from the unit list. **`GameState.try_apply`** dispatches **`FoundCity`** like other versioned actions; **`FoundCity.validate`** does **not** check **`current_player_id`** (**`not_current_player`** is only the common **`try_apply`** gate).
+
+**Temporary rule (Phase 2.2b scaffold):** **any** **current-player** **unit** may found (**settler** / **unit-type** eligibility is **Phase 3.1** — see [UNITS.md](UNITS.md)). **`LegalActions`**, **AI**, and **F5** menu wiring for **`FoundCity`** enumeration are **deferred** (e.g. Phase **2.6** for AI); the **F-key** path in **`SelectionController`** is the manual presentation entry in this phase.
+
+**Domain validation (structural only):** founder must **own** the **`actor_id`**, sit at **`position`**, on **land** (**not** **WATER**), on the **map**, on a hex **without** an existing **city**.
+
+## Phase 2.3 — `current_project` and SetCityProduction
+
+**`SetCityProduction`** ([set_city_production.gd](../game/domain/actions/set_city_production.gd)) updates **one** city’s **`current_project`** via **`GameState.try_apply`**. Supported **`project_type`** values: **`"produce_unit"`** (canonical shape **`{"project_type":"produce_unit","progress":0,"cost":2}`**, **fixed** in Phase 2.3) and **`"none"`** (**`current_project`** becomes **`null`**). **No** **unit** creation, **no** economy when setting production; **`progress`** increments on each **accepted** **`end_turn`** (Phase **2.4a**).
+
+**`SetCityProduction.validate`** does **not** check **`current_player_id`** (**`not_current_player`** is only **`GameState.try_apply`**). Idempotent requests (**`project_already_set`**) are **rejected** (no log).
+
+**`LegalActions` / AI** do **not** emit **`set_city_production`** in this phase (same pattern as **`found_city`** until a later integration phase).
+
+## Phase 2.4a — Production progress on EndTurn (no completion)
+
+On **accepted** **`end_turn`**, **`ProductionTick`** ([production_tick.gd](../game/domain/production_tick.gd)) increments **`current_project["progress"]`** by **1** for each **ending-player** city with **`current_project != null`**, in **ascending `city.id` order**. **`progress`** may **exceed** **`cost`**. **No** **`ProduceUnit`**, **no** project **clear**, **no** **`peek_next_unit_id()`** / **`peek_next_city_id()`** change. **`ActionLog`** entries **`production_progress`** ( **`source`: `"engine"`** ) precede the **`end_turn`** entry (see [ACTIONS.md](ACTIONS.md), [TURNS.md](TURNS.md)).
+
+**[CitiesView](../game/presentation/cities_view.gd)** continues to draw cities from **`Scenario.cities()`**. **`SelectionController`** re-points **`cities_view.scenario`** after an **accepted** **`FoundCity`** (see [RENDERING.md](RENDERING.md)).
+
 ## Explicitly deferred
 
-- **`FoundCity`**, **`SetCityProduction`**, production tick, **`GameState.try_apply`** extensions.
+- **`ProduceUnit`**, **project completion** / **overflow rules**, economy/yields.
 - City **names**, **population**, **tiles worked**, **garrison**, **zone of control**.
 - **Combat**, **conquest**, **fog**, **save/load**.
 - **Final** economy numbers and **Phase 4** visual identity.

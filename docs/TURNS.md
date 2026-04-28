@@ -16,6 +16,10 @@ Session state is **`GameState`** ([game_state.gd](../game/domain/game_state.gd))
 
 Accepted **`EndTurn`** entries in **`ActionLog`** include **`turn_number_before`**, **`next_player_id`**, and **`result: "accepted"`** (plus schema, type, **`actor_id`**).
 
+### Production progress (Phase 2.4a, engine)
+
+When **`GameState.try_apply`** accepts **`end_turn`**, it first runs **`ProductionTick.apply_for_player(scenario, ending_player_id)`**: each ending-player city with **`current_project != null`** gains **`progress` += 1** (see [production_tick.gd](../game/domain/production_tick.gd), [ACTIONS.md](ACTIONS.md)). **`production_progress`** log entries are appended in **ascending `city.id` order**, **then** the **`end_turn`** entry. **`TurnState`** advances **after** the tick and those log appends.
+
 ## Presentation
 
 - **[turn_label.gd](../game/presentation/turn_label.gd)** (**`Label`**) sets text from **`compute_text(game_state)`** → **`"Turn N — Player P"`** ( **`N`** = **`turn_number`**, **`P`** = **`current_player_id()`** ). **`refresh()`** assigns **`text`**.

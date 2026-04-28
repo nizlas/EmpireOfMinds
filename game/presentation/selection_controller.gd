@@ -10,6 +10,8 @@ const SelectionStateScript = preload("res://presentation/selection_state.gd")
 const GameStateScript = preload("res://domain/game_state.gd")
 const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const MovementRulesScript = preload("res://domain/movement_rules.gd")
+const FoundCityScript = preload("res://domain/actions/found_city.gd")
+const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 
 var scenario
 var game_state
@@ -17,6 +19,7 @@ var layout
 var selection
 var selection_view
 var units_view
+var cities_view
 var turn_label
 var log_view
 @export var marker_hit_radius_ratio: float = 0.35
@@ -25,8 +28,73 @@ func _unhandled_input(event: InputEvent) -> void:
 	assert(HexCoordScript != null)
 	assert(MoveUnitScript != null)
 	assert(MovementRulesScript != null)
+	assert(FoundCityScript != null)
+	assert(SetCityProductionScript != null)
 	if game_state == null or layout == null or selection == null or selection_view == null or units_view == null:
 		return
+	if event is InputEventKey:
+		var ek = event as InputEventKey
+		if ek.pressed and not ek.echo and ek.keycode == KEY_F:
+			if selection.is_empty():
+				return
+			var u_fc = game_state.scenario.unit_by_id(selection.unit_id)
+			if u_fc == null:
+				selection.clear()
+				if selection_view != null:
+					selection_view.queue_redraw()
+				return
+			var fc_action = FoundCityScript.make(u_fc.owner_id, u_fc.id, u_fc.position.q, u_fc.position.r)
+			var fc_result = game_state.try_apply(fc_action)
+			if fc_result["accepted"]:
+				scenario = game_state.scenario
+				if selection_view != null:
+					selection_view.scenario = game_state.scenario
+				if units_view != null:
+					units_view.scenario = game_state.scenario
+				if cities_view != null:
+					cities_view.scenario = game_state.scenario
+				selection.clear()
+				if selection_view != null:
+					selection_view.queue_redraw()
+				if units_view != null:
+					units_view.queue_redraw()
+				if cities_view != null:
+					cities_view.queue_redraw()
+				if turn_label != null:
+					turn_label.refresh()
+				if log_view != null:
+					log_view.refresh()
+			else:
+				push_warning("FoundCity rejected: %s" % fc_result["reason"])
+			return
+		if ek.pressed and not ek.echo and ek.keycode == KEY_P:
+			var pid = game_state.turn_state.current_player_id()
+			var owned = game_state.scenario.cities_owned_by(pid)
+			var pick_id = -1
+			var oi = 0
+			while oi < owned.size():
+				var cy = owned[oi]
+				if cy.current_project == null:
+					if pick_id < 0 or cy.id < pick_id:
+						pick_id = cy.id
+				oi = oi + 1
+			if pick_id < 0:
+				push_warning("SetCityProduction: no eligible city")
+				return
+			var sp_action = SetCityProductionScript.make(pid, pick_id, SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT)
+			var sp_result = game_state.try_apply(sp_action)
+			if sp_result["accepted"]:
+				scenario = game_state.scenario
+				if cities_view != null:
+					cities_view.scenario = game_state.scenario
+					cities_view.queue_redraw()
+				if turn_label != null:
+					turn_label.refresh()
+				if log_view != null:
+					log_view.refresh()
+			else:
+				push_warning("SetCityProduction rejected: %s" % sp_result["reason"])
+			return
 	if event is InputEventMouseButton:
 		var mb = event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:

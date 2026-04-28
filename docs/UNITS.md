@@ -45,6 +45,10 @@ Simple **unit markers** (drawn circles, placeholder owner colors) are implemente
 
 See [SELECTION.md](SELECTION.md) and [MOVEMENT_RULES.md](MOVEMENT_RULES.md).
 
+## FoundCity (Phase 2.2b)
+
+**`FoundCity`** **consumes** the founding **unit**: after an **accepted** apply, that **`unit_id`** is **not** in **`Scenario.units()`**. **Phase 2.2b** allows **any** **current-player** unit to found (temporary scaffold); **settler** and **unit-type** eligibility rules are **Phase 3.1** (unit definitions).
+
 ## Explicitly deferred
 
 The following are **out of scope** for Phase 1.4 and must not be assumed from the current types:

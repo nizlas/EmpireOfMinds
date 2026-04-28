@@ -71,6 +71,42 @@ func _init() -> void:
 		{"index": 7, "action_type": "future_kind", "actor_id": 2}
 	)
 	_check(unk == "[7] P2 future_kind", "unknown action_type fallback")
+	var fc_fmt = LogViewScript.format_entry(
+		{
+			"index": 0,
+			"action_type": "found_city",
+			"actor_id": 0,
+			"unit_id": 3,
+			"city_id": 10,
+			"position": [1, -1],
+		}
+	)
+	_check(fc_fmt == "[0] P0 found city c10 at (1,-1) from u3", "found_city format")
+	var sp_fmt = LogViewScript.format_entry(
+		{
+			"index": 0,
+			"action_type": "set_city_production",
+			"actor_id": 0,
+			"city_id": 1,
+			"project_type": "produce_unit",
+		}
+	)
+	_check(sp_fmt == "[0] P0 set_city_production c1 produce_unit", "set_city_production format")
+	var pr_fmt = LogViewScript.format_entry(
+		{
+			"index": 3,
+			"action_type": "production_progress",
+			"actor_id": 0,
+			"city_id": 1,
+			"project_type": "produce_unit",
+			"progress_before": 0,
+			"progress_after": 1,
+			"cost": 2,
+			"source": "engine",
+			"result": "accepted",
+		}
+	)
+	_check(pr_fmt == "[3] P0 production c1 produce_unit 0->1/2", "production_progress format")
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

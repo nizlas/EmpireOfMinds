@@ -219,3 +219,36 @@ Prevents silent loss of city state and **id** monotonicity before **`FoundCity`*
 
 Caveat:
 Every **future** domain path that constructs a **`Scenario`** from a prior snapshot must **explicitly** pass **`cities`** and **`peek_*`** values (or deliberately document a reset); see [CITIES.md](CITIES.md).
+
+## 2026-04-28 — FoundCity action (Phase 2.2b)
+
+Decision:
+**Phase 2.2b** introduces **`FoundCity`** ([found_city.gd](../game/domain/actions/found_city.gd)) as a **versioned** **`Dictionary`** action dispatched only through **`GameState.try_apply`**: structural **`validate`**, **`apply`** returns a **new** **`Scenario`** with the **founding unit removed**, a **new** **`City`** at that **hex** using **`city_id = peek_next_city_id()`**, **`peek_next_city_id()`** advanced by **1**, and **`map` / other units / existing cities / `peek_next_unit_id()`** preserved. **`created_city_id`** is read **before** **`apply`** for **deterministic** **`ActionLog`** entries. **`SelectionController`** uses **`KEY_F`** when a **unit** is **selected**; **`LogView`** formats **`found_city`** lines.
+
+Rationale:
+Establishes the **first city-creation** path through the same **validate → apply → log → refresh** pipeline as **`move_unit`** / **`end_turn`**, with **monotonic** **city ids** and **no** hidden **`Scenario`** mutation.
+
+Caveat:
+**Any-unit founding** is **temporary**; **`LegalActions`** and **AI** **do not** emit **`found_city`** yet (**Phase 2.6**). **Production**, **economy**, and **settler** eligibility belong in **later** phases (**Phase 3.1** unit definitions).
+
+## 2026-04-28 — SetCityProduction + `City.current_project` (Phase 2.3)
+
+Decision:
+**Phase 2.3** adds **`current_project`** on **`City`** (**`null`** or **`Dictionary`**, stored via **`duplicate(true)`** in **`City._init`** when a **`Dictionary`** is supplied) and **`SetCityProduction`** ([set_city_production.gd](../game/domain/actions/set_city_production.gd)) routed through **`GameState.try_apply`**. **`apply`** replaces only the target **`City`** in a **new** **`Scenario`**; **`map`**, **units**, **non-target** cities, and **`peek_next_*`** are **preserved**. **`project_type`** **`"produce_unit"`** installs **`progress: 0`**, **`cost: 2`**; **`"none"`** clears. **`LogView`** formats **`set_city_production`**. **`SelectionController`** **`KEY_P`** submits **`produce_unit`** for the **lowest-id** eligible **current-player** **city** (debug only).
+
+Rationale:
+Establishes **city build state** in the **immutable** domain bundle with the same **validate → apply → log** pipeline; defers **tick** / **`ProduceUnit`** so Phase 2.3 remains **state-only**.
+
+Caveat:
+**`LegalActions` / AI** do **not** enumerate **`set_city_production`**. **Production progress on** **`end_turn`** is **Phase 2.4a**; **completion** / **`ProduceUnit`** is **Phase 2.4b**.
+
+## 2026-04-28 — Production progress tick on EndTurn (Phase 2.4a)
+
+Decision:
+**Phase 2.4a** adds **`ProductionTick.apply_for_player`** ([production_tick.gd](../game/domain/production_tick.gd)), invoked **only** from **`GameState.try_apply`** on **accepted** **`end_turn`**, **after** **`EndTurn.validate`** and **before** **`TurnState.advance`**. **Ending-player** cities with **`current_project != null`** gain **`progress` += 1**; events logged as **`production_progress`** ( **`source`: `"engine"`** ) in **ascending `city.id` order**, **then** the **`end_turn`** entry. **`progress`** may **exceed** **`cost`**; **no** unit spawn, **no** project clear, **no** counter allocation. **`LogView`** formats **`production`** lines.
+
+Rationale:
+Keeps **player** **`action_type`** surface unchanged while making **production** **observable** and **replay-ordered**; defers **completion** / **`ProduceUnit`** to **2.4b**.
+
+Caveat:
+**`production_progress`** must **not** become a **`try_apply`** action or **`LegalActions`** entry.

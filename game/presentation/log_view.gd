@@ -5,6 +5,9 @@ extends Label
 const GameStateScript = preload("res://domain/game_state.gd")
 const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
+const FoundCityScript = preload("res://domain/actions/found_city.gd")
+const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
+const ProductionTickScript = preload("res://domain/production_tick.gd")
 
 const MAX_ENTRIES: int = 10
 
@@ -51,6 +54,46 @@ static func format_entry(entry: Dictionary) -> String:
 		if entry.has("next_player_id") and typeof(entry["next_player_id"]) == TYPE_INT:
 			np = entry["next_player_id"]
 		return "[%d] P%d end_turn T%d -> P%d" % [idx, actor_id, tnb, np]
+	if at == FoundCityScript.ACTION_TYPE:
+		var uid_fc = 0
+		var cid_fc = 0
+		if entry.has("unit_id") and typeof(entry["unit_id"]) == TYPE_INT:
+			uid_fc = entry["unit_id"]
+		if entry.has("city_id") and typeof(entry["city_id"]) == TYPE_INT:
+			cid_fc = entry["city_id"]
+		var pq = 0
+		var pr = 0
+		if entry.has("position"):
+			var pa = entry["position"] as Array
+			if pa.size() >= 2:
+				pq = int(pa[0])
+				pr = int(pa[1])
+		return "[%d] P%d found city c%d at (%d,%d) from u%d" % [idx, actor_id, cid_fc, pq, pr, uid_fc]
+	if at == SetCityProductionScript.ACTION_TYPE:
+		var cid_sp = 0
+		var pts = "?"
+		if entry.has("city_id") and typeof(entry["city_id"]) == TYPE_INT:
+			cid_sp = entry["city_id"]
+		if entry.has("project_type") and typeof(entry["project_type"]) == TYPE_STRING:
+			pts = entry["project_type"]
+		return "[%d] P%d set_city_production c%d %s" % [idx, actor_id, cid_sp, pts]
+	if at == ProductionTickScript.EVENT_TYPE:
+		var cid_pr = 0
+		var ptt = "?"
+		var pb = 0
+		var pa = 0
+		var co = 0
+		if entry.has("city_id") and typeof(entry["city_id"]) == TYPE_INT:
+			cid_pr = entry["city_id"]
+		if entry.has("project_type") and typeof(entry["project_type"]) == TYPE_STRING:
+			ptt = entry["project_type"]
+		if entry.has("progress_before") and typeof(entry["progress_before"]) == TYPE_INT:
+			pb = entry["progress_before"]
+		if entry.has("progress_after") and typeof(entry["progress_after"]) == TYPE_INT:
+			pa = entry["progress_after"]
+		if entry.has("cost") and typeof(entry["cost"]) == TYPE_INT:
+			co = entry["cost"]
+		return "[%d] P%d production c%d %s %d->%d/%d" % [idx, actor_id, cid_pr, ptt, pb, pa, co]
 	return "[%d] P%d %s" % [idx, actor_id, at]
 
 

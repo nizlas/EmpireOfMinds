@@ -36,6 +36,7 @@ func _ready() -> void:
 	selection_controller.selection = selection
 	selection_controller.selection_view = selection_view
 	selection_controller.units_view = units_view
+	selection_controller.cities_view = cities_view
 	var turn_label = $TurnLabel
 	turn_label.game_state = game_state
 	turn_label.refresh()

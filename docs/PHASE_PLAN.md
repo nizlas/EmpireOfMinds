@@ -301,6 +301,51 @@ Validation:
 - Run **`.\scripts\run-godot-tests.ps1`**: every test **`PASS`**; exit **0**.
 - **Editor (F5):** canonical scenario shows **no** city markers; **`CitiesView`** is wired. **Map / selection / units / AI** unchanged.
 
+### Phase 2.2b — FoundCity action (implemented)
+
+Goal:
+Versioned **`FoundCity`** **`Dictionary`** action routed through **`GameState.try_apply`**; **consumes** the founder **unit**; **appends** a **`City`** with **`city_id = peek_next_city_id()`** and increments **`peek_next_city_id()`** by **1** in the returned **`Scenario`**; **F-key** path in **`SelectionController`** + **`LogView`** formatting; **headless** tests.
+
+Must not:
+
+- add **`found_city`** to **`LegalActions`** or change **AI** / **RuleBasedAIPlayer** (Phase **2.6**)
+- add **production**, **SetCityProduction**, **economy**, or **`GameState`** behavior changes beyond **`found_city`** dispatch
+- change **`game/main.tscn`**, **`project.godot`**, or **domain** types **denied** by the phase slice (see task steering)
+
+Validation:
+
+- **`test_found_city`**, **`test_found_city_flow`**, **`test_log_view`** (found_city line), full **`run-godot-tests.ps1`** green.
+- **Editor:** select a **unit**, press **F** → **unit** removed, **city** at that **hex**, **selection** cleared, **log** line.
+
+### Phase 2.3 — City production project + SetCityProduction (implemented)
+
+Goal:
+**`City.current_project`** (**`null`** or **deep-copied** primitive **`Dictionary`**) and versioned **`SetCityProduction`** via **`GameState.try_apply`**; **no** progress tick, **no** **`ProduceUnit`**, **no** economy; **`KEY_P`** **debug** hook in **`SelectionController`**.
+
+Must not:
+
+- add **`set_city_production`** to **`LegalActions`** or change **AI**
+- advance **`progress`**, spawn **units**, or add **yields**
+- change **`main.tscn`**, **`project.godot`**, or denylisted domain files
+
+Validation:
+
+- **`test_set_city_production`**, **`test_set_city_production_flow`**, **`test_log_view`** (production line), full **`run-godot-tests.ps1`** green.
+
+### Phase 2.4a — Production progress on EndTurn (implemented)
+
+Goal:
+**`ProductionTick`** increments **`current_project.progress`** for **ending-player** cities on each **accepted** **`end_turn`**, deterministic **ascending `city.id`** order, **`production_progress`** log **`0..N`** then **`end_turn`**; **no** clamp, **no** completion, **no** **`ProduceUnit`**.
+
+Must not:
+
+- spawn **units**, allocate **`peek_next_unit_id`**, clear **projects**, or add **`production_progress`** to **`try_apply`** / **`LegalActions`** / **AI**
+- change **`main.tscn`**, **`project.godot`**, or denylisted domain files
+
+Validation:
+
+- **`test_production_tick`**, **`test_end_turn_production_flow`**, **`test_log_view`**, **`test_turn_flow`**, full **`run-godot-tests.ps1`** green.
+
 ## Phase 3 — Game content foundation
 
 Goal:

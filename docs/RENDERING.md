@@ -62,10 +62,19 @@ This is not final art, branding, or a committed palette for release.
 
 ## Phase 1.9 — Action log debug view
 
-- **`LogView`** ([log_view.gd](../game/presentation/log_view.gd)) is a **`Label`** child of **`Main`** (placed low on the screen so it does not overlap **`TurnLabel`**). It shows the **last `MAX_ENTRIES` (10)** accepted log lines via **`compute_text(game_state)`**, **oldest at top, newest at bottom**; it reads only **`game_state.log.size()`** and **`game_state.log.get_entry(i)`** and **never mutates** domain state. **`main.gd`** assigns **`game_state`** and calls **`refresh()`** once at startup. **`SelectionController`**, **`EndTurnController`**, and **`AITurnController`** call **`log_view.refresh()`** after each **accepted** action ( **`log_view`** is optional — **null-safe**). This is a **debug** surface only: **no** replay, **no** undo/redo, **no** polling or **`_process`** (see [ACTIONS.md](ACTIONS.md)).
+- **`LogView`** ([log_view.gd](../game/presentation/log_view.gd)) is a **`Label`** child of **`Main`** (placed low on the screen so it does not overlap **`TurnLabel`**). It shows the **last `MAX_ENTRIES` (10)** accepted log lines via **`compute_text(game_state)`**, **oldest at top, newest at bottom**; it reads only **`game_state.log.size()`** and **`game_state.log.get_entry(i)`** and **never mutates** domain state. **`main.gd`** assigns **`game_state`** and calls **`refresh()`** once at startup. **`SelectionController`**, **`EndTurnController`**, and **`AITurnController`** call **`log_view.refresh()`** after each **accepted** action ( **`log_view`** is optional — **null-safe**). **`format_entry`** covers **`move_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, and engine **`production_progress`** (Phase **2.4a**). This is a **debug** surface only: **no** replay, **no** undo/redo, **no** polling or **`_process`** (see [ACTIONS.md](ACTIONS.md)).
 
 ## Phase 2.1 — City placeholder markers
 
 - **`CitiesView`** ([cities_view.gd](../game/presentation/cities_view.gd)) is a **`Node2D`** sibling **after** **`MapView`** and **before** **`SelectionView`** in [main.tscn](../game/main.tscn). **Draw order:** **terrain → cities → selection overlay → unit markers** ( **`UnitsView`** remains topmost among map-layer siblings). Markers are **filled diamonds** derived from **`Scenario.cities()`** via **`compute_marker_items`**, **`owner_id`** → cool placeholder palette; **not** final art.
 - The canonical **`make_tiny_test_scenario()`** has **zero** cities; **`CitiesView`** is wired so **Phase 2.2+** can show markers without scene churn. Domain and tests use explicit **`City`** lists where needed (see [CITIES.md](CITIES.md)).
 - **No** **`FoundCity`**, **no** **`try_apply`** changes, **no** controller re-point of **`CitiesView`** in this subphase.
+
+## Phase 2.2b — FoundCity input and CitiesView refresh
+
+- **`SelectionController`** handles **`KEY_F`** (pressed, non-echo): if a **unit** is **selected**, builds **`FoundCity.make`** from **`game_state.scenario`** and submits via **`game_state.try_apply`**. On **accept**, **clears selection** and re-points **`units_view`**, **`selection_view`**, optional **`cities_view`**, **`queue_redraw()`**, **`turn_label.refresh()`**, **`log_view.refresh()`**; **`cities_view`** stays **null-safe** (optional / not required for headless tests or default startup wiring beyond [main.gd](../game/main.gd)).
+- After **accepted** **`FoundCity`**, **`CitiesView`** must show the **new** city marker at the **founder’s former** hex.
+
+## Phase 2.3 — KEY_P debug (SetCityProduction)
+
+- **`SelectionController`** handles **`KEY_P`** (pressed, non-echo): picks the **lowest-id** **current-player** city with **`current_project == null`** and submits **`SetCityProduction.make(..., "produce_unit")`** via **`try_apply`**. **Does not** clear **selection**; **no** production UI. **`CitiesView`** is **refreshed** only so manual checks stay consistent when wired (markers unchanged — projects are **not** drawn in **CitiesView** this phase). After **Space** **`end_turn`**, **`LogView`** may show **`production`** lines before **`end_turn`** when cities have **projects**.
