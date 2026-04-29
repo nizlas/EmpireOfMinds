@@ -451,12 +451,26 @@ Validation:
 - **`run-godot-tests.ps1`** exit **0** (includes **`test_unit_definitions.gd`**).
 - Manual **F5** / **A** loop: **P0** **settler** still **founds** first on canonical scenario; **producer** path unchanged.
 
-### Phase 3.2 — Terrain rules and movement costs
+### Phase 3.2 — Terrain rules and movement costs (implemented)
 
 Goal:
-Terrain affects **movement cost** and **legality** beyond Phase 1 neighbor rules; keep **`MovementRules`** (or successor) as the legality oracle.
+Terrain **passability** (and **cost** as content metadata) lives in a registry; **`MovementRules`** stays the **legality oracle** for **`MoveUnit`** / **`LegalActions`**.
 
 **Must reference [CONTENT_MODEL.md](CONTENT_MODEL.md).**
+
+Shipped in code:
+
+- **`TerrainRuleDefinitions`** **`plains`** / **`water`** in [terrain_rule_definitions.gd](../game/domain/content/terrain_rule_definitions.gd); **`get_definition`**, **`is_passable_hex_map_value`**, enum → id mapping; unknown enum → empty id → **impassable**.
+- **`MovementRules.legal_destinations`** uses **`TerrainRuleDefinitions`** instead of inlining **`HexMap.Terrain.WATER`**.
+- **`HexMap`** storage and **`FoundCity`** **`tile_is_water`** check **unchanged** (founding consolidation deferred).
+
+Must not (this subphase):
+
+- new terrain types, multi-hex moves, movement points, pathfinding, unit-type passability, presentation or **`MapView`** changes, production / **`try_apply`** / AI **`decide`** changes
+
+Validation:
+
+- **`run-godot-tests.ps1`** exit **0** (**35** scripts including **`test_terrain_rule_definitions.gd`**).
 
 ### Phase 3.3 — City project definitions
 

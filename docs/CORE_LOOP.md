@@ -39,6 +39,7 @@ From [AI_LAYER.md](AI_LAYER.md):
 ## Intentionally still placeholder
 
 - **No** combat stats, **no** movement cost by **`type_id`**, **no** distinct **unit** **silhouettes** in presentation (markers unchanged).
+- **Water** hexes remain **blocked** for **one-step** moves via **`TerrainRuleDefinitions`**; **no** movement points, **no** multi-hex pathfinding, **no** application of **`movement_cost`** to range yet.
 - **`produce_unit`** uses **`cost`** **2** in the default project shape from `SetCityProduction` apply; **`ProductionDelivery`** spawns units with **`type_id`** **`"warrior"`** until **Phase 3.3** project definitions.
 - **City** and **unit** markers are **placeholder** geometry and palettes (not final art).
 - **Stacking** on the city hex is **allowed** when a produced unit spawns.

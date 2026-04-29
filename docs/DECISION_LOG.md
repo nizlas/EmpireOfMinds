@@ -327,3 +327,22 @@ Caveat:
 
 - **No** combat stats, **no** movement rules by type, **no** visual differentiation by **`type_id`** yet.
 - **GDScript / Godot 4:** registry **lookup** is **`UnitDefinitions.get_definition(id)`**, not **`get`**, because **`static func get`** on **`RefCounted`** is rejected (signature clash with **`Object.get`**).
+
+## 2026-04-29 — Terrain rule definitions (Phase 3.2)
+
+Decision:
+
+- **`TerrainRuleDefinitions`** registry **[`plains` / `water`](../game/domain/content/terrain_rule_definitions.gd)** with **`passable`**, **`movement_cost`** ( **`999`** for **water** — data only; range still one hex), **`get_definition`**, **`terrain_id_for_hex_map_value`**, **`is_passable_hex_map_value`**.
+- **`MovementRules.legal_destinations`** consults **`TerrainRuleDefinitions`** for passability; **`HexMap.Terrain`** enum remains map storage.
+- Unknown **`HexMap.Terrain`** values map to **`TERRAIN_ID_UNKNOWN`** (empty string) and are **impassable**.
+- **`FoundCity.validate`** still checks **`HexMap.Terrain.WATER`** for **`tile_is_water`**; consolidating with the registry is **deferred**.
+
+Rationale:
+
+- Adds the **[CONTENT_MODEL.md](CONTENT_MODEL.md)** terrain seam **without** storage migration, pathfinding, or loop-shape changes.
+
+Caveat:
+
+- **`movement_cost`** does not affect **`legal_destinations`** yet.
+- **`get_definition`** naming follows the Phase **3.1** / **`Object.get`** caveat.
+- Two terrain checks (**movement** vs **founding**) until a later consolidation phase.

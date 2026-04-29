@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phase 1.8 adds **legal-action enumeration** in the domain, a **rule-based AI** under `game/ai/`, and a **debug input controller** in presentation. The AI never mutates **`Scenario`**, **`Unit`**, **`TurnState`**, or **`GameState`** directly; it only submits **`Dictionary`** actions through **`GameState.try_apply`**, same as human input.
+Phase 1.8 adds **legal-action enumeration** in the domain, a **rule-based AI** under `game/ai/`, and a **debug input controller** in presentation. The AI never mutates **`Scenario`**, **`Unit`**, **`TurnState`**, or **`GameState`** directly; it only submits **`Dictionary`** actions through **`GameState.try_apply`**, same as human input. **Phase 3.2:** **`LegalActions`** terrain legality for **`move_unit`** still flows only through **`MovementRules`** → **`TerrainRuleDefinitions`**; **`RuleBasedAIPlayer.decide`** and policy are **unchanged**.
 
 See [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) (AI layer), [ACTIONS.md](ACTIONS.md), [AI_DESIGN.md](AI_DESIGN.md).
 

@@ -10,7 +10,7 @@ Hex cell addressing uses axial coordinates; see [HEX_COORDINATES.md](HEX_COORDIN
 
 ## Terrain (tag-only in Phase 1.2)
 
-`HexMap.Terrain` is a minimal inline enum: `PLAINS`, `WATER`. Values are **tags** only. There are no movement costs, line-of-sight, resources, or ownership in this phase. Gameplay rules that interpret terrain come in later phases, with updated steering as needed.
+`HexMap.Terrain` is a minimal inline enum: `PLAINS`, `WATER`. Values are **tags** only in **`HexMap`** (no per-cell gameplay fields here). **Phase 3.2:** **[TerrainRuleDefinitions](../game/domain/content/terrain_rule_definitions.gd)** holds **passability** and **`movement_cost`** metadata keyed by stable ids **`plains`** / **`water`** mapped from this enum. **`movement_cost`** does **not** expand move range yet—still one step per [MOVEMENT_RULES.md](MOVEMENT_RULES.md).
 
 ## Fixed tiny test map
 
@@ -44,7 +44,9 @@ Code under `game/domain/` must not depend on Godot scene nodes, rendering, UI, i
 
 **`HexMap`** and **`Terrain`** remain **unchanged** in Phase 1.5: terrain values are still **tags** with no movement semantics baked into the map type. The first interpretation that **WATER is impassable** for unit movement lives in **[MOVEMENT_RULES.md](MOVEMENT_RULES.md)** (`MovementRules.legal_destinations`), not in new `HexMap` APIs.
 
-**Phase 3.2 (planned):** Terrain **legality and cost** will be driven by **content-defined terrain rules** per [CONTENT_MODEL.md](CONTENT_MODEL.md); **`HexMap`** stays **tag-like** today and this phase adds **no** map API changes.
+**`HexMap`** storage stays **enum-backed**: no string **`terrain_id`** in **`_cells`** and **no** save/load migration in **3.2**. **`TerrainRuleDefinitions.terrain_id_for_hex_map_value`** projects **`HexMap.Terrain`** values onto content ids. Unknown enum values map to an **empty** id and are treated as **impassable** in movement rules.
+
+**Phase 3.2 (implemented):** Terrain **semantics** for **movement** are read through **`TerrainRuleDefinitions`** per [CONTENT_MODEL.md](CONTENT_MODEL.md); **`HexMap`** API and storage are **unchanged**.
 
 ## Explicitly deferred
 

@@ -12,10 +12,12 @@
 
 1. The cell is a **neighbor** of the unit’s current `position` (`HexCoord.neighbors()` order is irrelevant; the result is a set of coords).
 2. **`scenario.map.has(coord)`** — destination exists on the map.
-3. **`scenario.map.terrain_at(coord) != HexMap.Terrain.WATER`** — **WATER is impassable** for this phase (first use of terrain in a rule; the map model itself is unchanged).
+3. **`TerrainRuleDefinitions.is_passable_hex_map_value(scenario.map.terrain_at(coord))`** — destination terrain must be **passable** per [terrain_rule_definitions.gd](../game/domain/content/terrain_rule_definitions.gd) (today **`plains`** passable, **`water`** not). Definitions include **`movement_cost`**, which is **metadata only** in **3.2** and does **not** change one-step range.
 4. **`scenario.units_at(coord).size() == 0`** — destination is **not occupied** by any unit.
 
-**Phase 3.2 (planned):** **`MovementRules`** will consult **terrain rule definitions** (passability, costs) per [CONTENT_MODEL.md](CONTENT_MODEL.md) instead of inlining **`HexMap.Terrain.WATER`** checks only. **Phase 3.0** changes **nothing**; the WATER-impassable rule above remains in force until **3.2** lands.
+**`FoundCity.validate`** still uses **`tile_is_water`** against **`HexMap.Terrain.WATER`** directly; routing founding through **`TerrainRuleDefinitions`** is **deferred** so city and movement rule modules stay independently testable for now.
+
+**Phase 3.2 (implemented):** passability is **global** (not unit-type-specific); unknown enum values fail **closed** as impassable.
 
 Returns **`[]`** if `scenario` is **`null`**, **`unit_id`** is unknown, or the unit is missing from the scenario.
 
@@ -27,7 +29,7 @@ Returns **`[]`** if `scenario` is **`null`**, **`unit_id`** is unknown, or the u
 
 ## Explicitly deferred
 
-- Range > 1, movement points, terrain **costs**, roads, railways.
+- Range > 1, **consuming** **`movement_cost`** for legality or path budget, roads, railways.
 - Stacking, zone of control, friendly/enemy blocking beyond “occupied”.
 - Pathfinding (A*, etc.).
 - Turn ownership (“only current player may query”) — Phase 1.7+.

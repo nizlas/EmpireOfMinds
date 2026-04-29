@@ -4,6 +4,7 @@ const MovementRulesScript = preload("res://domain/movement_rules.gd")
 const ScenarioScript = preload("res://domain/scenario.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexMapScript = preload("res://domain/hex_map.gd")
+const TerrainRuleDefinitionsScript = preload("res://domain/content/terrain_rule_definitions.gd")
 
 var _total = 0
 var _any_fail = false
@@ -34,6 +35,12 @@ func _init() -> void:
 	_check(
 		not _contains_coord(d1, HexCoordScript.new(0, -1)),
 		"should not include occupied (0,-1)"
+	)
+	_check(
+		not TerrainRuleDefinitionsScript.is_passable_hex_map_value(
+			sc.map.terrain_at(HexCoordScript.new(-1, 0))
+		),
+		"TerrainRuleDefinitions marks water (-1,0) impassable"
 	)
 	var d2 = MovementRulesScript.legal_destinations(sc, 2)
 	_check(d2.size() == 2, "unit 2 should have 2 legal destinations")

@@ -6,6 +6,7 @@ extends RefCounted
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexMapScript = preload("res://domain/hex_map.gd")
 const ScenarioScript = preload("res://domain/scenario.gd")
+const TerrainRuleDefinitionsScript = preload("res://domain/content/terrain_rule_definitions.gd")
 
 static func legal_destinations(a_scenario, unit_id: int) -> Array:
 	assert(HexCoordScript != null)
@@ -22,7 +23,7 @@ static func legal_destinations(a_scenario, unit_id: int) -> Array:
 	while i < ns.size():
 		var n = ns[i]
 		if a_scenario.map.has(n) \
-			and a_scenario.map.terrain_at(n) != HexMapScript.Terrain.WATER \
+			and TerrainRuleDefinitionsScript.is_passable_hex_map_value(a_scenario.map.terrain_at(n)) \
 			and a_scenario.units_at(n).size() == 0:
 			out.append(n)
 		i = i + 1

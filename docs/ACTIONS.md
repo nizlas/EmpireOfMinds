@@ -57,7 +57,7 @@ Built with **`MoveUnit.make(actor_id, unit_id, from_q, from_r, to_q, to_r)`** in
 5. `unknown_unit`
 6. `actor_not_owner`
 7. `from_does_not_match_unit_position`
-8. `destination_not_legal` — uses **`MovementRules.legal_destinations`** and **`HexCoord.equals`**.
+8. `destination_not_legal` — uses **`MovementRules.legal_destinations`** (which consults **`TerrainRuleDefinitions`** for terrain passability per [MOVEMENT_RULES.md](MOVEMENT_RULES.md)) and **`HexCoord.equals`**.
 
 ## Application
 
