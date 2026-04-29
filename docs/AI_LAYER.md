@@ -50,6 +50,8 @@ No **`_process`**, **`Tween`**, **`Timer`**, or chained automation: **one key pr
 
 **`LegalActions`** enumerates **`found_city`** and **`set_city_production`** (with existing validators only). **No** AI policy inside **`LegalActions`** (e.g. a player with cities still sees every legal **`found_city`** for each unit). **`RuleBasedAIPlayer`** alone applies the preference order above. Engine log types remain **out** of **`legal_actions`**.
 
+End-to-end AI core-loop smoke: [`test_core_loop_ai_smoke.gd`](../game/ai/tests/test_core_loop_ai_smoke.gd).
+
 ## Explicitly deferred
 
 - LLM / OpenAI / Ollama adapters.

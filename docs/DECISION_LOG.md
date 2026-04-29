@@ -1,5 +1,16 @@
 # Empire of Minds — Decision Log
 
+## 2026-04-29 — Phase 2.6: core loop frozen; CORE_LOOP.md + smoke test
+
+Decision:
+Phase **2.x** core loop is **frozen** as the baseline immediately before Phase **3** content foundation. **[CORE_LOOP.md](CORE_LOOP.md)** is the human-readable summary of what the prototype does today (playable loop, log order, placeholders, F5 checklist, validation command). **`game/ai/tests/test_core_loop_ai_smoke.gd`** is the headless **end-to-end** guard: AI drives **`GameState.try_apply`** until **`unit_produced`** appears and turn number reaches **2+**, without choosing engine log types.
+
+Rationale:
+Entering Phase **3** with only scattered docs and partial tests risks drift between “what we think works” and the **actual** loop. One short checkpoint doc plus one smoke test keeps **documentation and behavior aligned** at low cost.
+
+Caveat:
+**2.6** is **not** UI/HUD polish, not final balance, and not a replacement for Phase **4** presentation quality.
+
 ## 2026-04-28 — Phase 2.5: city actions in LegalActions + rule-based AI
 
 Decision:

@@ -70,6 +70,7 @@ $Tests = @(
 	"res://ai/tests/test_rule_based_ai_player.gd",
 	"res://ai/tests/test_rule_based_ai_policy.gd",
 	"res://ai/tests/test_ai_turn_flow.gd",
+	"res://ai/tests/test_core_loop_ai_smoke.gd",
 	"res://presentation/tests/test_log_view.gd",
 	"res://domain/tests/test_city.gd",
 	"res://domain/tests/test_scenario_cities.gd",

@@ -381,6 +381,23 @@ Validation:
 - **`test_legal_actions`**, **`test_rule_based_ai_player`**, **`test_ai_turn_flow`** updated; full **`run-godot-tests.ps1`** green.
 - **Editor:** **`KEY_A`** on canonical start → AI **`found_city`**, then **`set_city_production`**, then move/end policy; log shows engine lines only from **`end_turn`**, never as AI-chosen actions.
 
+### Phase 2.6 — Core loop validation / readability checkpoint (implemented)
+
+Goal:
+Freeze and validate the Phase **2.x** core loop as a known-good baseline **before** Phase **3** content foundation. Summarize the current playable loop in human-readable form and pin one headless smoke test that proves rule-based AI can drive the loop through **`unit_produced`** delivery within bounded steps.
+
+Must not:
+
+- add gameplay mechanics, new action **schemas**, or changes to **`GameState.try_apply`**, **`ProductionTick`**, **`ProductionDelivery`**, **`LegalActions`**, AI policy, canonical fixtures, presentation, scenes, or controllers
+- substitute this checkpoint for Phase **4** UI/HUD or visual identity work
+
+Validation:
+
+- **[CORE_LOOP.md](CORE_LOOP.md)** exists and matches the shipped loop (controls, log order, placeholders, manual checklist, headless command).
+- **`test_core_loop_ai_smoke.gd`** passes; full **`run-godot-tests.ps1`** green (exit **0**).
+
+**Final pre-Phase-3 checkpoint:** after **2.6**, Phase **3** owns definitions and content-shaped rules on top of this frozen loop.
+
 ## Phase 3 — Game content foundation
 
 Goal:
