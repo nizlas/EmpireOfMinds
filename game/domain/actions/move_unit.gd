@@ -85,7 +85,8 @@ static func apply(a_scenario, action):
 				UnitScript.new(
 					u.id,
 					u.owner_id,
-					HexCoordScript.new(to_a[0] as int, to_a[1] as int)
+					HexCoordScript.new(to_a[0] as int, to_a[1] as int),
+					u.type_id
 				)
 			)
 		else:

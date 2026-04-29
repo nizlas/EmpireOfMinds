@@ -10,6 +10,7 @@ const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexMapScript = preload("res://domain/hex_map.gd")
 const ScenarioScript = preload("res://domain/scenario.gd")
 const CityScript = preload("res://domain/city.gd")
+const UnitDefinitionsScript = preload("res://domain/content/unit_definitions.gd")
 
 static func make(actor_id: int, unit_id: int, q: int, r: int) -> Dictionary:
 	return {
@@ -53,6 +54,8 @@ static func validate(a_scenario, action) -> Dictionary:
 		return {"ok": false, "reason": "unknown_unit"}
 	if u.owner_id != action["actor_id"]:
 		return {"ok": false, "reason": "actor_not_owner"}
+	if not UnitDefinitionsScript.can_found_city(u.type_id):
+		return {"ok": false, "reason": "unit_type_cannot_found"}
 	var pos_c = HexCoordScript.new(pos_a[0], pos_a[1])
 	if not u.position.equals(pos_c):
 		return {"ok": false, "reason": "unit_not_at_position"}

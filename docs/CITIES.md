@@ -36,9 +36,9 @@ The canonical **`make_tiny_test_scenario()`** fixture has **no cities** in Phase
 
 **Phase 2.2b:** **`FoundCity`** ([found_city.gd](../game/domain/actions/found_city.gd)) creates a **`City`** at the founder **unit’s hex**, assigns **`city_id = peek_next_city_id()`**, increments **`peek_next_city_id()` by 1** in the returned **`Scenario`**, and **removes** that **unit** from the unit list. **`GameState.try_apply`** dispatches **`FoundCity`** like other versioned actions; **`FoundCity.validate`** does **not** check **`current_player_id`** (**`not_current_player`** is only the common **`try_apply`** gate).
 
-**Temporary rule (Phase 2.2b scaffold):** **any** **current-player** **unit** may found (**settler** / **unit-type** eligibility is **Phase 3.1** — see [UNITS.md](UNITS.md)). The **F-key** path in **`SelectionController`** remains a manual presentation entry. **Phase 2.5:** **` LegalActions`** and **`RuleBasedAIPlayer`** may choose **`FoundCity`** and **`SetCityProduction`** from the legal list (see [AI_LAYER.md](AI_LAYER.md)); **no** new action schemas.
+**Phase 3.1:** **founding** is gated by **`UnitDefinitions.can_found_city(unit.type_id)`** (see [UNITS.md](UNITS.md), [ACTIONS.md](ACTIONS.md)). The **F-key** path in **`SelectionController`** remains a manual presentation entry. **Phase 2.5:** **`LegalActions`** and **`RuleBasedAIPlayer`** may choose **`FoundCity`** and **`SetCityProduction`** from the legal list (see [AI_LAYER.md](AI_LAYER.md)); **no** new action schemas.
 
-**Domain validation (structural only):** founder must **own** the **`actor_id`**, sit at **`position`**, on **land** (**not** **WATER**), on the **map**, on a hex **without** an existing **city**.
+**Domain validation (structural only):** founder must **own** the **`actor_id`**, have a **`type_id`** that **can found** (**`UnitDefinitions.can_found_city`**), sit at **`position`**, on **land** (**not** **WATER**), on the **map**, on a hex **without** an existing **city**.
 
 ## Phase 2.3 — `current_project` and SetCityProduction
 
@@ -51,6 +51,8 @@ The canonical **`make_tiny_test_scenario()`** fixture has **no cities** in Phase
 ## Phase 2.4a–c — Production on EndTurn (engine)
 
 On **accepted** **`end_turn`**, **`ProductionTick`** ([production_tick.gd](../game/domain/production_tick.gd)) increments **`progress`** and may set **`ready: true`** for **`produce_unit`** when **`progress` >= `cost`**; **`production_progress`** log lines are appended **before** **`turn_state`** advances and **before** the **`end_turn`** entry. **`ProductionDelivery`** ([production_delivery.gd](../game/domain/production_delivery.gd)) runs **after** **`end_turn`** for the **new** **`current_player_id`**, appending **`unit_produced`** and spawning **Units** (see [ACTIONS.md](ACTIONS.md), [TURNS.md](TURNS.md), [UNITS.md](UNITS.md)). Initial **`GameState`** construction may deliver **`ready`** projects for the opening current player.
+
+**Phase 3.1 (transitional):** delivered units are created with **`Unit.type_id == "warrior"`**. **Phase 3.3** will tie **`produce_unit`** (via **`project_id`** / city project definitions) to specific unit types; until then, **`unit_produced`** log rows stay **unchanged** (**no** **`type_id`** on the event).
 
 **[CitiesView](../game/presentation/cities_view.gd)** continues to draw cities from **`Scenario.cities()`**. **`SelectionController`** re-points **`cities_view.scenario`** after an **accepted** **`FoundCity`** (see [RENDERING.md](RENDERING.md)).
 

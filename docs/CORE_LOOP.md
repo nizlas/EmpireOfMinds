@@ -2,17 +2,17 @@
 
 ## Status
 
-Phase **2.x** core loop is **feature-frozen** as a baseline. **Phase 3** begins the **content foundation** (definitions, unit types, terrain rules, project data); this document describes what already works today—not what Phase 3 will add. Phase **3** will replace placeholders such as **any unit may found** and **fixed `produce_unit` cost** through **content definitions** per [CONTENT_MODEL.md](CONTENT_MODEL.md) **without changing the loop’s shape** (same actions, `try_apply`, and AI pipeline).
+Phase **2.x** core loop is **feature-frozen** as a baseline. **Phase 3** extends the **content foundation** (definitions, unit types, terrain rules, project data); this document describes what already works today—not the full Phase 3 roadmap. Phase **3** replaces placeholders such as **fixed `produce_unit` cost** through **content definitions** per [CONTENT_MODEL.md](CONTENT_MODEL.md) **without changing the loop’s shape** (same actions, `try_apply`, and AI pipeline). **Phase 3.1** already gates **`FoundCity`** by **`Unit.type_id`** / **`UnitDefinitions`** (see [UNITS.md](UNITS.md)).
 
 ## Current playable loop
 
 - **Mouse**: click a unit to select; click a **legal destination** (tinted hex) to move via `MoveUnit` through `GameState.try_apply`.
-- **F**: `FoundCity` for the **selected unit** on its current tile (presentation path in `SelectionController`). Rejected actions surface as warnings; only accepted actions append to the log.
+- **F**: `FoundCity` for the **selected unit** on its current tile (presentation path in `SelectionController`). **Only settler-type units** (`UnitDefinitions.can_found_city`) succeed; others are rejected. Rejected actions surface as warnings; only accepted actions append to the log.
 - **P**: `SetCityProduction` with `produce_unit` for the **lowest-id** **current-player** city whose `current_project == null` (debug path in `SelectionController`).
 - **Space**: `EndTurn` for the current player (`EndTurnController`).
 - **A**: one rule-based AI step: `LegalActions.for_current_player(game_state)` → `RuleBasedAIPlayer.decide(game_state, legal_actions)` → `GameState.try_apply(choice)` (`AITurnController`).
 
-Canonical rules and schemas live in [ACTIONS.md](ACTIONS.md), [CITIES.md](CITIES.md), and related domain docs.
+Canonical rules and schemas live in [ACTIONS.md](ACTIONS.md), [CITIES.md](CITIES.md), and related domain docs. The **tiny test map / scenario** gives **each** player **one** **settler** and **one** **warrior** so the **Phase 2** AI loop shape (found → produce → move → end turn) stays intact without changing **`RuleBasedAIPlayer`**.
 
 ## Event / log order
 
@@ -38,11 +38,11 @@ From [AI_LAYER.md](AI_LAYER.md):
 
 ## Intentionally still placeholder
 
-- **Any unit may found** a city (no settler role yet).
-- **`produce_unit`** has **no unit type**; **`cost`** is **2** in the default project shape from `SetCityProduction` apply.
+- **No** combat stats, **no** movement cost by **`type_id`**, **no** distinct **unit** **silhouettes** in presentation (markers unchanged).
+- **`produce_unit`** uses **`cost`** **2** in the default project shape from `SetCityProduction` apply; **`ProductionDelivery`** spawns units with **`type_id`** **`"warrior"`** until **Phase 3.3** project definitions.
 - **City** and **unit** markers are **placeholder** geometry and palettes (not final art).
 - **Stacking** on the city hex is **allowed** when a produced unit spawns.
-- **No** combat, **no** save/load, **no** fog of war, **no** tech tree, **no** factions or content registry yet.
+- **No** combat resolution, **no** save/load, **no** fog of war, **no** tech tree, **no** faction **trait** layer beyond **`UnitDefinitions`** **IDs** and **`Unit.type_id`**.
 
 Presentation: [RENDERING.md](RENDERING.md), [SELECTION.md](SELECTION.md) (editor wiring for keys and views).
 

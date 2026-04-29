@@ -426,12 +426,30 @@ Validation:
 - **[CONTENT_MODEL.md](CONTENT_MODEL.md)** exists and matches this phase’s scope.
 - Full **`run-godot-tests.ps1`** green (exit **0**); regression-only—no behavior change expected.
 
-### Phase 3.1 — Unit definitions
+### Phase 3.1 — Unit definitions (implemented)
 
 Goal:
 **Unit types** (stats, roles, production prerequisites) as **data** + validation, separate from balance polish.
 
 **Must reference [CONTENT_MODEL.md](CONTENT_MODEL.md).**
+
+Shipped in code:
+
+- **`UnitDefinitions`** registry **`settler`** / **`warrior`** (`game/domain/content/unit_definitions.gd`); row lookup via **`get_definition(id)`** ( **`get`** is not a valid method name on **`RefCounted`** in GDScript 4).
+- **`Unit.type_id`** on state (**default** **`"warrior"`** for three-arg construction).
+- **`FoundCity.validate`** rejects types that cannot found (**`unit_type_cannot_found`**).
+- **`ProductionDelivery`** spawns **`type_id`** **`"warrior"`** until **3.3**; **`unit_produced`** shape unchanged.
+
+Must not (this subphase):
+
+- bump **`FoundCity`** / player action **schemas**
+- change **`GameState.try_apply`**, **`ProductionTick`**, **`MovementRules`**, **`RuleBasedAIPlayer.decide`**, or **`legal_actions.gd`** except to fix a proven bug
+- add combat, movement-by-type, or presentation differentiation
+
+Validation:
+
+- **`run-godot-tests.ps1`** exit **0** (includes **`test_unit_definitions.gd`**).
+- Manual **F5** / **A** loop: **P0** **settler** still **founds** first on canonical scenario; **producer** path unchanged.
 
 ### Phase 3.2 — Terrain rules and movement costs
 

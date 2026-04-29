@@ -94,7 +94,7 @@ static func deliver_pending_for_player(a_scenario, owner_id: int) -> Dictionary:
 		var cp = completion_order[cpi] as Dictionary
 		var ccid = cp["city_id"] as int
 		var cy = a_scenario.city_by_id(ccid)
-		new_units.append(UnitScript.new(cp["unit_id"] as int, cy.owner_id, cy.position))
+		new_units.append(UnitScript.new(cp["unit_id"] as int, cy.owner_id, cy.position, "warrior"))
 		cpi = cpi + 1
 
 	var new_cities: Array = []

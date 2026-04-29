@@ -19,7 +19,7 @@ intent
 **`LegalActions.for_current_player(game_state) -> Array`** in [legal_actions.gd](../game/domain/legal_actions.gd) returns a **deterministically ordered** list of player-action **`Dictionary`** values:
 
 1. All legal **`MoveUnit.make(...)`** for **`game_state.scenario`** under **`MovementRules.legal_destinations`** for each **current-player** unit (deterministic unit and destination order; see [AI_LAYER.md](AI_LAYER.md)).
-2. **Phase 2.5:** each **current-player** unit’s **`FoundCity.make`** at its current tile, **only** if **`FoundCity.validate`** passes (policy-agnostic; multiple cities per player are still enumerated if legal).
+2. **Phase 2.5:** each **current-player** unit’s **`FoundCity.make`** at its current tile, **only** if **`FoundCity.validate`** passes (policy-agnostic; multiple cities per player are still enumerated if legal). **Phase 3.1:** validation includes **unit-type** founding eligibility via **`UnitDefinitions`**, so only units whose **`type_id`** can found appear here.
 3. **Phase 2.5:** for each **current-player** city with **`current_project == null`**, **`SetCityProduction.make(..., "produce_unit")`** **only** if **`SetCityProduction.validate`** passes. Cities with any non-**`null`** project (including **`ready: true`**) emit **no** **`set_city_production`** here; **`"none"`** clear actions are **not** enumerated in this phase.
 4. Exactly one **`EndTurn.make(current_player_id)`**, **last**.
 
@@ -151,10 +151,13 @@ Built with **`FoundCity.make(actor_id, unit_id, q, r)`** in [found_city.gd](../g
 4. `malformed_action` — **`actor_id`**, **`unit_id`**, **`position`** shape and integer **`q`/`r`**
 5. `unknown_unit`
 6. `actor_not_owner`
-7. `unit_not_at_position`
-8. `tile_not_on_map`
-9. `tile_is_water`
-10. `tile_already_has_city`
+7. **`unit_type_cannot_found`** — **`UnitDefinitions.can_found_city(unit.type_id)`** is **false** (Phase **3.1**; unknown **`type_id`** fails here)
+8. `unit_not_at_position`
+9. `tile_not_on_map`
+10. `tile_is_water`
+11. `tile_already_has_city`
+
+**`FoundCity`** **`Dictionary`** shape and **`schema_version`** are **unchanged** in Phase **3.1**. **`LegalActions`** does **not** need a special case: **`found_city`** entries are **omitted** when **`FoundCity.validate`** fails, including this rule.
 
 ### FoundCity application
 

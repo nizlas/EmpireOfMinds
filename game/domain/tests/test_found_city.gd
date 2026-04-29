@@ -134,6 +134,14 @@ func _init() -> void:
 		FoundCityScript.make(1, 1, 0, 0)
 	)
 	_check(not r13["ok"] and r13["reason"] == "actor_not_owner", "actor_not_owner")
+	var r13b = FoundCityScript.validate(
+		sc,
+		FoundCityScript.make(0, 2, 1, 0)
+	)
+	_check(
+		not r13b["ok"] and r13b["reason"] == "unit_type_cannot_found",
+		"unit_type_cannot_found"
+	)
 	var r14 = FoundCityScript.validate(
 		sc,
 		FoundCityScript.make(0, 1, 1, 0)
@@ -151,7 +159,7 @@ func _init() -> void:
 	var m_water = HexMapScript.make_tiny_test_map()
 	var sc_uw = ScenarioScript.new(
 		m_water,
-		[UnitScript.new(20, 0, HexCoordScript.new(-1, 0))],
+		[UnitScript.new(20, 0, HexCoordScript.new(-1, 0), "settler")],
 		[],
 		30,
 		40
@@ -165,7 +173,7 @@ func _init() -> void:
 	var existing_c = CityScript.new(50, 0, HexCoordScript.new(1, 0))
 	var sc_city = ScenarioScript.new(
 		m_water,
-		[UnitScript.new(5, 0, HexCoordScript.new(1, 0))],
+		[UnitScript.new(5, 0, HexCoordScript.new(1, 0), "settler")],
 		[existing_c],
 		10,
 		60
@@ -205,8 +213,8 @@ func _init() -> void:
 
 	var m2 = HexMapScript.make_tiny_test_map()
 	var cu2 = [
-		UnitScript.new(1, 0, HexCoordScript.new(0, 0)),
-		UnitScript.new(2, 0, HexCoordScript.new(1, -1)),
+		UnitScript.new(1, 0, HexCoordScript.new(0, 0), "settler"),
+		UnitScript.new(2, 0, HexCoordScript.new(1, -1), "settler"),
 	]
 	var cc_existing = CityScript.new(200, 1, HexCoordScript.new(1, 0))
 	var sc2 = ScenarioScript.new(m2, cu2, [cc_existing], 500, 300)

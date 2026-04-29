@@ -35,12 +35,18 @@ func _init() -> void:
 	_check(entry["actor_id"] == 0, "log actor_id")
 	_check(entry["result"] == "accepted", "log result")
 
+	var r_warrior_fc = gs.try_apply(FoundCityScript.make(0, 2, 1, 0))
+	_check(
+		not r_warrior_fc["accepted"]
+		and r_warrior_fc["reason"] == "unit_type_cannot_found",
+		"warrior cannot found before city"
+	)
 	var mv = gs.try_apply(MoveUnitScript.make(0, 2, 1, 0, 0, 0))
 	_check(mv["accepted"] and gs.scenario.unit_by_id(2).position.equals(HexCoordScript.new(0, 0)), "unit 2 on city hex")
 	var r2 = gs.try_apply(FoundCityScript.make(0, 2, 0, 0))
 	_check(
-		not r2["accepted"] and r2["reason"] == "tile_already_has_city",
-		"second found same tile"
+		not r2["accepted"] and r2["reason"] == "unit_type_cannot_found",
+		"warrior cannot found on city hex"
 	)
 
 	if _any_fail:

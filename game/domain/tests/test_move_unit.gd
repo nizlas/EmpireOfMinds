@@ -80,6 +80,7 @@ func _init() -> void:
 		new_sc.unit_by_id(1).position.equals(HexCoordScript.new(1, -1)),
 		"moved position"
 	)
+	_check(new_sc.unit_by_id(1).type_id == u_before.type_id, "type_id preserved")
 	_check(
 		u_before.position.equals(HexCoordScript.new(0, 0)),
 		"old unit ref unchanged"

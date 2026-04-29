@@ -48,9 +48,9 @@ No **`_process`**, **`Tween`**, **`Timer`**, or chained automation: **one key pr
 
 ## Phase 2.5 — LegalActions + rule-based city loop
 
-**`LegalActions`** enumerates **`found_city`** and **`set_city_production`** (with existing validators only). **No** AI policy inside **`LegalActions`** (e.g. a player with cities still sees every legal **`found_city`** for each unit). **`RuleBasedAIPlayer`** alone applies the preference order above. Engine log types remain **out** of **`legal_actions`**.
+**`LegalActions`** enumerates **`found_city`** and **`set_city_production`** (with existing validators only). **No** AI policy inside **`LegalActions`**. A player with cities still sees **every** legal **`found_city`** for each qualifying unit—that set is smaller from **Phase 3.1** onward because **`FoundCity.validate`** rejects non-founder **`type_id`** values, not because **`LegalActions`** adds new filters. **`RuleBasedAIPlayer`** signature and behavior are **unchanged**; it still consumes **`legal_actions`** only. Engine log types remain **out** of **`legal_actions`**.
 
-From **Phase 3.1 onward**, **`LegalActions`** **may** consult **content registries** per [CONTENT_MODEL.md](CONTENT_MODEL.md) (e.g. gate founding by unit type); **`RuleBasedAIPlayer.decide(game_state, legal_actions)`** remains the **unchanged** AI entry point.
+From **Phase 3.1**, founding eligibility is enforced in **`FoundCity.validate`** via **`UnitDefinitions`** (see [UNITS.md](UNITS.md), [ACTIONS.md](ACTIONS.md)); **`RuleBasedAIPlayer.decide(game_state, legal_actions)`** remains the **unchanged** AI entry point.
 
 End-to-end AI core-loop smoke: [`test_core_loop_ai_smoke.gd`](../game/ai/tests/test_core_loop_ai_smoke.gd).
 

@@ -45,6 +45,7 @@ $Tests = @(
 	"res://domain/tests/test_hex_coord.gd",
 	"res://domain/tests/test_hex_map.gd",
 	"res://domain/tests/test_unit.gd",
+	"res://domain/tests/test_unit_definitions.gd",
 	"res://domain/tests/test_scenario.gd",
 	"res://domain/tests/test_movement_rules.gd",
 	"res://domain/tests/test_move_unit.gd",

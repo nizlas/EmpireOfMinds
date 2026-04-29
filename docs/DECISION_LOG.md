@@ -307,3 +307,23 @@ Prevents the **opponent** from interacting with **newly completed** production *
 
 Caveat:
 **Replay** / tools that assumed **`unit_produced`** immediately after **`production_progress`** must update to **post-`end_turn`** ordering.
+
+## 2026-04-29 — Unit definitions and founding gate (Phase 3.1)
+
+Decision:
+
+- **`UnitDefinitions`** registry **`settler`** / **`warrior`**; lookup via **`get_definition(id)`** (**`get`** is not a valid **GDScript** method name on **`RefCounted`** — see **`unit_definitions.gd`** comment and [DECISION_LOG.md](DECISION_LOG.md)).
+- **`Unit.type_id`** added (**default** **`"warrior"`** for backward compatibility).
+- **`FoundCity`** requires **`UnitDefinitions.can_found_city(type_id)`**; **`unit_type_cannot_found`** when the type cannot found (unknown **`type_id`** included).
+- **`ProductionDelivery`** spawns produced units with **`type_id`** **`"warrior"`** until **Phase 3.3** city **project** definitions; **`unit_produced`** event shape unchanged.
+
+Rationale:
+
+- Smallest **useful** content step aligned with [CONTENT_MODEL.md](CONTENT_MODEL.md).
+- **Canonical scenario** seeds **one settler per player** so the **Phase 2** loop shape and **`RuleBasedAIPlayer`** need **no** code change.
+- **Project → unit type** mapping stays deferred to **3.3**.
+
+Caveat:
+
+- **No** combat stats, **no** movement rules by type, **no** visual differentiation by **`type_id`** yet.
+- **GDScript / Godot 4:** registry **lookup** is **`UnitDefinitions.get_definition(id)`**, not **`get`**, because **`static func get`** on **`RefCounted`** is rejected (signature clash with **`Object.get`**).

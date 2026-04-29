@@ -82,10 +82,36 @@ func _init() -> void:
 			ns = ns + 1
 		lj = lj + 1
 	_check(nm > 0, "at least one move")
-	_check(nf == 2, "two FoundCity for u1 u2")
+	_check(nf == 1, "one FoundCity for settler u1")
 	_check(ns == 0, "no city yet no SetCityProduction")
 	var first = L[0] as Dictionary
 	_check(first["unit_id"] == 1, "first move unit 1")
+
+	var m_solo_s = HexMapScript.make_tiny_test_map()
+	var u_solo_s = [UnitScript.new(9, 0, HexCoordScript.new(0, 0), "settler")]
+	var sc_solo_s = ScenarioScript.new(m_solo_s, u_solo_s, [], 20, 30)
+	var gs_solo_s = GameStateScript.new(sc_solo_s)
+	var Ls = LegalActionsScript.for_current_player(gs_solo_s)
+	var nf_s = 0
+	var ls = 0
+	while ls < Ls.size() - 1:
+		if (Ls[ls] as Dictionary)["action_type"] == FoundCityScript.ACTION_TYPE:
+			nf_s = nf_s + 1
+		ls = ls + 1
+	_check(nf_s == 1, "single settler one FoundCity")
+
+	var m_solo_w = HexMapScript.make_tiny_test_map()
+	var u_solo_w = [UnitScript.new(8, 0, HexCoordScript.new(0, 0), "warrior")]
+	var sc_solo_w = ScenarioScript.new(m_solo_w, u_solo_w, [], 20, 30)
+	var gs_solo_w = GameStateScript.new(sc_solo_w)
+	var Lw1 = LegalActionsScript.for_current_player(gs_solo_w)
+	var nf_w = 0
+	var lw1 = 0
+	while lw1 < Lw1.size() - 1:
+		if (Lw1[lw1] as Dictionary)["action_type"] == FoundCityScript.ACTION_TYPE:
+			nf_w = nf_w + 1
+		lw1 = lw1 + 1
+	_check(nf_w == 0, "warrior alone no FoundCity")
 
 	var m_c = HexMapScript.make_tiny_test_map()
 	var u_c = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
@@ -146,7 +172,7 @@ func _init() -> void:
 	_check(not has_sp_rd, "no SetCityProduction when ready project")
 
 	var m_w = HexMapScript.make_tiny_test_map()
-	var u_w = [UnitScript.new(2, 0, HexCoordScript.new(-1, 0))]
+	var u_w = [UnitScript.new(2, 0, HexCoordScript.new(-1, 0), "settler")]
 	var sc_w = ScenarioScript.new(m_w, u_w, [], 50, 60)
 	var gs_w = GameStateScript.new(sc_w)
 	var Lw = LegalActionsScript.for_current_player(gs_w)

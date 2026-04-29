@@ -46,6 +46,7 @@ func _init() -> void:
 	_check(ns0.peek_next_unit_id() == 101 and ns0.peek_next_city_id() == 200, "counters")
 	var u100 = ns0.unit_by_id(100)
 	_check(u100 != null and u100.owner_id == 0 and u100.position.equals(c0.position), "unit state")
+	_check(u100.type_id == "warrior", "produced unit type warrior")
 	_check(c0.current_project != null and bool((c0.current_project as Dictionary).get("ready", false)), "orig city untouched")
 
 	var m1 = HexMapScript.make_tiny_test_map()
@@ -60,6 +61,9 @@ func _init() -> void:
 	_check((ev1[0] as Dictionary)["unit_id"] == 50, "first unit id")
 	_check((ev1[1] as Dictionary)["city_id"] == 5, "second city id")
 	_check((ev1[1] as Dictionary)["unit_id"] == 51, "second unit id")
+	var ns1 = r1["scenario"]
+	_check(ns1.unit_by_id(50).type_id == "warrior", "first delivery warrior")
+	_check(ns1.unit_by_id(51).type_id == "warrior", "second delivery warrior")
 
 	var m2 = HexMapScript.make_tiny_test_map()
 	var u2 = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]

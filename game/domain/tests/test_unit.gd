@@ -19,6 +19,14 @@ func _init() -> void:
 		UnitScript.new(1, 0, HexCoordScript.new(0, 0)).position.equals(HexCoordScript.new(0, 0)),
 		"position should equal (0,0)"
 	)
+	_check(
+		UnitScript.new(1, 0, HexCoordScript.new(0, 0)).type_id == "warrior",
+		"type_id defaults to warrior"
+	)
+	_check(
+		UnitScript.new(1, 0, HexCoordScript.new(0, 0), "settler").type_id == "settler",
+		"type_id settler"
+	)
 	var u1 = UnitScript.new(1, 0, HexCoordScript.new(0, 0))
 	var u2 = UnitScript.new(1, 0, HexCoordScript.new(0, 0))
 	_check(
