@@ -9,6 +9,11 @@
 - **Empire_of_Minds_Content_Workbook** and **[CONTENT_BACKLOG.md](CONTENT_BACKLOG.md)** are **non-canonical design raw material**, not implementation truth.
 - **[CONTENT_MODEL.md](CONTENT_MODEL.md)** remains the **general content contract** (IDs, registries, state vs definitions).
 
+### Phase 3.4b status (implemented)
+
+- **[ProgressDefinitions](../game/domain/content/progress_definitions.gd)** (`class_name` **`ProgressDefinitions`**) — tiny **metadata-only** registry with **five** seed **sciences** (`category` **`science`**, `era_bucket` **`ancient_foundations`**).
+- **No** unlock gating, **no** breakthrough detection, **no** player progress state; `target_type` / `target_id` rows may reference **future** systems not yet implemented.
+
 ## Core separation
 
 Four conceptual layers:
@@ -482,13 +487,13 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 - **[CONTENT_MODEL.md](CONTENT_MODEL.md)** — general **content contract** (registries, IDs, duplication rules).
 - **[CONTENT_BACKLOG.md](CONTENT_BACKLOG.md)** & workbook — **non-canonical** raw lists and brainstorms.
 - **`PROGRESSION_MODEL.md`** (this file) — **systematic model** for progression / unlocks / detection vocabulary.
-- **Implemented registries today:** `UnitDefinitions`, `TerrainRuleDefinitions`, `CityProjectDefinitions` only.
+- **Implemented registries today:** `UnitDefinitions`, `TerrainRuleDefinitions`, `CityProjectDefinitions`, and **`ProgressDefinitions`** (**Phase 3.4b** — **metadata-only** progression seed; **no** gameplay enforcement).
 - **Phase 3.4a** changes **no** gameplay behavior.
 
 ## Phase mapping
 
 - **3.4a** — documentation-only progression model checkpoint (**this file**).
-- **3.4b** — *possible:* **`ScienceDefinitions` / progress** registry with a **tiny seed set**, **no** unlock gating yet.
+- **3.4b** — **`ProgressDefinitions`** registry seed ([progress_definitions.gd](../game/domain/content/progress_definitions.gd)): **five** ancient/foundations sciences, **metadata-only**, **no** gating.
 - **3.4c** — *possible:* deterministic **unlock state** / **project** or action gating wired to domain rules.
 - **Later** — breakthrough **detectors** (deterministic first; LLM advisory at edges only).
 - **Phase 5** — strategic dynamics; many **modifiers** and **systems** become real.

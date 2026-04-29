@@ -6,7 +6,7 @@ Phase 1.8 adds **legal-action enumeration** in the domain, a **rule-based AI** u
 
 See [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) (AI layer), [ACTIONS.md](ACTIONS.md), [AI_DESIGN.md](AI_DESIGN.md).
 
-**Forward pointer (Phase 3.4a):** Any future **LLM** or **advisory** layer for **breakthrough interpretation** (see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)) is **explicitly deferred** and **not authoritative** for **core replay**, **legality**, or **deterministic unlock state** — **`RuleBasedAIPlayer`** remains rules- and **`LegalActions`**-driven.
+**Forward pointer (Phase 3.4a):** Any future **LLM** or **advisory** layer for **breakthrough interpretation** (see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)) is **explicitly deferred** and **not authoritative** for **core replay**, **legality**, or **deterministic unlock state** — **`RuleBasedAIPlayer`** remains rules- and **`LegalActions`**-driven. **Phase 3.4b:** **`RuleBasedAIPlayer`** and **`LegalActions`** do **not** read **`ProgressDefinitions`** ([progress_definitions.gd](../game/domain/content/progress_definitions.gd)).
 
 ## Components
 

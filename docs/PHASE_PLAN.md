@@ -498,7 +498,7 @@ Validation:
 
 ### Phase 3.4 — First tech / progress definitions (roadmap)
 
-Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b+** may add **registries** and **gameplay gating** in later subphases.
+Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b** ships a **metadata-only** **`ProgressDefinitions`** seed; **3.4c+** may add **gameplay gating** and **unlock state**.
 
 ### Phase 3.4a — Progression model checkpoint (implemented; documentation-only)
 
@@ -517,7 +517,25 @@ Validation:
 
 - **`run-godot-tests.ps1`** exit **0** (still **36** scripts; **no** behavior change expected).
 
-**Phase 3.4b+ (future, not this checkpoint):** possible **`ScienceDefinitions`** (or similar) **seed** registry without gating; then deterministic **unlock state** / **LegalActions** interaction; see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) **Phase mapping**.
+### Phase 3.4b — ProgressDefinitions seed (implemented)
+
+Goal:
+Ship a **tiny static** **`ProgressDefinitions`** registry with **five** seed sciences as **metadata only** — validate [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) row shape **before** unlock enforcement.
+
+Shipped:
+
+- **[progress_definitions.gd](../game/domain/content/progress_definitions.gd)** — **`ProgressDefinitions`**: **`has`**, **`get_definition`**, **`ids`**, **`category`**, **`era_bucket`**, **`concrete_unlocks`**, **`systemic_effects`**, **`future_dependencies`**; **no** preloads; **no** cross-registry validation of **`target_id`**.
+- **`test_progress_definitions.gd`** in the headless runner (**37** scripts).
+
+Must not (this subphase):
+
+- **`LegalActions`**, **`GameState`**, **actions**, **`ProductionTick`**, **`ProductionDelivery`**, **AI**, **presentation**, unlock gating, breakthrough detectors, **player progress state**, **`rail_logistics`** row, **JSON** / **`.tres`** / autoloads / Node registries / **CONTENT_MODEL** / **CONTENT_BACKLOG** edits (per steering denylist).
+
+Validation:
+
+- **`run-godot-tests.ps1`** exit **0** (**37** scripts including **`test_progress_definitions.gd`**).
+
+**Phase 3.4c+ (future):** deterministic **unlock state** / **`LegalActions`** interaction; see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) **Phase mapping**.
 
 ### Phase 3.5 — First faction / world identity pass
 

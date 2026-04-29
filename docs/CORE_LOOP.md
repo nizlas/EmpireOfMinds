@@ -6,7 +6,7 @@ Phase **2.x** core loop is **feature-frozen** as a baseline. **Phase 3** extends
 
 **Phase 3.4a:** [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) documents **future** sciences / breakthroughs / unlocks only — the **current** Phase **2** / **3** playable loop (moves, founding, production, **end_turn**, delivery) is **unchanged** by that checkpoint.
 
-## Current playable loop
+**Phase 3.4b:** **`ProgressDefinitions`** ([progress_definitions.gd](../game/domain/content/progress_definitions.gd)) adds **metadata-only** seed sciences — the **playable loop** is **unchanged**; no gating or new player-facing rules.
 
 - **Mouse**: click a unit to select; click a **legal destination** (tinted hex) to move via `MoveUnit` through `GameState.try_apply`.
 - **F**: `FoundCity` for the **selected unit** on its current tile (presentation path in `SelectionController`). **Only settler-type units** (`UnitDefinitions.can_found_city`) succeed; others are rejected. Rejected actions surface as warnings; only accepted actions append to the log.

@@ -382,3 +382,20 @@ Rationale:
 Caveat:
 
 - **`ScienceDefinitions`**, breakthrough **registries**, and **LegalActions** / **`GameState`** unlock wiring remain **future** subphases; **no** gameplay or schema change in **3.4a**.
+
+## 2026-04-29 — ProgressDefinitions seed (Phase 3.4b)
+
+Decision:
+
+- Add **`ProgressDefinitions`** in **[progress_definitions.gd](../game/domain/content/progress_definitions.gd)** — **five** ancient/foundations seed rows (**`foraging_systems`**, **`stone_tools`**, **`controlled_fire`**, **`oral_surveying`**, **`animal_tracking`**), all **`category`** **`science`**, **`era_bucket`** **`ancient_foundations`**.
+- **Metadata-only**: **`concrete_unlocks`**, **`systemic_effects`**, **`future_dependencies`** as typed target rows; **no** enforcement, **no** preloads of other registries, **no** **`target_id`** validation against existing content.
+
+Rationale:
+
+- Validates **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)** shape **before** unlock enforcement.
+- One **forward-compatible** registry name (`ProgressDefinitions`) rather than several narrow registries too early.
+
+Caveat:
+
+- **`target_id`** values may reference **future** registries and systems — **not** enforced in **3.4b**.
+- **No** gating, **no** breakthrough detectors, **no** **`LegalActions`** / **`GameState`** consumption yet.
