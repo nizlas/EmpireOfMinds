@@ -12,6 +12,8 @@ intent
   -> presentation reflects new Scenario
 ```
 
+**Forward pointer (Phase 3.4a+):** **breakthroughs** and **unlock state** from [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) may **later** feed **which actions are legal** or **which targets exist**, but **Phase 3.4a** changes **no** action **`schema_version`** or payload — modeling only.
+
 **Phase 1.6** introduces **`move_unit`**, **`GameState`**, and **`ActionLog`**. **Phase 1.7** adds **`TurnState`**, **`end_turn`**, and a **common current-player gate** in **`GameState.try_apply`** (see [TURNS.md](TURNS.md)). **Phase 1.8** adds **legal-action enumeration** for the current player (see below, [AI_LAYER.md](AI_LAYER.md)). **Phase 2.2b** adds **`found_city`** (`FoundCity`): structural validation and **`Scenario`** rebuild that consumes the founding unit and appends a **`City`** with **`city_id = peek_next_city_id()`** before apply (see [CITIES.md](CITIES.md)). **Phase 2.3** adds **`set_city_production`** (`SetCityProduction`): sets a city’s **`current_project`** primitive **`Dictionary`** (or **`null`** to clear); **no** production progress or unit creation in that phase (see [CITIES.md](CITIES.md)). **Phase 2.4a** adds an **engine** **`production_progress`** log step on **accepted** **`end_turn`**. **Phase 2.4b** introduced **`produce_unit`** **completion** (threshold) on tick. **Phase 2.4c** **defers** **`unit_produced`** / unit spawn until the **owner** becomes **`current_player_id`** again (**`ProductionDelivery`** after **`end_turn`**); see **Production on EndTurn (Phase 2.4a–c, engine)** below.
 
 ## Legal action enumeration (Phase 1.8, extended Phase 2.5)

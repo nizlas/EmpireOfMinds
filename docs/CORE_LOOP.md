@@ -4,6 +4,8 @@
 
 Phase **2.x** core loop is **feature-frozen** as a baseline. **Phase 3** extends the **content foundation** (definitions, unit types, terrain rules, project data); this document describes what already works today—not the full Phase 3 roadmap. Phase **3** replaces placeholders such as **fixed `produce_unit` cost** through **content definitions** per [CONTENT_MODEL.md](CONTENT_MODEL.md) **without changing the loop’s shape** (same actions, `try_apply`, and AI pipeline). **Phase 3.1** already gates **`FoundCity`** by **`Unit.type_id`** / **`UnitDefinitions`** (see [UNITS.md](UNITS.md)).
 
+**Phase 3.4a:** [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) documents **future** sciences / breakthroughs / unlocks only — the **current** Phase **2** / **3** playable loop (moves, founding, production, **end_turn**, delivery) is **unchanged** by that checkpoint.
+
 ## Current playable loop
 
 - **Mouse**: click a unit to select; click a **legal destination** (tinted hex) to move via `MoveUnit` through `GameState.try_apply`.

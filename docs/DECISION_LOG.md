@@ -366,3 +366,19 @@ Caveat:
 - **`produce_unit:settler`** and additional project rows are **deferred**.
 - **`unit_produced`** still carries **no** **`unit_type_id`** / **`project_id`** (additive event churn deferred).
 - Legacy **`current_project`** without **`project_id`** is supported only as transitional safety for in-flight **`Dictionary`** state in **tests and hand-built fixtures** (there is **no** save/load path yet).
+
+## 2026-04-29 — Progression model checkpoint (Phase 3.4a)
+
+Decision:
+
+- Add **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)** as the **systematic model** for future **sciences**, **breakthroughs**, **unlock targets**, **modifiers/effects/conditions**, and **detection** vocabulary — **documentation-only**.
+- **Phase 3.4a** does **not** change **CONTENT_MODEL.md** (general contract) or canonicalize workbook / **CONTENT_BACKLOG** lists; those remain **design raw material**.
+- **Deterministic-first** rule for any **replay-critical** progression; **LLM** roles limited to **non-authoritative** advisory / tooling unless explicitly steered otherwise later.
+
+Rationale:
+
+- Aligns constrained implementers and design notes **before** **3.4b+** code (registries, gating, detectors).
+
+Caveat:
+
+- **`ScienceDefinitions`**, breakthrough **registries**, and **LegalActions** / **`GameState`** unlock wiring remain **future** subphases; **no** gameplay or schema change in **3.4a**.

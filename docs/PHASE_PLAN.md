@@ -496,10 +496,28 @@ Validation:
 - **`run-godot-tests.ps1`** exit **0** (**36** scripts including **`test_city_project_definitions.gd`**).
 - Manual **F5**: **`set_city_production c\* produce_unit:warrior`** in **`LogView`**; production still completes a **warrior**.
 
-Goal:
-Minimal **tech** or **civic** **progress** slice: prerequisites and unlocks; full flavor leans on **Phase 6**.
+### Phase 3.4 — First tech / progress definitions (roadmap)
 
-**Must reference [CONTENT_MODEL.md](CONTENT_MODEL.md).**
+Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b+** may add **registries** and **gameplay gating** in later subphases.
+
+### Phase 3.4a — Progression model checkpoint (implemented; documentation-only)
+
+Goal:
+Define the **vocabulary and separation of concerns** for sciences, breakthroughs, unlock targets, modifiers, effects, conditions, and detection **before** any Phase **3.4** code ([PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)).
+
+Shipped:
+
+- **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)** — systematic model; **selected examples** only; workbook / **CONTENT_BACKLOG** treated as **non-canonical** raw material.
+
+Must not (this subphase):
+
+- **No** **`game/**`** edits, registries, JSON, **`.tres`**, breakthrough detectors, unlock gating, **CONTENT_MODEL** / **CONTENT_BACKLOG** edits, new tests, or **`scripts/run-godot-tests.ps1`** changes
+
+Validation:
+
+- **`run-godot-tests.ps1`** exit **0** (still **36** scripts; **no** behavior change expected).
+
+**Phase 3.4b+ (future, not this checkpoint):** possible **`ScienceDefinitions`** (or similar) **seed** registry without gating; then deterministic **unlock state** / **LegalActions** interaction; see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) **Phase mapping**.
 
 ### Phase 3.5 — First faction / world identity pass
 
