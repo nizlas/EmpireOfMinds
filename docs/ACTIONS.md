@@ -220,6 +220,39 @@ For **`set_city_production`**, **`GameState.try_apply`** runs **in this order**:
 - Returned **`Scenario`** passes forward **`map`**, **all** **`units()`**, all **non-target** **`City`** references as-is, **`peek_next_unit_id()`**, **`peek_next_city_id()`** unchanged.
 - **Phase 2.4a–c** advance **`progress`**, mark **`produce_unit`** **`ready`**, and **deliver** units via **`ProductionDelivery`** (see **Production on EndTurn** above); there is **no** **`ProduceUnit`** player action.
 
+## CompleteProgress schema (Phase 3.4e)
+
+| Field | Type | Meaning |
+|--------|------|--------|
+| `schema_version` | `int` | `1` (`CompleteProgress.SCHEMA_VERSION`). |
+| `action_type` | `String` | `"complete_progress"` (`CompleteProgress.ACTION_TYPE`). |
+| `actor_id` | `int` | **`ProgressState`** owner for completion; must equal **`turn_state.current_player_id()`** at **`try_apply`** (common gate only — **`CompleteProgress.validate`** does **not** check this). |
+| `progress_id` | `String` | **`ProgressDefinitions`** row id; must be **non-empty**; must exist in **`ProgressDefinitions.has`**. |
+
+Built with **`CompleteProgress.make(actor_id, progress_id)`** in [complete_progress.gd](../game/domain/actions/complete_progress.gd). **No** **`apply`** method: **`GameState.try_apply`** calls **`ProgressUnlockResolver.complete_progress`** after **`validate`** succeeds.
+
+### CompleteProgress validation order
+
+**`CompleteProgress.validate(progress_state, action)`** runs in this **fixed order** (does **not** check **`current_player_id`** — only **`GameState.try_apply`**):
+
+1. `progress_state_null`
+2. `wrong_action_type` — `action` null, not a **`Dictionary`**, missing **`action_type`**, or **`action_type` != **`"complete_progress"`**
+3. `unsupported_schema_version` — missing or **`!= CompleteProgress.SCHEMA_VERSION`**
+4. `malformed_action` — **`actor_id`** missing or not **`TYPE_INT`**; **`progress_id`** missing, not **`TYPE_STRING`**, or **empty** **`""`**
+5. `unknown_progress_id` — **`not ProgressDefinitions.has(progress_id)`**
+6. `progress_already_completed` — **`progress_state.has_completed_progress(actor_id, progress_id)`** (prevents duplicate log entries; resolver idempotence would otherwise return **`ok: true`** with an empty delta)
+
+### CompleteProgress and GameState.try_apply
+
+For **`complete_progress`**, after the **common** **`actor_id`** / **`current_player_id`** gate:
+
+1. **`CompleteProgress.validate(game_state.progress_state, action)`** — reasons above.
+2. **`ProgressUnlockResolver.complete_progress(progress_state, actor_id, progress_id)`** — if **`ok` is false** (defense-in-depth), reject with that **`reason`** and **no** mutation.
+3. Replace **`game_state.progress_state`** with **`result["progress_state"]`**.
+4. Append log entry: **`schema_version`**, **`action_type`**, **`actor_id`**, **`progress_id`**, **`unlocked_targets`** (resolver delta **`Array`**), **`result: "accepted"`**. **`ActionLog.append`** **deep-copies** the entry.
+
+**Non-enumeration:** **`LegalActions`** does **not** enumerate **`complete_progress`**. **AI** does **not** submit it. **No** input controller binds it in **Phase 3.4e** (domain / test / future debug only).
+
 ## GameState
 
 **[game_state.gd](../game/domain/game_state.gd)** (`class_name GameState`, `RefCounted`):
@@ -231,20 +264,21 @@ For **`set_city_production`**, **`GameState.try_apply`** runs **in this order**:
 
 **`try_apply(action) -> { "accepted": bool, "reason": String, "index": int }`**
 
-- **`action`** must be a **`Dictionary`** with string **`action_type`** **`move_unit`**, **`end_turn`**, **`found_city`**, or **`set_city_production`**; otherwise **`unknown_action_type`** (also **`null`** / non-dict / missing **`action_type`** / non-string **`action_type`**).
+- **`action`** must be a **`Dictionary`** with string **`action_type`** **`move_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, or **`complete_progress`**; otherwise **`unknown_action_type`** (also **`null`** / non-dict / missing **`action_type`** / non-string **`action_type`**).
 - **Common gate** (these action types): **`actor_id`** must be present and **`TYPE_INT`**; **`actor_id == turn_state.current_player_id()`** or **`malformed_action`** / **`not_current_player`**.
 - **`move_unit`**: **`MoveUnit.validate` → apply →** log entry as in Phase 1.6.
 - **`found_city`**: **`FoundCity.validate` →** read **`created_city_id = scenario.peek_next_city_id()`** **before** **`apply`** (deterministic log) **`→ FoundCity.apply →`** log entry includes **`city_id`**, **`position`** (duplicate), **`unit_id`**, **`result: "accepted"`**.
 - **`set_city_production`**: **`SetCityProduction.validate` →** (optional **`project_not_unlocked`** from **`GameState`**) **`→ apply →`** log entry includes **`city_id`**, **`project_id`**, **`result: "accepted"`** (**no** **`project_type`** on the action log row in **Phase 3.3**).
+- **`complete_progress`**: **`CompleteProgress.validate(progress_state, action)`** **`→`** **`ProgressUnlockResolver.complete_progress`** **`→`** replace **`progress_state`** **`→`** log entry includes **`progress_id`**, **`unlocked_targets`**, **`result: "accepted"`**.
 - **`end_turn`**: **`EndTurn.validate` →** **`ProductionTick.apply_for_player`** (optional **`production_progress`** **0..N**) **→** **`EndTurn.apply` (`turn_state`)** **→** append **`end_turn`** **→** **`ProductionDelivery.deliver_pending_for_player`** (optional **`unit_produced`** **0..M**) **after** **`end_turn`**. Returned **`index`** is the **`end_turn`** entry only.
 
-On **reject**: **`accepted: false`**, **`index: -1`**, no log append, **`scenario` / `turn_state` / `log`** unchanged (except where only validation failed after gate — still no mutation).
+On **reject**: **`accepted: false`**, **`index: -1`**, no log append, **`scenario` / `turn_state` / `progress_state` / `log`** unchanged (except where only validation failed after gate — still no mutation).
 
-On **accept**: updates **`scenario`** and/or **`turn_state`**, appends **deep-copied** log entries; for **`end_turn`**, **`production_progress`** entries, then **`end_turn`**, then **`unit_produced`** entries; returns **`index`** for **`move_unit`**, **`found_city`**, **`set_city_production`** as that entry’s index; for **`end_turn`**, **`index`** is always the **`end_turn`** entry.
+On **accept**: updates **`scenario`** and/or **`turn_state`** and/or **`progress_state`**, appends **deep-copied** log entries; for **`end_turn`**, **`production_progress`** entries, then **`end_turn`**, then **`unit_produced`** entries; returns **`index`** for **`move_unit`**, **`found_city`**, **`set_city_production`**, **`complete_progress`** as that entry’s index; for **`end_turn`**, **`index`** is always the **`end_turn`** entry.
 
 ## ActionLog
 
-**[action_log.gd](../game/domain/action_log.gd)** stores **accepted** player **actions** (**`move_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**) **and** engine **`production_progress`** / **`unit_produced`** entries (Phase 2.4a+)).
+**[action_log.gd](../game/domain/action_log.gd)** stores **accepted** player **actions** (**`move_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, **`complete_progress`**) **and** engine **`production_progress`** / **`unit_produced`** entries (Phase 2.4a+)).
 
 - **`append(entry)`** stores **`entry.duplicate(true)`** and sets **`index`** on the stored copy.
 - **`get_entry`** and **`entries()`** each return **duplicates** so callers cannot corrupt history.

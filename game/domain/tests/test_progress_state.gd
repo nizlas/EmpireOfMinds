@@ -79,6 +79,59 @@ func _init() -> void:
 	var diff = ProgressStateScript.new({})
 	_check(not eq_a.equals(diff), "diff equals false")
 
+	var only_ut = ProgressStateScript.new({})
+	_check(only_ut.completed_progress_ids_for(0).size() == 0, "new{} completed empty")
+	_check(not only_ut.has_completed_progress(0, "foraging_systems"), "new{} not completed")
+
+	var wpc = only_ut.with_progress_id_completed(0, "foraging_systems")
+	_check(not wpc.equals(only_ut), "completion new state")
+	_check(not only_ut.has_completed_progress(0, "foraging_systems"), "orig no completion after wpc")
+	_check(wpc.has_completed_progress(0, "foraging_systems"), "wpc has foraging")
+
+	var wpc2 = wpc.with_progress_id_completed(0, "foraging_systems")
+	_check(wpc.equals(wpc2), "idem completion equals")
+
+	var order_ab = ProgressStateScript.new({})
+	var oa = order_ab.with_progress_id_completed(0, "stone_tools")
+	var oab = oa.with_progress_id_completed(0, "foraging_systems")
+	var ids_ab = oab.completed_progress_ids_for(0)
+	_check(
+		ids_ab.size() == 2
+		and str(ids_ab[0]) == "foraging_systems"
+		and str(ids_ab[1]) == "stone_tools",
+		"completed ids sorted"
+	)
+
+	var cpd = wpc.completed_progress_ids_for(0)
+	cpd.append("bogus")
+	var cpd2 = wpc.completed_progress_ids_for(0)
+	_check(cpd2.size() == 1 and str(cpd2[0]) == "foraging_systems", "completed deep dup")
+
+	var ut_after = wpc.with_target_unlocked(0, "building", "x")
+	_check(ut_after.has_completed_progress(0, "foraging_systems"), "unlock preserves completed")
+
+	var same_unlocks = ProgressStateScript.new(
+		{0: {"unlocked_targets": [{"target_type": "t", "target_id": "i"}], "completed_progress_ids": ["a"]}}
+	)
+	var same_unlocks_b = ProgressStateScript.new(
+		{0: {"unlocked_targets": [{"target_type": "t", "target_id": "i"}], "completed_progress_ids": ["a"]}}
+	)
+	_check(same_unlocks.equals(same_unlocks_b), "equals matches both fields")
+
+	var diff_cp = ProgressStateScript.new(
+		{0: {"unlocked_targets": [{"target_type": "t", "target_id": "i"}], "completed_progress_ids": ["b"]}}
+	)
+	_check(not same_unlocks.equals(diff_cp), "equals false diff completed")
+
+	var legacy = ProgressStateScript.new({0: {"unlocked_targets": []}})
+	_check(legacy.completed_progress_ids_for(0).size() == 0, "legacy constructor completed empty")
+
+	var messy = ProgressStateScript.new(
+		{0: {"unlocked_targets": [], "completed_progress_ids": ["b", "a", "a"]}}
+	)
+	var mid = messy.completed_progress_ids_for(0)
+	_check(mid.size() == 2 and str(mid[0]) == "a" and str(mid[1]) == "b", "completed normalized a b")
+
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

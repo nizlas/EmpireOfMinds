@@ -20,7 +20,19 @@
 - **`GameState`** owns **`progress_state`** (**not** **`Scenario`**). **Default seed:** every **initial** **`turn_state.players`** id gets **`city_project` / `produce_unit:warrior`** unlocked; **`GameState.new(scenario)`** (omitted second arg) keeps that default.
 - **`GameState.try_apply`**: after **`SetCityProduction.validate`** succeeds, **`set_city_production`** may be rejected with **`project_not_unlocked`** if the **actor** lacks that **`city_project`** unlock; **`SetCityProduction.PROJECT_ID_NONE`** is **never** gated.
 - **`LegalActions`** mirrors the same rule when enumerating **`SetCityProduction`** for **`PROJECT_ID_PRODUCE_UNIT_WARRIOR`**. **`progress_state == null`** on a **synthetic shell** (`LegalActions` tests / helpers) keeps **legacy ungated** enumeration.
-- **No** progress accumulation, **no** completed-progress IDs, **no** breakthrough detectors, **no** **`ProgressDefinitions`** consumption, **no** **`SetCityProduction`** schema changes.
+- **No** progress accumulation tied to **`ProgressDefinitions`**, **no** breakthrough detectors, **no** **`ProgressDefinitions`** consumption for **`SetCityProduction`**, **no** **`SetCityProduction`** schema changes.
+
+### Phase 3.4d status (implemented)
+
+- **[ProgressUnlockResolver](../game/domain/progress_unlock_resolver.gd)** — static **`complete_progress(state, owner_id, progress_id)`**: reads **`ProgressDefinitions`**, records **`completed_progress_ids`** on **`ProgressState`**, merges **`concrete_unlocks`** then **`systemic_effects`** into **`unlocked_targets`** (definition order for the delta list). **`future_dependencies`** are **not** applied to **`unlocked_targets`**.
+- **`ProgressState`** holds **`completed_progress_ids`** per owner (sorted, deduped); **no** registry preload on **`ProgressState`**.
+- In **3.4d** there was **no** **`GameState`** integration; **3.4e** adds the **`complete_progress`** player action path.
+
+### Phase 3.4e status (implemented)
+
+- **`CompleteProgress`** ([complete_progress.gd](../game/domain/actions/complete_progress.gd)) — player-submitted **`schema_version: 1`** action; **`GameState.try_apply`** validates, calls **`ProgressUnlockResolver.complete_progress`**, replaces **`progress_state`**, logs **`unlocked_targets`** delta.
+- **Not** in **`LegalActions`**; **not** in **AI**; **no** **F5** / controller binding; **`LogView`** formats lines for visibility.
+- **`future_dependencies`** still **metadata-only**; **no** detectors; **no** progress **accumulation**.
 
 ## Core separation
 
@@ -496,14 +508,16 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 - **[CONTENT_BACKLOG.md](CONTENT_BACKLOG.md)** & workbook — **non-canonical** raw lists and brainstorms.
 - **`PROGRESSION_MODEL.md`** (this file) — **systematic model** for progression / unlocks / detection vocabulary.
 - **Implemented registries today:** `UnitDefinitions`, `TerrainRuleDefinitions`, `CityProjectDefinitions`, and **`ProgressDefinitions`** (**Phase 3.4b** — **metadata-only** progression seed; **no** gameplay enforcement).
-- **Implemented session state:** **`GameState.progress_state`** (**Phase 3.4c**) — player-specific **unlock targets** only; **deterministic** **`SetCityProduction`** gating (**`project_not_unlocked`** in **`try_apply`**); **no** accumulation or detectors.
+- **Implemented session state:** **`GameState.progress_state`** (**Phase 3.4c**) — player-specific **`unlocked_targets`** and **`completed_progress_ids`** (**Phase 3.4d**); **deterministic** **`SetCityProduction`** gating (**`project_not_unlocked`** in **`try_apply`**); **`complete_progress`** (**Phase 3.4e**) applies definition unlocks via **`ProgressUnlockResolver`** without detectors or accumulation mechanics.
 - **Phase 3.4a** changes **no** gameplay behavior.
 
 ## Phase mapping
 
 - **3.4a** — documentation-only progression model checkpoint (**this file**).
 - **3.4b** — **`ProgressDefinitions`** registry seed ([progress_definitions.gd](../game/domain/content/progress_definitions.gd)): **five** ancient/foundations sciences, **metadata-only**, **no** gating.
-- **3.4c** — **`ProgressState`** on **`GameState`**; **default** **`city_project` / `produce_unit:warrior`** for initial players; **`try_apply`** + **`LegalActions`** **`SetCityProduction`** gate (**`project_not_unlocked`**); **`ProgressDefinitions`** still **not** consumed here.
+- **3.4c** — **`ProgressState`** on **`GameState`**; **default** **`city_project` / `produce_unit:warrior`** for initial players; **`try_apply`** + **`LegalActions`** **`SetCityProduction`** gate (**`project_not_unlocked`**); **`ProgressDefinitions`** still **not** consumed in **`GameState`**.
+- **3.4d** — **`ProgressUnlockResolver`** static helper applies a completed definition’s **`concrete_unlocks`** + **`systemic_effects`** into **`ProgressState`**; **`future_dependencies`** remain **metadata-only**; **no** detectors in **3.4d** alone.
+- **3.4e** — **`CompleteProgress`** player action through **`GameState.try_apply`**; **not** **`LegalActions`** / **AI**; uses **`ProgressUnlockResolver`**; logs **`unlocked_targets`** delta.
 - **Later** — breakthrough **detectors** (deterministic first; LLM advisory at edges only).
 - **Phase 5** — strategic dynamics; many **modifiers** and **systems** become real.
 - **Phase 6** — world identity, names, flavor; does not replace this model.

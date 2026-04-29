@@ -9,6 +9,8 @@ const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
+const CompleteProgressScript = preload("res://domain/actions/complete_progress.gd")
+const ProgressUnlockResolverScript = preload("res://domain/progress_unlock_resolver.gd")
 const TurnStateScript = preload("res://domain/turn_state.gd")
 const ProductionTickScript = preload("res://domain/production_tick.gd")
 const ProductionDeliveryScript = preload("res://domain/production_delivery.gd")
@@ -54,6 +56,7 @@ func try_apply(action) -> Dictionary:
 		and at != EndTurnScript.ACTION_TYPE
 		and at != FoundCityScript.ACTION_TYPE
 		and at != SetCityProductionScript.ACTION_TYPE
+		and at != CompleteProgressScript.ACTION_TYPE
 	):
 		return {"accepted": false, "reason": "unknown_action_type", "index": -1}
 	if not action.has("actor_id") or typeof(action["actor_id"]) != TYPE_INT:
@@ -119,6 +122,32 @@ func try_apply(action) -> Dictionary:
 		}
 		var sp_idx = log.append(sp_entry)
 		return {"accepted": true, "reason": "", "index": sp_idx}
+	if at == CompleteProgressScript.ACTION_TYPE:
+		var cpr = CompleteProgressScript.validate(progress_state, action)
+		if not cpr["ok"]:
+			return {"accepted": false, "reason": cpr["reason"], "index": -1}
+		var resolver_result = ProgressUnlockResolverScript.complete_progress(
+			progress_state,
+			int(action["actor_id"]),
+			str(action["progress_id"])
+		)
+		if not resolver_result["ok"]:
+			return {
+				"accepted": false,
+				"reason": str(resolver_result["reason"]),
+				"index": -1,
+			}
+		progress_state = resolver_result["progress_state"]
+		var cp_entry = {
+			"schema_version": action["schema_version"],
+			"action_type": action["action_type"],
+			"actor_id": action["actor_id"],
+			"progress_id": action["progress_id"],
+			"unlocked_targets": resolver_result["unlocked_targets"],
+			"result": "accepted",
+		}
+		var cp_idx = log.append(cp_entry)
+		return {"accepted": true, "reason": "", "index": cp_idx}
 	if at == EndTurnScript.ACTION_TYPE:
 		var er = EndTurnScript.validate(turn_state, action)
 		if not er["ok"]:

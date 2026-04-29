@@ -10,6 +10,8 @@ Phase **2.x** core loop is **feature-frozen** as a baseline. **Phase 3** extends
 
 **Phase 3.4c:** **`GameState`** seeds **`ProgressState`** so **initial players** have **`city_project` / `produce_unit:warrior`** unlocked — the **same** playable loop (moves, founding, production, **end_turn**, delivery) stays intact without changing **`RuleBasedAIPlayer`**.
 
+**Phase 3.4e:** **`complete_progress`** is a **domain** action (**`GameState.try_apply`**) with **no** **F5** key binding, **no** **`LegalActions`** enumeration, and **no** **AI** use; the **mouse / F / P / Space / A** loop above is **unchanged**.
+
 - **Mouse**: click a unit to select; click a **legal destination** (tinted hex) to move via `MoveUnit` through `GameState.try_apply`.
 - **F**: `FoundCity` for the **selected unit** on its current tile (presentation path in `SelectionController`). **Only settler-type units** (`UnitDefinitions.can_found_city`) succeed; others are rejected. Rejected actions surface as warnings; only accepted actions append to the log.
 - **P**: `SetCityProduction` with **`project_id`** **`produce_unit:warrior`** for the **lowest-id** **current-player** city whose `current_project == null` (debug path in `SelectionController`).

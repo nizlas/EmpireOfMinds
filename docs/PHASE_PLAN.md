@@ -498,7 +498,7 @@ Validation:
 
 ### Phase 3.4 — First tech / progress definitions (roadmap)
 
-Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b** ships a **metadata-only** **`ProgressDefinitions`** seed; **3.4c** adds **deterministic player unlock state** and **`SetCityProduction`** gating; later subphases may add accumulation, detectors, and broader unlock consumption.
+Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b** ships a **metadata-only** **`ProgressDefinitions`** seed; **3.4c** adds **deterministic player unlock state** and **`SetCityProduction`** gating; **3.4d** adds **`ProgressUnlockResolver`** + **`completed_progress_ids`** without authoring a player action; **3.4e** wires a manual **`complete_progress`** action through **`GameState.try_apply`**; later subphases may add detectors, accumulation, and broader consumption.
 
 ### Phase 3.4a — Progression model checkpoint (implemented; documentation-only)
 
@@ -555,7 +555,47 @@ Validation:
 
 - **`run-godot-tests.ps1`** exit **0** (**40** scripts).
 
-**Later (post-3.4c):** accumulation, **`ProgressDefinitions`-backed unlocks**, breakthrough detectors; see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) **Phase mapping**.
+**Later (post-3.4c):** see **Phase 3.4d** and [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) **Phase mapping**.
+
+### Phase 3.4d — Apply progress-definition unlocks (implemented)
+
+Goal:
+Provide a **deterministic bridge** from **`ProgressDefinitions`** to **`ProgressState`**: completing a **`progress_id`** records it and adds **`concrete_unlocks`** + **`systemic_effects`** to **`unlocked_targets`**, without **`GameState`**, detectors, or UI.
+
+Shipped:
+
+- **[progress_unlock_resolver.gd](../game/domain/progress_unlock_resolver.gd)** — **`ProgressUnlockResolver.complete_progress`** (`Dictionary` result API).
+- **`ProgressState`**: **`completed_progress_ids`** per owner; **`with_progress_id_completed`**, **`completed_progress_ids_for`**, **`has_completed_progress`**; backward-compatible **`_init`** when **`completed_progress_ids`** omitted.
+- **`test_progress_unlock_resolver.gd`**, extended **`test_progress_state.gd`**; runner **41** scripts.
+
+Must not (this subphase):
+
+- **`GameState`** / **`LegalActions`** / **actions** / **`ProductionTick`** / **`ProductionDelivery`** / **`MovementRules`** / **AI** / **presentation** changes; new **`ProgressDefinitions`** rows; **`future_dependencies`** applied to **`unlocked_targets`**; breakthrough detectors; progress **accumulation** mechanics; save/load; deny-listed docs.
+
+Validation:
+
+- **`run-godot-tests.ps1`** exit **0** (**41** scripts).
+
+**Later (post-3.4d):** breakthrough **detectors**, additional **progress** mechanics, **`future_dependencies`** semantics; see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) **Phase mapping**.
+
+### Phase 3.4e — Manual CompleteProgress action (implemented)
+
+Goal:
+Add a **deterministic**, **player-submitted** domain **`complete_progress`** action so **`GameState.try_apply`** can record **`ProgressDefinitions`** completion and apply unlocks via **`ProgressUnlockResolver`**, for **replay**, **tests**, and future **debug/UI/detectors** — **without** changing **`LegalActions`**, **AI**, or **F5** controls.
+
+Shipped:
+
+- **[complete_progress](../game/domain/actions/complete_progress.gd)** — **`schema_version: 1`**; **`validate(progress_state, action)`** (**no** current-player check); **`GameState`** branch calls **`ProgressUnlockResolver.complete_progress`**; **`ActionLog`** entry includes **`unlocked_targets`** delta.
+- **`LogView`** formatter for **`complete_progress`** lines.
+- **`test_complete_progress.gd`**, **`test_complete_progress_flow.gd`**, additive **`test_log_view.gd`**; runner **43** scripts.
+
+Must not (this subphase):
+
+- **`LegalActions`** enumeration; **`RuleBasedAIPlayer`** / **`RuleBasedAIPolicy`** / **`AITurnController`** changes; **key** bindings; **presentation** controllers beyond **`log_view.gd`**; breakthrough **detectors**; progress **accumulation**; **`future_dependencies`** application; new **`ProgressDefinitions`** rows; **`ProductionTick`** / **`Delivery`** / **`MovementRules`** / **`Scenario`** / **`TurnState`** changes; deny-listed docs.
+
+Validation:
+
+- **`run-godot-tests.ps1`** exit **0** (**43** scripts).
 
 ### Phase 3.5 — First faction / world identity pass
 

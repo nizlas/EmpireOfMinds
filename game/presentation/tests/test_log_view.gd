@@ -121,6 +121,36 @@ func _init() -> void:
 		}
 	)
 	_check(up_fmt == "[42] P0 produced u99 at (2,-3) from c1", "unit_produced format")
+	var cp_fmt = LogViewScript.format_entry(
+		{
+			"index": 5,
+			"action_type": "complete_progress",
+			"actor_id": 0,
+			"progress_id": "foraging_systems",
+			"unlocked_targets": [
+				{"target_type": "building", "target_id": "scout_camp"},
+				{"target_type": "specialist", "target_id": "forager"},
+				{"target_type": "modifier", "target_id": "forest_food_bonus"},
+				{"target_type": "modifier", "target_id": "outside_borders_healing"},
+			],
+		}
+	)
+	_check(
+		cp_fmt == "[5] P0 complete_progress foraging_systems (+4 unlocks)",
+		"complete_progress format with unlocks"
+	)
+	var cp_fmt0 = LogViewScript.format_entry(
+		{
+			"index": 5,
+			"action_type": "complete_progress",
+			"actor_id": 0,
+			"progress_id": "foraging_systems",
+		}
+	)
+	_check(
+		cp_fmt0 == "[5] P0 complete_progress foraging_systems (+0 unlocks)",
+		"complete_progress format missing unlocks"
+	)
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

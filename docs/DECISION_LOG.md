@@ -416,4 +416,41 @@ Rationale:
 
 Caveat:
 
-- **No** progress **accumulation**, **no** **`ProgressDefinitions`** consumption, **no** breakthrough **detectors**, **no** **save/load** of **`ProgressState`** yet.
+- **No** progress **accumulation** in **`GameState`**; **`LegalActions`** does **not** read **`ProgressDefinitions`**; **`SetCityProduction.validate`** does **not**; **`complete_progress`** (**Phase 3.4e**) is the **first** **`try_apply`** path that applies **`ProgressDefinitions`** via **`ProgressUnlockResolver`**; **no** breakthrough **detectors**; **no** **save/load** of **`ProgressState`** yet.
+
+## 2026-04-29 — Apply progress-definition unlocks (Phase 3.4d)
+
+Decision:
+
+- Add **`ProgressUnlockResolver`** ([progress_unlock_resolver.gd](../game/domain/progress_unlock_resolver.gd)) — **`complete_progress`**, **`Dictionary`** result (**`ok`**, **`reason`**, **`progress_state`**, **`unlocked_targets`**); preloads **`ProgressDefinitions`** only here.
+- Extend **`ProgressState`** with **`completed_progress_ids`** per owner (sorted, deduped); **no** content-registry preload on **`ProgressState`**.
+- Resolver applies only **`concrete_unlocks`** and **`systemic_effects`**; **`future_dependencies`** stay **metadata-only** (not copied into **`unlocked_targets`**).
+- **No** **`GameState`**, action, or **`LegalActions`** integration in this subphase.
+
+Rationale:
+
+- Keeps **`ProgressState`** generic; centralizes the **`ProgressDefinitions`** dependency in one helper.
+- Deterministic, testable bridge with **no** gameplay loop change.
+
+Caveat:
+
+- **No** detectors; **no** progress **accumulation** tied to play; **no** **`future_dependencies`** semantics yet; **no** UI / save / replay wiring for **`completed_progress_ids`**.
+
+## 2026-04-29 — Manual CompleteProgress action (Phase 3.4e)
+
+Decision:
+
+- Add player-submitted **`complete_progress`** ([complete_progress.gd](../game/domain/actions/complete_progress.gd)), **`schema_version: 1`**, wired in **`GameState.try_apply`** after the **common** current-player gate.
+- **`CompleteProgress.validate`**: **`progress_state_null`** → **`wrong_action_type`** → **`unsupported_schema_version`** → **`malformed_action`** (**`actor_id`**, non-empty **`progress_id`**) → **`unknown_progress_id`** → **`progress_already_completed`** — **no** **`current_player`** check (owned by **`GameState`**).
+- On accept: **`ProgressUnlockResolver.complete_progress`**, replace **`progress_state`**, append **`ActionLog`** entry with **`unlocked_targets`** delta; **`ActionLog`** deep-copies.
+- **`complete_progress`** is **not** enumerated by **`LegalActions`** and **not** used by **AI**; **no** input-controller binding in this subphase.
+- **`LogView`** formats **`complete_progress`** as **`[+N unlocks]`**.
+
+Rationale:
+
+- **Deterministic**, **replayable** bridge from “progress completed” to **`ProgressState`** unlocks.
+- Supports future **debug/UI/detectors** without implementing detectors now.
+
+Caveat:
+
+- **No** detectors; **no** progress **accumulation**; **no** **UI** / **AI** use; the **five** seed **`ProgressDefinitions`** rows do **not** unlock **`city_project`** targets, so **`SetCityProduction`** legality is **unchanged** for normal play; **`future_dependencies`** remain **metadata-only**.

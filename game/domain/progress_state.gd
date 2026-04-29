@@ -21,6 +21,19 @@ static func _sort_ints_asc(ids: Array) -> void:
 		a = a + 1
 
 
+static func _sort_strings_asc(ids: Array) -> void:
+	var a = 0
+	while a < ids.size():
+		var b = a + 1
+		while b < ids.size():
+			if str(ids[a]) > str(ids[b]):
+				var tmp = ids[a]
+				ids[a] = ids[b]
+				ids[b] = tmp
+			b = b + 1
+		a = a + 1
+
+
 static func _sort_target_rows(targets: Array) -> void:
 	var a = 0
 	while a < targets.size():
@@ -69,6 +82,24 @@ static func _normalize_unlocked_targets(raw: Array) -> Array:
 	return dedup
 
 
+static func _normalize_completed_progress_ids(raw: Array) -> Array:
+	var out: Array = []
+	var ri = 0
+	while ri < raw.size():
+		var item = raw[ri]
+		assert(typeof(item) == TYPE_STRING, "completed_progress_id must be String")
+		out.append(str(item))
+		ri = ri + 1
+	_sort_strings_asc(out)
+	var dedup: Array = []
+	var di = 0
+	while di < out.size():
+		if dedup.size() == 0 or str(dedup[dedup.size() - 1]) != str(out[di]):
+			dedup.append(str(out[di]))
+		di = di + 1
+	return dedup
+
+
 func _init(p_by_owner: Dictionary = {}) -> void:
 	_by_owner = {}
 	var key_list: Array = []
@@ -90,6 +121,12 @@ func _init(p_by_owner: Dictionary = {}) -> void:
 		assert(typeof(ut) == TYPE_ARRAY, "unlocked_targets must be Array")
 		var inner: Dictionary = {}
 		inner["unlocked_targets"] = _normalize_unlocked_targets(ut as Array)
+		var cp_raw: Array = []
+		if entry.has("completed_progress_ids"):
+			var cp = entry["completed_progress_ids"]
+			assert(typeof(cp) == TYPE_ARRAY, "completed_progress_ids must be Array")
+			cp_raw = cp
+		inner["completed_progress_ids"] = _normalize_completed_progress_ids(cp_raw)
 		_by_owner[owner_id] = inner
 		idx = idx + 1
 
@@ -117,7 +154,7 @@ static func with_default_unlocks_for_players(player_ids: Array) -> ProgressState
 		var row1: Dictionary = {}
 		row1["target_type"] = "city_project"
 		row1["target_id"] = "produce_unit:warrior"
-		built[oid] = {"unlocked_targets": [row1]}
+		built[oid] = {"unlocked_targets": [row1], "completed_progress_ids": []}
 		bi = bi + 1
 	return _PROGRESS_STATE_SCRIPT.new(built)
 
@@ -140,6 +177,23 @@ func unlocked_targets_for(owner_id: int) -> Array:
 	return (inner["unlocked_targets"] as Array).duplicate(true)
 
 
+func completed_progress_ids_for(owner_id: int) -> Array:
+	if not _by_owner.has(owner_id):
+		return []
+	var inner: Dictionary = _by_owner[owner_id]
+	return (inner["completed_progress_ids"] as Array).duplicate()
+
+
+func has_completed_progress(owner_id: int, progress_id: String) -> bool:
+	var arr = completed_progress_ids_for(owner_id)
+	var i = 0
+	while i < arr.size():
+		if str(arr[i]) == str(progress_id):
+			return true
+		i = i + 1
+	return false
+
+
 func has_unlocked_target(owner_id: int, target_type: String, target_id: String) -> bool:
 	var arr = unlocked_targets_for(owner_id)
 	var i = 0
@@ -151,6 +205,40 @@ func has_unlocked_target(owner_id: int, target_type: String, target_id: String) 
 	return false
 
 
+func with_progress_id_completed(owner_id: int, progress_id: String) -> ProgressState:
+	var built: Dictionary = {}
+	var existing_oids = owner_ids()
+	var oi = 0
+	var found_owner = false
+	while oi < existing_oids.size():
+		var oid = int(existing_oids[oi])
+		var inner0: Dictionary = _by_owner[oid]
+		var ut: Array = (inner0["unlocked_targets"] as Array).duplicate(true)
+		var cp: Array = (inner0["completed_progress_ids"] as Array).duplicate()
+		if oid == owner_id:
+			found_owner = true
+			var already = false
+			var ci = 0
+			while ci < cp.size():
+				if str(cp[ci]) == str(progress_id):
+					already = true
+					break
+				ci = ci + 1
+			if not already:
+				cp.append(progress_id)
+		built[oid] = {
+			"unlocked_targets": ut,
+			"completed_progress_ids": _normalize_completed_progress_ids(cp),
+		}
+		oi = oi + 1
+	if not found_owner:
+		built[owner_id] = {
+			"unlocked_targets": [],
+			"completed_progress_ids": _normalize_completed_progress_ids([progress_id]),
+		}
+	return _PROGRESS_STATE_SCRIPT.new(built)
+
+
 func with_target_unlocked(owner_id: int, target_type: String, target_id: String) -> ProgressState:
 	var built: Dictionary = {}
 	var existing_oids = owner_ids()
@@ -160,19 +248,23 @@ func with_target_unlocked(owner_id: int, target_type: String, target_id: String)
 		var oid = int(existing_oids[oi])
 		var inner0: Dictionary = _by_owner[oid]
 		var raw: Array = (inner0["unlocked_targets"] as Array).duplicate(true)
+		var cp_keep: Array = (inner0["completed_progress_ids"] as Array).duplicate()
 		if oid == owner_id:
 			found_owner = true
 			var add_row: Dictionary = {}
 			add_row["target_type"] = target_type
 			add_row["target_id"] = target_id
 			raw.append(add_row)
-		built[oid] = {"unlocked_targets": raw}
+		built[oid] = {"unlocked_targets": raw, "completed_progress_ids": cp_keep}
 		oi = oi + 1
 	if not found_owner:
 		var single: Dictionary = {}
 		single["target_type"] = target_type
 		single["target_id"] = target_id
-		built[owner_id] = {"unlocked_targets": [single]}
+		built[owner_id] = {
+			"unlocked_targets": [single],
+			"completed_progress_ids": [],
+		}
 	return _PROGRESS_STATE_SCRIPT.new(built)
 
 
@@ -204,5 +296,14 @@ func equals(other) -> bool:
 			if str(da["target_id"]) != str(db["target_id"]):
 				return false
 			j = j + 1
+		var ca = completed_progress_ids_for(oid)
+		var cb = o.completed_progress_ids_for(oid)
+		if ca.size() != cb.size():
+			return false
+		var k = 0
+		while k < ca.size():
+			if str(ca[k]) != str(cb[k]):
+				return false
+			k = k + 1
 		i = i + 1
 	return true

@@ -7,6 +7,7 @@ const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
+const CompleteProgressScript = preload("res://domain/actions/complete_progress.gd")
 const ProductionTickScript = preload("res://domain/production_tick.gd")
 const ProductionDeliveryScript = preload("res://domain/production_delivery.gd")
 
@@ -76,6 +77,12 @@ static func format_entry(entry: Dictionary) -> String:
 			cid_sp = entry["city_id"]
 		var project_id = String(entry.get("project_id", "?"))
 		return "[%d] P%d set_city_production c%d %s" % [idx, actor_id, cid_sp, project_id]
+	if at == CompleteProgressScript.ACTION_TYPE:
+		var prog_id = String(entry.get("progress_id", "?"))
+		var n_unlocks = 0
+		if entry.has("unlocked_targets") and typeof(entry["unlocked_targets"]) == TYPE_ARRAY:
+			n_unlocks = (entry["unlocked_targets"] as Array).size()
+		return "[%d] P%d complete_progress %s (+%d unlocks)" % [idx, actor_id, prog_id, n_unlocks]
 	if at == ProductionTickScript.EVENT_TYPE:
 		var cid_pr = 0
 		var ptt = "?"
