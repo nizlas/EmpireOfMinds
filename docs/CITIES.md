@@ -9,7 +9,7 @@
 - **`position`**: **`HexCoord`** — city tile; must be on the map and **not** **`HexMap.Terrain.WATER`**.
 - **`current_project`**: **`null`** **or** a **primitive** **`Dictionary`** — **Phase 2.3+** current build / production state. **`null`** means **no** project. For **`produce_unit`**, the shape includes **`progress`**, **`cost`**, and **`ready`** (**`bool`**, **`false`** until **`progress` >= `cost`** on an **accepted** **`end_turn`** tick, **Phase 2.4c**). When a **`Dictionary`** is passed to **`City._init`**, the constructor stores **`duplicate(true)`** so later mutation of the caller’s **`Dictionary`** does **not** affect the **`City`**.
 
-**Phase 3.3 (planned):** **`current_project["project_id"]`** (per [CONTENT_MODEL.md](CONTENT_MODEL.md)) will reference the **city project definition** row; Phase **3.0** adds **no** key and current **`current_project`** behavior is unchanged.
+**Phase 3.3:** **`current_project`** may include **`project_id`** (e.g. **`"produce_unit:warrior"`**), copied from **`SetCityProduction.apply`** into **`City`**. **`cost`** for that project comes from **`CityProjectDefinitions`**; the only shipped project id is **`produce_unit:warrior`** ( **`produce_unit:settler`** is **deferred**). Completed units’ **`Unit.type_id`** comes from **`CityProjectDefinitions.produces_unit_type(project_id)`** in **`ProductionDelivery`**, with a transitional **`"warrior"`** fallback when **`project_id`** is missing or unknown (legacy **`current_project`** rows).
 
 Cities are **immutable** (no mutators): changes happen only via **`GameState.try_apply`** **player** actions (e.g. **`FoundCity`**, **`SetCityProduction`**) **or** via **engine** steps tied to an accepted **`end_turn`** (Phase **2.4a** **`production_progress`**, see [ACTIONS.md](ACTIONS.md)) that return a **new** **`Scenario`**.
 
@@ -40,19 +40,19 @@ The canonical **`make_tiny_test_scenario()`** fixture has **no cities** in Phase
 
 **Domain validation (structural only):** founder must **own** the **`actor_id`**, have a **`type_id`** that **can found** (**`UnitDefinitions.can_found_city`**), sit at **`position`**, on **land** (**not** **WATER**), on the **map**, on a hex **without** an existing **city**.
 
-## Phase 2.3 — `current_project` and SetCityProduction
+## Phase 2.3 — `current_project` and SetCityProduction (Phase 3.3 registry)
 
-**`SetCityProduction`** ([set_city_production.gd](../game/domain/actions/set_city_production.gd)) updates **one** city’s **`current_project`** via **`GameState.try_apply`**. Supported **`project_type`** values: **`"produce_unit"`** (canonical shape includes **`"ready": false`**, **`progress`**, **`cost`**) and **`"none"`** (**`current_project`** becomes **`null`**). **No** **unit** creation when setting production; **`progress`** increments on **accepted** **`end_turn`** (**`ProductionTick`**).
+**`SetCityProduction`** ([set_city_production.gd](../game/domain/actions/set_city_production.gd)) updates **one** city’s **`current_project`** via **`GameState.try_apply`**. **Phase 3.3:** the player action carries **`project_id`** (**`schema_version` `2`**); **`PROJECT_ID_PRODUCE_UNIT_WARRIOR`** installs the **`produce_unit`** project shape (**`progress`**, **`cost`** from **`CityProjectDefinitions`**, **`project_id`**, **`ready: false`**); **`PROJECT_ID_NONE`** clears (**`current_project`** becomes **`null`**). **No** **unit** creation when setting production; **`progress`** increments on **accepted** **`end_turn`** (**`ProductionTick`**).
 
 **`SetCityProduction.validate`** does **not** check **`current_player_id`** (**`not_current_player`** is only **`GameState.try_apply`**). Idempotent requests (**`project_already_set`**) are **rejected** (no log).
 
-**Phase 2.5 (AI / legal list):** **`LegalActions`** may emit **`set_city_production`** for cities with **`current_project == null`** ( **`produce_unit`** only when valid). **`RuleBasedAIPlayer`** prefers filling an empty project before movement. **`"none"`** clears are **not** enumerated in **2.5**.
+**Phase 2.5 (AI / legal list):** **`LegalActions`** may emit **`set_city_production`** for cities with **`current_project == null`** when **`SetCityProduction.validate`** passes (**`produce_unit:warrior`** only today). **`RuleBasedAIPlayer`** prefers filling an empty project before movement. **`PROJECT_ID_NONE`** clears are **not** enumerated in **2.5**.
 
 ## Phase 2.4a–c — Production on EndTurn (engine)
 
 On **accepted** **`end_turn`**, **`ProductionTick`** ([production_tick.gd](../game/domain/production_tick.gd)) increments **`progress`** and may set **`ready: true`** for **`produce_unit`** when **`progress` >= `cost`**; **`production_progress`** log lines are appended **before** **`turn_state`** advances and **before** the **`end_turn`** entry. **`ProductionDelivery`** ([production_delivery.gd](../game/domain/production_delivery.gd)) runs **after** **`end_turn`** for the **new** **`current_player_id`**, appending **`unit_produced`** and spawning **Units** (see [ACTIONS.md](ACTIONS.md), [TURNS.md](TURNS.md), [UNITS.md](UNITS.md)). Initial **`GameState`** construction may deliver **`ready`** projects for the opening current player.
 
-**Phase 3.1 (transitional):** delivered units are created with **`Unit.type_id == "warrior"`**. **Phase 3.3** will tie **`produce_unit`** (via **`project_id`** / city project definitions) to specific unit types; until then, **`unit_produced`** log rows stay **unchanged** (**no** **`type_id`** on the event).
+**Phase 3.3:** **`ProductionDelivery`** sets **`Unit.type_id`** via **`CityProjectDefinitions.produces_unit_type`** when **`current_project`** has a known **`project_id`**; legacy rows and unknown ids fall back to **`"warrior"`**. **`unit_produced`** log rows stay **unchanged** (**no** **`type_id`** / **`unit_type_id`** on the event yet).
 
 **[CitiesView](../game/presentation/cities_view.gd)** continues to draw cities from **`Scenario.cities()`**. **`SelectionController`** re-points **`cities_view.scenario`** after an **accepted** **`FoundCity`** (see [RENDERING.md](RENDERING.md)).
 

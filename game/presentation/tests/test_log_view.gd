@@ -88,10 +88,10 @@ func _init() -> void:
 			"action_type": "set_city_production",
 			"actor_id": 0,
 			"city_id": 1,
-			"project_type": "produce_unit",
+			"project_id": "produce_unit:warrior",
 		}
 	)
-	_check(sp_fmt == "[0] P0 set_city_production c1 produce_unit", "set_city_production format")
+	_check(sp_fmt == "[0] P0 set_city_production c1 produce_unit:warrior", "set_city_production format")
 	var pr_fmt = LogViewScript.format_entry(
 		{
 			"index": 3,

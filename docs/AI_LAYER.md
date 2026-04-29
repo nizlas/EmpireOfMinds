@@ -33,7 +33,7 @@ No **`_process`**, **`Tween`**, **`Timer`**, or chained automation: **one key pr
 
 1. **`MoveUnit`**: units owned by the current player from **`scenario.units()`**, sorted ascending by **`unit.id`**; for each unit, **`MovementRules.legal_destinations`**, sorted by **`(q, r)`** lexicographically.
 2. **`FoundCity`**: same unit order; **`FoundCity.make`** at each unit’s tile, kept only when **`FoundCity.validate`** passes (e.g. not **WATER**, not already a city).
-3. **`SetCityProduction`**: cities owned by the current player, sorted by **`city.id`**; for each city with **`current_project == null`**, **`produce_unit`** only, kept only when **`SetCityProduction.validate`** passes. No **`"none"`** clears in this enumeration.
+3. **`SetCityProduction`**: cities owned by the current player, sorted by **`city.id`**; for each city with **`current_project == null`**, **`PROJECT_ID_PRODUCE_UNIT_WARRIOR`** only, kept only when **`SetCityProduction.validate`** passes. No **`PROJECT_ID_NONE`** clears in this enumeration.
 4. **`EndTurn.make(current_player_id)`** appended **exactly once**, **last**.
 
 **RuleBasedAIPlayer** (Phase **2.5**) prefers the **city loop** first when legal; then the **first** **`move_unit`** when the current player has **not** yet accepted a **`move_unit`** since the last **`end_turn`** in the log; otherwise it picks **`end_turn`**.
@@ -50,7 +50,7 @@ No **`_process`**, **`Tween`**, **`Timer`**, or chained automation: **one key pr
 
 **`LegalActions`** enumerates **`found_city`** and **`set_city_production`** (with existing validators only). **No** AI policy inside **`LegalActions`**. A player with cities still sees **every** legal **`found_city`** for each qualifying unit—that set is smaller from **Phase 3.1** onward because **`FoundCity.validate`** rejects non-founder **`type_id`** values, not because **`LegalActions`** adds new filters. **`RuleBasedAIPlayer`** signature and behavior are **unchanged**; it still consumes **`legal_actions`** only. Engine log types remain **out** of **`legal_actions`**.
 
-From **Phase 3.1**, founding eligibility is enforced in **`FoundCity.validate`** via **`UnitDefinitions`** (see [UNITS.md](UNITS.md), [ACTIONS.md](ACTIONS.md)); **`RuleBasedAIPlayer.decide(game_state, legal_actions)`** remains the **unchanged** AI entry point.
+From **Phase 3.1**, founding eligibility is enforced in **`FoundCity.validate`** via **`UnitDefinitions`** (see [UNITS.md](UNITS.md), [ACTIONS.md](ACTIONS.md)). **Phase 3.3:** **`LegalActions`** still emits **`SetCityProduction`** with **`project_id`** **`"produce_unit:warrior"`** (the action no longer carries **`project_type`**).
 
 End-to-end AI core-loop smoke: [`test_core_loop_ai_smoke.gd`](../game/ai/tests/test_core_loop_ai_smoke.gd).
 

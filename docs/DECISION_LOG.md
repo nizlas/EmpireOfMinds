@@ -346,3 +346,23 @@ Caveat:
 - **`movement_cost`** does not affect **`legal_destinations`** yet.
 - **`get_definition`** naming follows the Phase **3.1** / **`Object.get`** caveat.
 - Two terrain checks (**movement** vs **founding**) until a later consolidation phase.
+
+## 2026-04-29 — City project definitions (Phase 3.3)
+
+Decision:
+
+- **`CityProjectDefinitions`** registry with first project **`produce_unit:warrior`** ( **`game/domain/content/city_project_definitions.gd`** ).
+- **`SetCityProduction`** **`schema_version`** **`2`**: action carries **`project_id`** only (**no** **`project_type`** field, **no** **`schema_version` `1`** compatibility in validation).
+- **`City.current_project`** carries **`project_id`** when set via **`apply`**; **`cost`** comes from the registry; **`project_type`** **`produce_unit`** remains on **`current_project`** for engine logic.
+- **`ProductionTick`** may append optional **`project_id`** on **`production_progress`** when the source project had it; **`LogView`** may ignore it.
+- **`ProductionDelivery`** uses **`CityProjectDefinitions.produces_unit_type(project_id)`** for spawned **`Unit.type_id`**, with **`"warrior"`** fallback for missing / unknown **`project_id`** (legacy fixtures only).
+
+Rationale:
+
+- Removes “hardcoded warrior production” as an action **shape** concern without opening **`produce_unit:settler`** or city-spam pressure in the same slice.
+
+Caveat:
+
+- **`produce_unit:settler`** and additional project rows are **deferred**.
+- **`unit_produced`** still carries **no** **`unit_type_id`** / **`project_id`** (additive event churn deferred).
+- Legacy **`current_project`** without **`project_id`** is supported only as transitional safety for in-flight **`Dictionary`** state in **tests and hand-built fixtures** (there is **no** save/load path yet).

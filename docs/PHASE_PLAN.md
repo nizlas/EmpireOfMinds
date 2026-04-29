@@ -438,7 +438,7 @@ Shipped in code:
 - **`UnitDefinitions`** registry **`settler`** / **`warrior`** (`game/domain/content/unit_definitions.gd`); row lookup via **`get_definition(id)`** ( **`get`** is not a valid method name on **`RefCounted`** in GDScript 4).
 - **`Unit.type_id`** on state (**default** **`"warrior"`** for three-arg construction).
 - **`FoundCity.validate`** rejects types that cannot found (**`unit_type_cannot_found`**).
-- **`ProductionDelivery`** spawns **`type_id`** **`"warrior"`** until **3.3**; **`unit_produced`** shape unchanged.
+- **`ProductionDelivery`** resolves spawned **`Unit.type_id`** via **`CityProjectDefinitions.produces_unit_type(project_id)`** when **`current_project`** carries a supported **`project_id`**; **`"warrior"`** remains the fallback for legacy / unknown ids; **`unit_produced`** shape unchanged.
 
 Must not (this subphase):
 
@@ -470,16 +470,31 @@ Must not (this subphase):
 
 Validation:
 
-- **`run-godot-tests.ps1`** exit **0** (**35** scripts including **`test_terrain_rule_definitions.gd`**).
+- **`run-godot-tests.ps1`** exit **0** (**36** scripts including **`test_terrain_rule_definitions.gd`**).
 
-### Phase 3.3 — City project definitions
+### Phase 3.3 — City project definitions (implemented)
 
 Goal:
-**City projects** / build-queue elements as structured definitions and actions.
+**City projects** as content-backed definitions; **`SetCityProduction`** references stable **`project_id`** values while **`current_project`** remains engine-shaped.
 
 **Must reference [CONTENT_MODEL.md](CONTENT_MODEL.md).**
 
-### Phase 3.4 — First tech / progress definitions
+Shipped in code:
+
+- **`CityProjectDefinitions`** in [city_project_definitions.gd](../game/domain/content/city_project_definitions.gd): first row **`produce_unit:warrior`** (**`get_definition`**, **`produces_unit_type`**, **`cost`**, etc.).
+- **`SetCityProduction`** **`schema_version` `2`**: **`project_id`** on the action (**no** **`project_type`** field); **`PROJECT_ID_NONE`** clears.
+- **`City.current_project`** carries **`project_id`** when set from **`apply`**; **`ProductionTick`** may add optional **`project_id`** to **`production_progress`** events.
+- **`ProductionDelivery`** sets **`Unit.type_id`** from **`CityProjectDefinitions.produces_unit_type`** with transitional **`"warrior"`** fallback for legacy / unknown **`project_id`**.
+- **`LegalActions`** / **`KEY_P`** use **`PROJECT_ID_PRODUCE_UNIT_WARRIOR`**; **`LogView`** **`set_city_production`** lines print **`project_id`**.
+
+Must not (this subphase):
+
+- **`produce_unit:settler`**, build-queue projects, tech / unlocks / refunds, **`unit_produced`** **`type_id`** field, presentation panels beyond allowed **`LogView`** / **`SelectionController`** touches
+
+Validation:
+
+- **`run-godot-tests.ps1`** exit **0** (**36** scripts including **`test_city_project_definitions.gd`**).
+- Manual **F5**: **`set_city_production c\* produce_unit:warrior`** in **`LogView`**; production still completes a **warrior**.
 
 Goal:
 Minimal **tech** or **civic** **progress** slice: prerequisites and unlocks; full flavor leans on **Phase 6**.

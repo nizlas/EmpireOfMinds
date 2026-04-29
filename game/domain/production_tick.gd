@@ -79,6 +79,8 @@ static func apply_for_player(a_scenario, owner_id: int) -> Dictionary:
 		ev_prog["cost"] = cost_v
 		ev_prog["source"] = "engine"
 		ev_prog["result"] = "accepted"
+		if proj_src.has("project_id"):
+			ev_prog["project_id"] = str(proj_src["project_id"])
 		events.append(ev_prog)
 		ei = ei + 1
 

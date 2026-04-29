@@ -81,7 +81,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if pick_id < 0:
 				push_warning("SetCityProduction: no eligible city")
 				return
-			var sp_action = SetCityProductionScript.make(pid, pick_id, SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT)
+			var sp_action = SetCityProductionScript.make(pid, pick_id, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
 			var sp_result = game_state.try_apply(sp_action)
 			if sp_result["accepted"]:
 				scenario = game_state.scenario

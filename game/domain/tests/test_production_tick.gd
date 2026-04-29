@@ -189,6 +189,21 @@ func _init() -> void:
 	_check(r10["scenario"] == sc10, "skip ready same ref")
 	_check((r10["events"] as Array).size() == 0, "no tick for ready")
 
+	var m_pid = HexMapScript.make_tiny_test_map()
+	var u_pid = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
+	var d_pid: Dictionary = {}
+	d_pid["project_type"] = "produce_unit"
+	d_pid["project_id"] = "produce_unit:warrior"
+	d_pid["progress"] = 0
+	d_pid["cost"] = 2
+	var c_pid = CityScript.new(2, 0, HexCoordScript.new(1, -1), d_pid)
+	var sc_pid = ScenarioScript.new(m_pid, u_pid, [c_pid], 70, 80)
+	var r_pid = ProductionTickScript.apply_for_player(sc_pid, 0)
+	var pr_after = r_pid["scenario"].city_by_id(2).current_project as Dictionary
+	_check(str(pr_after["project_id"]) == "produce_unit:warrior", "tick preserves project_id")
+	var ev_pid = (r_pid["events"] as Array)[0] as Dictionary
+	_check(str(ev_pid["project_id"]) == "produce_unit:warrior", "progress event includes project_id")
+
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

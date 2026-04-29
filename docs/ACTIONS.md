@@ -20,7 +20,7 @@ intent
 
 1. All legal **`MoveUnit.make(...)`** for **`game_state.scenario`** under **`MovementRules.legal_destinations`** for each **current-player** unit (deterministic unit and destination order; see [AI_LAYER.md](AI_LAYER.md)).
 2. **Phase 2.5:** each **current-player** unit’s **`FoundCity.make`** at its current tile, **only** if **`FoundCity.validate`** passes (policy-agnostic; multiple cities per player are still enumerated if legal). **Phase 3.1:** validation includes **unit-type** founding eligibility via **`UnitDefinitions`**, so only units whose **`type_id`** can found appear here.
-3. **Phase 2.5:** for each **current-player** city with **`current_project == null`**, **`SetCityProduction.make(..., "produce_unit")`** **only** if **`SetCityProduction.validate`** passes. Cities with any non-**`null`** project (including **`ready: true`**) emit **no** **`set_city_production`** here; **`"none"`** clear actions are **not** enumerated in this phase.
+3. **Phase 2.5:** for each **current-player** city with **`current_project == null`**, **`SetCityProduction.make(..., SetCityProduction.PROJECT_ID_PRODUCE_UNIT_WARRIOR)`** ( **`"produce_unit:warrior"`** ) **only** if **`SetCityProduction.validate`** passes. Cities with any non-**`null`** project (including **`ready: true`**) emit **no** **`set_city_production`** here; **`SetCityProduction.PROJECT_ID_NONE`** (**`"none"`**) clear actions are **not** enumerated in this phase.
 4. Exactly one **`EndTurn.make(current_player_id)`**, **last**.
 
 **`production_progress`** and **`unit_produced`** remain **engine-only** log types and are **never** included in this list. Returns **`[]`** if **`game_state`** is **`null`**.
@@ -96,9 +96,11 @@ Built with **`EndTurn.make(actor_id)`** in [end_turn.gd](../game/domain/actions/
 
 **Who ticks (`ProductionTick`):** cities owned by the **ending** player with **`current_project != null`**, **`ready != true`** (missing **`ready`** treated as false), in **ascending `city.id`**.
 
+**Phase 3.3:** **`production_progress`** may include an **optional** **`project_id`** when **`current_project`** had that key; **`LogView`** formatting stays **project_type-based** only ( **`project_id`** on progress rows is ignored for now).
+
 **Tick increment:** **`progress` += 1** per eligible city; each tick emits **`production_progress`** with **`progress_after` = `progress_before` + 1**. When **`String(project_type) == "produce_unit"`** and **`progress_after` >= `cost`**, the project's **`ready`** is set **`true`**; **`current_project`** stays **non-null** until delivery. Other **`project_type`** values set **`ready`**: **`false`**. **No** **`peek_next_unit_id`** change in tick.
 
-**Delivery (`ProductionDelivery`):** cities owned by the passed-in **`owner_id`** with **`produce_unit`**, **`ready == true`**, sorted by **`city.id`** ascending: allocate **`unit_id`**, append **`Unit`** at **`city.position`**, set **`current_project`** to **`null`**, advance **`peek_next_unit_id()`** by completion count; **`peek_next_city_id()`** unchanged. **Stacking** on the city hex **allowed**.
+**Delivery (`ProductionDelivery`):** cities owned by the passed-in **`owner_id`** with **`produce_unit`**, **`ready == true`**, sorted by **`city.id`** ascending: allocate **`unit_id`**, append **`Unit`** at **`city.position`** with **`type_id`** from **`CityProjectDefinitions.produces_unit_type(project_id)`** when **`current_project`** has a known **`project_id`**, else **`"warrior"`** (legacy), set **`current_project`** to **`null`**, advance **`peek_next_unit_id()`** by completion count; **`peek_next_city_id()`** unchanged. **Stacking** on the city hex **allowed**.
 
 **`production_progress`** entry shape ( **`source`: `"engine"`** ):
 
@@ -114,6 +116,7 @@ Built with **`EndTurn.make(actor_id)`** in [end_turn.gd](../game/domain/actions/
 | `cost` | `int` | From **`current_project`**. |
 | `source` | `String` | `"engine"`. |
 | `result` | `String` | `"accepted"`. |
+| `project_id` | `String` | **Optional (Phase 3.3).** Present when **`current_project`** had **`project_id`**. |
 
 **`unit_produced`** entry shape ( **not** registered in **`try_apply`** ):
 
@@ -167,17 +170,19 @@ Built with **`FoundCity.make(actor_id, unit_id, q, r)`** in [found_city.gd](../g
 - **`city_id`** for the new **`City`** is **`scenario.peek_next_city_id()`** at apply time.
 - Returned **`Scenario`** passes forward **`map`**, **`peek_next_unit_id()`**, all **non-founder** units, **existing cities** plus the new **`City`**, and **`peek_next_city_id() + 1`** for the next-city counter (no recomputation from entity lists).
 
-## SetCityProduction schema (Phase 2.3)
+## SetCityProduction schema (Phase 2.3, Phase 3.3)
+
+**Intentional breaking change:** **`schema_version` `1`** (**`project_type`**) actions are **unsupported**; clients must emit **`schema_version` `2`** with **`project_id`** only — **no** translate path in **`validate`**. **`current_project`** **`Dictionary`** objects still carry **`project_type`** (and **`project_id`** when set from **`apply`**) for engine compatibility.
 
 | Field | Type | Meaning |
 |--------|------|--------|
-| `schema_version` | `int` | `1` (`SetCityProduction.SCHEMA_VERSION`). |
+| `schema_version` | `int` | `2` (`SetCityProduction.SCHEMA_VERSION`). |
 | `action_type` | `String` | `"set_city_production"`. |
 | `actor_id` | `int` | Must match **`city.owner_id`** in **`SetCityProduction.validate`**; must equal **`turn_state.current_player_id()`** at **`try_apply`** (common gate). |
 | `city_id` | `int` | Target **city** to update. |
-| `project_type` | `String` | **`"produce_unit"`** or **`"none"`** (clear project). |
+| `project_id` | `String` | **`SetCityProduction.PROJECT_ID_PRODUCE_UNIT_WARRIOR`** (**`"produce_unit:warrior"`**) to start that project; **`SetCityProduction.PROJECT_ID_NONE`** (**`"none"`**) to clear **`current_project`**. |
 
-Built with **`SetCityProduction.make(actor_id, city_id, project_type)`** in [set_city_production.gd](../game/domain/actions/set_city_production.gd). **`cost`** is **not** part of the action payload: for **`produce_unit`**, **`apply`** assigns **`cost: 2`** and **`progress: 0`** inside a **fresh** project **`Dictionary`**.
+Built with **`SetCityProduction.make(actor_id, city_id, project_id)`** in [set_city_production.gd](../game/domain/actions/set_city_production.gd). **`cost`** is **not** part of the action payload: for a supported project, **`apply`** copies **`cost`** from **`CityProjectDefinitions`** into **`current_project`**.
 
 ### SetCityProduction validation order
 
@@ -186,11 +191,11 @@ Built with **`SetCityProduction.make(actor_id, city_id, project_type)`** in [set
 1. `scenario_null`
 2. `wrong_action_type`
 3. `unsupported_schema_version`
-4. `malformed_action` — **`actor_id`**, **`city_id`**, **`project_type`** (must be **`TYPE_STRING`**)
+4. `malformed_action` — **`actor_id`**, **`city_id`**, **`project_id`** (must be **`TYPE_STRING`**)
 5. `unknown_city`
 6. `actor_not_owner`
-7. `unsupported_project_type` — string not **`"produce_unit"`** or **`"none"`**
-8. `project_already_set` — **`produce_unit`** requested but city already has **`produce_unit`**, or **`none`** requested but **`current_project`** is already **`null`**
+7. `unsupported_project_id` — **`project_id`** is neither **`PROJECT_ID_NONE`** nor a row in **`CityProjectDefinitions`**
+8. `project_already_set` — supported **produce** **`project_id`** requested but city already has a matching **`produce_unit`** project (**including** legacy **`current_project`** with **`project_type`** **`produce_unit`** and **no** **`project_id`**), or **`PROJECT_ID_NONE`** requested when **`current_project`** is already **`null`**
 
 ### SetCityProduction application
 
@@ -214,7 +219,7 @@ Built with **`SetCityProduction.make(actor_id, city_id, project_type)`** in [set
 - **Common gate** (these action types): **`actor_id`** must be present and **`TYPE_INT`**; **`actor_id == turn_state.current_player_id()`** or **`malformed_action`** / **`not_current_player`**.
 - **`move_unit`**: **`MoveUnit.validate` → apply →** log entry as in Phase 1.6.
 - **`found_city`**: **`FoundCity.validate` →** read **`created_city_id = scenario.peek_next_city_id()`** **before** **`apply`** (deterministic log) **`→ FoundCity.apply →`** log entry includes **`city_id`**, **`position`** (duplicate), **`unit_id`**, **`result: "accepted"`**.
-- **`set_city_production`**: **`SetCityProduction.validate` → apply →** log entry includes **`city_id`**, **`project_type`**, **`result: "accepted"`**.
+- **`set_city_production`**: **`SetCityProduction.validate` → apply →** log entry includes **`city_id`**, **`project_id`**, **`result: "accepted"`** (**no** **`project_type`** on the action log row in **Phase 3.3**).
 - **`end_turn`**: **`EndTurn.validate` →** **`ProductionTick.apply_for_player`** (optional **`production_progress`** **0..N**) **→** **`EndTurn.apply` (`turn_state`)** **→** append **`end_turn`** **→** **`ProductionDelivery.deliver_pending_for_player`** (optional **`unit_produced`** **0..M**) **after** **`end_turn`**. Returned **`index`** is the **`end_turn`** entry only.
 
 On **reject**: **`accepted: false`**, **`index: -1`**, no log append, **`scenario` / `turn_state` / `log`** unchanged (except where only validation failed after gate — still no mutation).
@@ -234,7 +239,7 @@ On **accept**: updates **`scenario`** and/or **`turn_state`**, appends **deep-co
 
 ## Presentation boundary
 
-- **[selection_controller.gd](../game/presentation/selection_controller.gd)** submits **`MoveUnit`** via **`try_apply`** on **left-click** and **`FoundCity`** on **`F`** when a unit is selected; **`KEY_P`** is a **debug** hook that submits **`SetCityProduction`** for the **lowest-id** **current-player** city with **`current_project == null`** (see [RENDERING.md](RENDERING.md)). **[end_turn_controller.gd](../game/presentation/end_turn_controller.gd)** submits **`EndTurn`** on **Space**. **[ai_turn_controller.gd](../game/presentation/ai_turn_controller.gd)** drives **one** **`try_apply`** per **`A`** key press using **`LegalActions`** + **`RuleBasedAIPlayer.decide`**. None assign **`unit.position`** or re-build **`Scenario`** outside **`try_apply`**.
+- **[selection_controller.gd](../game/presentation/selection_controller.gd)** submits **`MoveUnit`** via **`try_apply`** on **left-click** and **`FoundCity`** on **`F`** when a unit is selected; **`KEY_P`** is a **debug** hook that submits **`SetCityProduction.make(..., PROJECT_ID_PRODUCE_UNIT_WARRIOR)`** for the **lowest-id** **current-player** city with **`current_project == null`** (see [RENDERING.md](RENDERING.md)). **[end_turn_controller.gd](../game/presentation/end_turn_controller.gd)** submits **`EndTurn`** on **Space**. **[ai_turn_controller.gd](../game/presentation/ai_turn_controller.gd)** drives **one** **`try_apply`** per **`A`** key press using **`LegalActions`** + **`RuleBasedAIPlayer.decide`**. None assign **`unit.position`** or re-build **`Scenario`** outside **`try_apply`**.
 - After an **accepted** **`MoveUnit`**, **`SelectionController`** re-points **`selection_view.scenario`**, **`units_view.scenario`**, and its optional **`scenario`** mirror to **`game_state.scenario`**, **clears selection**, **`queue_redraw()`**, **`turn_label.refresh()`** / **`log_view.refresh()`** when wired ( **`cities_view`** unchanged on move in this phase).
 - After an **accepted** **`FoundCity`**, **`SelectionController`** also re-points **`cities_view.scenario`** when **`cities_view`** is wired, **`queue_redraw()`** on **`cities_view`**, **`log_view.refresh()`**, and **clears selection**.
 - After an **accepted** **`SetCityProduction`** via **`KEY_P`**, **`SelectionController`** re-points **`cities_view`** and **`scenario`** mirror when wired, **`queue_redraw()`** **`cities_view`**, **`turn_label.refresh()`**, **`log_view.refresh()`**; **does not** change **selection**.

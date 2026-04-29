@@ -27,11 +27,19 @@ func _make_scenario_with_cities():
 
 func _init() -> void:
 	var sc = _make_scenario_with_cities()
-	var mk = SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT)
+	var mk = SetCityProductionScript.make(
+		0,
+		5,
+		SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR
+	)
 	_check(mk["schema_version"] == SetCityProductionScript.SCHEMA_VERSION, "make schema")
 	_check(mk["action_type"] == SetCityProductionScript.ACTION_TYPE, "make action_type")
 	_check(mk["actor_id"] == 0 and mk["city_id"] == 5, "make ids")
-	_check(mk["project_type"] == SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT, "make project_type")
+	_check(
+		mk["project_id"] == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
+		"make project_id"
+	)
+	_check(not mk.has("project_type"), "make no project_type")
 
 	var r0 = SetCityProductionScript.validate(null, mk)
 	_check(not r0["ok"] and r0["reason"] == "scenario_null", "scenario_null")
@@ -48,6 +56,20 @@ func _init() -> void:
 		not r4["ok"] and r4["reason"] == "unsupported_schema_version",
 		"no schema"
 	)
+	var r_schema_v1 = SetCityProductionScript.validate(
+		sc,
+		{
+			"schema_version": 1,
+			"action_type": SetCityProductionScript.ACTION_TYPE,
+			"actor_id": 0,
+			"city_id": 5,
+			"project_type": "produce_unit",
+		}
+	)
+	_check(
+		not r_schema_v1["ok"] and r_schema_v1["reason"] == "unsupported_schema_version",
+		"schema v1 rejected"
+	)
 	var r5 = SetCityProductionScript.validate(
 		sc,
 		{
@@ -55,7 +77,7 @@ func _init() -> void:
 			"action_type": SetCityProductionScript.ACTION_TYPE,
 			"actor_id": 0,
 			"city_id": 5,
-			"project_type": SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT,
+			"project_id": SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
 		}
 	)
 	_check(
@@ -68,7 +90,7 @@ func _init() -> void:
 			"schema_version": SetCityProductionScript.SCHEMA_VERSION,
 			"action_type": SetCityProductionScript.ACTION_TYPE,
 			"city_id": 5,
-			"project_type": SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT,
+			"project_id": SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
 		}
 	)
 	_check(not r6["ok"] and r6["reason"] == "malformed_action", "missing actor_id")
@@ -79,7 +101,7 @@ func _init() -> void:
 			"action_type": SetCityProductionScript.ACTION_TYPE,
 			"actor_id": "n",
 			"city_id": 5,
-			"project_type": SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT,
+			"project_id": SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
 		}
 	)
 	_check(not r6b["ok"] and r6b["reason"] == "malformed_action", "actor_id not int")
@@ -89,7 +111,7 @@ func _init() -> void:
 			"schema_version": SetCityProductionScript.SCHEMA_VERSION,
 			"action_type": SetCityProductionScript.ACTION_TYPE,
 			"actor_id": 0,
-			"project_type": SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT,
+			"project_id": SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
 		}
 	)
 	_check(not r7["ok"] and r7["reason"] == "malformed_action", "missing city_id")
@@ -100,7 +122,7 @@ func _init() -> void:
 			"action_type": SetCityProductionScript.ACTION_TYPE,
 			"actor_id": 0,
 			"city_id": 5.5,
-			"project_type": SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT,
+			"project_id": SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
 		}
 	)
 	_check(not r7b["ok"] and r7b["reason"] == "malformed_action", "city_id not int")
@@ -113,7 +135,7 @@ func _init() -> void:
 			"city_id": 5,
 		}
 	)
-	_check(not r8["ok"] and r8["reason"] == "malformed_action", "missing project_type")
+	_check(not r8["ok"] and r8["reason"] == "malformed_action", "missing project_id")
 	var r8b = SetCityProductionScript.validate(
 		sc,
 		{
@@ -121,52 +143,67 @@ func _init() -> void:
 			"action_type": SetCityProductionScript.ACTION_TYPE,
 			"actor_id": 0,
 			"city_id": 5,
-			"project_type": 1,
+			"project_id": 1,
 		}
 	)
-	_check(not r8b["ok"] and r8b["reason"] == "malformed_action", "project_type not string")
+	_check(not r8b["ok"] and r8b["reason"] == "malformed_action", "project_id not string")
 	var r9 = SetCityProductionScript.validate(
 		sc,
-		SetCityProductionScript.make(0, 999, SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT)
+		SetCityProductionScript.make(0, 999, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
 	)
 	_check(not r9["ok"] and r9["reason"] == "unknown_city", "unknown_city")
 	var r10 = SetCityProductionScript.validate(
 		sc,
-		SetCityProductionScript.make(1, 5, SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT)
+		SetCityProductionScript.make(1, 5, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
 	)
 	_check(not r10["ok"] and r10["reason"] == "actor_not_owner", "actor_not_owner")
-	var r11 = SetCityProductionScript.validate(
-		sc,
-		SetCityProductionScript.make(0, 5, "nexus_gate")
-	)
-	_check(not r11["ok"] and r11["reason"] == "unsupported_project_type", "unsupported type")
+	var r11 = SetCityProductionScript.validate(sc, SetCityProductionScript.make(0, 5, "nexus_gate"))
+	_check(not r11["ok"] and r11["reason"] == "unsupported_project_id", "unsupported id")
 
 	var sc_busy = _make_scenario_with_cities()
 	var busy1 = SetCityProductionScript.apply(
 		sc_busy,
-		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT)
+		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
 	)
 	var r12 = SetCityProductionScript.validate(
 		busy1,
-		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT)
+		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
 	)
 	_check(not r12["ok"] and r12["reason"] == "project_already_set", "produce twice")
 	var r13 = SetCityProductionScript.validate(
 		sc,
-		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_TYPE_NONE)
+		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_ID_NONE)
 	)
 	_check(not r13["ok"] and r13["reason"] == "project_already_set", "none when empty")
 
 	var ok = SetCityProductionScript.validate(
 		sc,
-		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT)
+		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
 	)
 	_check(ok["ok"], "legal produce validate")
 	var ok_clear = SetCityProductionScript.validate(
 		busy1,
-		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_TYPE_NONE)
+		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_ID_NONE)
 	)
 	_check(ok_clear["ok"], "legal none after produce")
+
+	var m_leg = HexMapScript.make_tiny_test_map()
+	var us_leg = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
+	var legacy_pr: Dictionary = {}
+	legacy_pr["project_type"] = "produce_unit"
+	legacy_pr["progress"] = 0
+	legacy_pr["cost"] = 2
+	legacy_pr["ready"] = false
+	var c_leg = CityScript.new(9, 0, HexCoordScript.new(0, -1), legacy_pr)
+	var sc_leg = ScenarioScript.new(m_leg, us_leg, [c_leg], 100, 200)
+	var r_legacy = SetCityProductionScript.validate(
+		sc_leg,
+		SetCityProductionScript.make(0, 9, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
+	)
+	_check(
+		not r_legacy["ok"] and r_legacy["reason"] == "project_already_set",
+		"legacy produce without project_id idempotent"
+	)
 
 	var before_nu = sc.peek_next_unit_id()
 	var before_nc = sc.peek_next_city_id()
@@ -174,15 +211,17 @@ func _init() -> void:
 	var c5_before = sc.city_by_id(5)
 	var new_sc = SetCityProductionScript.apply(
 		sc,
-		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT)
+		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
 	)
 	var c5n = new_sc.city_by_id(5)
 	_check(c5n != null and c5n.current_project != null, "has project")
 	var pr = c5n.current_project as Dictionary
+	_check(pr["project_type"] == "produce_unit", "project_type produce_unit")
 	_check(
-		pr["project_type"] == "produce_unit" and pr["progress"] == 0 and pr["cost"] == 2 and pr["ready"] == false,
-		"produce shape"
+		pr["project_id"] == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
+		"project_id warrior"
 	)
+	_check(pr["progress"] == 0 and pr["cost"] == 2 and pr["ready"] == false, "produce shape")
 	_check(new_sc.city_by_id(6) == sc.city_by_id(6), "other city same ref")
 	_check(new_sc.peek_next_unit_id() == before_nu and new_sc.peek_next_city_id() == before_nc, "peek preserved")
 	_check(new_sc.units().size() == nu_before, "unit count")
@@ -190,12 +229,13 @@ func _init() -> void:
 
 	var cleared = SetCityProductionScript.apply(
 		new_sc,
-		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_TYPE_NONE)
+		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_ID_NONE)
 	)
 	_check(cleared.city_by_id(5).current_project == null, "none clears")
 
 	var ext: Dictionary = {}
 	ext["project_type"] = "produce_unit"
+	ext["project_id"] = SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR
 	ext["progress"] = 0
 	ext["cost"] = 2
 	var ciso = CityScript.new(7, 0, HexCoordScript.new(0, 0), ext)

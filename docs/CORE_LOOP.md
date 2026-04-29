@@ -8,7 +8,7 @@ Phase **2.x** core loop is **feature-frozen** as a baseline. **Phase 3** extends
 
 - **Mouse**: click a unit to select; click a **legal destination** (tinted hex) to move via `MoveUnit` through `GameState.try_apply`.
 - **F**: `FoundCity` for the **selected unit** on its current tile (presentation path in `SelectionController`). **Only settler-type units** (`UnitDefinitions.can_found_city`) succeed; others are rejected. Rejected actions surface as warnings; only accepted actions append to the log.
-- **P**: `SetCityProduction` with `produce_unit` for the **lowest-id** **current-player** city whose `current_project == null` (debug path in `SelectionController`).
+- **P**: `SetCityProduction` with **`project_id`** **`produce_unit:warrior`** for the **lowest-id** **current-player** city whose `current_project == null` (debug path in `SelectionController`).
 - **Space**: `EndTurn` for the current player (`EndTurnController`).
 - **A**: one rule-based AI step: `LegalActions.for_current_player(game_state)` → `RuleBasedAIPlayer.decide(game_state, legal_actions)` → `GameState.try_apply(choice)` (`AITurnController`).
 
@@ -40,7 +40,7 @@ From [AI_LAYER.md](AI_LAYER.md):
 
 - **No** combat stats, **no** movement cost by **`type_id`**, **no** distinct **unit** **silhouettes** in presentation (markers unchanged).
 - **Water** hexes remain **blocked** for **one-step** moves via **`TerrainRuleDefinitions`**; **no** movement points, **no** multi-hex pathfinding, **no** application of **`movement_cost`** to range yet.
-- **`produce_unit`** uses **`cost`** **2** in the default project shape from `SetCityProduction` apply; **`ProductionDelivery`** spawns units with **`type_id`** **`"warrior"`** until **Phase 3.3** project definitions.
+- **`produce_unit`** training uses **`cost`** **2** from **`CityProjectDefinitions`** for **`produce_unit:warrior`**; **`ProductionDelivery`** spawns **`warrior`** units through that **`project_id`** (still **one** trainable project — **no** settler production yet).
 - **City** and **unit** markers are **placeholder** geometry and palettes (not final art).
 - **Stacking** on the city hex is **allowed** when a produced unit spawns.
 - **No** combat resolution, **no** save/load, **no** fog of war, **no** tech tree, **no** faction **trait** layer beyond **`UnitDefinitions`** **IDs** and **`Unit.type_id`**.
@@ -51,7 +51,7 @@ Presentation: [RENDERING.md](RENDERING.md), [SELECTION.md](SELECTION.md) (editor
 
 1. **F5** — Map loads; units and terrain render; **Turn** HUD shows current turn and player.
 2. Press **A** once — **Player 0** should **`found_city`** (unit removed, city marker visible if CitiesView is wired); log shows `found_city`.
-3. Press **A** again — **Player 0** should **`set_city_production`** (`produce_unit`); log shows `set_city_production`.
+3. Press **A** again — **Player 0** should **`set_city_production`** (**`produce_unit:warrior`**); log shows `set_city_production` with that **project id**.
 4. Continue **A** — AI **moves** (if legal) and **ends turn**; on **accepted** `end_turn`, **`production_progress`** lines appear **before** the **`end_turn`** line for that step; **`unit_produced`** appears **after** that **`end_turn`** when the **recipient** becomes current (may take until a later turn boundary).
 5. Confirm **`LogView`** (or structured log via tests): engine `action_type` values are visible but **never** chosen as AI legal actions—AI only emits `found_city`, `set_city_production`, `move_unit`, or `end_turn`.
 

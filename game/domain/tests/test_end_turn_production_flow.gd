@@ -87,7 +87,9 @@ func _init() -> void:
 	_check(u30 != null and u30.owner_id == 0 and u30.position.equals(c_p0_pos), "unit at city hex")
 	_check(gs.scenario.peek_next_unit_id() == 31, "next unit id bumped")
 
-	var sp = gs.try_apply(SetCityProductionScript.make(0, 1, "produce_unit"))
+	var sp = gs.try_apply(
+		SetCityProductionScript.make(0, 1, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
+	)
 	_check(sp["accepted"], "set production after completion")
 	_check(gs.scenario.city_by_id(1).current_project != null, "new project set")
 	_check(

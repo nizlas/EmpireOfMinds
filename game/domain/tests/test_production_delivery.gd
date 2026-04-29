@@ -81,6 +81,34 @@ func _init() -> void:
 	var rsecond = ProductionDeliveryScript.deliver_pending_for_player(r1["scenario"], 0)
 	_check((rsecond["events"] as Array).size() == 0, "second deliver idempotent")
 
+	var m_pid = HexMapScript.make_tiny_test_map()
+	var u_pid = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
+	var d_canon: Dictionary = {}
+	d_canon["project_type"] = "produce_unit"
+	d_canon["project_id"] = "produce_unit:warrior"
+	d_canon["progress"] = 2
+	d_canon["cost"] = 2
+	d_canon["ready"] = true
+	var c_pid = CityScript.new(1, 0, HexCoordScript.new(1, -1), d_canon)
+	var sc_pid = ScenarioScript.new(m_pid, u_pid, [c_pid], 300, 400)
+	var r_pid = ProductionDeliveryScript.deliver_pending_for_player(sc_pid, 0)
+	var ns_pid = r_pid["scenario"]
+	_check(ns_pid.unit_by_id(300).type_id == "warrior", "registry project_id yields warrior")
+
+	var m_unk = HexMapScript.make_tiny_test_map()
+	var u_unk = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
+	var d_unk: Dictionary = {}
+	d_unk["project_type"] = "produce_unit"
+	d_unk["project_id"] = "produce_unit:future"
+	d_unk["progress"] = 2
+	d_unk["cost"] = 2
+	d_unk["ready"] = true
+	var c_unk = CityScript.new(1, 0, HexCoordScript.new(1, -1), d_unk)
+	var sc_unk = ScenarioScript.new(m_unk, u_unk, [c_unk], 310, 410)
+	var r_unk = ProductionDeliveryScript.deliver_pending_for_player(sc_unk, 0)
+	var ns_unk = r_unk["scenario"]
+	_check(ns_unk.unit_by_id(310).type_id == "warrior", "unknown project_id falls back warrior")
+
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

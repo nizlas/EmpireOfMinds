@@ -99,7 +99,7 @@ static func for_current_player(game_state) -> Array:
 			var sp = SetCityProductionScript.make(
 				cp,
 				cy.id,
-				SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT
+				SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR
 			)
 			var sv = SetCityProductionScript.validate(scenario, sp)
 			if sv["ok"]:

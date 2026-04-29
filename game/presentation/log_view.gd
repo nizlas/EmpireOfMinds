@@ -72,12 +72,10 @@ static func format_entry(entry: Dictionary) -> String:
 		return "[%d] P%d found city c%d at (%d,%d) from u%d" % [idx, actor_id, cid_fc, pq, pr, uid_fc]
 	if at == SetCityProductionScript.ACTION_TYPE:
 		var cid_sp = 0
-		var pts = "?"
 		if entry.has("city_id") and typeof(entry["city_id"]) == TYPE_INT:
 			cid_sp = entry["city_id"]
-		if entry.has("project_type") and typeof(entry["project_type"]) == TYPE_STRING:
-			pts = entry["project_type"]
-		return "[%d] P%d set_city_production c%d %s" % [idx, actor_id, cid_sp, pts]
+		var project_id = String(entry.get("project_id", "?"))
+		return "[%d] P%d set_city_production c%d %s" % [idx, actor_id, cid_sp, project_id]
 	if at == ProductionTickScript.EVENT_TYPE:
 		var cid_pr = 0
 		var ptt = "?"

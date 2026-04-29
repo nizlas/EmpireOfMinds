@@ -20,20 +20,26 @@ func _init() -> void:
 	var scen = ScenarioScript.new(m, us, cs, 10, 50)
 	var gs = GameStateScript.new(scen)
 
-	var bad = gs.try_apply(SetCityProductionScript.make(1, 1, SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT))
+	var bad = gs.try_apply(
+		SetCityProductionScript.make(1, 1, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
+	)
 	_check(
 		not bad["accepted"] and bad["reason"] == "not_current_player",
 		"wrong player gated"
 	)
 
-	var r1 = gs.try_apply(SetCityProductionScript.make(0, 1, SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT))
+	var r1 = gs.try_apply(
+		SetCityProductionScript.make(0, 1, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
+	)
 	_check(r1["accepted"], "produce accepted")
 	var cty = gs.scenario.city_by_id(1)
 	var pr = cty.current_project as Dictionary
+	_check(pr["project_type"] == "produce_unit", "scenario project_type")
 	_check(
-		pr["project_type"] == "produce_unit" and pr["progress"] == 0 and pr["cost"] == 2 and pr["ready"] == false,
-		"scenario city project"
+		pr["project_id"] == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
+		"scenario project_id"
 	)
+	_check(pr["progress"] == 0 and pr["cost"] == 2 and pr["ready"] == false, "scenario city project")
 	_check(gs.scenario.unit_by_id(1) != null, "units preserved")
 
 	_check(gs.log.size() == 1, "one log entry")
@@ -41,20 +47,26 @@ func _init() -> void:
 	_check(e0["action_type"] == "set_city_production", "log action_type")
 	_check(e0["actor_id"] == 0, "log actor")
 	_check(e0["city_id"] == 1, "log city_id")
-	_check(e0["project_type"] == SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT, "log project_type")
+	_check(
+		e0["project_id"] == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
+		"log project_id"
+	)
+	_check(not e0.has("project_type"), "log no project_type")
 	_check(e0["result"] == "accepted", "log result")
 
-	var r2 = gs.try_apply(SetCityProductionScript.make(0, 1, SetCityProductionScript.PROJECT_TYPE_PRODUCE_UNIT))
+	var r2 = gs.try_apply(
+		SetCityProductionScript.make(0, 1, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
+	)
 	_check(
 		not r2["accepted"] and r2["reason"] == "project_already_set",
 		"idempotent produce rejected"
 	)
 
-	var r3 = gs.try_apply(SetCityProductionScript.make(0, 1, SetCityProductionScript.PROJECT_TYPE_NONE))
+	var r3 = gs.try_apply(SetCityProductionScript.make(0, 1, SetCityProductionScript.PROJECT_ID_NONE))
 	_check(r3["accepted"], "clear accepted")
 	_check(gs.scenario.city_by_id(1).current_project == null, "cleared")
 
-	var r4 = gs.try_apply(SetCityProductionScript.make(0, 1, SetCityProductionScript.PROJECT_TYPE_NONE))
+	var r4 = gs.try_apply(SetCityProductionScript.make(0, 1, SetCityProductionScript.PROJECT_ID_NONE))
 	_check(
 		not r4["accepted"] and r4["reason"] == "project_already_set",
 		"idempotent none rejected"

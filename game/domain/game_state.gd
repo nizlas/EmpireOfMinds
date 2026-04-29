@@ -97,7 +97,7 @@ func try_apply(action) -> Dictionary:
 			"action_type": action["action_type"],
 			"actor_id": action["actor_id"],
 			"city_id": action["city_id"],
-			"project_type": action["project_type"],
+			"project_id": action["project_id"],
 			"result": "accepted",
 		}
 		var sp_idx = log.append(sp_entry)

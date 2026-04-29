@@ -127,6 +127,11 @@ func _init() -> void:
 			saw_sp = true
 			var se = Lc[lk] as Dictionary
 			_check(se["city_id"] == 5, "set city 5")
+			_check(
+				se["project_id"] == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
+				"set project_id"
+			)
+			_check(not se.has("project_type"), "no project_type on action")
 			var sr = SetCityProductionScript.validate(gs_c.scenario, se)
 			_check(sr["ok"], "set validates")
 		lk = lk + 1

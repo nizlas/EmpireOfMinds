@@ -10,6 +10,7 @@ const PRODUCE_UNIT_TYPE: String = "produce_unit"
 const ScenarioScript = preload("res://domain/scenario.gd")
 const CityScript = preload("res://domain/city.gd")
 const UnitScript = preload("res://domain/unit.gd")
+const CityProjectDefinitionsScript = preload("res://domain/content/city_project_definitions.gd")
 
 static func _sort_int_ids_asc(ids: Array) -> void:
 	var a = 0
@@ -94,7 +95,16 @@ static func deliver_pending_for_player(a_scenario, owner_id: int) -> Dictionary:
 		var cp = completion_order[cpi] as Dictionary
 		var ccid = cp["city_id"] as int
 		var cy = a_scenario.city_by_id(ccid)
-		new_units.append(UnitScript.new(cp["unit_id"] as int, cy.owner_id, cy.position, "warrior"))
+		var produced_type = "warrior"
+		if cy.current_project != null and typeof(cy.current_project) == TYPE_DICTIONARY:
+			var cyp = cy.current_project as Dictionary
+			if cyp.has("project_id"):
+				var pid = str(cyp["project_id"])
+				if pid != "" and CityProjectDefinitionsScript.has(pid):
+					var t = CityProjectDefinitionsScript.produces_unit_type(pid)
+					if t != "":
+						produced_type = t
+		new_units.append(UnitScript.new(cp["unit_id"] as int, cy.owner_id, cy.position, produced_type))
 		cpi = cpi + 1
 
 	var new_cities: Array = []
