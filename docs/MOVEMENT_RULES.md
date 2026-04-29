@@ -15,6 +15,8 @@
 3. **`scenario.map.terrain_at(coord) != HexMap.Terrain.WATER`** — **WATER is impassable** for this phase (first use of terrain in a rule; the map model itself is unchanged).
 4. **`scenario.units_at(coord).size() == 0`** — destination is **not occupied** by any unit.
 
+**Phase 3.2 (planned):** **`MovementRules`** will consult **terrain rule definitions** (passability, costs) per [CONTENT_MODEL.md](CONTENT_MODEL.md) instead of inlining **`HexMap.Terrain.WATER`** checks only. **Phase 3.0** changes **nothing**; the WATER-impassable rule above remains in force until **3.2** lands.
+
 Returns **`[]`** if `scenario` is **`null`**, **`unit_id`** is unknown, or the unit is missing from the scenario.
 
 **No** pathfinding, **no** range beyond one hex, **no** movement points. **`MoveUnit`** validation **reuses** this list for legality; **state change** is **`MoveUnit.apply`** + **`GameState`** (see [ACTIONS.md](ACTIONS.md)).

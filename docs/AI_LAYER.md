@@ -50,6 +50,8 @@ No **`_process`**, **`Tween`**, **`Timer`**, or chained automation: **one key pr
 
 **`LegalActions`** enumerates **`found_city`** and **`set_city_production`** (with existing validators only). **No** AI policy inside **`LegalActions`** (e.g. a player with cities still sees every legal **`found_city`** for each unit). **`RuleBasedAIPlayer`** alone applies the preference order above. Engine log types remain **out** of **`legal_actions`**.
 
+From **Phase 3.1 onward**, **`LegalActions`** **may** consult **content registries** per [CONTENT_MODEL.md](CONTENT_MODEL.md) (e.g. gate founding by unit type); **`RuleBasedAIPlayer.decide(game_state, legal_actions)`** remains the **unchanged** AI entry point.
+
 End-to-end AI core-loop smoke: [`test_core_loop_ai_smoke.gd`](../game/ai/tests/test_core_loop_ai_smoke.gd).
 
 ## Explicitly deferred

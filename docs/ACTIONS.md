@@ -29,6 +29,8 @@ Enumeration is a **read-only query**: it does not mutate **`GameState`**, call *
 
 **Phase 1.8b:** AI turn length for **movement** is still gated by **`RuleBasedAIPolicy.has_actor_moved_this_turn`** ([rule_based_ai_policy.gd](../game/ai/rule_based_ai_policy.gd)). **Phase 2.5:** **`found_city`** and **`set_city_production`** do **not** count as **`move_unit`** for that policy (see [AI_LAYER.md](AI_LAYER.md)).
 
+**Phase 3.0 / 3.1+:** Player-action **`Dictionary`** schemas may later carry content **IDs** (e.g. **`unit_type_id`**, **`project_id`**) per [CONTENT_MODEL.md](CONTENT_MODEL.md). Any required-field change **must** bump **`schema_version`** on that action. **Phase 3.0** introduces **no** schema changes.
+
 ## MoveUnit schema (Dictionary)
 
 Actions are plain **`Dictionary`** values with **primitive** fields so they stay **easy to serialize** later for save/load and cloud.

@@ -1,5 +1,16 @@
 # Empire of Minds — Decision Log
 
+## 2026-04-29 — Phase 3.0: Content model envelope decided
+
+Decision:
+Phase **3.0** locks a **docs-only** content model: **GDScript** registry modules (added starting **3.1**, under `game/domain/content/`), **stable string IDs** on domain state, **no autoload**, **no JSON / `.tres`** data files yet, **`Scenario`** remains definition-free, and **[CONTENT_MODEL.md](CONTENT_MODEL.md)** is the **authoritative** envelope for Phase **3.1–3.5** implementation.
+
+Rationale:
+Keeps Phase **3** content work **deterministic**, **serializable** (state stores IDs; definitions ship with code), and **headless-testable** without hidden globals—aligned with domain-first architecture and future cloud/save constraints.
+
+Caveat:
+**Exact definition field shapes** are finalized **per subphase** (3.1–3.5), not all in **3.0**; this checkpoint fixes conventions and boundaries, not every stat column.
+
 ## 2026-04-29 — Phase 2.6: core loop frozen; CORE_LOOP.md + smoke test
 
 Decision:

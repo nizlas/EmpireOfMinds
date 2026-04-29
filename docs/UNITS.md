@@ -8,6 +8,8 @@
 - **`owner_id`**: int — which player or faction “owns” the unit. `Player` as a class is deferred; only integers are used in Phase 1.4.
 - **`position`**: a `HexCoord` — where the unit sits. Must refer to a cell that exists on the map when placed inside a `Scenario`.
 
+**Phase 3.1 (planned):** **`Unit.type_id`** (stable string ID per [CONTENT_MODEL.md](CONTENT_MODEL.md)) will identify the unit’s **content row**; Phase **3.0** adds **no** field and **generic** Phase **2.x** behavior is unchanged.
+
 Units are **immutable**: there are no setters, no `move()`, and no mutators on the type. **Phase 1.6** applies moves by **replacing** a unit with a new **`Unit`** at a new **`HexCoord`** inside a **new `Scenario`** (see [ACTIONS.md](ACTIONS.md), **`MoveUnit.apply`**).
 
 ## Owner ids

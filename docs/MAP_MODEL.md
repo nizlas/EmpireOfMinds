@@ -44,6 +44,8 @@ Code under `game/domain/` must not depend on Godot scene nodes, rendering, UI, i
 
 **`HexMap`** and **`Terrain`** remain **unchanged** in Phase 1.5: terrain values are still **tags** with no movement semantics baked into the map type. The first interpretation that **WATER is impassable** for unit movement lives in **[MOVEMENT_RULES.md](MOVEMENT_RULES.md)** (`MovementRules.legal_destinations`), not in new `HexMap` APIs.
 
+**Phase 3.2 (planned):** Terrain **legality and cost** will be driven by **content-defined terrain rules** per [CONTENT_MODEL.md](CONTENT_MODEL.md); **`HexMap`** stays **tag-like** today and this phase adds **no** map API changes.
+
 ## Explicitly deferred
 
 - A dedicated **cell** or **terrain** type with gameplay fields (owner, resources, move cost, etc.)

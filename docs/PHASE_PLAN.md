@@ -411,35 +411,55 @@ Must not (roadmap):
 Note:
 **Phase 3.x** may include **rendering unit types distinctly** (e.g. placeholder marker variation by unit type). **Final unit visuals** are **Phase 4.2**.
 
-### Phase 3.0 — Content model checkpoint
+### Phase 3.0 — Content model checkpoint (implemented; docs-only)
 
 Goal:
-Align on how **definitions** live in the **domain** (IDs, registries, immutability, versioning) before expanding content surface.
+Lock the **content-model envelope** (IDs, registries, state-vs-definition boundary, access patterns) in **[CONTENT_MODEL.md](CONTENT_MODEL.md)** before Phase **3.1+** introduces code. Phase **2.x** core loop behavior remains unchanged.
+
+Must not:
+
+- add code, tests, `game/domain/content/**`, JSON, `.tres`, or registries
+- change actions, `GameState.try_apply`, production, AI, fixtures, scenes, or `scripts/run-godot-tests.ps1`
+
+Validation:
+
+- **[CONTENT_MODEL.md](CONTENT_MODEL.md)** exists and matches this phase’s scope.
+- Full **`run-godot-tests.ps1`** green (exit **0**); regression-only—no behavior change expected.
 
 ### Phase 3.1 — Unit definitions
 
 Goal:
 **Unit types** (stats, roles, production prerequisites) as **data** + validation, separate from balance polish.
 
+**Must reference [CONTENT_MODEL.md](CONTENT_MODEL.md).**
+
 ### Phase 3.2 — Terrain rules and movement costs
 
 Goal:
 Terrain affects **movement cost** and **legality** beyond Phase 1 neighbor rules; keep **`MovementRules`** (or successor) as the legality oracle.
+
+**Must reference [CONTENT_MODEL.md](CONTENT_MODEL.md).**
 
 ### Phase 3.3 — City project definitions
 
 Goal:
 **City projects** / build-queue elements as structured definitions and actions.
 
+**Must reference [CONTENT_MODEL.md](CONTENT_MODEL.md).**
+
 ### Phase 3.4 — First tech / progress definitions
 
 Goal:
 Minimal **tech** or **civic** **progress** slice: prerequisites and unlocks; full flavor leans on **Phase 6**.
 
+**Must reference [CONTENT_MODEL.md](CONTENT_MODEL.md).**
+
 ### Phase 3.5 — First faction / world identity pass
 
 Goal:
 Early **faction** or **civ** knobs (traits, start-bias stubs) and **world** parameters — **mechanical** first; narrative depth in **Phase 6**.
+
+**Must reference [CONTENT_MODEL.md](CONTENT_MODEL.md).**
 
 Validation:
 To be detailed per subphase; preserve **domain / presentation** split from [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md).

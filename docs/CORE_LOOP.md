@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase **2.x** core loop is **feature-frozen** as a baseline. **Phase 3** begins the **content foundation** (definitions, unit types, terrain rules, project data); this document describes what already works today—not what Phase 3 will add.
+Phase **2.x** core loop is **feature-frozen** as a baseline. **Phase 3** begins the **content foundation** (definitions, unit types, terrain rules, project data); this document describes what already works today—not what Phase 3 will add. Phase **3** will replace placeholders such as **any unit may found** and **fixed `produce_unit` cost** through **content definitions** per [CONTENT_MODEL.md](CONTENT_MODEL.md) **without changing the loop’s shape** (same actions, `try_apply`, and AI pipeline).
 
 ## Current playable loop
 

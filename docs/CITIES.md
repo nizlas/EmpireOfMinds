@@ -9,6 +9,8 @@
 - **`position`**: **`HexCoord`** — city tile; must be on the map and **not** **`HexMap.Terrain.WATER`**.
 - **`current_project`**: **`null`** **or** a **primitive** **`Dictionary`** — **Phase 2.3+** current build / production state. **`null`** means **no** project. For **`produce_unit`**, the shape includes **`progress`**, **`cost`**, and **`ready`** (**`bool`**, **`false`** until **`progress` >= `cost`** on an **accepted** **`end_turn`** tick, **Phase 2.4c**). When a **`Dictionary`** is passed to **`City._init`**, the constructor stores **`duplicate(true)`** so later mutation of the caller’s **`Dictionary`** does **not** affect the **`City`**.
 
+**Phase 3.3 (planned):** **`current_project["project_id"]`** (per [CONTENT_MODEL.md](CONTENT_MODEL.md)) will reference the **city project definition** row; Phase **3.0** adds **no** key and current **`current_project`** behavior is unchanged.
+
 Cities are **immutable** (no mutators): changes happen only via **`GameState.try_apply`** **player** actions (e.g. **`FoundCity`**, **`SetCityProduction`**) **or** via **engine** steps tied to an accepted **`end_turn`** (Phase **2.4a** **`production_progress`**, see [ACTIONS.md](ACTIONS.md)) that return a **new** **`Scenario`**.
 
 ## Scenario bundle
