@@ -399,3 +399,21 @@ Caveat:
 
 - **`target_id`** values may reference **future** registries and systems — **not** enforced in **3.4b**.
 - **No** gating, **no** breakthrough detectors, **no** **`LegalActions`** / **`GameState`** consumption yet.
+
+## 2026-04-29 — Unlock state and deterministic gating (Phase 3.4c)
+
+Decision:
+
+- **`ProgressState`** lives on **`GameState`**, **not** **`Scenario`** — **player-specific** unlock targets (**`target_type`** + **`target_id`**) as immutable **`RefCounted`** snapshots.
+- **Default seed:** every **initial** **`TurnState.players`** id gets **`city_project` / `produce_unit:warrior`** unlocked when **`GameState`** is constructed without an explicit **`ProgressState`**.
+- **`SetCityProduction`**: **`GameState.try_apply`** enforces unlock **after** **`SetCityProduction.validate`** succeeds — rejection reason **`project_not_unlocked`** (**not** a **`validate`** reason). **`PROJECT_ID_NONE`** is **never** gated.
+- **`LegalActions`** mirrors the gate for enumerated **`SetCityProduction`** (**`PROJECT_ID_PRODUCE_UNIT_WARRIOR`**); **`progress_state == null`** remains **ungated** for **synthetic** test shells.
+
+Rationale:
+
+- **Deterministic** core enforcement **without** changing action **schemas** or **`SetCityProduction`** **`validate`/`apply`** signatures.
+- Keeps **`Scenario`** focused on **world / entity** state; unlock metadata stays **session-local**.
+
+Caveat:
+
+- **No** progress **accumulation**, **no** **`ProgressDefinitions`** consumption, **no** breakthrough **detectors**, **no** **save/load** of **`ProgressState`** yet.

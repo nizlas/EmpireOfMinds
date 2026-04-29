@@ -103,7 +103,15 @@ static func for_current_player(game_state) -> Array:
 			)
 			var sv = SetCityProductionScript.validate(scenario, sp)
 			if sv["ok"]:
-				out.append(sp)
+				if (
+					game_state.progress_state == null
+					or game_state.progress_state.has_unlocked_target(
+						cp,
+						"city_project",
+						SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR
+					)
+				):
+					out.append(sp)
 		cj = cj + 1
 	out.append(EndTurnScript.make(cp))
 	return out

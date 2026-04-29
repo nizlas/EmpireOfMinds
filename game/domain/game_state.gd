@@ -12,16 +12,22 @@ const SetCityProductionScript = preload("res://domain/actions/set_city_productio
 const TurnStateScript = preload("res://domain/turn_state.gd")
 const ProductionTickScript = preload("res://domain/production_tick.gd")
 const ProductionDeliveryScript = preload("res://domain/production_delivery.gd")
+const ProgressStateScript = preload("res://domain/progress_state.gd")
 const _GAME_STATE_SCRIPT = preload("res://domain/game_state.gd")
 
 var scenario
 var log
 var turn_state
+var progress_state
 
-func _init(initial_scenario) -> void:
+func _init(initial_scenario, p_progress_state = null) -> void:
 	scenario = initial_scenario
 	log = ActionLogScript.new()
 	turn_state = TurnStateScript.new([0, 1], 0, 1)
+	if p_progress_state == null:
+		progress_state = ProgressStateScript.with_default_unlocks_for_players(turn_state.players)
+	else:
+		progress_state = p_progress_state
 	var init_delivery = ProductionDeliveryScript.deliver_pending_for_player(
 		scenario,
 		turn_state.current_player_id()
@@ -91,6 +97,17 @@ func try_apply(action) -> Dictionary:
 		var spr = SetCityProductionScript.validate(scenario, action)
 		if not spr["ok"]:
 			return {"accepted": false, "reason": spr["reason"], "index": -1}
+		var project_id_gate = str(action.get("project_id", ""))
+		if (
+			progress_state != null
+			and project_id_gate != SetCityProductionScript.PROJECT_ID_NONE
+			and not progress_state.has_unlocked_target(
+				int(action["actor_id"]),
+				"city_project",
+				project_id_gate
+			)
+		):
+			return {"accepted": false, "reason": "project_not_unlocked", "index": -1}
 		scenario = SetCityProductionScript.apply(scenario, action)
 		var sp_entry = {
 			"schema_version": action["schema_version"],

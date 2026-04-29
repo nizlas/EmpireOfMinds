@@ -1,0 +1,96 @@
+# Headless: godot --headless --path game -s res://domain/tests/test_progress_state.gd
+extends SceneTree
+
+const ProgressStateScript = preload("res://domain/progress_state.gd")
+
+var _total = 0
+var _any_fail = false
+
+
+func _init() -> void:
+	var empty = ProgressStateScript.new({})
+	_check(empty.owner_ids().size() == 0, "new({}) owner_ids empty")
+	_check(not empty.has_unlocked_target(0, "city_project", "produce_unit:warrior"), "empty no unlock")
+
+	var def01 = ProgressStateScript.with_default_unlocks_for_players([0, 1])
+	var oids = def01.owner_ids()
+	_check(oids.size() == 2 and int(oids[0]) == 0 and int(oids[1]) == 1, "default owners 0 1")
+	_check(
+		def01.has_unlocked_target(0, "city_project", "produce_unit:warrior"),
+		"p0 warrior"
+	)
+	_check(
+		def01.has_unlocked_target(1, "city_project", "produce_unit:warrior"),
+		"p1 warrior"
+	)
+	_check(
+		not def01.has_unlocked_target(0, "city_project", "produce_unit:settler"),
+		"no settler"
+	)
+	_check(
+		not def01.has_unlocked_target(2, "city_project", "produce_unit:warrior"),
+		"unknown owner no warrior"
+	)
+
+	var ut0 = def01.unlocked_targets_for(0)
+	_check(ut0.size() == 1, "one target p0")
+	var inner0 = ut0[0] as Dictionary
+	inner0["target_id"] = "mutated"
+	var ut0b = def01.unlocked_targets_for(0)
+	var inner0b = ut0b[0] as Dictionary
+	_check(
+		str(inner0b["target_id"]) == "produce_unit:warrior",
+		"deep dup after outer mutate"
+	)
+	ut0b.append({"target_type": "x", "target_id": "y"})
+	var ut0c = def01.unlocked_targets_for(0)
+	_check(ut0c.size() == 1, "deep dup after array append")
+
+	var base = ProgressStateScript.new({})
+	var with1 = base.with_target_unlocked(0, "city_project", "produce_unit:settler")
+	_check(not with1.equals(base), "with unlock new state")
+	_check(not base.has_unlocked_target(0, "city_project", "produce_unit:settler"), "orig unchanged")
+	_check(
+		with1.has_unlocked_target(0, "city_project", "produce_unit:settler"),
+		"new has settler"
+	)
+
+	var s0 = ProgressStateScript.with_default_unlocks_for_players([0])
+	var s_dup = s0.with_target_unlocked(0, "city_project", "produce_unit:warrior")
+	_check(s0.equals(s_dup), "re-unlock warrior idempotent")
+
+	var out_order = ProgressStateScript.new(
+		{
+			1: {"unlocked_targets": []},
+			0: {"unlocked_targets": []},
+		}
+	)
+	var o2 = out_order.owner_ids()
+	_check(
+		o2.size() == 2 and int(o2[0]) == 0 and int(o2[1]) == 1,
+		"owner_ids sorted from key order 1,0"
+	)
+
+	_check(not empty.equals(null), "equals null false")
+	_check(not empty.equals("x"), "equals string false")
+	var eq_a = ProgressStateScript.with_default_unlocks_for_players([0, 1])
+	var eq_b = ProgressStateScript.with_default_unlocks_for_players([0, 1])
+	_check(eq_a.equals(eq_b), "equiv equals true")
+	var diff = ProgressStateScript.new({})
+	_check(not eq_a.equals(diff), "diff equals false")
+
+	if _any_fail:
+		call_deferred("quit", 1)
+	else:
+		print("PASS %d/%d" % [_total, _total])
+		call_deferred("quit", 0)
+
+
+func _check(cond, message) -> void:
+	_total = _total + 1
+	if cond:
+		return
+	_any_fail = true
+	var line = "FAIL: %s" % message
+	print(line)
+	push_error(line)

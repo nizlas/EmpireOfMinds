@@ -498,7 +498,7 @@ Validation:
 
 ### Phase 3.4 — First tech / progress definitions (roadmap)
 
-Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b** ships a **metadata-only** **`ProgressDefinitions`** seed; **3.4c+** may add **gameplay gating** and **unlock state**.
+Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b** ships a **metadata-only** **`ProgressDefinitions`** seed; **3.4c** adds **deterministic player unlock state** and **`SetCityProduction`** gating; later subphases may add accumulation, detectors, and broader unlock consumption.
 
 ### Phase 3.4a — Progression model checkpoint (implemented; documentation-only)
 
@@ -535,7 +535,27 @@ Validation:
 
 - **`run-godot-tests.ps1`** exit **0** (**37** scripts including **`test_progress_definitions.gd`**).
 
-**Phase 3.4c+ (future):** deterministic **unlock state** / **`LegalActions`** interaction; see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) **Phase mapping**.
+### Phase 3.4c — Unlock state and deterministic gating (implemented)
+
+Goal:
+Add **minimal** **player-specific** **`ProgressState`** on **`GameState`** and use it to **gate** **`SetCityProduction`** for **`produce_unit:warrior`** after structural **`validate`** passes — **no** schema bumps, **no** **`ProgressDefinitions`** reads.
+
+Shipped:
+
+- **[progress_state.gd](../game/domain/progress_state.gd)** — **`ProgressState`**: immutable unlock rows per **`owner_id`**, **`with_default_unlocks_for_players`**, **`has_unlocked_target`**, **`with_target_unlocked`**.
+- **`GameState`**: optional second **`_init`** argument; default-seeds **warrior** **city_project** unlock for **`turn_state.players`**; **`try_apply`** returns **`project_not_unlocked`** when gated; **`PROJECT_ID_NONE`** never gated; **`progress_state == null`** is **ungated** (synthetic shells).
+- **`LegalActions`**: omits enumerated **`SetCityProduction`** when locked; same ordering otherwise.
+- Headless tests **`test_progress_state.gd`**, **`test_game_state_progress_state.gd`**, **`test_legal_actions_progress_gating.gd`**.
+
+Must not (this subphase):
+
+- Progress **accumulation**, **`completed_progress_ids`**, breakthrough **detectors**, **LLM**, **save/load**, **UI**, **JSON** / **`.tres`** / **Resources**, **autoloads**, **Node** registries, **signals**, **`_ready`** / **`_process`**, new **content** rows, **`ProgressDefinitions`** consumption, edits to **`game/domain/actions/**`**, **`ProductionTick`**, **`ProductionDelivery`**, **`MovementRules`**, **AI**, **presentation**, **`main` / `project.godot`**, deny-listed docs.
+
+Validation:
+
+- **`run-godot-tests.ps1`** exit **0** (**40** scripts).
+
+**Later (post-3.4c):** accumulation, **`ProgressDefinitions`-backed unlocks**, breakthrough detectors; see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) **Phase mapping**.
 
 ### Phase 3.5 — First faction / world identity pass
 

@@ -7,6 +7,7 @@ class _LegalActionsTestGameStateShell:
 	extends RefCounted
 	var scenario
 	var turn_state
+	var progress_state = null
 
 	func _init(p_scenario, p_turn_state) -> void:
 		scenario = p_scenario

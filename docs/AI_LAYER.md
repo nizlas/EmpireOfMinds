@@ -6,7 +6,7 @@ Phase 1.8 adds **legal-action enumeration** in the domain, a **rule-based AI** u
 
 See [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) (AI layer), [ACTIONS.md](ACTIONS.md), [AI_DESIGN.md](AI_DESIGN.md).
 
-**Forward pointer (Phase 3.4a):** Any future **LLM** or **advisory** layer for **breakthrough interpretation** (see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)) is **explicitly deferred** and **not authoritative** for **core replay**, **legality**, or **deterministic unlock state** — **`RuleBasedAIPlayer`** remains rules- and **`LegalActions`**-driven. **Phase 3.4b:** **`RuleBasedAIPlayer`** and **`LegalActions`** do **not** read **`ProgressDefinitions`** ([progress_definitions.gd](../game/domain/content/progress_definitions.gd)).
+**Forward pointer (Phase 3.4a):** Any future **LLM** or **advisory** layer for **breakthrough interpretation** (see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)) is **explicitly deferred** and **not authoritative** for **core replay**, **legality**, or **deterministic unlock state** — **`RuleBasedAIPlayer`** remains rules- and **`LegalActions`**-driven. **Phase 3.4b:** **`RuleBasedAIPlayer`** and **`LegalActions`** do **not** read **`ProgressDefinitions`** ([progress_definitions.gd](../game/domain/content/progress_definitions.gd)). **Phase 3.4c:** **`LegalActions`** filters enumerated **`SetCityProduction`** (**`PROJECT_ID_PRODUCE_UNIT_WARRIOR`**) by the **current player’s** **`GameState.progress_state`** unlock when **`progress_state` is not** **`null`**; **`RuleBasedAIPlayer.decide`** is **unchanged**. If **`progress_state` is** **`null`** (synthetic shells), **`LegalActions`** keeps **ungated** enumeration for **`SetCityProduction`**.
 
 ## Components
 
@@ -35,7 +35,7 @@ No **`_process`**, **`Tween`**, **`Timer`**, or chained automation: **one key pr
 
 1. **`MoveUnit`**: units owned by the current player from **`scenario.units()`**, sorted ascending by **`unit.id`**; for each unit, **`MovementRules.legal_destinations`**, sorted by **`(q, r)`** lexicographically.
 2. **`FoundCity`**: same unit order; **`FoundCity.make`** at each unit’s tile, kept only when **`FoundCity.validate`** passes (e.g. not **WATER**, not already a city).
-3. **`SetCityProduction`**: cities owned by the current player, sorted by **`city.id`**; for each city with **`current_project == null`**, **`PROJECT_ID_PRODUCE_UNIT_WARRIOR`** only, kept only when **`SetCityProduction.validate`** passes. No **`PROJECT_ID_NONE`** clears in this enumeration.
+3. **`SetCityProduction`**: cities owned by the current player, sorted by **`city.id`**; for each city with **`current_project == null`**, **`PROJECT_ID_PRODUCE_UNIT_WARRIOR`** only, kept only when **`SetCityProduction.validate`** passes **and** (**`game_state.progress_state == null`** or **`progress_state.has_unlocked_target(current_player_id, "city_project", PROJECT_ID_PRODUCE_UNIT_WARRIOR)`**). No **`PROJECT_ID_NONE`** clears in this enumeration.
 4. **`EndTurn.make(current_player_id)`** appended **exactly once**, **last**.
 
 **RuleBasedAIPlayer** (Phase **2.5**) prefers the **city loop** first when legal; then the **first** **`move_unit`** when the current player has **not** yet accepted a **`move_unit`** since the last **`end_turn`** in the log; otherwise it picks **`end_turn`**.

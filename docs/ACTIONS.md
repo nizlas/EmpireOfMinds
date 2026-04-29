@@ -199,6 +199,19 @@ Built with **`SetCityProduction.make(actor_id, city_id, project_id)`** in [set_c
 7. `unsupported_project_id` — **`project_id`** is neither **`PROJECT_ID_NONE`** nor a row in **`CityProjectDefinitions`**
 8. `project_already_set` — supported **produce** **`project_id`** requested but city already has a matching **`produce_unit`** project (**including** legacy **`current_project`** with **`project_type`** **`produce_unit`** and **no** **`project_id`**), or **`PROJECT_ID_NONE`** requested when **`current_project`** is already **`null`**
 
+**`project_not_unlocked` is not** a **`SetCityProduction.validate`** reason — it exists only in **`GameState.try_apply`** after **`validate`** returns **`ok`**.
+
+### SetCityProduction and GameState.try_apply (Phase 3.4c)
+
+For **`set_city_production`**, **`GameState.try_apply`** runs **in this order**:
+
+1. **Common** **`actor_id`** / **current-player** gate (**`not_current_player`** / **`malformed_action`** as today).
+2. **`SetCityProduction.validate(scenario, action)`** — structural / scenario reasons (**`unknown_city`**, **`unsupported_project_id`**, **`project_already_set`**, etc.).
+3. **Unlock gate** (only if **`validate`** succeeded): if **`game_state.progress_state` is not** **`null`**, **`project_id` is not** **`SetCityProduction.PROJECT_ID_NONE`**, and the **actor** lacks **`has_unlocked_target(actor_id, "city_project", project_id)`**, return **`project_not_unlocked`** (**`accepted: false`**, **`index: -1`**, **no** log append, **no** scenario mutation).
+4. **`SetCityProduction.apply`** and log append as before.
+
+**`PROJECT_ID_NONE`** (**clear**) is **never** blocked by the unlock gate (step 3 skipped for **`none`**).
+
 ### SetCityProduction application
 
 **`SetCityProduction.apply(scenario, action)`** runs only when **`validate`** returns **`ok`**.
@@ -214,6 +227,7 @@ Built with **`SetCityProduction.make(actor_id, city_id, project_id)`** in [set_c
 - **`var scenario`** — current authoritative **`Scenario`**.
 - **`var turn_state`** — immutable **`TurnState`** snapshot; replaced when **`end_turn`** applies.
 - **`var log`** — **`ActionLog`**.
+- **`var progress_state`** — optional **`ProgressState`** (**Phase 3.4c**); **`null`** is permitted only for **synthetic** test helpers — **ungated** **`SetCityProduction`** in **`LegalActions`** and no unlock check in **`try_apply`** in that case. **`GameState.new(scenario)`** seeds **default** unlocks for **`turn_state.players`** (**`city_project` / `produce_unit:warrior`**).
 
 **`try_apply(action) -> { "accepted": bool, "reason": String, "index": int }`**
 
@@ -221,7 +235,7 @@ Built with **`SetCityProduction.make(actor_id, city_id, project_id)`** in [set_c
 - **Common gate** (these action types): **`actor_id`** must be present and **`TYPE_INT`**; **`actor_id == turn_state.current_player_id()`** or **`malformed_action`** / **`not_current_player`**.
 - **`move_unit`**: **`MoveUnit.validate` → apply →** log entry as in Phase 1.6.
 - **`found_city`**: **`FoundCity.validate` →** read **`created_city_id = scenario.peek_next_city_id()`** **before** **`apply`** (deterministic log) **`→ FoundCity.apply →`** log entry includes **`city_id`**, **`position`** (duplicate), **`unit_id`**, **`result: "accepted"`**.
-- **`set_city_production`**: **`SetCityProduction.validate` → apply →** log entry includes **`city_id`**, **`project_id`**, **`result: "accepted"`** (**no** **`project_type`** on the action log row in **Phase 3.3**).
+- **`set_city_production`**: **`SetCityProduction.validate` →** (optional **`project_not_unlocked`** from **`GameState`**) **`→ apply →`** log entry includes **`city_id`**, **`project_id`**, **`result: "accepted"`** (**no** **`project_type`** on the action log row in **Phase 3.3**).
 - **`end_turn`**: **`EndTurn.validate` →** **`ProductionTick.apply_for_player`** (optional **`production_progress`** **0..N**) **→** **`EndTurn.apply` (`turn_state`)** **→** append **`end_turn`** **→** **`ProductionDelivery.deliver_pending_for_player`** (optional **`unit_produced`** **0..M**) **after** **`end_turn`**. Returned **`index`** is the **`end_turn`** entry only.
 
 On **reject**: **`accepted: false`**, **`index: -1`**, no log append, **`scenario` / `turn_state` / `log`** unchanged (except where only validation failed after gate — still no mutation).
@@ -254,7 +268,7 @@ On **accept**: updates **`scenario`** and/or **`turn_state`**, appends **deep-co
 - **Save/load**, JSON/binary serialization, network transport — later phases.
 - **Animation** of movement; units **teleport** in Phase 1.6.
 - **Combat**, **economy/yields**, multi-hex pathfinding, movement points, stacking **enforcement** beyond **`found_city`** placement rules (multiple units per hex are **allowed** after engine delivery at cities).
-- **`SetCityProduction`** in **`LegalActions`** / **AI** — deferred with other non-enumerated actions.
+- **`SetCityProduction`** — enumerated for **`PROJECT_ID_PRODUCE_UNIT_WARRIOR`** only when **`LegalActions`** + **`SetCityProduction.validate`** pass and (**`game_state.progress_state == null`** or the **current player** has the **`city_project`** unlock for that **`project_id`**); **`RuleBasedAIPlayer`** / **`decide`** unchanged (**Phase 3.4c**).
 - A **`ProduceUnit`** **player** action — **not** used; **`produce_unit`** uses **`ready`** + **`ProductionDelivery`** (**Phase 2.4c**).
 - **`FoundCity`** in **`LegalActions`** / **AI** — deferred to Phase **2.6**; **settler-only** founding — **Phase 3.1** unit definitions.
 - **Undo / redo**, replay UI, structured rejection log.
