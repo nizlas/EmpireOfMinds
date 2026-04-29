@@ -498,7 +498,7 @@ Validation:
 
 ### Phase 3.4 — First tech / progress definitions (roadmap)
 
-Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b** ships a **metadata-only** **`ProgressDefinitions`** seed; **3.4c** adds **deterministic player unlock state** and **`SetCityProduction`** gating; **3.4d** adds **`ProgressUnlockResolver`** + **`completed_progress_ids`** without authoring a player action; **3.4e** wires a manual **`complete_progress`** action through **`GameState.try_apply`**; later subphases may add detectors, accumulation, and broader consumption.
+Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b** ships a **metadata-only** **`ProgressDefinitions`** seed; **3.4c** adds **deterministic player unlock state** and **`SetCityProduction`** gating; **3.4d** adds **`ProgressUnlockResolver`** + **`completed_progress_ids`** without authoring a player action; **3.4e** wires a manual **`complete_progress`** action through **`GameState.try_apply`**; **3.4f** adds **`KEY_G`** in **`SelectionController`** for a **hardcoded** **`foraging_systems`** debug **`CompleteProgress`** (still **outside** **`LegalActions`** / **AI**); later subphases may add detectors, accumulation, and broader consumption.
 
 ### Phase 3.4a — Progression model checkpoint (implemented; documentation-only)
 
@@ -592,6 +592,23 @@ Shipped:
 Must not (this subphase):
 
 - **`LegalActions`** enumeration; **`RuleBasedAIPlayer`** / **`RuleBasedAIPolicy`** / **`AITurnController`** changes; **key** bindings; **presentation** controllers beyond **`log_view.gd`**; breakthrough **detectors**; progress **accumulation**; **`future_dependencies`** application; new **`ProgressDefinitions`** rows; **`ProductionTick`** / **`Delivery`** / **`MovementRules`** / **`Scenario`** / **`TurnState`** changes; deny-listed docs.
+
+Validation:
+
+- **`run-godot-tests.ps1`** exit **0** (**43** scripts).
+
+### Phase 3.4f — Manual progress debug input (implemented)
+
+Goal:
+Expose a **minimal** **F5 / manual** path to **`CompleteProgress`** for **`foraging_systems`** so the **progression** chain is **exercisable** from the editor **without** **`LegalActions`**, **AI**, detectors, or **`ProgressDefinitions`** cycling.
+
+Shipped:
+
+- **`SelectionController`**: **`KEY_G`** (pressed, non-echo) → **`CompleteProgress.make(current_player_id, "foraging_systems")`** → **`game_state.try_apply`**; on **accept**, **`turn_label.refresh()`** and **`log_view.refresh()`** when wired; on **reject**, **`push_warning`** with **`reason`**; **no** **`scenario`** re-point, **no** view redraws, **no** selection clear.
+
+Must not (this subphase):
+
+- **`LegalActions`** / **AI** / **`AITurnController`** / **`EndTurnController`** / **`main.*`** / **`project.godot`** / **registry** / **action schema** / **`ProgressState`** / **`ProgressUnlockResolver`** / **`ProgressDefinitions`** / **`ProductionTick`** / **`ProductionDelivery`** / **`MovementRules`** / **`Scenario`** / **`TurnState`** / **presentation** beyond **`selection_controller.gd`** / **new** automated tests / **`run-godot-tests.ps1`** churn (count stays **43**); deny-listed docs.
 
 Validation:
 

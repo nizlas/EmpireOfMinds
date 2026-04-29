@@ -454,3 +454,17 @@ Rationale:
 Caveat:
 
 - **No** detectors; **no** progress **accumulation**; **no** **UI** / **AI** use; the **five** seed **`ProgressDefinitions`** rows do **not** unlock **`city_project`** targets, so **`SetCityProduction`** legality is **unchanged** for normal play; **`future_dependencies`** remain **metadata-only**.
+
+## 2026-04-30 — Manual progress debug input (Phase 3.4f)
+
+Decision:
+
+- **`KEY_G`** in **`SelectionController`** submits **`CompleteProgress`** with **hardcoded** **`progress_id`** **`foraging_systems`** for the **current player**; **`turn_label`** / **`log_view`** refresh on **accept**; **no** **`scenario`** re-point or view redraws.
+
+Rationale:
+
+- Simplest **F5 / manual** path to exercise the **progression** chain end-to-end without touching **`LegalActions`** or **AI**.
+
+Caveat:
+
+- **One-shot** per player for that **`progress_id`** (**`progress_already_completed`** on repeat) until cycling / UI / detectors exist.

@@ -31,8 +31,12 @@
 ### Phase 3.4e status (implemented)
 
 - **`CompleteProgress`** ([complete_progress.gd](../game/domain/actions/complete_progress.gd)) — player-submitted **`schema_version: 1`** action; **`GameState.try_apply`** validates, calls **`ProgressUnlockResolver.complete_progress`**, replaces **`progress_state`**, logs **`unlocked_targets`** delta.
-- **Not** in **`LegalActions`**; **not** in **AI**; **no** **F5** / controller binding; **`LogView`** formats lines for visibility.
+- **Not** in **`LegalActions`**; **not** in **AI**; **`3.4e`** did **not** add **input-controller** binding; **`LogView`** formats lines for visibility.
 - **`future_dependencies`** still **metadata-only**; **no** detectors; **no** progress **accumulation**.
+
+### Phase 3.4f status (implemented)
+
+- **`SelectionController`**: **`KEY_G`** (pressed, non-echo) submits **`CompleteProgress`** for the **current player** with hardcoded **`progress_id`** **`foraging_systems`** via **`GameState.try_apply`**. **No** **`LegalActions`** / **AI** / detectors; **no** cycling **`ProgressDefinitions`**; **`TurnLabel`** + **`LogView`** refresh on **accept** only.
 
 ## Core separation
 
@@ -508,7 +512,7 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 - **[CONTENT_BACKLOG.md](CONTENT_BACKLOG.md)** & workbook — **non-canonical** raw lists and brainstorms.
 - **`PROGRESSION_MODEL.md`** (this file) — **systematic model** for progression / unlocks / detection vocabulary.
 - **Implemented registries today:** `UnitDefinitions`, `TerrainRuleDefinitions`, `CityProjectDefinitions`, and **`ProgressDefinitions`** (**Phase 3.4b** — **metadata-only** progression seed; **no** gameplay enforcement).
-- **Implemented session state:** **`GameState.progress_state`** (**Phase 3.4c**) — player-specific **`unlocked_targets`** and **`completed_progress_ids`** (**Phase 3.4d**); **deterministic** **`SetCityProduction`** gating (**`project_not_unlocked`** in **`try_apply`**); **`complete_progress`** (**Phase 3.4e**) applies definition unlocks via **`ProgressUnlockResolver`** without detectors or accumulation mechanics.
+- **Implemented session state:** **`GameState.progress_state`** (**Phase 3.4c**) — player-specific **`unlocked_targets`** and **`completed_progress_ids`** (**Phase 3.4d**); **deterministic** **`SetCityProduction`** gating (**`project_not_unlocked`** in **`try_apply`**); **`complete_progress`** (**Phase 3.4e**) applies definition unlocks via **`ProgressUnlockResolver`** without detectors or accumulation mechanics; **Phase 3.4f** adds **`KEY_G`** in **`SelectionController`** for a **manual** **`CompleteProgress`** debug slice (**still** **outside** **`LegalActions`** / **AI**).
 - **Phase 3.4a** changes **no** gameplay behavior.
 
 ## Phase mapping
@@ -518,6 +522,7 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 - **3.4c** — **`ProgressState`** on **`GameState`**; **default** **`city_project` / `produce_unit:warrior`** for initial players; **`try_apply`** + **`LegalActions`** **`SetCityProduction`** gate (**`project_not_unlocked`**); **`ProgressDefinitions`** still **not** consumed in **`GameState`**.
 - **3.4d** — **`ProgressUnlockResolver`** static helper applies a completed definition’s **`concrete_unlocks`** + **`systemic_effects`** into **`ProgressState`**; **`future_dependencies`** remain **metadata-only**; **no** detectors in **3.4d** alone.
 - **3.4e** — **`CompleteProgress`** player action through **`GameState.try_apply`**; **not** **`LegalActions`** / **AI**; uses **`ProgressUnlockResolver`**; logs **`unlocked_targets`** delta.
+- **3.4f** — **`KEY_G`** in **`SelectionController`**: manual **`CompleteProgress`** for **`foraging_systems`** only; **no** detectors, **no** **`LegalActions`**, **no** **AI**; **`LogView`** / **`TurnLabel`** refresh on **accept**; **no** definition cycling.
 - **Later** — breakthrough **detectors** (deterministic first; LLM advisory at edges only).
 - **Phase 5** — strategic dynamics; many **modifiers** and **systems** become real.
 - **Phase 6** — world identity, names, flavor; does not replace this model.

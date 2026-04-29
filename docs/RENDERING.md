@@ -78,3 +78,7 @@ This is not final art, branding, or a committed palette for release.
 ## Phase 2.3 — KEY_P debug (SetCityProduction)
 
 - **`SelectionController`** handles **`KEY_P`** (pressed, non-echo): picks the **lowest-id** **current-player** city with **`current_project == null`** and submits **`SetCityProduction.make(..., "produce_unit")`** via **`try_apply`**. **Does not** clear **selection**; **no** production UI. **`CitiesView`** is **refreshed** only so manual checks stay consistent when wired (markers unchanged — projects are **not** drawn in **CitiesView** this phase). After **Space** **`end_turn`**, **`LogView`** may show **`production_progress`** before **`end_turn`**, and **`unit_produced`** lines **after** **`end_turn`** when delivery runs for the new current player.
+
+## Phase 3.4f — KEY_G debug (`CompleteProgress`)
+
+- **`KEY_G`** (pressed, non-echo) submits **`CompleteProgress`** for the **current player** and hardcoded **`progress_id`** **`foraging_systems`** via **`try_apply`**. On **accept**, **`TurnLabel`** and **`LogView`** **`refresh()`** when wired; **no** **`scenario`** re-point, **no** map/city/unit/selection redraws, **no** **`scene`** changes.
