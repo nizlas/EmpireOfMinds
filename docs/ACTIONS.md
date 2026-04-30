@@ -251,7 +251,7 @@ For **`complete_progress`**, after the **common** **`actor_id`** / **`current_pl
 3. Replace **`game_state.progress_state`** with **`result["progress_state"]`**.
 4. Append log entry: **`schema_version`**, **`action_type`**, **`actor_id`**, **`progress_id`**, **`unlocked_targets`** (resolver delta **`Array`**), **`result: "accepted"`**. **`ActionLog.append`** **deep-copies** the entry.
 
-**Non-enumeration:** **`LegalActions`** does **not** enumerate **`complete_progress`**. **AI** does **not** submit it. **Phase 3.4e** shipped the action **without** presentation binding; **Phase 3.4f** adds **`KEY_G`** in **`SelectionController`** only (hardcoded **`foraging_systems`** debug slice — **not** **`LegalActions`** / **AI**).
+**Non-enumeration:** **`LegalActions`** does **not** enumerate **`complete_progress`**. **AI** does **not** submit it. **Phase 3.4e** shipped the action **without** presentation binding; **Phase 3.4f** adds **`KEY_G`** in **`SelectionController`** only (hardcoded **`foraging_systems`** debug slice — **not** **`LegalActions`** / **AI**). **`ProgressDetector`** may **propose** **`CompleteProgress`** action **`Dictionary`** values from accepted **`found_city`** log entries, but **`LegalActions`** and **AI** still **do not** enumerate or submit them.
 
 ## GameState
 

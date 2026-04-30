@@ -14,6 +14,8 @@ Phase **2.x** core loop is **feature-frozen** as a baseline. **Phase 3** extends
 
 **Phase 3.4f:** **`KEY_G`** in **`SelectionController`** is a **manual** debug path that submits **`CompleteProgress`** for **`foraging_systems`** (**not** **`LegalActions`**, **not** **AI**); on **accept** it refreshes **`LogView`** (and **`TurnLabel`**) only.
 
+**Phase 3.4g:** **`ProgressDetector`** ([progress_detector.gd](../game/domain/progress_detector.gd)) is a **domain** **read-only** helper that can **propose** **`CompleteProgress`** candidates from the **log**; it is **not** wired into the playable **mouse / F / P / G / Space / A** loop and changes **no** runtime behavior until a future phase consumes suggestions.
+
 - **Mouse**: click a unit to select; click a **legal destination** (tinted hex) to move via `MoveUnit` through `GameState.try_apply`.
 - **F**: `FoundCity` for the **selected unit** on its current tile (presentation path in `SelectionController`). **Only settler-type units** (`UnitDefinitions.can_found_city`) succeed; others are rejected. Rejected actions surface as warnings; only accepted actions append to the log.
 - **P**: `SetCityProduction` with **`project_id`** **`produce_unit:warrior`** for the **lowest-id** **current-player** city whose `current_project == null` (debug path in `SelectionController`).

@@ -498,7 +498,7 @@ Validation:
 
 ### Phase 3.4 — First tech / progress definitions (roadmap)
 
-Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b** ships a **metadata-only** **`ProgressDefinitions`** seed; **3.4c** adds **deterministic player unlock state** and **`SetCityProduction`** gating; **3.4d** adds **`ProgressUnlockResolver`** + **`completed_progress_ids`** without authoring a player action; **3.4e** wires a manual **`complete_progress`** action through **`GameState.try_apply`**; **3.4f** adds **`KEY_G`** in **`SelectionController`** for a **hardcoded** **`foraging_systems`** debug **`CompleteProgress`** (still **outside** **`LegalActions`** / **AI**); later subphases may add detectors, accumulation, and broader consumption.
+Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b** ships a **metadata-only** **`ProgressDefinitions`** seed; **3.4c** adds **deterministic player unlock state** and **`SetCityProduction`** gating; **3.4d** adds **`ProgressUnlockResolver`** + **`completed_progress_ids`** without authoring a player action; **3.4e** wires a manual **`complete_progress`** action through **`GameState.try_apply`**; **3.4f** adds **`KEY_G`** in **`SelectionController`** for a **hardcoded** **`foraging_systems`** debug **`CompleteProgress`** (still **outside** **`LegalActions`** / **AI**); **3.4g** adds **`ProgressDetector`** as a **read-only** candidate generator (still **no** auto-apply, **no** **`LegalActions`** / **AI**); later subphases may add wiring, accumulation, and broader consumption.
 
 ### Phase 3.4a — Progression model checkpoint (implemented; documentation-only)
 
@@ -613,6 +613,24 @@ Must not (this subphase):
 Validation:
 
 - **`run-godot-tests.ps1`** exit **0** (**43** scripts).
+
+### Phase 3.4g — First deterministic progress detector (implemented)
+
+Goal:
+Introduce the **first** **deterministic**, **read-only** **progress detector** that **proposes** **`CompleteProgress`** actions from **accepted** **`ActionLog`** patterns — **without** **`GameState`** integration, **without** **`try_apply`**, and **without** hidden side effects.
+
+Shipped:
+
+- **[progress_detector.gd](../game/domain/progress_detector.gd)** — **`ProgressDetector.suggested_complete_progress_actions(game_state)`** returns **`Dictionary`** values shaped like **`CompleteProgress.make`**; **first rule:** **`found_city`** (**`result: accepted`**) ⇒ **`controlled_fire`** if not already completed; **`turn_state.players`** order; defensive **null** / **non-int** handling.
+- **`test_progress_detector.gd`**; runner **44** scripts.
+
+Must not (this subphase):
+
+- **`GameState.try_apply`** / **`GameState`** edits; **`LegalActions`** / **AI**; **`actions/**`**; **`ProgressState`** / **`ProgressUnlockResolver`** / **`ProgressDefinitions`** / **`ProductionTick`** / **`ProductionDelivery`** / **`MovementRules`** / **`Scenario`** / **`TurnState`**; **presentation** / **`main` / `project.godot`**; **auto-apply** of suggestions; **UI** / key bindings; **`progress_detectors/`** subdirectory; new **`ProgressDefinitions`** rows; deny-listed docs.
+
+Validation:
+
+- **`run-godot-tests.ps1`** exit **0** (**44** scripts).
 
 ### Phase 3.5 — First faction / world identity pass
 

@@ -468,3 +468,17 @@ Rationale:
 Caveat:
 
 - **One-shot** per player for that **`progress_id`** (**`progress_already_completed`** on repeat) until cycling / UI / detectors exist.
+
+## 2026-04-30 — First deterministic progress detector (Phase 3.4g)
+
+Decision:
+
+- Introduce **`ProgressDetector`** ([progress_detector.gd](../game/domain/progress_detector.gd)) — **candidate-only**: **`suggested_complete_progress_actions(game_state)`** returns **`CompleteProgress`** action **`Dictionary`** values; **first rule** is accepted **`found_city`** ⇒ **`controlled_fire`** when not already completed. **No** **`try_apply`**, **no** mutation of **`progress_state`** or **`log`**, **no** **`LegalActions`** / **AI** integration.
+
+Rationale:
+
+- Establishes a **deterministic**, **log-grounded** detector path with **no** hidden gameplay until a future subphase defines **apply** policy and ordering.
+
+Caveat:
+
+- **One** rule in **one** aggregator file; **not** consumed by runtime yet; future detectors may need split modules or richer event models.

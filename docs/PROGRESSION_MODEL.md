@@ -38,6 +38,10 @@
 
 - **`SelectionController`**: **`KEY_G`** (pressed, non-echo) submits **`CompleteProgress`** for the **current player** with hardcoded **`progress_id`** **`foraging_systems`** via **`GameState.try_apply`**. **No** **`LegalActions`** / **AI** / detectors; **no** cycling **`ProgressDefinitions`**; **`TurnLabel`** + **`LogView`** refresh on **accept** only.
 
+### Phase 3.4g status (implemented)
+
+- **`ProgressDetector`** ([progress_detector.gd](../game/domain/progress_detector.gd)) — read-only, candidate-generating: **`suggested_complete_progress_actions(game_state)`** returns **`CompleteProgress`** action **`Dictionary`** values (**no** **`try_apply`**, **no** mutation). **First rule:** log entry with **`action_type`** **`found_city`**, **`result`** **`"accepted"`**, matching **`actor_id`**, for an owner ⇒ propose **`controlled_fire`** unless **`has_completed_progress`**. **Not** invoked by **`GameState`**, **`LegalActions`**, **AI**, UI, or controllers.
+
 ## Core separation
 
 Four conceptual layers:
@@ -512,7 +516,7 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 - **[CONTENT_BACKLOG.md](CONTENT_BACKLOG.md)** & workbook — **non-canonical** raw lists and brainstorms.
 - **`PROGRESSION_MODEL.md`** (this file) — **systematic model** for progression / unlocks / detection vocabulary.
 - **Implemented registries today:** `UnitDefinitions`, `TerrainRuleDefinitions`, `CityProjectDefinitions`, and **`ProgressDefinitions`** (**Phase 3.4b** — **metadata-only** progression seed; **no** gameplay enforcement).
-- **Implemented session state:** **`GameState.progress_state`** (**Phase 3.4c**) — player-specific **`unlocked_targets`** and **`completed_progress_ids`** (**Phase 3.4d**); **deterministic** **`SetCityProduction`** gating (**`project_not_unlocked`** in **`try_apply`**); **`complete_progress`** (**Phase 3.4e**) applies definition unlocks via **`ProgressUnlockResolver`** without detectors or accumulation mechanics; **Phase 3.4f** adds **`KEY_G`** in **`SelectionController`** for a **manual** **`CompleteProgress`** debug slice (**still** **outside** **`LegalActions`** / **AI**).
+- **Implemented session state:** **`GameState.progress_state`** (**Phase 3.4c**) — player-specific **`unlocked_targets`** and **`completed_progress_ids`** (**Phase 3.4d**); **deterministic** **`SetCityProduction`** gating (**`project_not_unlocked`** in **`try_apply`**); **`complete_progress`** (**Phase 3.4e**) applies definition unlocks via **`ProgressUnlockResolver`** without detectors or accumulation mechanics; **Phase 3.4f** adds **`KEY_G`** in **`SelectionController`** for a **manual** **`CompleteProgress`** debug slice (**still** **outside** **`LegalActions`** / **AI**); **Phase 3.4g** adds **`ProgressDetector`** (**read-only** **`CompleteProgress`** candidates from **`ActionLog`**, **not** auto-applied, **not** wired to runtime).
 - **Phase 3.4a** changes **no** gameplay behavior.
 
 ## Phase mapping
@@ -523,7 +527,8 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 - **3.4d** — **`ProgressUnlockResolver`** static helper applies a completed definition’s **`concrete_unlocks`** + **`systemic_effects`** into **`ProgressState`**; **`future_dependencies`** remain **metadata-only**; **no** detectors in **3.4d** alone.
 - **3.4e** — **`CompleteProgress`** player action through **`GameState.try_apply`**; **not** **`LegalActions`** / **AI**; uses **`ProgressUnlockResolver`**; logs **`unlocked_targets`** delta.
 - **3.4f** — **`KEY_G`** in **`SelectionController`**: manual **`CompleteProgress`** for **`foraging_systems`** only; **no** detectors, **no** **`LegalActions`**, **no** **AI**; **`LogView`** / **`TurnLabel`** refresh on **accept**; **no** definition cycling.
-- **Later** — breakthrough **detectors** (deterministic first; LLM advisory at edges only).
+- **3.4g** — **`ProgressDetector`**: **`suggested_complete_progress_actions`** proposes **`complete_progress`** (**`controlled_fire`**) from accepted **`found_city`** log rows; **read-only**, **not** **`GameState`**-wired; **no** **`LegalActions`** / **AI**.
+- **Later** — additional **detectors** (deterministic first; LLM advisory at edges only).
 - **Phase 5** — strategic dynamics; many **modifiers** and **systems** become real.
 - **Phase 6** — world identity, names, flavor; does not replace this model.
 - **Phase 7** — balance and numeric tuning.
