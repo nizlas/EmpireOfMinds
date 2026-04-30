@@ -544,3 +544,29 @@ Caveat:
 - **No** player/faction assignment.
 - **No** trait costs or balance math.
 - **No** serious prototype factions are shipped in the registry yet.
+
+## 2026-05-01 — Prototype faction-banner visual slice (Phase 3.5d)
+
+Decision:
+
+- Use **Phase 3.5d** rather than **Phase 4** for a **tiny banner-only** prototype slice.
+- Add **exactly three** non-final prototype banners for the existing **debug** faction rows.
+- Keep assets under **`game/assets/prototype/`**.
+- Add **`FactionAssetPaths`** (**pure string** mapping) rather than an asset **registry** (no **JSON** / **`.tres`**).
+- Add **F1** **`FactionBannerGallery`** debug overlay; **missing-image** fallback is **required**.
+- **No** gameplay wiring or player assignment.
+
+Rationale:
+
+- Banners give **high identity value** for **low implementation cost**.
+- They visualize **3.5b** data without locking **terrain** / **unit** / **HUD** style.
+- Prototype assets can be **replaced** later.
+- **F1** gallery is an **internal-testing** hook without a real HUD pass.
+
+Caveat:
+
+- **Not** final art.
+- **Not** a Steam / release asset decision.
+- **No** **`ART_DIRECTION.md`** yet.
+- Generated / prototype images must remain **replaceable**.
+- **Phase 4** and **Phase 6** still own broader visual direction and final identity.

@@ -18,6 +18,19 @@
 - **`visual_identity`** is **metadata only** and contains **no** asset paths.
 - Serious prototype factions (**Hearthbound**, **Wayfinders**, **Forge Compact**) remain **prose examples only** in 3.5b (not shipped in the registry).
 
+## Phase 3.5d status (implemented)
+
+- **Three** prototype banner **PNGs** now exist for the **three** debug faction rows.
+- They live under **`game/assets/prototype/factions/banners/`**.
+- They are **non-final**, **replaceable**, and **internal-test** only (see **`PROVENANCE.md`** there and **`game/assets/prototype/README.md`**).
+- **`FactionAssetPaths`** maps faction ids to banner **`res://`** paths using **pure strings** only (**no** `ResourceLoader` / **`load`** in that helper).
+- **`FactionBannerGallery`** provides an **F1** debug overlay on the main scene (**hidden** by default; **toggle** with **F1**).
+- **No** player / faction assignment exists.
+- **No** gameplay depends on image contents; **missing** or **unloadable** images fall back to **placeholders** in the gallery.
+- Serious prototype factions remain **prose-only** (not in **`FactionDefinitions`** in 3.5d).
+- **Phase 4** still owns real terrain / unit / city / HUD / camera visual work.
+- **Phase 6** still owns final lore, art, and IP review.
+
 ## World identity pillars
 
 - **Civilisation as mentality**, not only territory — societies are defined by how they think, coordinate, and justify choices, not only by map borders.
@@ -249,9 +262,9 @@ The three profiles below are **`profile_type: debug_example`**. They are **non-c
 ## Phase mapping
 
 - **3.5a** — Docs-only faction / custom-civ identity model (**this file**).
-- **3.5b** — Possible tiny **`FactionDefinitions`** registry seed (future; not 3.5a).
+- **3.5b** — **`FactionDefinitions`** debug seed: three non-canonical rows (**implemented**).
 - **3.5c** — Possible trait registry or concrete profile examples (future).
-- **3.5d** — Possible prototype presentation / visual identity pass (future).
+- **3.5d** — Prototype faction-banner slice: **`game/assets/prototype/`** PNGs, **`FactionAssetPaths`**, **F1** **`FactionBannerGallery`** (**implemented**; **no** gameplay wiring).
 - **Later** — Custom civ builder UI, balance system, art pipeline, **final** lore and IP review (**Phase 6**).
 
 ## Explicit non-goals

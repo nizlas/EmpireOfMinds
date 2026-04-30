@@ -6,6 +6,9 @@ const ScenarioScript = preload("res://domain/scenario.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
 const GameStateScript = preload("res://domain/game_state.gd")
+const FactionBannerGalleryScript = preload("res://presentation/faction_banner_gallery.gd")
+
+var _faction_banner_gallery
 
 func _ready() -> void:
 	var scenario = ScenarioScript.make_tiny_test_scenario()
@@ -59,3 +62,13 @@ func _ready() -> void:
 	selection_controller.log_view = log_view
 	end_turn_controller.log_view = log_view
 	ai_turn_controller.log_view = log_view
+	_faction_banner_gallery = FactionBannerGalleryScript.new()
+	add_child(_faction_banner_gallery)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		var ek := event as InputEventKey
+		if ek.pressed and not ek.echo and ek.keycode == KEY_F1:
+			if _faction_banner_gallery != null:
+				_faction_banner_gallery.toggle_visible()

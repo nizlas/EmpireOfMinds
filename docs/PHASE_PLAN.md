@@ -716,6 +716,37 @@ Validation:
 - Expected **46** scripts.
 - All **PASS**, exit **0**.
 
+### Phase 3.5d — Prototype faction-banner visual slice (implemented)
+
+Goal:
+
+- **Smallest** visual identity slice for the **three** existing **debug** faction rows (`FactionDefinitions`).
+
+Shipped:
+
+- **Three** prototype banner **PNGs** under `game/assets/prototype/factions/banners/`
+- **`game/assets/prototype/README.md`** — prototype / non-final policy
+- **`PROVENANCE.md`** next to banners — creation method and **non-final** status
+- **`game/presentation/faction_asset_paths.gd`** — **`FactionAssetPaths`**, **pure string** paths (**no** `ResourceLoader`, **no** `load`, **no** `FileAccess`)
+- **`game/presentation/faction_banner_gallery.gd`** — **`FactionBannerGallery`**, **F1** debug overlay (**no** gameplay effect)
+- **`game/presentation/tests/test_faction_asset_paths.gd`** and **`test_faction_banner_gallery.gd`**
+- **`game/main.gd`** — wires gallery + **F1** toggle (**smallest** diff; **no** change to **F** / **P** / **G** / **H** / **A** / **Space**)
+
+Must not:
+
+- **No** terrain, unit, city, **HUD**, or **camera / perspective** art
+- **No** player → faction assignment
+- **No** gameplay wiring (`GameState`, `Scenario`, `LegalActions`, **AI**, progression)
+- **No** final art commitment
+- **No** **`ART_DIRECTION.md`**
+- **No** full **Phase 4** visual pass (this is a **banner-only** prototype)
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+- **Manual** F5: **F1** toggles the gallery; map / turn / actions unchanged
+
 ## Phase 4 — Visual identity and presentation foundation
 
 Goal:
