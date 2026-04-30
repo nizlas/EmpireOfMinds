@@ -49,6 +49,7 @@ $Tests = @(
 	"res://domain/tests/test_terrain_rule_definitions.gd",
 	"res://domain/tests/test_city_project_definitions.gd",
 	"res://domain/tests/test_progress_definitions.gd",
+	"res://domain/tests/test_faction_definitions.gd",
 	"res://domain/tests/test_progress_state.gd",
 	"res://domain/tests/test_progress_unlock_resolver.gd",
 	"res://domain/tests/test_game_state_progress_state.gd",

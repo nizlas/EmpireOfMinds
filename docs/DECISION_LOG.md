@@ -497,3 +497,50 @@ Rationale:
 Caveat:
 
 - **First** candidate only; non-current players must take their turn (or use future policy) before their detector row applies via this path; **`ProgressDetector`** remains unchanged.
+
+## 2026-05-01 — Faction / custom-civ identity model (Phase 3.5a)
+
+Decision:
+
+- Add **[FACTION_IDENTITY.md](FACTION_IDENTITY.md)** as the **docs-only** identity checkpoint for **predefined civilisations** and **custom civilisations**.
+- **Predefined civilisations** are **curated presets** of the **same trait system** **custom civilisations** use.
+- **Trait budget** is **normally shared**; **curated prototypes** may **temporarily violate** budget only with **explicit `notes`** in the profile.
+- **Prototype / generated art** is **allowed for internal testing**; policy is documented in **`FACTION_IDENTITY.md`**.
+- **`ART_DIRECTION.md`** is **deferred** until actual asset work begins.
+
+Rationale:
+
+- Locks **identity vocabulary** before faction registries, trait math, UI, or asset pipeline.
+- Supports **fast curated playtesting** and long-term **custom-civ** replay value.
+- Keeps **playful examples** useful as **test vectors** without making them canon.
+
+Caveat:
+
+- **No** trait costs, **no** gameplay wiring, **no** AI / `LegalActions` / `GameState` changes.
+- **Prototype factions** and **toy examples** are **not final canon**.
+- **Generated-art** language is **internal-prototype guidance**, not a final commercial-release policy.
+
+## 2026-05-01 — Debug FactionDefinitions seed (Phase 3.5b)
+
+Decision:
+
+- Create **`faction_definitions.gd`** rather than **`civilization_definitions.gd`**.
+- Include **exactly three** non-canonical debug rows.
+- Use **ASCII** ids and **Swedish-character** display names.
+- Keep **`profile_type`** and **`canon_status`** as **separate** fields.
+- Store **`trait_ids`** as **forward references** only (**no** **`TraitDefinitions`** validation).
+- **`visual_identity`** is **metadata only**; **no** asset paths.
+- **No** gameplay wiring.
+
+Rationale:
+
+- Mirrors existing **content-registry** pattern (`RefCounted`, static accessors, deep copies).
+- Provides **demo/playtest** profiles without making them canon.
+- Tests whether the **trait-composition vocabulary** can express memorable identities.
+
+Caveat:
+
+- **No** **`TraitDefinitions`** registry exists.
+- **No** player/faction assignment.
+- **No** trait costs or balance math.
+- **No** serious prototype factions are shipped in the registry yet.

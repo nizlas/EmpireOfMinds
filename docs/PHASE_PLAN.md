@@ -661,6 +661,61 @@ Early **faction** or **civ** knobs (traits, start-bias stubs) and **world** para
 Validation:
 To be detailed per subphase; preserve **domain / presentation** split from [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md).
 
+### Phase 3.5a — Faction / custom-civ identity model (implemented; documentation-only)
+
+Goal:
+
+- Define the **docs-only** identity model for **predefined civilisations** and **custom civilisations** before any faction/trait registry or UI exists.
+
+Shipped:
+
+- **[FACTION_IDENTITY.md](FACTION_IDENTITY.md)** — predefined-civ and custom-civ models, balanced trait vocabulary (conceptual), three prototype factions, three non-canonical toy examples, prototype art / generated-asset policy.
+- **Predefined-civ model** and **custom-civ profile model** (conceptual fields only).
+- **Balanced trait model** (categories + cost **shape**, no numbers).
+- **Prototype factions** (Hearthbound, Wayfinders, Forge Compact) and **non-canonical toy examples** (debug/playtest only).
+
+Must not:
+
+- **No** code, **no** registries, **no** `game/**`, **no** `scripts/**`, **no** tests, **no** scenes, **no** assets, **no** generated images, **no** UI, **no** gameplay wiring, **no** deny-listed docs.
+
+Validation:
+
+- **`run-godot-tests.ps1`** exit **0** (**45** scripts — regression-only; count **unchanged**).
+
+### Phase 3.5b — Debug FactionDefinitions seed (implemented)
+
+Goal:
+
+- Ship the smallest **faction-data slice** using the **three non-canonical** toy examples for **demo/playtest identity** without **gameplay wiring**.
+
+Shipped:
+
+- **`game/domain/content/faction_definitions.gd`**
+- **`game/domain/tests/test_faction_definitions.gd`**
+- **Three** debug ids (`debug_vasterviksjavlarna`, `debug_malmofubikkarna`, `debug_pajasarna_fran_paris`)
+- **Helper methods** (`has`, `ids`, `get_definition`, field accessors)
+- **No** cross-registry validation (trait ids are forward references only)
+
+Must not:
+
+- **No** trait registry (**`TraitDefinitions`**).
+- **No** player / faction assignment.
+- **No** AI.
+- **No** **`LegalActions`** wiring.
+- **No** **`GameState`** wiring.
+- **No** Progress wiring.
+- **No** UI.
+- **No** scenes.
+- **No** assets.
+- **No** generated images.
+- **No** canon promotion of debug rows.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **46** scripts.
+- All **PASS**, exit **0**.
+
 ## Phase 4 — Visual identity and presentation foundation
 
 Goal:
