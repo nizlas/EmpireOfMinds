@@ -14,12 +14,15 @@ Phase **2.x** core loop is **feature-frozen** as a baseline. **Phase 3** extends
 
 **Phase 3.4f:** **`KEY_G`** in **`SelectionController`** is a **manual** debug path that submits **`CompleteProgress`** for **`foraging_systems`** (**not** **`LegalActions`**, **not** **AI**); on **accept** it refreshes **`LogView`** (and **`TurnLabel`**) only.
 
-**Phase 3.4g:** **`ProgressDetector`** ([progress_detector.gd](../game/domain/progress_detector.gd)) is a **domain** **read-only** helper that can **propose** **`CompleteProgress`** candidates from the **log**; it is **not** wired into the playable **mouse / F / P / G / Space / A** loop and changes **no** runtime behavior until a future phase consumes suggestions.
+**Phase 3.4g:** **`ProgressDetector`** ([progress_detector.gd](../game/domain/progress_detector.gd)) is a **domain** **read-only** helper that can **propose** **`CompleteProgress`** candidates from the **log**; **by itself** it does **not** change runtime; **Phase 3.4h** **`KEY_H`** is the **manual** path that consumes those suggestions for the **current player**.
+
+**Phase 3.4h:** **`ProgressCandidateFilter`** + **`KEY_H`** in **`SelectionController`** **manually** apply the **first** detector candidate **for the current player** via **`try_apply`**; **no** auto-apply on turn boundaries.
 
 - **Mouse**: click a unit to select; click a **legal destination** (tinted hex) to move via `MoveUnit` through `GameState.try_apply`.
 - **F**: `FoundCity` for the **selected unit** on its current tile (presentation path in `SelectionController`). **Only settler-type units** (`UnitDefinitions.can_found_city`) succeed; others are rejected. Rejected actions surface as warnings; only accepted actions append to the log.
 - **P**: `SetCityProduction` with **`project_id`** **`produce_unit:warrior`** for the **lowest-id** **current-player** city whose `current_project == null` (debug path in `SelectionController`).
 - **G**: debug-**complete** **`foraging_systems`** for the **current player** (**`CompleteProgress`** via **`SelectionController`**). **One-shot** per player; a later press rejects with **`progress_already_completed`** until a fuller UI/debug cycling mechanism exists.
+- **H**: debug-apply the **first** **`ProgressDetector`** candidate for the **current player** (**`ProgressCandidateFilter.for_current_player`** then **`try_apply`**) — e.g. **`controlled_fire`** after an accepted **`found_city`** for that player. Warns when **no** filtered candidate or when **`try_apply`** rejects.
 - **Space**: `EndTurn` for the current player (`EndTurnController`).
 - **A**: one rule-based AI step: `LegalActions.for_current_player(game_state)` → `RuleBasedAIPlayer.decide(game_state, legal_actions)` → `GameState.try_apply(choice)` (`AITurnController`).
 

@@ -498,7 +498,7 @@ Validation:
 
 ### Phase 3.4 — First tech / progress definitions (roadmap)
 
-Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b** ships a **metadata-only** **`ProgressDefinitions`** seed; **3.4c** adds **deterministic player unlock state** and **`SetCityProduction`** gating; **3.4d** adds **`ProgressUnlockResolver`** + **`completed_progress_ids`** without authoring a player action; **3.4e** wires a manual **`complete_progress`** action through **`GameState.try_apply`**; **3.4f** adds **`KEY_G`** in **`SelectionController`** for a **hardcoded** **`foraging_systems`** debug **`CompleteProgress`** (still **outside** **`LegalActions`** / **AI**); **3.4g** adds **`ProgressDetector`** as a **read-only** candidate generator (still **no** auto-apply, **no** **`LegalActions`** / **AI**); later subphases may add wiring, accumulation, and broader consumption.
+Roadmap umbrella for **sciences**, **progress**, and **unlocks**. Implementation is **split**: **3.4a** locks the **systematic doc model** only; **3.4b** ships a **metadata-only** **`ProgressDefinitions`** seed; **3.4c** adds **deterministic player unlock state** and **`SetCityProduction`** gating; **3.4d** adds **`ProgressUnlockResolver`** + **`completed_progress_ids`** without authoring a player action; **3.4e** wires a manual **`complete_progress`** action through **`GameState.try_apply`**; **3.4f** adds **`KEY_G`** in **`SelectionController`** for a **hardcoded** **`foraging_systems`** debug **`CompleteProgress`** (still **outside** **`LegalActions`** / **AI**); **3.4g** adds **`ProgressDetector`** as a **read-only** candidate generator; **3.4h** adds **`ProgressCandidateFilter`** + **`KEY_H`** for **manual** **current-player-only** detector consumption (still **no** auto-apply, **no** **`LegalActions`** / **AI**); later subphases may add auto-apply policy, accumulation, and broader consumption.
 
 ### Phase 3.4a — Progression model checkpoint (implemented; documentation-only)
 
@@ -631,6 +631,25 @@ Must not (this subphase):
 Validation:
 
 - **`run-godot-tests.ps1`** exit **0** (**44** scripts).
+
+### Phase 3.4h — Detector candidate consumption (manual KEY_H, implemented)
+
+Goal:
+Allow **F5 / manual** application of **Phase 3.4g** detector **`CompleteProgress`** candidates **for the current player only**, respecting **`GameState.try_apply`**’s **current-player** gate **without** changing **`ProgressDetector`**, **`GameState`**, or **`LegalActions`**.
+
+Shipped:
+
+- **[progress_candidate_filter.gd](../game/domain/progress_candidate_filter.gd)** — **`ProgressCandidateFilter.for_current_player`** filters by **`actor_id == current_player_id()`** only (**no** **`CompleteProgress.validate`** in filter).
+- **`SelectionController`**: **`KEY_H`** → **`for_current_player`** → **`try_apply(candidates[0])`**; **`turn_label`** / **`log_view`** on **accept**; **`push_warning`** when empty or rejected.
+- **`test_progress_candidate_filter.gd`**; runner **45** scripts.
+
+Must not (this subphase):
+
+- Edit **`progress_detector.gd`**, **`game_state.gd`**, **`legal_actions.gd`**, **`actions/**`**, **`progress_state`**, **`progress_unlock_resolver`**, **`content/**`**, **`ProductionTick`**, **`ProductionDelivery`**, **`MovementRules`**, **`Scenario`**, **`TurnState`**, **`game/ai/**`**, **`main.*`**, **`project.godot`**, or **presentation** beyond **`selection_controller.gd`**; **auto-apply**, queues, engine events, new action schemas, new **`ProgressDefinitions`** rows; deny-listed docs.
+
+Validation:
+
+- **`run-godot-tests.ps1`** exit **0** (**45** scripts).
 
 ### Phase 3.5 — First faction / world identity pass
 

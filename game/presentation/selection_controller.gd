@@ -13,6 +13,7 @@ const MovementRulesScript = preload("res://domain/movement_rules.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 const CompleteProgressScript = preload("res://domain/actions/complete_progress.gd")
+const ProgressCandidateFilterScript = preload("res://domain/progress_candidate_filter.gd")
 
 var scenario
 var game_state
@@ -32,6 +33,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	assert(FoundCityScript != null)
 	assert(SetCityProductionScript != null)
 	assert(CompleteProgressScript != null)
+	assert(ProgressCandidateFilterScript != null)
 	if game_state == null or layout == null or selection == null or selection_view == null or units_view == null:
 		return
 	if event is InputEventKey:
@@ -108,6 +110,20 @@ func _unhandled_input(event: InputEvent) -> void:
 					log_view.refresh()
 			else:
 				push_warning("CompleteProgress rejected: %s" % result["reason"])
+			return
+		if ek.pressed and not ek.echo and ek.keycode == KEY_H:
+			var candidates = ProgressCandidateFilterScript.for_current_player(game_state)
+			if candidates.is_empty():
+				push_warning("No progress detector candidates for current player")
+				return
+			var result_h = game_state.try_apply(candidates[0])
+			if result_h["accepted"]:
+				if turn_label != null:
+					turn_label.refresh()
+				if log_view != null:
+					log_view.refresh()
+			else:
+				push_warning("CompleteProgress (detector) rejected: %s" % result_h["reason"])
 			return
 	if event is InputEventMouseButton:
 		var mb = event as InputEventMouseButton

@@ -42,6 +42,10 @@
 
 - **`ProgressDetector`** ([progress_detector.gd](../game/domain/progress_detector.gd)) — read-only, candidate-generating: **`suggested_complete_progress_actions(game_state)`** returns **`CompleteProgress`** action **`Dictionary`** values (**no** **`try_apply`**, **no** mutation). **First rule:** log entry with **`action_type`** **`found_city`**, **`result`** **`"accepted"`**, matching **`actor_id`**, for an owner ⇒ propose **`controlled_fire`** unless **`has_completed_progress`**. **Not** invoked by **`GameState`**, **`LegalActions`**, **AI**, UI, or controllers.
 
+### Phase 3.4h status (implemented)
+
+- **`ProgressCandidateFilter`** ([progress_candidate_filter.gd](../game/domain/progress_candidate_filter.gd)) — **`for_current_player(game_state)`** returns detector candidates whose **`actor_id`** equals **`turn_state.current_player_id()`** only (**no** **`CompleteProgress.validate`** — **`GameState.try_apply`** stays authoritative). **`SelectionController`**: **`KEY_H`** submits the **first** filtered candidate via **`try_apply`**; **no** auto-apply, **no** **`LegalActions`** / **AI**; **`TurnLabel`** / **`LogView`** refresh on **accept** only.
+
 ## Core separation
 
 Four conceptual layers:
@@ -516,7 +520,7 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 - **[CONTENT_BACKLOG.md](CONTENT_BACKLOG.md)** & workbook — **non-canonical** raw lists and brainstorms.
 - **`PROGRESSION_MODEL.md`** (this file) — **systematic model** for progression / unlocks / detection vocabulary.
 - **Implemented registries today:** `UnitDefinitions`, `TerrainRuleDefinitions`, `CityProjectDefinitions`, and **`ProgressDefinitions`** (**Phase 3.4b** — **metadata-only** progression seed; **no** gameplay enforcement).
-- **Implemented session state:** **`GameState.progress_state`** (**Phase 3.4c**) — player-specific **`unlocked_targets`** and **`completed_progress_ids`** (**Phase 3.4d**); **deterministic** **`SetCityProduction`** gating (**`project_not_unlocked`** in **`try_apply`**); **`complete_progress`** (**Phase 3.4e**) applies definition unlocks via **`ProgressUnlockResolver`** without detectors or accumulation mechanics; **Phase 3.4f** adds **`KEY_G`** in **`SelectionController`** for a **manual** **`CompleteProgress`** debug slice (**still** **outside** **`LegalActions`** / **AI**); **Phase 3.4g** adds **`ProgressDetector`** (**read-only** **`CompleteProgress`** candidates from **`ActionLog`**, **not** auto-applied, **not** wired to runtime).
+- **Implemented session state:** **`GameState.progress_state`** (**Phase 3.4c**) — player-specific **`unlocked_targets`** and **`completed_progress_ids`** (**Phase 3.4d**); **deterministic** **`SetCityProduction`** gating (**`project_not_unlocked`** in **`try_apply`**); **`complete_progress`** (**Phase 3.4e**) applies definition unlocks via **`ProgressUnlockResolver`** without detectors or accumulation mechanics; **Phase 3.4f** adds **`KEY_G`** in **`SelectionController`** for a **manual** **`CompleteProgress`** debug slice (**still** **outside** **`LegalActions`** / **AI**); **Phase 3.4g** adds **`ProgressDetector`** (**read-only** **`CompleteProgress`** candidates from **`ActionLog`**, **not** auto-applied); **Phase 3.4h** adds **`ProgressCandidateFilter`** + **`KEY_H`** to **manually** submit **current-player** detector candidates through **`try_apply`** (**still** **outside** **`LegalActions`** / **AI**).
 - **Phase 3.4a** changes **no** gameplay behavior.
 
 ## Phase mapping
@@ -528,7 +532,8 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 - **3.4e** — **`CompleteProgress`** player action through **`GameState.try_apply`**; **not** **`LegalActions`** / **AI**; uses **`ProgressUnlockResolver`**; logs **`unlocked_targets`** delta.
 - **3.4f** — **`KEY_G`** in **`SelectionController`**: manual **`CompleteProgress`** for **`foraging_systems`** only; **no** detectors, **no** **`LegalActions`**, **no** **AI**; **`LogView`** / **`TurnLabel`** refresh on **accept**; **no** definition cycling.
 - **3.4g** — **`ProgressDetector`**: **`suggested_complete_progress_actions`** proposes **`complete_progress`** (**`controlled_fire`**) from accepted **`found_city`** log rows; **read-only**, **not** **`GameState`**-wired; **no** **`LegalActions`** / **AI**.
-- **Later** — additional **detectors** (deterministic first; LLM advisory at edges only).
+- **3.4h** — **`ProgressCandidateFilter.for_current_player`** + **`KEY_H`**: manual **first** **current-player** detector candidate via **`try_apply`**; **no** validate in filter; **no** auto-apply; **no** **`LegalActions`** / **AI**.
+- **Later** — additional **detectors** and optional **auto-consumption** policy (deterministic first; LLM advisory at edges only).
 - **Phase 5** — strategic dynamics; many **modifiers** and **systems** become real.
 - **Phase 6** — world identity, names, flavor; does not replace this model.
 - **Phase 7** — balance and numeric tuning.

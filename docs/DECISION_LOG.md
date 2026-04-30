@@ -482,3 +482,18 @@ Rationale:
 Caveat:
 
 - **One** rule in **one** aggregator file; **not** consumed by runtime yet; future detectors may need split modules or richer event models.
+
+## 2026-04-30 — Manual detector candidate consumption (Phase 3.4h)
+
+Decision:
+
+- **`ProgressCandidateFilter.for_current_player`** ([progress_candidate_filter.gd](../game/domain/progress_candidate_filter.gd)) keeps only detector candidates whose **`actor_id`** equals **`turn_state.current_player_id()`**; **does not** call **`CompleteProgress.validate`** — **`GameState.try_apply`** remains authoritative.
+- **`SelectionController`**: **`KEY_H`** applies the **first** filtered candidate via **`try_apply`**; **no** **`scenario`** / view churn; **`turn_label`** / **`log_view`** refresh on **accept**; **no** **`LegalActions`** / **AI**; **no** auto-apply loop.
+
+Rationale:
+
+- Respects the **current-player** gate for **`complete_progress`** while still exercising **3.4g** detector output from the editor; smallest manual bridge before any start-of-turn / after-action policy.
+
+Caveat:
+
+- **First** candidate only; non-current players must take their turn (or use future policy) before their detector row applies via this path; **`ProgressDetector`** remains unchanged.

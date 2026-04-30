@@ -82,3 +82,7 @@ This is not final art, branding, or a committed palette for release.
 ## Phase 3.4f — KEY_G debug (`CompleteProgress`)
 
 - **`KEY_G`** (pressed, non-echo) submits **`CompleteProgress`** for the **current player** and hardcoded **`progress_id`** **`foraging_systems`** via **`try_apply`**. On **accept**, **`TurnLabel`** and **`LogView`** **`refresh()`** when wired; **no** **`scenario`** re-point, **no** map/city/unit/selection redraws, **no** **`scene`** changes.
+
+## Phase 3.4h — KEY_H debug (detector candidate)
+
+- **`KEY_H`** (pressed, non-echo): **`ProgressCandidateFilter.for_current_player(game_state)`**, then **`try_apply`** the **first** candidate (detector-driven **`controlled_fire`** when eligible). On **accept**, **`TurnLabel`** and **`LogView`** **`refresh()`** when wired; **no** **`scenario`** re-point, **no** map/city/unit/selection redraws, **no** **`scene`** changes. **`push_warning`** when **no** filtered candidate or **`try_apply`** rejects.
