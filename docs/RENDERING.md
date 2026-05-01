@@ -15,13 +15,15 @@
 
 - Rendered cell positions and counts **derive from** `map.coords()`. The tiny test map from `HexMap.make_tiny_test_map()` is the same domain object used in tests; **no** duplicate fixture list in the view.
 
-## Placeholder terrain palette (Phase 1.3)
+## Terrain fill colors
 
-- `HexMap.Terrain.PLAINS` — flat greenish `Color(0.50, 0.78, 0.47)`.
-- `HexMap.Terrain.WATER` — flat blue `Color(0.20, 0.45, 0.80)`.
-- Unknown terrain (should not happen for current enums) — magenta `Color(1, 0, 1)` for visibility.
-
-This is not final art, branding, or a committed palette for release.
+- Implemented in **`MapView._terrain_to_color`** ([map_view.gd](../game/presentation/map_view.gd)); **`compute_draw_items`** assigns one **flat fill** per hex via **`draw_colored_polygon`**.
+- **Phase 4.1 (current prototype):** warmer **parchment-style** land vs calmer **slate-teal** water for readability ([VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)); **no** terrain type or **`HexMap`** changes.
+  - `HexMap.Terrain.PLAINS` — `Color(0.74, 0.67, 0.52)`.
+  - `HexMap.Terrain.WATER` — `Color(0.28, 0.46, 0.62)`.
+  - Unknown terrain — `Color(1, 0, 1)` (should not occur for current enums).
+- **Prior to 4.1:** PLAINS `Color(0.50, 0.78, 0.47)`, WATER `Color(0.20, 0.45, 0.80)` (bright green / blue placeholders).
+- **Not** final art or a locked shipping palette.
 
 ## Optional labels (Phase 1.3)
 

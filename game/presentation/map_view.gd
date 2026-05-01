@@ -14,10 +14,11 @@ var map
 var layout
 
 static func _terrain_to_color(terrain: int) -> Color:
+	# Phase 4.1 — readable prototype palette (parchment land vs calm water). Not final art.
 	if terrain == HexMapScript.Terrain.PLAINS:
-		return Color(0.50, 0.78, 0.47)
+		return Color(0.74, 0.67, 0.52)
 	if terrain == HexMapScript.Terrain.WATER:
-		return Color(0.20, 0.45, 0.80)
+		return Color(0.28, 0.46, 0.62)
 	return Color(1.0, 0.0, 1.0)
 
 static func compute_draw_items(a_map, a_layout) -> Array:

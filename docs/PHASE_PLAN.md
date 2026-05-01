@@ -780,6 +780,8 @@ Must not (roadmap):
 Note:
 **Placeholders** from **Phase 2.x** / **Phase 3.x** may remain until replaced here; **Phase 4** owns **coherent visual identity**.
 
+**Phase 4 asset workflow:** Non-trivial prototype assets should use the **Asset Request Pack** workflow in **[VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)** (section **Asset request workflow**). Phase implementation must **not** silently generate or add visual assets **outside** approved scope; trivial programmatic placeholders remain allowed when **explicitly in scope** (see **VISUAL_DIRECTION.md**).
+
 ### Phase 4.0 — Visual direction checkpoint (implemented; documentation-only)
 
 Goal:
@@ -800,10 +802,46 @@ Validation:
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
 - Expected **48** scripts, all **PASS**, exit **0** (regression-only).
 
-### Phase 4.1 — Terrain visual style
+### Phase 4.0a — Prototype asset workflow checkpoint (implemented; documentation-only)
 
 Goal:
-Terrain **readability** and silhouette; beyond flat debug fills. *(Direction: [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) — Terrain direction for 4.1.)*
+
+- Define a **request-first** workflow for **non-trivial** prototype art before **4.1+**, so visual scope stays **reviewable** and **provenance-friendly**.
+
+Shipped:
+
+- **`docs/VISUAL_DIRECTION.md`** — **Asset request workflow** and **Asset Request Pack** checklist; **who may create** trivial vs non-trivial assets.
+- **`docs/PHASE_PLAN.md`** — **Phase 4 asset workflow** note (this section + intro note above).
+- **`docs/DECISION_LOG.md`** — dated **asset workflow** decision.
+
+Must not:
+
+- **No** code, **no** assets, **no** **`RENDERING.md`** changes, **no** expansion of **4.1–4.5** feature scope beyond documenting workflow expectations.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0** (regression-only).
+
+### Phase 4.1 — Terrain visual style (implemented)
+
+Goal:
+
+- Terrain **readability** and clearer **land vs water** read; **parchment-map**-aligned prototype palette per **[VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)** — **Terrain direction for 4.1**.
+
+Shipped:
+
+- **`game/presentation/map_view.gd`** — **`MapView._terrain_to_color`**: warmer muted **PLAINS**, calmer slate-teal **WATER**; still **flat polygon fills** only (**no** textures, **no** imports).
+- **`docs/RENDERING.md`** — **Terrain fill colors** section documents current prototype RGB and pre-4.1 reference.
+
+Must not:
+
+- **No** new terrain types, **no** **`HexMap`** / **`MovementRules`** / domain / content changes, **no** imported or generated terrain art.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
 
 ### Phase 4.2 — Unit visual style
 

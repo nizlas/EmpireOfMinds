@@ -3,6 +3,7 @@
 ## Status and purpose
 
 - **Phase 4.0** is **documentation-only**. It ships **this file** and steering updates only — **no** code, **no** assets, **no** UI, **no** tests, **no** scene changes.
+- **Phase 4.0a** is **documentation-only**: it adds the **Asset request workflow** (see below) — **no** new art, **no** code.
 - **This document** is the **direction source of truth** for upcoming **Phase 4** visual work (**4.1–4.5**): what the prototype should *aim for* before concrete pixels land.
 - **[RENDERING.md](RENDERING.md)** remains the **current implementation-state** document (how `MapView`, `UnitsView`, `SelectionView`, `CitiesView`, labels, and draw order work today). When **4.1+** change rendering, **RENDERING.md** should be updated to match; **this file** should change only when the *intended* direction changes.
 
@@ -94,12 +95,52 @@
 - **Do not** use generated images to **lock** lore, names, or faction canon — **Phase 6** owns final identity and IP review.
 - **No** Steam, storefront, or commercial-release asset policy is defined here.
 
+## Asset request workflow
+
+For **non-trivial** prototype visual assets, the **implementation agent** should **not** generate or add assets **ad hoc**.
+
+The preferred workflow is:
+
+1. The implementation agent produces an **Asset Request Pack**.
+2. The **Asset Request Pack** is **reviewed** by the user.
+3. Assets may then be **generated externally** or **created manually** (outside the constrained implementation pass, or by explicit user action).
+4. A **later implementation phase** may **import and wire** those approved assets.
+5. The **Mandatory Implementation Report** (or phase report) must list **all** imported or generated assets and **provenance** notes.
+
+This keeps the implementation agent in the role of **constrained implementer**, not art director or autonomous asset generator.
+
+### Asset Request Pack
+
+An **Asset Request Pack** must list **every** proposed asset:
+
+- **Target filename and path** (e.g. under `game/assets/prototype/…`).
+- **Asset category:** terrain, unit marker, city marker, HUD, overlay, faction banner, mockup, other.
+- **Purpose in-game** (what readability or identity problem it solves).
+- **Required dimensions** (max size, aspect if relevant).
+- **Transparent background:** yes / no.
+- **Visual description** (enough for an external artist or tool to execute).
+- **Preferred generation method:** external generation, manual, programmatic placeholder, or implementation-agent placeholder (justify if the latter).
+- **Why this asset is needed** for the **current** phase.
+- **Required for implementation** vs **visual exploration only**.
+- **Provenance / documentation requirements** (what must be recorded in `PROVENANCE.md` or equivalent).
+- **Confirmation** that the asset is **prototype-only**, **non-final**, **replaceable**.
+- **Confirmation** that **gameplay must not depend** on exact **pixel contents**.
+
+### Who may create assets
+
+- The **implementation agent** may create **trivial programmatic placeholders** when **explicitly useful** for the **current** phase and **in scope** — e.g. flat-colour debug tiles, simple rings, text labels, or stamped placeholder banners (as in Phase **3.5d**), with **honest** provenance.
+- For **non-trivial** **painterly**, **illustrative**, **faction**, **terrain**, **unit**, **city**, **HUD**, or **mockup** assets, the **preferred path** is **request-first:** the agent describes the needed asset set (via an **Asset Request Pack**), then work proceeds only after **externally generated** or **user-approved** assets are available — unless a **phase prompt** **explicitly overrides** this and allows direct creation.
+- When a phase prompt **explicitly allows** direct asset work, the **implementation report** must still **document all assets** (paths, purpose, provenance, non-final status).
+
+This stays consistent with the rest of this document and **[FACTION_IDENTITY.md](FACTION_IDENTITY.md):** prototype assets are **non-final** and **replaceable**; **no fabricated provenance**; **no lore / canon lock** from pixels; **gameplay must not depend** on pixel contents.
+
 ## Phase 4 roadmap
 
 | Subphase | Focus |
 |----------|--------|
 | **4.0** | **This document** — direction checkpoint (**docs-only**). |
-| **4.1** | Terrain readability — palette first; optional subtle texture. |
+| **4.0a** | **Asset request workflow** — **Asset Request Pack** process (**docs-only**). |
+| **4.1** | Terrain readability — prototype palette in **`MapView`** (**implemented**); optional subtle texture still future. |
 | **4.2** | Unit readability — markers / icons / ownership. |
 | **4.3** | City visual polish — badges / pins. |
 | **4.4** | HUD / feedback / controls clarity. |

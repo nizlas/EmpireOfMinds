@@ -607,3 +607,35 @@ Rationale:
 Caveat:
 
 - **Palette and contrast** in **`VISUAL_DIRECTION.md`** are **intent-only** until **4.1**; concrete RGB belongs in implementation + **`RENDERING.md` updates**, not premature locking in **4.0**.
+
+## 2026-05-01 — Asset request workflow for prototype visuals
+
+Decision:
+
+- Future **Phase 4** visual work should **prefer** an **Asset Request Pack** workflow for **non-trivial** prototype art. The implementation agent may request a **minimal** asset set, but should **not** autonomously generate **painterly / illustrative** assets unless **explicitly allowed** by the phase prompt.
+
+Rationale:
+
+- Keeps visual production **reviewable**, **provenance-friendly**, and aligned with the **constrained-implementer** process. Reduces risk that prototype art **silently expands** phase scope or is **mistaken** for final / canonical art.
+
+Consequences:
+
+- **`VISUAL_DIRECTION.md`** owns the **asset request workflow** and **Asset Request Pack** checklist.
+- **Trivial programmatic placeholders** remain allowed when **explicitly in scope**.
+- **Non-trivial** terrain, unit, city, faction, HUD, or mockup assets should **normally** be **requested first**.
+- **Implementation reports** must list **all** created / imported assets and provenance.
+
+## 2026-05-01 — Terrain readability polish (Phase 4.1)
+
+Decision:
+
+- Refine **terrain** fills in **`MapView._terrain_to_color`** only: **PLAINS** `Color(0.74, 0.67, 0.52)`, **WATER** `Color(0.28, 0.46, 0.62)` for clearer **land vs water** and **parchment-map**-style land per **[VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)**.
+- **Programmatic** colours only — **no** textures, **no** Asset Request Pack, **no** **`HexMap`** or rules changes.
+
+Rationale:
+
+- **Phase 4.1** scope is **palette/readability** first; avoids asset pipeline while improving map coherence.
+
+Caveat:
+
+- Values are **prototype** documentation in **`RENDERING.md`**, not a final shipping palette; **Phase 6** and later art passes may replace them.
