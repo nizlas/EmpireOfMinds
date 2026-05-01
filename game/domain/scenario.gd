@@ -171,3 +171,13 @@ static func make_tiny_test_scenario():
 		UnitScript.new(3, 1, HexCoordScript.new(0, -1), "settler"),
 	]
 	return _SCENARIO_SCRIPT.new(m, us)
+
+
+static func make_prototype_play_scenario():
+	var m = HexMapScript.make_prototype_play_map()
+	var us = [
+		UnitScript.new(1, 0, HexCoordScript.new(0, 0), "settler"),
+		UnitScript.new(2, 0, HexCoordScript.new(1, 0), "warrior"),
+		UnitScript.new(3, 1, HexCoordScript.new(0, -1), "settler"),
+	]
+	return _SCENARIO_SCRIPT.new(m, us)

@@ -95,7 +95,7 @@
 
 ## Phase 4.3g — Map layer origin / top padding (implemented)
 
-- **[main.gd](../game/main.gd)** **`MAP_LAYER_ORIGIN`** (`Vector2(400, 428)`) — **`+128`** screen **Y** vs prior **`(400, 300)`** so the top hex row clears the viewport top; applied in **`_ready()`** to **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, and **`SelectionController`** so **draw** and **`to_local(mouse)`** hit-tests share one **origin**. **Not** `Camera2D` / zoom / domain coords; **`HexLayout.SIZE`**, **viewport** **2400×1500**, and marker ratios unchanged.
+- **[main.gd](../game/main.gd)** **`MAP_LAYER_ORIGIN`** (`Vector2(400, 428)`) — **`+128`** screen **Y** vs prior **`(400, 300)`** so the top hex row clears the viewport top; **4.5l:** **mutable** **`_map_layer_pos`** starts here for right-drag pan. Applied to **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, **`SelectionController`**. **Not** `Camera2D` / zoom; **`HexLayout.SIZE`**, **viewport** **2400×1500**, marker ratios unchanged.
 
 ## Phase 4.5a — Shared map-layer tilt scale + unit foot anchoring (historical; superseded by 4.5c)
 
@@ -173,6 +173,12 @@
 ## Phase 4.5k — Settler pivot fine-tune (implemented)
 
 - **`[units_view.gd](../game/presentation/units_view.gd)`** — **settler** **`pivot_y`** **`0.88` → `0.86`** (**4.5k**).
+
+## Phase 4.5l — Larger prototype map + right-drag pan (implemented)
+
+- **`[hex_map.gd](../game/domain/hex_map.gd)`** — **`make_prototype_play_map()`**: axial disk **R** = **5**, **91** cells, **(-1,0)** **WATER**; **`make_tiny_test_map()`** unchanged (**7** cells, tests).
+- **`[scenario.gd](../game/domain/scenario.gd)`** — **`make_prototype_play_scenario()`** for **editor** play; headless tests keep **`make_tiny_test_scenario()`**.
+- **`[main.gd](../game/main.gd)`** — **`make_prototype_play_scenario()`**; **`_map_layer_pos`**; right-button **`_input`** drag **`+=`** **`relative`**; **`vanishing_pres`** = **`(get_viewport_rect().size * 0.5) - _map_layer_pos`** each update; five map nodes + **`SelectionController`** share **`position`**.
 
 ## Phase 4.3h — Marker texture filtering polish (implemented)
 

@@ -48,3 +48,21 @@ static func make_tiny_test_map():
 	}
 	# new(c) is not available from static in GDScript; self-preload avoids global "HexMap" at compile time.
 	return _HEX_MAP_SCRIPT.new(c)
+
+## Phase 4.5l — larger axial disk for editor pan / perspective testing. Tests keep `make_tiny_test_map` (7 cells). Radius R = 5 → 91 cells; terrain pattern matches tiny: (-1,0) WATER, else PLAINS.
+static func make_prototype_play_map():
+	var R: int = 5
+	var c: Dictionary = {}
+	var q: int = -R
+	while q <= R:
+		var r: int = -R
+		while r <= R:
+			var dist: int = (abs(q) + abs(r) + abs(q + r)) / 2
+			if dist <= R:
+				var t = Terrain.PLAINS
+				if q == -1 and r == 0:
+					t = Terrain.WATER
+				c[Vector2i(q, r)] = t
+			r = r + 1
+		q = q + 1
+	return _HEX_MAP_SCRIPT.new(c)

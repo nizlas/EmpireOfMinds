@@ -22,6 +22,8 @@ Scene order under **`Main`**: **`TurnLabel`** (HUD) → **`MapView`** → **`Sel
 
 ## Interaction
 
+**Phase 4.5l:** **Right** **mouse** **drag** **(hold)** **pans** **map** **layers** **from** **[main.gd](../game/main.gd)** **`_input`**; **`SelectionController`** **remains** **left-button** **only** **for** **moves** / **selection** **[ACTIONS.md](ACTIONS.md)**. **Pan** **updates** **`MapPlaneProjection.vanishing_pres`** **with** **`_map_layer_pos`** **so** **picking** **stays** **aligned**.
+
 On **left mouse pressed**, **`SelectionController`** (see [ACTIONS.md](ACTIONS.md)):
 
 1. If **selection is not empty**: compute **`MovementRules.legal_destinations(game_state.scenario, selection.unit_id)`**. **Phase 4.5f:** if the click lies **inside** the **projected** **hex** **polygon** of a legal destination (**`Geometry2D.is_point_in_polygon`** on **`projection.to_presentation`** of **`layout.hex_corners`** — same **layer-local** space as **`to_local(mouse)`**), build **`MoveUnit.make(u.owner_id, ...)`** and call **`game_state.try_apply(action)`**. **Return** after this block (accepted or rejected). On **accept**: assign **`selection_view.scenario`**, **`units_view.scenario`**, and controller **`scenario`** to **`game_state.scenario`**, **clear selection**, **`queue_redraw()`** both views, **`turn_label.refresh()`** if wired. On **reject**: **`push_warning`** with reason (**`not_current_player`** when it is not that player’s turn).  

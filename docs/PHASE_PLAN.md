@@ -1392,6 +1392,28 @@ Validation:
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
 - Expected **49** scripts, all **PASS**, exit **0**
 
+### Phase 4.5l — Larger prototype map + right-drag pan (implemented)
+
+Goal:
+
+- **Wider** **play** **map** **for** **perspective** **testing**; **simple** **right-drag** **pan** **(no** **`Camera2D`**, **no** **zoom** **in** **this** **phase**).
+
+Shipped:
+
+- **`game/domain/hex_map.gd`** — **`make_prototype_play_map()`** (**R**=**5**, **91** **cells**)
+- **`game/domain/scenario.gd`** — **`make_prototype_play_scenario()`**
+- **`game/main.gd`** — **prototype** **scenario**, **`_map_layer_pos`**, **`_input`** **pan**, **`vanishing_pres`**
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/SELECTION.md`**
+
+Must not:
+
+- **No** **movement** / **rules** **changes**; **tests** **keep** **`make_tiny_test_*`**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
 ### Phase 4.5 — Camera / perspective / animation pass
 
 Goal:

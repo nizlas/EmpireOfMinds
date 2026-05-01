@@ -1,3 +1,15 @@
+## 2026-05-01 — Larger prototype map + right-drag pan (Phase 4.5l)
+
+Decision:
+
+- **`HexMap.make_prototype_play_map()`** — **R**=**5**, **91** **cells**; **`make_tiny_test_map()`** **unchanged** **for** **headless** **fixtures**.
+- **`Scenario.make_prototype_play_scenario()`** — **same** **three** **units** **as** **tiny**; **`main.gd`** **uses** **this** **for** **editor** **play**.
+- **`Main`:** **`_map_layer_pos`** **starts** **at** **`MAP_LAYER_ORIGIN`**; **right-button** **mouse** **drag** **pans** **map** **layers** **`+=`** **`relative`**; **`vanishing_pres`** = **`viewport`** **half-size** **−** **`_map_layer_pos`** **on** **each** **move**; **no** **`Camera2D`**.
+
+Caveat:
+
+- **Rollback** = **single** **`make_tiny_test_scenario()`** **in** **`main`** **and** **remove** **pan** **state**.
+
 ## 2026-05-01 — Settler pivot override fine-tune (Phase 4.5k)
 
 Decision:
