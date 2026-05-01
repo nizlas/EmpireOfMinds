@@ -54,6 +54,58 @@ static func _try_load_terrain_tex(path: String) -> Texture2D:
 	push_warning("MapView: not a Texture2D: %s" % path)
 	return null
 
+static func _terrain_detail_hash(q: int, r: int, salt: int) -> int:
+	# Deterministic mixing for Phase 4.1e procedural marks (presentation-only; no RNG).
+	return (q * 374761393 + r * 668265263 + salt * 1442695041) & 0x7FFFFFFF
+
+func _draw_plains_detail(world: Vector2, q: int, r: int) -> void:
+	var lim: float = HexLayoutScript.SIZE * 0.82
+	var k: int = 0
+	while k < 5:
+		var h: int = MapView._terrain_detail_hash(q, r, k + 11)
+		var ang: float = (float(h % 6283) / 6283.0) * TAU
+		var rad: float = 14.0 + float((h >> 8) % 52)
+		if rad > lim:
+			rad = lim - 4.0
+		var p: Vector2 = world + Vector2(cos(ang), sin(ang)) * rad
+		var al: float = 0.075 + float((h >> 4) & 3) * 0.025
+		draw_circle(p, 1.0 + float((h >> 2) & 3) * 0.35, Color(0.40, 0.32, 0.20, al))
+		k += 1
+	var s: int = 0
+	while s < 3:
+		var h2: int = MapView._terrain_detail_hash(q, r, s + 99)
+		var a0: float = (float(h2 % 360) * PI / 180.0)
+		var r0: float = 22.0 + float((h2 >> 10) % 38)
+		if r0 > lim:
+			r0 = lim - 6.0
+		var len: float = 7.0 + float((h2 >> 14) & 15)
+		var p0: Vector2 = world + Vector2(cos(a0), sin(a0)) * r0
+		var p1: Vector2 = p0 + Vector2(cos(a0 + 0.55), sin(a0 + 0.55)) * len
+		draw_line(p0, p1, Color(0.35, 0.45, 0.22, 0.085), 1.0, true)
+		s += 1
+
+func _draw_water_detail(world: Vector2, q: int, r: int) -> void:
+	var lim: float = HexLayoutScript.SIZE * 0.85
+	var widx: int = 0
+	while widx < 5:
+		var h: int = MapView._terrain_detail_hash(q, r, widx + 777)
+		var yoff: float = -34.0 + float(h % 69)
+		var x0: float = -40.0 + float((h >> 5) % 81)
+		var x1: float = x0 + 9.0 + float((h >> 11) % 30)
+		var dy: float = float((h >> 17) % 9) - 4.0
+		var p0: Vector2 = world + Vector2(x0, yoff)
+		var p1: Vector2 = world + Vector2(x1, yoff + dy)
+		if p0.distance_to(world) <= lim and p1.distance_to(world) <= lim:
+			draw_line(p0, p1, Color(0.82, 0.90, 0.98, 0.06), 1.0, true)
+		widx += 1
+
+func _draw_terrain_detail_overlay(world: Vector2, terrain: int, q: int, r: int) -> void:
+	if terrain == HexMapScript.Terrain.PLAINS:
+		_draw_plains_detail(world, q, r)
+	elif terrain == HexMapScript.Terrain.WATER:
+		_draw_water_detail(world, q, r)
+
+
 static func compute_draw_items(a_map, a_layout) -> Array:
 	# Preloaded so headless/entry scripts do not depend on class_name order for the coord type.
 	assert(HexCoordScript != null)
@@ -111,4 +163,6 @@ func _draw() -> void:
 			draw_colored_polygon(corners, Color.WHITE, uvs, tex)
 		else:
 			draw_colored_polygon(corners, col)
+		var coord = item["coord"]
+		_draw_terrain_detail_overlay(item["world"] as Vector2, terrain, coord.q, coord.r)
 		j = j + 1

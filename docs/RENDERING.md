@@ -22,8 +22,8 @@
   - **`HexMap.Terrain.PLAINS`** — `Color(0.74, 0.67, 0.52)` (parchment-style land).
   - **`HexMap.Terrain.WATER`** — `Color(0.28, 0.46, 0.62)` (slate-teal water).
   - Unknown — `Color(1, 0, 1)` (should not occur for current enums).
-- **Phase 4.1c / 4.1d (current draw path):** When **`plains_painterly.png`** / **`water_painterly.png`** load successfully, **`MapView._draw()`** fills each hex with **`draw_colored_polygon(corners, Color.WHITE, uvs, texture)`**. **Phase 4.1d:** **UVs** are **world-anchored**: each corner uses **`layout`**-space **`(x, y) / terrain_texture_world_scale`** so the same world point maps to the same UV on every hex — textures read as a **continuous layer**, not a per-hex **0–1 AABB** stamp. **`MapView.texture_repeat`** is **`TEXTURE_REPEAT_ENABLED`** so UVs outside **0–1** tile the image. Default **`terrain_texture_world_scale`** **512** (~**2.3** hex widths per repeat at **`SIZE` 128**). **PLAINS** and **WATER** each use their own cached **`Texture2D`**, loaded in **`_ready()`** via **`ResourceLoader.load`** ([assets](../game/assets/prototype/terrain/) — see **`PROVENANCE.md`**).
-- **Fallback:** If either **`ResourceLoader.load`** fails or the resource is not a **`Texture2D`**, **`MapView`** logs a warning and uses **`draw_colored_polygon(corners, color)`** only (Phase **4.1** behavior).
+- **Phase 4.1c / 4.1d / 4.1e (current draw path):** When **`plains_painterly.png`** / **`water_painterly.png`** load successfully, **`MapView._draw()`** fills each hex with **`draw_colored_polygon(corners, Color.WHITE, uvs, texture)`**. **Phase 4.1d:** **UVs** are **world-anchored**: each corner uses **`layout`**-space **`(x, y) / terrain_texture_world_scale`** so the same world point maps to the same UV on every hex — textures read as a **continuous layer**, not a per-hex **0–1 AABB** stamp. **`MapView.texture_repeat`** is **`TEXTURE_REPEAT_ENABLED`** so UVs outside **0–1** tile the image. Default **`terrain_texture_world_scale`** **512** (~**2.3** hex widths per repeat at **`SIZE` 128**). **PLAINS** and **WATER** each use their own cached **`Texture2D`**, loaded in **`_ready()`** via **`ResourceLoader.load`** ([assets](../game/assets/prototype/terrain/) — see **`PROVENANCE.md`**). **Phase 4.1e:** after the base fill, **`MapView`** draws a **subtle procedural overlay** per hex — low-alpha **specks** and short **strokes** on **PLAINS**, light **ripple lines** on **WATER** — **deterministic** from **`(q, r)`** via **`_terrain_detail_hash`** (**no** runtime RNG); same overlay runs for **textured** and **flat** fallback paths so **readability** stays consistent.
+- **Fallback:** If either **`ResourceLoader.load`** fails or the resource is not a **`Texture2D`**, **`MapView`** logs a warning and uses **`draw_colored_polygon(corners, color)`** for the **base** fill (Phase **4.1** colors); **4.1e** **procedural** overlay still draws on top for **PLAINS** / **WATER**.
 - **Historical:** Pre-4.1 PLAINS `Color(0.50, 0.78, 0.47)`, WATER `Color(0.20, 0.45, 0.80)`. **Not** final art.
 
 ## Phase 4.1c — Prototype painterly terrain textures (implemented)
@@ -34,6 +34,12 @@
 ## Phase 4.1d — Terrain texture UV polish (implemented)
 
 - **UV mapping:** **World-anchored** (**corner / `terrain_texture_world_scale`**) replaces per-hex **AABB 0–1** mapping to reduce **per-hex stamp** repetition. **`texture_repeat`** on **`MapView`** for seamless tiling in UV space; hex clip shape unchanged.
+
+## Phase 4.1e — Terrain detail overlay prototype (implemented)
+
+- **Subtle procedural marks** on top of **base** painterly **PLAINS** / **WATER** (**`draw_circle`** + **`draw_line`**, low alpha), **clamped** inside ~**82–85%** of **`HexLayout.SIZE`** from hex center.
+- **Determinism:** **`_terrain_detail_hash(q, r, salt)`** only — **no** **`randomize()`** / **`rand_*`**.
+- **No** new terrain types, **no** domain changes, **no** unit **occlusion** / **cover** layers (**future** intent in **[VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)** only).
 
 ## Optional labels (Phase 1.3)
 
@@ -91,6 +97,33 @@
 
 - **[main.gd](../game/main.gd)** **`MAP_LAYER_ORIGIN`** (`Vector2(400, 428)`) — **`+128`** screen **Y** vs prior **`(400, 300)`** so the top hex row clears the viewport top; applied in **`_ready()`** to **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, and **`SelectionController`** so **draw** and **`to_local(mouse)`** hit-tests share one **origin**. **Not** `Camera2D` / zoom / domain coords; **`HexLayout.SIZE`**, **viewport** **2400×1500**, and marker ratios unchanged.
 
+## Phase 4.5a — Shared map-layer tilt scale + unit foot anchoring (implemented)
+
+- **[main.gd](../game/main.gd)** **`MAP_LAYER_TILT_Y`** **`0.85`** — **`Vector2(1.0, MAP_LAYER_TILT_Y)`** applied in **`_ready()`** to the same five nodes as **`MAP_LAYER_ORIGIN`**. **`Main`** has **no** extra scale (no double transform). **[main.tscn](../game/main.tscn)** mirrors **`scale = Vector2(1, 0.85)`** on those nodes so the editor preview matches runtime.
+- **`HexLayout`**, **domain**, **`hex_to_world`**, terrain, and **`MAP_LAYER_ORIGIN`** are unchanged; tilt is **presentation-only**.
+- **[units_view.gd](../game/presentation/units_view.gd)** **`unit_icon_foot_offset_ratio`** default **`0.20`** — for **textured** unit icons only, the rect is **foot-anchored**: `foot_y = world.y + HexLayout.SIZE * ratio`, `Rect2(world.x - icon_side*0.5, foot_y - icon_side, icon_side, icon_side)`. **City** markers stay **centered**; **fallback** disk path and **marker sizes** unchanged.
+
+## Phase 4.5b — Map-plane projection (design checkpoint; not implemented)
+
+**Status:** **documentation-only** — **no** code, scenes, assets, imports, or domain changes in this checkpoint.
+
+**Live review:** **`4.5a`** **unit foot anchoring** is **approved** and **must be preserved** in future work. The shared **`Node2D`** **`MAP_LAYER_TILT_Y`** scale is **accepted only** as **temporary** vertical compression / **flattening** of the whole map subtree — **not** a convincing **receding plane** or true faux perspective.
+
+**Intended direction:** Replace reliance on **uniform Y squash** (alone) with a **single canonical** **presentation-space** **map-plane projection** shared by:
+
+- **Forward** mapping: **`HexLayout`** **layout / world** coordinates (from **`hex_to_world`** and derived geometry) → **screen / presentation** positions used for **draw**.
+- **Inverse** mapping: **same** math inverted for **`SelectionController`** / **hit-testing** so pointer checks stay aligned with drawn **hex** geometry (**one math path** — no per-layer ad hoc offsets).
+
+**Consumers of that path (future implementation):** **`MapView`** **terrain** (hex corners, fills, procedural overlay), **`SelectionView`** **rings and destination fills**, **`UnitsView`** **anchors**, **`CitiesView`** **centers**, and **picking**. **Gameplay**, **`HexLayout.SIZE`**, **`hex_to_world`** formulas, and **domain content** stay **unchanged**; projection is **presentation-only**.
+
+**Units:** Keep **foot / base** definition in **layout / world** space (**`4.5a`** **`unit_icon_foot_offset_ratio`** semantics), then apply the **forward** map projection to the **foot anchor** (and any billboard placement derived from it). **Prefer** drawing **unit** marker textures as **upright** **billboards** **without** inheriting map-plane **vertical squash**, so icons stay **readable** while the **terrain plane** reads **tilted** / **receding** (exact node/layout approach **TBD** at implementation).
+
+**Cities:** **May** stay **center**-anchored markers as today, or gain a **dedicated** placement rule **later** — **no** mandate in this checkpoint.
+
+**Layering (future, not this checkpoint):** **Terrain** **base / back** → **unit** **billboard** → **optional** **foreground** terrain **occluder** (e.g. cover / forest) for **readability-safe** overlap. **Do not** implement **forest / cover / occlusion** as part of **`4.5b`**.
+
+**Out of scope for this design checkpoint:** **`Camera2D`**, **zoom**, **pan**, **real 3D**, **new** terrain types, **domain** or **content** changes.
+
 ## Phase 4.3h — Marker texture filtering polish (implemented)
 
 - **Historical:** **`TEXTURE_FILTER_LINEAR`** first — superseded for markers by **4.3i** **`LINEAR_WITH_MIPMAPS`** + marker-only **mipmaps**.
@@ -130,7 +163,7 @@
 
 ## Phase 1.9 — Action log debug view
 
-- **`LogView`** ([log_view.gd](../game/presentation/log_view.gd)) is a **`Label`** child of **`Main`** (placed low on the screen so it does not overlap **`TurnLabel`**). It shows the **last `MAX_ENTRIES` (10)** accepted log lines via **`compute_text(game_state)`**, **oldest at top, newest at bottom**; it reads only **`game_state.log.size()`** and **`game_state.log.get_entry(i)`** and **never mutates** domain state. **`main.gd`** assigns **`game_state`** and calls **`refresh()`** once at startup. **`SelectionController`**, **`EndTurnController`**, and **`AITurnController`** call **`log_view.refresh()`** after each **accepted** action ( **`log_view`** is optional — **null-safe**). **`format_entry`** covers **`move_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, engine **`production_progress`**, and engine **`unit_produced`**. After **accepted** **`EndTurn`**, refreshed views reflect **delivered** units (**Phase 2.4c**). This is a **debug** surface only: **no** replay, **no** undo/redo, **no** polling or **`_process`** (see [ACTIONS.md](ACTIONS.md)).
+- **`LogView`** ([log_view.gd](../game/presentation/log_view.gd)) is a **`Label`** child of **`Main`**. **Phase 4.4a:** **[main.tscn](../game/main.tscn)** places it in the **lower HUD band** (approx. **y 1220–1475**, **w ~1160**, **left 20** on the default **2400×1500** viewport) so it **does not** overlap the **hex map** (which sits around **`MAP_LAYER_ORIGIN`** **y ~428** with **~±320** vertical span for the tiny test map) or **`TurnLabel`** (**~y 20–100**). It shows the **last `MAX_ENTRIES` (10)** accepted log lines via **`compute_text(game_state)`**, **oldest at top, newest at bottom**; it reads only **`game_state.log.size()`** and **`game_state.log.get_entry(i)`** and **never mutates** domain state. **`main.gd`** assigns **`game_state`** and calls **`refresh()`** once at startup. **`SelectionController`**, **`EndTurnController`**, and **`AITurnController`** call **`log_view.refresh()`** after each **accepted** action ( **`log_view`** is optional — **null-safe**). **`format_entry`** covers **`move_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, engine **`production_progress`**, and engine **`unit_produced`**. After **accepted** **`EndTurn`**, refreshed views reflect **delivered** units (**Phase 2.4c**). This is a **debug** surface only: **no** replay, **no** undo/redo, **no** polling or **`_process`** (see [ACTIONS.md](ACTIONS.md)).
 
 ## Phase 2.1 — City placeholder markers
 

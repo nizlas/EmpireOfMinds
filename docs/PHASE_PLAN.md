@@ -884,6 +884,26 @@ Validation:
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
 - Expected **48** scripts, all **PASS**, exit **0**
 
+### Phase 4.1e — Terrain detail overlay prototype (implemented)
+
+Goal:
+
+- **Subtle** **presentation-only** terrain **life** for **PLAINS** / **WATER** — **deterministic** procedural overlay; **no** new **HexMap** types or **cover** system.
+
+Shipped:
+
+- **`game/presentation/map_view.gd`** — **`_terrain_detail_hash`**, **`_draw_plains_detail`** / **`_draw_water_detail`** / **`_draw_terrain_detail_overlay`** after base hex fill.
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/VISUAL_DIRECTION.md`** (future **2.5D** note only)
+
+Must not:
+
+- **No** domain / **movement** / map-gen / **viewport** / **MAP_LAYER_ORIGIN** / markers / **.import** changes; **no** **terrain-aware** unit **occlusion**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
 ### Phase 4.2 — Unit visual style (implemented)
 
 Goal:
@@ -1107,10 +1127,77 @@ Validation:
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
 - Expected **48** scripts, all **PASS**, exit **0**
 
+### Phase 4.4a — Debug log clear of map hexes (implemented)
+
+Goal:
+
+- Reposition **`LogView`** so the **action log** **does not** paint over **map** **hexes** — **presentation-only**; **no** log semantics or **Gameplay** changes.
+
+Shipped:
+
+- **`game/main.tscn`** — **`LogView`** **`Label`** rect moved to **lower** viewport band (**y ~1220–1475**, **2400×1500** default).
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **No** **`MAP_LAYER_ORIGIN`** / **`HexLayout.SIZE`** / viewport / domain / **`log_view.gd`** **compute** changes.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
 ### Phase 4.4 — UI / HUD style
 
 Goal:
 **HUD**, panels, **typography** — consistent with **Phase 6** copy where applicable. *(Direction: [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) — HUD / feedback direction for 4.4.)*
+
+### Phase 4.5a — Faux perspective map tilt + unit foot anchoring (implemented)
+
+Goal:
+
+- **Presentation-only** faux perspective: shared **Y** scale on map layers so the board reads slightly “tilted” without changing **domain** or **`HexLayout`**.
+- **Unit** marker art sits on the **hex** more naturally by anchoring **textured** icons by **foot/base**; **cities** stay **center-centered**.
+
+Shipped:
+
+- **`game/main.gd`** — **`MAP_LAYER_TILT_Y`** **`0.85`** next to **`MAP_LAYER_ORIGIN`**; **`position`** **`MAP_LAYER_ORIGIN`** and **`scale`** **`Vector2(1.0, MAP_LAYER_TILT_Y)`** on **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, **`SelectionController`**. **`Main`** unscaled.
+- **`game/main.tscn`** — same **`scale`** on those five nodes (editor **preview** matches runtime).
+- **`game/presentation/units_view.gd`** — **`unit_icon_foot_offset_ratio`** **`0.20`**; textured path uses **`foot_y`** = **`world.y + HexLayout.SIZE * ratio`** and **`Rect2(world.x - icon_side*0.5, foot_y - icon_side, icon_side, icon_side)`**. Fallback disk path unchanged.
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **No** **`HexLayout.SIZE`** / **`MAP_LAYER_ORIGIN`** / viewport / terrain / marker import / domain changes; **no** `Camera2D`, zoom, pan, occlusion, new assets; **no** per-layer **offset** hacks — **`SelectionController`** uses the **same** transform as map layers and **`to_local()`** for hit-tests.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
+### Phase 4.5b — Map-plane projection (documentation-only design checkpoint)
+
+**Status:** **Design checkpoint only** — **no** implementation in this phase; **no** code, scenes, assets, imports, or gameplay/domain/content changes.
+
+**Documented intent:**
+
+- **Preserve** **`4.5a`** **unit foot anchoring** in **layout / world** space; treat **`MAP_LAYER_TILT_Y`** as **temporary** **vertical flattening**, **not** true perspective.
+- **Future implementation** should introduce a **shared** **map-plane projection** with **forward** mapping (layout → presentation draw space) and **inverse** mapping (**`SelectionController`** / **hit-testing**), **one** canonical math path for **terrain**, **selection**, **units**, **cities**, and **picking**.
+- **Terrain** and **selection** geometry **projected consistently**; **unit** icons **preferably** **upright billboards** **without** map-plane **squash**; **cities** **may** stay **center**-anchored or get a **later** rule.
+- **Future stack** (not gated on **4.5b**): **terrain base** → **unit billboard** → **optional** foreground **occluder**; **no** **forest/cover** implementation in **4.5b**.
+
+**Shipped (this checkpoint):**
+
+- **`docs/RENDERING.md`**, **`docs/VISUAL_DIRECTION.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not (checkpoint):
+
+- **No** **`Camera2D`** **zoom/pan**, **real 3D**, **`HexLayout`**, or **domain** changes as part of **4.5b**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0** (**documentation-only**; behaviour unchanged)
 
 ### Phase 4.5 — Camera / perspective / animation pass
 

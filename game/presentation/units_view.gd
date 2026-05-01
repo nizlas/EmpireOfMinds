@@ -18,6 +18,8 @@ var selection
 @export var marker_radius_ratio: float = 0.35
 ## Icon height as a fraction of pointy-top hex height (2 * HexLayout.SIZE) when a type icon is loaded. Phase 4.3f.
 @export var unit_icon_height_ratio: float = 0.70
+## Phase 4.5a — textured icons only: foot/base sits this many `HexLayout.SIZE` below hex center along +Y in layout space.
+@export var unit_icon_foot_offset_ratio: float = 0.20
 var _tex_settler: Texture2D
 var _tex_warrior: Texture2D
 
@@ -98,7 +100,8 @@ func _draw() -> void:
 		var tid: String = str(item.get("type_id", ""))
 		var utex = _texture_for_type_id(tid)
 		if utex != null:
-			var rect = Rect2(world.x - icon_side * 0.5, world.y - icon_side * 0.5, icon_side, icon_side)
+			var foot_y = world.y + HexLayoutScript.SIZE * unit_icon_foot_offset_ratio
+			var rect = Rect2(world.x - icon_side * 0.5, foot_y - icon_side, icon_side, icon_side)
 			draw_texture_rect(utex, rect, false, Color(1.0, 1.0, 1.0, 1.0))
 		else:
 			draw_circle(world, r, col)

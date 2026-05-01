@@ -1,5 +1,22 @@
 # Empire of Minds — Decision Log
 
+## 2026-05-01 — Map-plane projection design checkpoint (Phase 4.5b; docs only)
+
+Decision:
+
+- **Documentation-only:** Future **faux perspective** should use a **shared** **presentation-space** **map-plane projection** — **forward** (**layout / world** → **draw**) and **inverse** (**picking** / **`SelectionController`**) — **one** canonical path for **terrain**, **selection** geometry, **units**, **cities**, and **hit-tests**.
+- **`4.5a`** **unit** **`unit_icon_foot_offset_ratio`** / **foot** anchoring in **`hex_to_world`** space is **approved** and **preserved**; **`MAP_LAYER_TILT_Y`** is **explicitly** **temporary** **flattening**, **not** true **receding-plane** perspective.
+- **Units:** **Foot** in **layout** space, then **project**; **prefer** **upright** **billboard** draws **without** inheriting map-plane **squash**. **Cities:** **center** markers **or** **later** placement rule — **no** change **required** now. **Layering:** **terrain back** → **unit** → **optional** foreground **occluder** remains **future**; **no** **forest/cover** in **4.5b**.
+- **Checkpoint excludes:** **Camera2D** **zoom/pan**, **real 3D**, **gameplay/domain/content/** **`HexLayout`** changes.
+
+Rationale:
+
+- **Live review:** uniform **Y-scale** does **not** read as **perspective**; steering **now** avoids **divergent** per-view hacks and keeps **readability** / **click alignment** as the **priority**.
+
+Caveat:
+
+- **Implementation** phase must **reconcile** **billboard** icons with **`main.tscn`** **layer** structure and **tests** — **TBD**; **rollback** remains **revert** to **`4.5a`** **Node2D** scale.
+
 ## 2026-04-29 — Phase 3.0: Content model envelope decided
 
 Decision:
@@ -830,3 +847,46 @@ Rationale:
 Caveat:
 
 - Category-specific **import** details still **evolve** per asset type; policy allows **ARP**-documented **exceptions**.
+
+## 2026-05-01 — LogView lower band (Phase 4.4a)
+
+Decision:
+
+- **`main.tscn`** **`LogView`** **`Label`**: **y** **1220–1475** (default **2400×1500**) — clears **hex** **overlap** from prior **~480–720** band; **`MAP_LAYER_ORIGIN`**, **`log_view.gd`**, and **ActionLog** behaviour unchanged.
+
+Rationale:
+
+- **Debug** log remains **readable** in a **lower HUD** strip without **obscuring** **map** **content**.
+
+Caveat:
+
+- **Larger** maps / future **camera** may need another pass (**Phase 4.4+**).
+
+## 2026-05-01 — Terrain procedural detail overlay (Phase 4.1e)
+
+Decision:
+
+- **`MapView`**: after **base** **textured** or **flat** hex fill, **deterministic** low-alpha **procedural** marks — **PLAINS:** **specks** + short **strokes**; **WATER:** light **ripple** **lines**; **`_terrain_detail_hash(q, r, salt)`** only. **No** new **terrain** types; **no** **2.5D** **occlusion** stack.
+
+Rationale:
+
+- **Visual** **life** without **domain** or **asset** churn; preserves **4.1d** **world** **UVs** and **existing** **PNGs**.
+
+Caveat:
+
+- Marks are **not** **clipped** to the **hex** **polygon** (kept **small** + **inward**); **future** **cover** **terrain** stays **documented** in **[VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)** only.
+
+## 2026-05-01 — Map layer tilt Y + unit icon foot offset (Phase 4.5a)
+
+Decision:
+
+- **`MAP_LAYER_TILT_Y`** **`0.85`** — shared **`Vector2(1.0, tilt_y)`** on **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, **`SelectionController`** (**`main.gd`** + **`main.tscn`** mirror). **`Main`** has **no** layer scale.
+- **`unit_icon_foot_offset_ratio`** **`0.20`** — **textured** unit icons only: **foot** **`world.y + HexLayout.SIZE * ratio`**, rect top at **`foot_y - icon_side`**; **cities** unchanged (**center**); **fallback** disk unchanged.
+
+Rationale:
+
+- Cheap **faux** **perspective** without **Camera2D** or **domain** changes; **`to_local`** stays consistent because **`SelectionController`** shares the **same** transform as drawn layers.
+
+Caveat:
+
+- **Hex** **center** vs **visual** **foot** for **icons** can diverge from **disk** **hit** **radius** (**unchanged**); future **Phase** **4.5+** may refine **picking** if needed.

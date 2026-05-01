@@ -24,14 +24,17 @@ script = ExtResource("6_turnlabel")
 
 [node name="MapView" type="Node2D" parent="."]
 position = Vector2(400, 428)
+scale = Vector2(1, 0.85)
 script = ExtResource("2_mapview")
 
 [node name="CitiesView" type="Node2D" parent="."]
 position = Vector2(400, 428)
+scale = Vector2(1, 0.85)
 script = ExtResource("10_citiesview")
 
 [node name="SelectionView" type="Node2D" parent="."]
 position = Vector2(400, 428)
+scale = Vector2(1, 0.85)
 script = ExtResource("3_selectionview")
 
 [node name="UnitsView" type="Node2D" parent="."]
@@ -40,6 +43,7 @@ script = ExtResource("4_unitsview")
 
 [node name="SelectionController" type="Node2D" parent="."]
 position = Vector2(400, 428)
+scale = Vector2(1, 0.85)
 script = ExtResource("5_selectioncontroller")
 
 [node name="EndTurnController" type="Node2D" parent="."]
@@ -52,8 +56,8 @@ script = ExtResource("8_aiturncontroller")
 
 [node name="LogView" type="Label" parent="."]
 offset_left = 20.0
-offset_top = 480.0
-offset_right = 800.0
-offset_bottom = 720.0
+offset_top = 1220.0
+offset_right = 1180.0
+offset_bottom = 1475.0
 text = ""
 script = ExtResource("9_logview")
