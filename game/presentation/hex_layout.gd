@@ -3,8 +3,8 @@
 class_name HexLayout
 extends RefCounted
 
-## Circumradius in world units; matches the chosen tile size in Phase 1.3.
-const SIZE: float = 32.0
+## Circumradius in world units; presentation-only (Phase 4.2a: 2×; Phase 4.3c: +2× for live readability — 4× pre-4.2a baseline of 32).
+const SIZE: float = 128.0
 
 func hex_to_world(q: int, r: int) -> Vector2:
 	var x: float = SIZE * sqrt(3.0) * (float(q) + float(r) / 2.0)

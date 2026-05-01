@@ -141,7 +141,8 @@ This stays consistent with the rest of this document and **[FACTION_IDENTITY.md]
 | **4.0** | **This document** — direction checkpoint (**docs-only**). |
 | **4.0a** | **Asset request workflow** — **Asset Request Pack** process (**docs-only**). |
 | **4.1** | Terrain readability — prototype palette in **`MapView`** (**implemented**); optional subtle texture still future. |
-| **4.2** | Unit readability — markers / icons / ownership. |
+| **4.2** | Unit readability — owner rim, **type_id** glyph, selection halo (**implemented**); sprites still out of scope. |
+| **4.2a** | Map **display scale** — **`HexLayout.SIZE`** **2×** for readability (**implemented**); **no** camera zoom. |
 | **4.3** | City visual polish — badges / pins. |
 | **4.4** | HUD / feedback / controls clarity. |
 | **4.5** | Camera / presentation feel — light juice, no rule changes. |

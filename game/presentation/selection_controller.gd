@@ -46,6 +46,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				selection.clear()
 				if selection_view != null:
 					selection_view.queue_redraw()
+				if units_view != null:
+					units_view.queue_redraw()
 				return
 			var fc_action = FoundCityScript.make(u_fc.owner_id, u_fc.id, u_fc.position.q, u_fc.position.r)
 			var fc_result = game_state.try_apply(fc_action)
@@ -181,6 +183,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				i = i + 1
 			if found:
 				selection_view.queue_redraw()
+				if units_view != null:
+					units_view.queue_redraw()
 				return
 			selection.clear()
 			selection_view.queue_redraw()
+			if units_view != null:
+				units_view.queue_redraw()

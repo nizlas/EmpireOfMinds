@@ -8,22 +8,28 @@
 ## Phase 1.3 approach
 
 - A single **[MapView](../game/presentation/map_view.gd)** `Node2D` overrides **`_draw()`** to fill the screen with the map.
-- **`MapView.compute_draw_items(map, layout)`** is a **pure** static helper: it takes a `HexMap` and a [HexLayout](../game/presentation/hex_layout.gd), iterates **`map.coords()`** (the domain list of `HexCoord`), and returns draw lists with world position, hex corners, and colors. It does **not** use a hand-authored coordinate list and does not read `HexMap` internal storage.
-- **HexLayout** implements **pointy-top** axial \((q, r) \to\) `Vector2` and six vertex positions for a hex of circumradius 32. See [HEX_COORDINATES.md](HEX_COORDINATES.md) for domain axial meaning; layout orientation is a presentation choice.
+- **`MapView.compute_draw_items(map, layout)`** is a **pure** static helper: it takes a `HexMap` and a [HexLayout](../game/presentation/hex_layout.gd), iterates **`map.coords()`** (the domain list of `HexCoord`), and returns draw lists with world position, hex corners, **domain terrain id**, and **flat fallback colors**. It does **not** use a hand-authored coordinate list and does not read `HexMap` internal storage.
+- **HexLayout** implements **pointy-top** axial \((q, r) \to\) `Vector2` and six vertex positions for a hex of circumradius **`HexLayout.SIZE`** world units (**Phase 4.3c** current value **128.0** — **4×** the original **32.0** prototype; **Phase 4.2a** raised **32 → 64**, **4.3c** raised **64 → 128** for live readability). See [HEX_COORDINATES.md](HEX_COORDINATES.md) for domain axial meaning; layout orientation is a presentation choice. **Domain** `HexCoord` / `HexMap` **cell identities** are unchanged — only **presentation** scale.
 
 ## Map-driven coordinates
 
 - Rendered cell positions and counts **derive from** `map.coords()`. The tiny test map from `HexMap.make_tiny_test_map()` is the same domain object used in tests; **no** duplicate fixture list in the view.
 
-## Terrain fill colors
+## Terrain rendering (flat fallback + prototype textures)
 
-- Implemented in **`MapView._terrain_to_color`** ([map_view.gd](../game/presentation/map_view.gd)); **`compute_draw_items`** assigns one **flat fill** per hex via **`draw_colored_polygon`**.
-- **Phase 4.1 (current prototype):** warmer **parchment-style** land vs calmer **slate-teal** water for readability ([VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)); **no** terrain type or **`HexMap`** changes.
-  - `HexMap.Terrain.PLAINS` — `Color(0.74, 0.67, 0.52)`.
-  - `HexMap.Terrain.WATER` — `Color(0.28, 0.46, 0.62)`.
-  - Unknown terrain — `Color(1, 0, 1)` (should not occur for current enums).
-- **Prior to 4.1:** PLAINS `Color(0.50, 0.78, 0.47)`, WATER `Color(0.20, 0.45, 0.80)` (bright green / blue placeholders).
-- **Not** final art or a locked shipping palette.
+- **Terrain type** still comes only from **`HexMap.terrain_at(coord)`** — **no** gameplay dependence on pixels.
+- **`MapView._terrain_to_color`** ([map_view.gd](../game/presentation/map_view.gd)) supplies **fallback** flat fills (also used for unknown terrain and when textures fail to load):
+  - **`HexMap.Terrain.PLAINS`** — `Color(0.74, 0.67, 0.52)` (parchment-style land).
+  - **`HexMap.Terrain.WATER`** — `Color(0.28, 0.46, 0.62)` (slate-teal water).
+  - Unknown — `Color(1, 0, 1)` (should not occur for current enums).
+- **Phase 4.1c (current draw path):** When **`plains_painterly.png`** / **`water_painterly.png`** load successfully, **`MapView._draw()`** fills each hex with **`draw_colored_polygon(corners, Color.WHITE, uvs, texture)`** — **UVs** map the hex vertex **AABB** to **0-1** texture space so the image is **clipped to the hex** without spilling into neighbors. **PLAINS** and **WATER** each use their own cached **`Texture2D`**, loaded once in **`_ready()`** via **`ResourceLoader.load`** ([assets](../game/assets/prototype/terrain/) — see **`PROVENANCE.md`**).
+- **Fallback:** If either **`ResourceLoader.load`** fails or the resource is not a **`Texture2D`**, **`MapView`** logs a warning and uses **`draw_colored_polygon(corners, color)`** only (Phase **4.1** behavior).
+- **Historical:** Pre-4.1 PLAINS `Color(0.50, 0.78, 0.47)`, WATER `Color(0.20, 0.45, 0.80)`. **Not** final art.
+
+## Phase 4.1c — Prototype painterly terrain textures (implemented)
+
+- **Scope:** **Presentation-only** PNGs for **PLAINS** and **WATER** only — **no** new **`HexMap.Terrain`** values, **no** domain or movement changes.
+- **Provenance:** **`game/assets/prototype/terrain/PROVENANCE.md`** — externally generated (**ChatGPT** / image generation); **prototype / replaceable**.
 
 ## Optional labels (Phase 1.3)
 
@@ -41,8 +47,44 @@
 ## Phase 1.4b — Unit markers
 
 - **[UnitsView](../game/presentation/units_view.gd)** is a **`Node2D`** **sibling** of **MapView** under **`Main`** in [main.tscn](../game/main.tscn). **Draw order:** **MapView** → **SelectionView** (Phase 1.5) → **UnitsView**, so terrain is bottom, selection overlays mid, markers top. **[main.gd](../game/main.gd)** creates **`GameState`** over the initial **`Scenario`**, **`HexLayout`**, and **`SelectionState`**, assigns **`scenario.map`** and **`layout`** to **MapView**, `scenario` / `layout` / `selection` to **SelectionView** and **UnitsView**, and wires **SelectionController** with **`game_state`**, **`units_view`**, **`selection_view`**, **`layout`**, **`selection`** — so views can follow **`game_state.scenario`** after Phase 1.6 moves (see [ACTIONS.md](ACTIONS.md)).
-- **MapView** still derives which hexes to draw and terrain colors from **`HexMap`** (via `coords()` / `terrain_at()`). **UnitsView** derives marker positions, colors, and count **only** from **`Scenario.units()`** through the static **`UnitsView.compute_marker_items(scenario, layout)`** — not from a hand-authored coordinate list. Markers are **simple filled circles** with a thin **`draw_arc` outline**; **owner_id** maps to a **placeholder** warm yellow / red / magenta via **`_owner_to_color`**. Markers are a **derived view**; **`Unit` / `Scenario` remain the source of truth** for which units exist and where.
-- **Not in Phase 1.4b:** movement, **animation**, **sprites**, the warrior asset, **labels**, health bars, an asset pipeline, a final owner palette, or any **gameplay rules** (input and **presentation-only** selection arrive in Phase 1.5; see [SELECTION.md](SELECTION.md)).
+- **MapView** still derives which hexes to draw and terrain colors from **`HexMap`** (via `coords()` / `terrain_at()`). **UnitsView** derives marker positions, colors, and count **only** from **`Scenario.units()`** through the static **`UnitsView.compute_marker_items(scenario, layout)`** — not from a hand-authored coordinate list. **`compute_marker_items`** includes **`type_id`** (read from domain **`Unit`**, presentation-only). **Phase 4.3f** (current): for **`settler`** / **`warrior`**, **`MarkerTextureUtil.load_marker_icon`** textures render as **`draw_texture_rect`** only — **no** unit **selection halo**, **no** owner under-circle, **no** rim **rings** around icons. **Selected unit** reads from **`SelectionView`** hex highlight / legal-destination tint (**Phase 1.5**). **Fallback** (unknown **`type_id`**, missing file, failed load): **owner-coloured** filled disk + optional **`type_id`** first-letter **glyph** — **no** rim arc. **`type_id`** remains authoritative. **`main.gd`** still assigns **`units_view.selection`** for API compat; **`SelectionController`** may **`queue_redraw()`** **`UnitsView`** on pick/clear. See **[PHASE_4_3A_MARKER_SET.md](ASSET_REQUEST_PACKS/PHASE_4_3A_MARKER_SET.md)** and **`game/assets/prototype/map_markers/PROVENANCE.md`**.
+- **Not in Phase 1.4b (historical note):** movement, **animation**, shipped **sprite** sheets, **labels**, health bars — **gameplay rules** are [SELECTION.md](SELECTION.md) / **Phase 1.5**; **map marker icons** are **static** presentation only (**Phase 4.3b**).
+
+## Phase 4.2 — Unit marker readability (prototype; superseded in part by 4.3f)
+
+- **Historical:** strong **owner** fills, **rim**, **glyph**, **selection halo** — **4.3f** removes **halo / icon rims / under-circle** for textured **`settler`**/**`warrior`**; **selection** is **hex overlay** only. **Fallback** disk retains **owner** fill + **glyph** without rim.
+
+## Phase 4.2a — Map display scale (prototype)
+
+- **`HexLayout.SIZE`** was raised from **32.0** to **64.0** (**Phase 4.2a**), then to **128.0** (**Phase 4.3c** repair — see below). **No** `Camera2D` zoom, **no** pan, **no** domain coordinate changes.
+- **Terrain** (`MapView`), **cities** (`CitiesView`), **selection overlay** (`SelectionView`), **unit markers** (`UnitsView`), and **mouse hit-testing** (`SelectionController` radii derived from `HexLayoutScript.SIZE`) all use the same **`HexLayout`** instance from **`main.gd`**, so **alignment is preserved**.
+
+## Phase 4.3b — Prototype map marker icons (wired)
+
+- **Presentation-only** textures under **`game/assets/prototype/map_markers/`** (see **[PHASE_4_3A_MARKER_SET.md](ASSET_REQUEST_PACKS/PHASE_4_3A_MARKER_SET.md)** and **`PROVENANCE.md`** in that folder). **Static map marker icons** only — **not** unit **sprite** sheets or animation.
+- **Load path:** **`MarkerTextureUtil.load_marker_icon`** ([marker_texture_util.gd](../game/presentation/marker_texture_util.gd)) — imported **RGB** PNGs (no alpha channel) are converted to **RGBA** and pixels matching the **top-left** background colour (within epsilon) are made **transparent** so icons blend over terrain (replace with **true RGBA** assets later for best results).
+- **Scale:** icon **height** is a **ratio** of pointy-top hex height (**`2 × HexLayout.SIZE`**): **city** default **`city_icon_height_ratio` ≈ 0.90**; **unit** default **`unit_icon_height_ratio` ≈ 0.70** (**Phase 4.3f**) — tune in editor or code; sources are **512×512**, drawn smaller in world space.
+- **Hit-testing:** **`SelectionController`** still uses **`HexLayout`** and **`marker_hit_radius_ratio`**; scales with **`SIZE`**.
+
+## Phase 4.3c — Map scale + marker alpha repair (implemented)
+
+- **`HexLayout.SIZE`**: **64.0 → 128.0** — global hex/spacing/hit-test scale (**not** icon-ratio-only tuning).
+- **`MapView.hex_tile_size`** export default **128.0** (editor hint; draw path uses **`layout`**).
+
+## Phase 4.3d — Viewport fit + marker size polish (implemented)
+
+- **`project.godot`** **`[display]`**: prior default **`1600×1000`** before **4.3f** (see below).
+- **Marker ratios** (historical): **`city_icon_height_ratio`** **0.80**; **`unit_icon_height_ratio`** **0.60**.
+
+## Phase 4.3f — Play-area size + marker detail polish (implemented)
+
+- **`project.godot`**: **`viewport`** **2400×1500** (**1.5×** the **1600×1000** **4.3d** baseline) — more default **play area**, **not** `Camera2D` / zoom.
+- **`unit_icon_height_ratio`** default **0.70**; **`city_icon_height_ratio`** default **0.90**.
+- **Clean markers:** **UnitsView** / **CitiesView** textured paths = **`draw_texture_rect`** only (**no** circular **frames**, **no** unit **selection halo**); **SelectionView** hex highlight remains **selected-state** read.
+
+## Phase 4.3g — Map layer origin / top padding (implemented)
+
+- **[main.gd](../game/main.gd)** **`MAP_LAYER_ORIGIN`** (`Vector2(400, 428)`) — **`+128`** screen **Y** vs prior **`(400, 300)`** so the top hex row clears the viewport top; applied in **`_ready()`** to **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, and **`SelectionController`** so **draw** and **`to_local(mouse)`** hit-tests share one **origin**. **Not** `Camera2D` / zoom / domain coords; **`HexLayout.SIZE`**, **viewport** **2400×1500**, and marker ratios unchanged.
 
 ## Phase 1.5 — Selection overlay
 
@@ -68,7 +110,7 @@
 
 ## Phase 2.1 — City placeholder markers
 
-- **`CitiesView`** ([cities_view.gd](../game/presentation/cities_view.gd)) is a **`Node2D`** sibling **after** **`MapView`** and **before** **`SelectionView`** in [main.tscn](../game/main.tscn). **Draw order:** **terrain → cities → selection overlay → unit markers** ( **`UnitsView`** remains topmost among map-layer siblings). Markers are **filled diamonds** derived from **`Scenario.cities()`** via **`compute_marker_items`**, **`owner_id`** → cool placeholder palette; **not** final art.
+- **`CitiesView`** ([cities_view.gd](../game/presentation/cities_view.gd)) is a **`Node2D`** sibling **after** **`MapView`** and **before** **`SelectionView`** in [main.tscn](../game/main.tscn). **Draw order:** **terrain → cities → selection overlay → unit markers** ( **`UnitsView`** remains topmost among map-layer siblings). Cities are derived from **`Scenario.cities()`** via **`compute_marker_items`**. **Phase 4.3f:** when **`city_marker.png`** loads, **centered `draw_texture_rect` only** (no owner/dark rings). **Fallback:** **filled diamond** + outline. **Not** final art; see **[PHASE_4_3A_MARKER_SET.md](ASSET_REQUEST_PACKS/PHASE_4_3A_MARKER_SET.md)**.
 - The canonical **`make_tiny_test_scenario()`** has **zero** cities; **`CitiesView`** is wired so **Phase 2.2+** can show markers without scene churn. Domain and tests use explicit **`City`** lists where needed (see [CITIES.md](CITIES.md)).
 - **No** **`FoundCity`**, **no** **`try_apply`** changes, **no** controller re-point of **`CitiesView`** in this subphase.
 

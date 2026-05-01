@@ -639,3 +639,138 @@ Rationale:
 Caveat:
 
 - Values are **prototype** documentation in **`RENDERING.md`**, not a final shipping palette; **Phase 6** and later art passes may replace them.
+
+## 2026-05-01 — Unit marker readability (Phase 4.2)
+
+Decision:
+
+- **`UnitsView`** markers: stronger **owner** fills, **dark rim**, **`type_id`** first-letter **glyph** (`ThemeDB.fallback_font`), **white halo** when **`selection`** matches — **programmatic** only, **no** sprites or imports.
+- **`main.gd`** wires **`units_view.selection`**; **`SelectionController`** calls **`units_view.queue_redraw()`** on selection change so the halo stays in sync (**presentation** only).
+
+Rationale:
+
+- Improves **owner / type / selected** read on **Phase 4.1** terrain without changing **Unit** or **`UnitDefinitions`**.
+
+Caveat:
+
+- Colours and **glyph** convention are **prototype**; multiple types may share a letter until **`type_id`** vocabulary grows.
+
+## 2026-05-01 — Map display scale (Phase 4.2a)
+
+Decision:
+
+- Double **presentation** hex size by setting **`HexLayout.SIZE`** from **32.0** to **64.0** (circumradius). **`MapView.hex_tile_size`** default updated to **64.0** for consistency (**export** only; drawing uses **`layout`**).
+- **No** `Camera2D` zoom, **no** input pan/scroll, **no** domain **`HexCoord`** / **`HexMap`** or movement rule changes — all views and **`SelectionController`** hit radii derive from the same **`HexLayout`**.
+
+Rationale:
+
+- In-app map read too small; a single shared layout constant scales **terrain**, **cities**, **selection**, **units**, and **click mapping** together.
+
+Caveat:
+
+- **Viewport fit** / cropping is unchanged; **Phase 4.5** or a narrow layout follow-up may address camera or fit without conflating with this **scale** tweak.
+
+## 2026-05-02 — Phase 4.3a marker request pack committed to docs
+
+Decision:
+
+- Record the **approved Phase 4.3a** prototype **map marker icon** specification in **[ASSET_REQUEST_PACKS/PHASE_4_3A_MARKER_SET.md](ASSET_REQUEST_PACKS/PHASE_4_3A_MARKER_SET.md)** (three **512×512** transparent PNGs; paths under `game/assets/prototype/map_markers/`).
+- Reflect **generation feedback:** overall markers **lighter** than dark sepia; **muted natural** accent palette (warm stone, ochre, muted clay red, olive, desaturated blue-grey, leather brown) — **not** monochrome brown only; **non-glossy**, painterly **parchment-map** family.
+- **Warrior** icon = **first/basic melee**: **club / wooden cudgel / simple wooden shield / leather or fur** hints — **no** metal armour, **no** helmet crest, **no** spear-dominant pose; avoids reading as organized infantry or **Bronze-Armed Warrior**-style content.
+
+Rationale:
+
+- Centralises the request pack in-repo; aligns art brief with **primitive `warrior`** identity and readability learnings from the first draft.
+
+Caveat:
+
+- **Superseded by implementation:** icons are wired in **Phase 4.3b**; see follow-on **DECISION_LOG** entry and **`game/assets/prototype/map_markers/PROVENANCE.md`**.
+
+## 2026-05-02 — Prototype map marker icons wired (Phase 4.3b)
+
+Decision:
+
+- **`CitiesView`** and **`UnitsView`** **`load()`** prototype **PNG map marker icons** from **`game/assets/prototype/map_markers/`** (**`city_marker.png`**, **`unit_settler_marker.png`**, **`unit_warrior_marker.png`**); **neutral texture** **`modulate`**, **programmatic** **owner** accents / **rim** / **selection halo**; **diamond** / **Phase 4.2** circle+glyph **fallback** when **`load()`** fails or **`type_id`** unknown.
+- **`PROVENANCE.md`** in that folder documents external (**ChatGPT** / image generation) origin and **prototype-only** status.
+
+Rationale:
+
+- Implements **[PHASE_4_3A_MARKER_SET.md](ASSET_REQUEST_PACKS/PHASE_4_3A_MARKER_SET.md)** without changing **domain** or **hit-testing**.
+
+Caveat:
+
+- **512×512** sources scaled in-world via **`city_icon_height_ratio`** / **`unit_icon_height_ratio`**; tune per viewport — **not** final art.
+
+## 2026-05-02 — Map scale + marker alpha repair (Phase 4.3c)
+
+Decision:
+
+- Raise **`HexLayout.SIZE`** **64.0 → 128.0** and **`MapView.hex_tile_size`** default **128.0** so terrain, cities, units, selection, and **hit radii** share one **global** presentation scale (icon **height ratios** unchanged vs hex).
+- **Marker PNGs** inspected: **PNG** **color type 2** (**RGB**, no **alpha**) — **white** squares were **asset-format** (opaque background), not **`draw_texture_rect`**. **`MarkerTextureUtil.load_marker_icon`** converts to **RGBA** and keys pixels near **top-left** background to **transparent** (epsilon **~0.09**); **true RGBA** re-exports remain the **best** fix.
+
+Rationale:
+
+- Live map still read small at **SIZE 64** on test displays; **RGB** sources explained **alpha** failure.
+
+Caveat:
+
+- Background keying can punch holes if **icon** pixels match **corner** colour; prefer **RGBA** **PNG**s when refreshing art.
+
+## 2026-05-02 — Viewport fit + marker ratios (Phase 4.3d)
+
+Decision:
+
+- **`project.godot`** default **`viewport` 1600×1000** so **`HexLayout.SIZE` 128** prototype scenarios show with less edge clipping — **window** sizing only, **not** zoom/pan/`Camera2D`.
+- **`unit_icon_height_ratio`** default **0.60**, **`city_icon_height_ratio`** default **0.80** — marker detail/readability; **`SIZE`** stays **128.0**.
+
+Rationale:
+
+- Separates **viewport real estate** from hex world scale; icon ratios track **hex height** without changing layout math or hit-test **semantics**.
+
+Caveat:
+
+- **F11** fullscreen / multi-monitor still user-dependent; **Phase 4.5** may add camera/fit later.
+
+## 2026-05-02 — Play-area 1.5× + clean markers (Phase 4.3f)
+
+Decision:
+
+- **`project.godot`** default viewport **2400×1500** (**1.5×** **1600×1000**).
+- **`unit_icon_height_ratio`** **0.70**, **`city_icon_height_ratio`** **0.90**.
+- **UnitsView** / **CitiesView:** remove **circular** icon **frames**, unit **selection halo**, owner **under-circle**; **SelectionView** hex overlay carries **selection** read for units.
+
+Rationale:
+
+- More **play area** without **zoom**; larger icons; avoids **redundant** rings now that **hex** highlight is sufficient.
+
+Caveat:
+
+- **Fallback** unit marker is a **filled disk** (not a “frame”); **true RGBA** PNGs still preferred per **PROVENANCE**.
+
+## 2026-05-02 — Map layer origin / top padding (Phase 4.3g)
+
+Decision:
+
+- **`main.gd`** **`MAP_LAYER_ORIGIN`** = **`Vector2(400, 428)`** (**+128** **Y** vs **`(400, 300)`**); **`_ready()`** sets **`position`** on **MapView**, **CitiesView**, **SelectionView**, **UnitsView**, **SelectionController** — shared **Node2D** origin, **not** **`HexLayout`** math change.
+
+Rationale:
+
+- Top hex row clipped at viewport top; one **vertical** **screen** offset keeps layers and **`SelectionController.to_local`** aligned.
+
+Caveat:
+
+- Future **map-root** node could consolidate five assignments; **Phase 4.5** camera may revisit framing.
+
+## 2026-05-01 — Painterly terrain textures for PLAINS + WATER (Phase 4.1c)
+
+Decision:
+
+- **`MapView`** loads **`game/assets/prototype/terrain/plains_painterly.png`** and **`water_painterly.png`** in **`_ready()`**; **`_draw()`** maps each hex with **`draw_colored_polygon(..., uvs, texture)`** when the **`Texture2D`** resolves; otherwise **`_terrain_to_color`** flat fill. **`compute_draw_items`** still derives rows from **`map.coords()`** / **`terrain_at`** and includes **`terrain`** on each item for draw dispatch.
+
+Rationale:
+
+- **Prototype** land/water read without changing **`HexMap.Terrain`** or rules; **UV** mapping from hex **AABB** keeps fills **cell-local**.
+
+Caveat:
+
+- **Not** shipping art; **`PROVENANCE.md`** documents external generation; per-cell **AABB** UVs are a **minimal** fit — a future phase could use **world-space** tiling or **TileSet** if art direction requires it.

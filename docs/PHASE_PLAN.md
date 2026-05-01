@@ -843,15 +843,185 @@ Validation:
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
 - Expected **48** scripts, all **PASS**, exit **0**
 
-### Phase 4.2 — Unit visual style
+### Phase 4.1c — Prototype painterly terrain textures (implemented)
 
 Goal:
-**Sprites** or agreed **markers**, **owner** clarity, hooks for **selection** / **motion**. *(Direction: [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) — Unit direction for 4.2.)*
+
+- **Import** and wire **prototype** painterly **PNG** terrain fills for **PLAINS** and **WATER** only — presentation-only; **no** domain terrain model expansion.
+
+Shipped:
+
+- **`game/assets/prototype/terrain/plains_painterly.png`**, **`water_painterly.png`** — already in repo; **`PROVENANCE.md`** in that folder.
+- **`game/presentation/map_view.gd`** — load/cache textures in **`_ready()`**; **`_draw()`** uses **`draw_colored_polygon(..., uvs, tex)`** per hex when loaded; else **4.1** flat **`_terrain_to_color`** fill.
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **No** new terrain types, **no** **`HexMap`** / **`MovementRules`** / **`TerrainRuleDefinitions`** changes, **no** hit-test or **`HexLayout`** changes, **no** unit/city ratio or marker drawing changes.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
+### Phase 4.2 — Unit visual style (implemented)
+
+Goal:
+
+- **Markers** (not sprites), **owner** clarity, legible **type** hint, **selected** unit emphasis — per **[VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)** — **Unit direction for 4.2**.
+
+Shipped:
+
+- **`game/presentation/units_view.gd`** — **`type_id`** on **`compute_marker_items`**; stronger **owner** fills; **dark rim** ring; **`ThemeDB.fallback_font`** **glyph** (first letter of **`type_id`**); optional **white selection halo** when **`selection`** matches **`unit_id`**.
+- **`game/main.gd`** — assigns **`units_view.selection`**.
+- **`game/presentation/selection_controller.gd`** — **`units_view.queue_redraw()`** when selection changes by click / clear / empty founder (presentation sync only).
+
+Must not:
+
+- **No** sprites, **no** imported art, **no** **`Unit`** / **`UnitDefinitions`** / gameplay changes.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
+### Phase 4.2a — Map display scale readability (implemented)
+
+Goal:
+
+- **2×** larger **on-screen** hex grid for readability by scaling **presentation** `HexLayout` only — **no** camera zoom, **no** pan, **no** domain / movement / map-gen changes.
+
+Shipped:
+
+- **`game/presentation/hex_layout.gd`** — **`SIZE`** **32.0 → 64.0** (circumradius); **`hex_to_world`** / **`hex_corners`** scale together.
+- **`game/presentation/map_view.gd`** — **`hex_tile_size`** default **64.0** (editor hint only; draw path uses **`layout`**).
+- **`docs/RENDERING.md`** — documents **64**-unit circumradius and **4.2a** scope.
+
+Must not:
+
+- **No** zoom controls, **`Camera2D`** UX, **`project.godot`** changes, **no** gameplay or **`HexMap`** coordinate semantics changes.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
 
 ### Phase 4.3 — City visual style
 
 Goal:
 Cities **read** at a glance; scale with zoom. *(Direction: [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) — City direction for 4.3.)*
+
+**Phase 4.3a (documentation):** Approved **prototype map marker icon** request pack (city + settler + warrior) — **[ASSET_REQUEST_PACKS/PHASE_4_3A_MARKER_SET.md](ASSET_REQUEST_PACKS/PHASE_4_3A_MARKER_SET.md)**.
+
+### Phase 4.3b — Prototype map marker icons wired (implemented)
+
+Goal:
+
+- **Import** (external PNGs) and **wire** **static map marker icons** for **city**, **`settler`**, and **`warrior`** — presentation only.
+
+Shipped:
+
+- **`game/assets/prototype/map_markers/`** — **`city_marker.png`**, **`unit_settler_marker.png`**, **`unit_warrior_marker.png`** + **`PROVENANCE.md`**
+- **`game/presentation/cities_view.gd`** — **`load()`** city texture; **draw** owner ring → **texture** → outline; **diamond fallback** if **load** fails
+- **`game/presentation/units_view.gd`** — **`type_id`**-mapped textures with **Phase 4.2** **fallback**; layered **owner under-circle**, **selection halo**, **rim**
+- **`docs/RENDERING.md`** — **Phase 4.3b** + **Phase 1.4b** / **2.1** updates
+
+Must not:
+
+- **No** domain / content / **`UnitDefinitions`** / hit-test radius changes; **no** animated **sprites** / **sprite** sheets.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
+### Phase 4.3c — Map scale + marker alpha repair (implemented)
+
+Goal:
+
+- **Global** on-screen hex grid larger (shared **`HexLayout.SIZE`**), not icon-ratio-only tuning; **RGB** marker PNGs blend without opaque **white** squares.
+
+Shipped:
+
+- **`game/presentation/hex_layout.gd`** — **`SIZE`** **64.0 → 128.0** (presentation circumradius; **4×** original **32.0** baseline).
+- **`game/presentation/map_view.gd`** — **`hex_tile_size`** default **128.0**.
+- **`game/presentation/marker_texture_util.gd`** — **`load_marker_icon`**: **RGBA** + top-left **background** colour keyed transparent (epsilon); prefer replacing assets with **true** **PNG** **alpha** later.
+- **`game/presentation/cities_view.gd`** / **`units_view.gd`** — use **`MarkerTextureUtil`** for marker paths.
+- **`docs/RENDERING.md`**, **`docs/DECISION_LOG.md`** — **4.3c** notes.
+
+Must not:
+
+- **No** camera zoom/pan; **no** domain/content changes; **no** independent icon-ratio change as the **primary** scale fix.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
+### Phase 4.3d — Viewport fit + marker size polish (implemented)
+
+Goal:
+
+- Larger **default window** so **`HexLayout.SIZE` 128** maps are not clipped; slightly larger **marker icon** defaults for detail — **no** **`SIZE`** change, **no** camera/zoom.
+
+Shipped:
+
+- **`game/project.godot`** — **`display/window/size/viewport_width` 1600**, **`viewport_height` 1000**
+- **`game/presentation/units_view.gd`** — **`unit_icon_height_ratio`** default **0.60**
+- **`game/presentation/cities_view.gd`** — **`city_icon_height_ratio`** default **0.80**
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **No** **`HexLayout.SIZE`** change; **no** **`Camera2D`**; **no** domain/content/gameplay changes.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
+### Phase 4.3f — Play-area size + marker detail polish (implemented)
+
+Goal:
+
+- **1.5×** default **viewport** vs **4.3d** (**1600×1000 → 2400×1500**); larger **marker** ratios; **clean** icons (**no** rings / **no** unit selection halo); **`HexLayout.SIZE` 128** unchanged.
+
+Shipped:
+
+- **`game/project.godot`** — **`viewport_width` 2400**, **`viewport_height` 1500**
+- **`game/presentation/units_view.gd`** — **`unit_icon_height_ratio`** **0.70**; textured path = **texture only**; fallback disk + glyph **no** rim
+- **`game/presentation/cities_view.gd`** — **`city_icon_height_ratio`** **0.90**; textured path = **texture only**
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **No** **`HexLayout.SIZE`** change; **no** **`Camera2D`**; **no** gameplay/domain changes.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
+### Phase 4.3g — Map origin / top padding (implemented)
+
+Goal:
+
+- Shift **all** map layers + **pointer** mapping **down** by a shared **Y** offset so top hexes are not clipped — **no** **`SIZE`**, **viewport**, marker ratio, or **camera** changes.
+
+Shipped:
+
+- **`game/main.gd`** — **`MAP_LAYER_ORIGIN`** **`(400, 428)`**; **`_ready()`** assigns to **MapView**, **CitiesView**, **SelectionView**, **UnitsView**, **SelectionController**
+- **`game/main.tscn`** — matching default **`position`** on those five nodes
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **No** **`HexLayout.SIZE`** / **viewport** / marker-ratio edits; **no** zoom/pan/**`Camera2D`**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
 
 ### Phase 4.4 — UI / HUD style
 

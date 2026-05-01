@@ -2,6 +2,9 @@
 # See docs/RENDERING.md, docs/SELECTION.md
 extends Node2D
 
+## Shared pixel origin for MapView, CitiesView, SelectionView, UnitsView, SelectionController (Phase 4.3g: +128 Y vs prior 300 for top padding). Not domain coords.
+const MAP_LAYER_ORIGIN: Vector2 = Vector2(400.0, 428.0)
+
 const ScenarioScript = preload("res://domain/scenario.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
@@ -11,6 +14,11 @@ const FactionBannerGalleryScript = preload("res://presentation/faction_banner_ga
 var _faction_banner_gallery
 
 func _ready() -> void:
+	$MapView.position = MAP_LAYER_ORIGIN
+	$CitiesView.position = MAP_LAYER_ORIGIN
+	$SelectionView.position = MAP_LAYER_ORIGIN
+	$UnitsView.position = MAP_LAYER_ORIGIN
+	$SelectionController.position = MAP_LAYER_ORIGIN
 	var scenario = ScenarioScript.make_tiny_test_scenario()
 	var game_state = GameStateScript.new(scenario)
 	var layout = HexLayoutScript.new()
@@ -26,6 +34,7 @@ func _ready() -> void:
 	var units_view = $UnitsView
 	units_view.scenario = scenario
 	units_view.layout = layout
+	units_view.selection = selection
 	units_view.queue_redraw()
 	var selection_view = $SelectionView
 	selection_view.scenario = scenario
