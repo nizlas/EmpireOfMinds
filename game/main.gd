@@ -4,11 +4,10 @@ extends Node2D
 
 ## Shared pixel origin for MapView, CitiesView, SelectionView, UnitsView, SelectionController (Phase 4.3g: +128 Y vs prior 300 for top padding). Not domain coords.
 const MAP_LAYER_ORIGIN: Vector2 = Vector2(400.0, 428.0)
-## Shared faux-perspective Y scale for those nodes (Phase 4.5a). Domain / HexLayout unchanged; `Main` stays unscaled.
-const MAP_LAYER_TILT_Y: float = 0.85
 
 const ScenarioScript = preload("res://domain/scenario.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
+const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
 const GameStateScript = preload("res://domain/game_state.gd")
 const FactionBannerGalleryScript = preload("res://presentation/faction_banner_gallery.gd")
@@ -16,17 +15,23 @@ const FactionBannerGalleryScript = preload("res://presentation/faction_banner_ga
 var _faction_banner_gallery
 
 func _ready() -> void:
-	var map_layer_scale := Vector2(1.0, MAP_LAYER_TILT_Y)
+	var map_projection = MapPlaneProjectionScript.new()
+	map_projection.vanishing_pres = (get_viewport_rect().size * 0.5) - MAP_LAYER_ORIGIN
 	$MapView.position = MAP_LAYER_ORIGIN
-	$MapView.scale = map_layer_scale
+	$MapView.scale = Vector2.ONE
+	$MapView.projection = map_projection
 	$CitiesView.position = MAP_LAYER_ORIGIN
-	$CitiesView.scale = map_layer_scale
+	$CitiesView.scale = Vector2.ONE
+	$CitiesView.projection = map_projection
 	$SelectionView.position = MAP_LAYER_ORIGIN
-	$SelectionView.scale = map_layer_scale
+	$SelectionView.scale = Vector2.ONE
+	$SelectionView.projection = map_projection
 	$UnitsView.position = MAP_LAYER_ORIGIN
-	$UnitsView.scale = map_layer_scale
+	$UnitsView.scale = Vector2.ONE
+	$UnitsView.projection = map_projection
 	$SelectionController.position = MAP_LAYER_ORIGIN
-	$SelectionController.scale = map_layer_scale
+	$SelectionController.scale = Vector2.ONE
+	$SelectionController.projection = map_projection
 	var scenario = ScenarioScript.make_tiny_test_scenario()
 	var game_state = GameStateScript.new(scenario)
 	var layout = HexLayoutScript.new()

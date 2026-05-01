@@ -24,17 +24,14 @@ script = ExtResource("6_turnlabel")
 
 [node name="MapView" type="Node2D" parent="."]
 position = Vector2(400, 428)
-scale = Vector2(1, 0.85)
 script = ExtResource("2_mapview")
 
 [node name="CitiesView" type="Node2D" parent="."]
 position = Vector2(400, 428)
-scale = Vector2(1, 0.85)
 script = ExtResource("10_citiesview")
 
 [node name="SelectionView" type="Node2D" parent="."]
 position = Vector2(400, 428)
-scale = Vector2(1, 0.85)
 script = ExtResource("3_selectionview")
 
 [node name="UnitsView" type="Node2D" parent="."]
@@ -43,7 +40,6 @@ script = ExtResource("4_unitsview")
 
 [node name="SelectionController" type="Node2D" parent="."]
 position = Vector2(400, 428)
-scale = Vector2(1, 0.85)
 script = ExtResource("5_selectioncontroller")
 
 [node name="EndTurnController" type="Node2D" parent="."]

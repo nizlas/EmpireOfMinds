@@ -7,11 +7,16 @@ const ScenarioScript = preload("res://domain/scenario.gd")
 const CityScript = preload("res://domain/city.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
+const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 
 const _CITY_MARKER_PATH = "res://assets/prototype/map_markers/city_marker.png"
 
 var scenario
 var layout
+## Phase 4.5c: same instance as other map layers. 4.5h: projected hex center + perspective_scale_at; city_marker_center_y_offset_ratio unused in _draw.
+var projection
+## Not used for textured placement (**4.5h**: anchor = **projection.to_presentation(layout.hex_to_world)**). Kept for API/scene compatibility.
+@export var city_marker_center_y_offset_ratio: float = 0.0
 @export var diamond_half_extent_ratio: float = 0.28
 ## Icon height as a fraction of pointy-top hex height (2 * HexLayout.SIZE). Phase 4.3f.
 @export var city_icon_height_ratio: float = 0.90
@@ -68,6 +73,8 @@ func _ready() -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	if projection == null:
+		projection = MapPlaneProjectionScript.new()
 	var items = compute_marker_items(scenario, layout)
 	var half = HexLayoutScript.SIZE * diamond_half_extent_ratio
 	var outline = Color(0.0, 0.0, 0.0, 0.55)
@@ -76,18 +83,22 @@ func _draw() -> void:
 	var j = 0
 	while j < items.size():
 		var item = items[j]
-		var world = item["world"] as Vector2
+		var coord = item["coord"]
+		var world_center = layout.hex_to_world(coord.q, coord.r)
 		var col = item["color"] as Color
+		var anchor_pres = projection.to_presentation(world_center)
+		var pscale = projection.perspective_scale_at(world_center)
+		var side = icon_side * pscale
 		if _city_icon_tex != null:
-			var rect = Rect2(world.x - icon_side * 0.5, world.y - icon_side * 0.5, icon_side, icon_side)
+			var rect = Rect2(anchor_pres.x - side * 0.5, anchor_pres.y - side * 0.5, side, side)
 			draw_texture_rect(_city_icon_tex, rect, false, Color(1.0, 1.0, 1.0, 1.0))
 		else:
 			var pts = PackedVector2Array(
 				[
-					world + Vector2(0, -half),
-					world + Vector2(half, 0),
-					world + Vector2(0, half),
-					world + Vector2(-half, 0),
+					projection.to_presentation(world_center + Vector2(0, -half)),
+					projection.to_presentation(world_center + Vector2(half, 0)),
+					projection.to_presentation(world_center + Vector2(0, half)),
+					projection.to_presentation(world_center + Vector2(-half, 0)),
 				]
 			)
 			draw_colored_polygon(pts, col)

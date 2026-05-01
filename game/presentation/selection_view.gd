@@ -8,10 +8,13 @@ const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MovementRulesScript = preload("res://domain/movement_rules.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
+const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 
 var scenario
 var layout
 var selection
+## Phase 4.5c: shared with MapView / main.
+var projection
 
 static func compute_overlay_items(a_scenario, a_layout, a_selection) -> Array:
 	assert(HexCoordScript != null)
@@ -57,6 +60,8 @@ func _ready() -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	if projection == null:
+		projection = MapPlaneProjectionScript.new()
 	var fill_col = Color(1.0, 1.0, 1.0, 0.20)
 	var ring_col = Color(1.0, 1.0, 1.0, 0.95)
 	var items = compute_overlay_items(scenario, layout, selection)
@@ -64,14 +69,20 @@ func _draw() -> void:
 	while k < items.size():
 		var item = items[k]
 		var corners = item["corners"] as PackedVector2Array
+		var corners_p = PackedVector2Array()
+		corners_p.resize(corners.size())
+		var cidx2 = 0
+		while cidx2 < corners.size():
+			corners_p[cidx2] = projection.to_presentation(corners[cidx2])
+			cidx2 = cidx2 + 1
 		if item["kind"] == "destination_fill":
-			draw_colored_polygon(corners, fill_col)
+			draw_colored_polygon(corners_p, fill_col)
 		elif item["kind"] == "selected_ring":
 			var ring_pts = PackedVector2Array()
 			var cidx = 0
-			while cidx < corners.size():
-				ring_pts.append(corners[cidx])
+			while cidx < corners_p.size():
+				ring_pts.append(corners_p[cidx])
 				cidx = cidx + 1
-			ring_pts.append(corners[0])
+			ring_pts.append(corners_p[0])
 			draw_polyline(ring_pts, ring_col, 3.0)
 		k = k + 1

@@ -7,6 +7,7 @@ const HexMapScript = preload("res://domain/hex_map.gd")
 # Preload coordinate script with map view for consistent headless class resolution; coords come from a_map.
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
+const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 
 const _PLAINS_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/plains_painterly.png"
 const _WATER_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/water_painterly.png"
@@ -17,6 +18,8 @@ const _WATER_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/water_pa
 
 var map
 var layout
+## Wired by main; Phase 4.5c projection for terrain + detail. Defaults in _draw for headless safety.
+var projection
 
 var _plains_terrain_tex: Texture2D
 var _water_terrain_tex: Texture2D
@@ -58,7 +61,7 @@ static func _terrain_detail_hash(q: int, r: int, salt: int) -> int:
 	# Deterministic mixing for Phase 4.1e procedural marks (presentation-only; no RNG).
 	return (q * 374761393 + r * 668265263 + salt * 1442695041) & 0x7FFFFFFF
 
-func _draw_plains_detail(world: Vector2, q: int, r: int) -> void:
+func _draw_plains_detail(proj, world: Vector2, q: int, r: int) -> void:
 	var lim: float = HexLayoutScript.SIZE * 0.82
 	var k: int = 0
 	while k < 5:
@@ -69,7 +72,7 @@ func _draw_plains_detail(world: Vector2, q: int, r: int) -> void:
 			rad = lim - 4.0
 		var p: Vector2 = world + Vector2(cos(ang), sin(ang)) * rad
 		var al: float = 0.075 + float((h >> 4) & 3) * 0.025
-		draw_circle(p, 1.0 + float((h >> 2) & 3) * 0.35, Color(0.40, 0.32, 0.20, al))
+		draw_circle(proj.to_presentation(p), 1.0 + float((h >> 2) & 3) * 0.35, Color(0.40, 0.32, 0.20, al))
 		k += 1
 	var s: int = 0
 	while s < 3:
@@ -81,10 +84,16 @@ func _draw_plains_detail(world: Vector2, q: int, r: int) -> void:
 		var len: float = 7.0 + float((h2 >> 14) & 15)
 		var p0: Vector2 = world + Vector2(cos(a0), sin(a0)) * r0
 		var p1: Vector2 = p0 + Vector2(cos(a0 + 0.55), sin(a0 + 0.55)) * len
-		draw_line(p0, p1, Color(0.35, 0.45, 0.22, 0.085), 1.0, true)
+		draw_line(
+			proj.to_presentation(p0),
+			proj.to_presentation(p1),
+			Color(0.35, 0.45, 0.22, 0.085),
+			1.0,
+			true
+		)
 		s += 1
 
-func _draw_water_detail(world: Vector2, q: int, r: int) -> void:
+func _draw_water_detail(proj, world: Vector2, q: int, r: int) -> void:
 	var lim: float = HexLayoutScript.SIZE * 0.85
 	var widx: int = 0
 	while widx < 5:
@@ -96,14 +105,20 @@ func _draw_water_detail(world: Vector2, q: int, r: int) -> void:
 		var p0: Vector2 = world + Vector2(x0, yoff)
 		var p1: Vector2 = world + Vector2(x1, yoff + dy)
 		if p0.distance_to(world) <= lim and p1.distance_to(world) <= lim:
-			draw_line(p0, p1, Color(0.82, 0.90, 0.98, 0.06), 1.0, true)
+			draw_line(
+				proj.to_presentation(p0),
+				proj.to_presentation(p1),
+				Color(0.82, 0.90, 0.98, 0.06),
+				1.0,
+				true
+			)
 		widx += 1
 
-func _draw_terrain_detail_overlay(world: Vector2, terrain: int, q: int, r: int) -> void:
+func _draw_terrain_detail_overlay(proj, world: Vector2, terrain: int, q: int, r: int) -> void:
 	if terrain == HexMapScript.Terrain.PLAINS:
-		_draw_plains_detail(world, q, r)
+		_draw_plains_detail(proj, world, q, r)
 	elif terrain == HexMapScript.Terrain.WATER:
-		_draw_water_detail(world, q, r)
+		_draw_water_detail(proj, world, q, r)
 
 
 static func compute_draw_items(a_map, a_layout) -> Array:
@@ -141,9 +156,20 @@ func _ready() -> void:
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	queue_redraw()
 
+func _projected_corners(proj, corners: PackedVector2Array) -> PackedVector2Array:
+	var out = PackedVector2Array()
+	out.resize(corners.size())
+	var i = 0
+	while i < corners.size():
+		out[i] = proj.to_presentation(corners[i])
+		i += 1
+	return out
+
 func _draw() -> void:
 	if map == null or layout == null:
 		return
+	if projection == null:
+		projection = MapPlaneProjectionScript.new()
 	var items = compute_draw_items(map, layout)
 	var j = 0
 	while j < items.size():
@@ -151,6 +177,7 @@ func _draw() -> void:
 		var corners = item["corners"]
 		var col = item["color"]
 		var terrain: int = int(item["terrain"])
+		var corners_draw = _projected_corners(projection, corners)
 		var tex: Texture2D
 		if terrain == HexMapScript.Terrain.PLAINS:
 			tex = _plains_terrain_tex
@@ -159,10 +186,11 @@ func _draw() -> void:
 		else:
 			tex = null
 		if tex != null:
+			# UVs stay anchored to layout/world corners (4.1d); polygons use projected screen positions (4.5c).
 			var uvs = MapView._world_anchored_corner_uvs(corners, terrain_texture_world_scale)
-			draw_colored_polygon(corners, Color.WHITE, uvs, tex)
+			draw_colored_polygon(corners_draw, Color.WHITE, uvs, tex)
 		else:
-			draw_colored_polygon(corners, col)
+			draw_colored_polygon(corners_draw, col)
 		var coord = item["coord"]
-		_draw_terrain_detail_overlay(item["world"] as Vector2, terrain, coord.q, coord.r)
+		_draw_terrain_detail_overlay(projection, item["world"] as Vector2, terrain, coord.q, coord.r)
 		j = j + 1

@@ -744,7 +744,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 - **Manual** F5: **F1** toggles the gallery; map / turn / actions unchanged
 
 ### Phase 3.5e — Faction identity doc scope cleanup (implemented; documentation-only)
@@ -765,7 +765,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ## Phase 4 — Visual identity and presentation foundation
 
@@ -800,7 +800,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0** (regression-only).
+- Expected **49** scripts, all **PASS**, exit **0** (regression-only).
 
 ### Phase 4.0a — Prototype asset workflow checkpoint (implemented; documentation-only)
 
@@ -821,7 +821,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0** (regression-only).
+- Expected **49** scripts, all **PASS**, exit **0** (regression-only).
 
 ### Phase 4.1 — Terrain visual style (implemented)
 
@@ -841,7 +841,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.1c — Prototype painterly terrain textures (implemented)
 
@@ -862,7 +862,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.1d — Terrain texture UV polish (implemented)
 
@@ -882,7 +882,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.1e — Terrain detail overlay prototype (implemented)
 
@@ -902,7 +902,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.2 — Unit visual style (implemented)
 
@@ -923,7 +923,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.2a — Map display scale readability (implemented)
 
@@ -944,7 +944,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.3 — City visual style
 
@@ -973,7 +973,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.3c — Map scale + marker alpha repair (implemented)
 
@@ -996,7 +996,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.3d — Viewport fit + marker size polish (implemented)
 
@@ -1018,7 +1018,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.3f — Play-area size + marker detail polish (implemented)
 
@@ -1040,7 +1040,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.3g — Map origin / top padding (implemented)
 
@@ -1061,7 +1061,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.3h — Marker texture filtering polish (implemented)
 
@@ -1081,7 +1081,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.3i — True-alpha marker adoption + sharp downscale (implemented)
 
@@ -1103,7 +1103,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.3j — Prototype asset import quality standard (implemented; documentation-only)
 
@@ -1125,7 +1125,7 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.4a — Debug log clear of map hexes (implemented)
 
@@ -1145,35 +1145,35 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.4 — UI / HUD style
 
 Goal:
 **HUD**, panels, **typography** — consistent with **Phase 6** copy where applicable. *(Direction: [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) — HUD / feedback direction for 4.4.)*
 
-### Phase 4.5a — Faux perspective map tilt + unit foot anchoring (implemented)
+### Phase 4.5a — Faux perspective map tilt + unit foot anchoring (implemented; projection superseded by 4.5c)
 
 Goal:
 
 - **Presentation-only** faux perspective: shared **Y** scale on map layers so the board reads slightly “tilted” without changing **domain** or **`HexLayout`**.
 - **Unit** marker art sits on the **hex** more naturally by anchoring **textured** icons by **foot/base**; **cities** stay **center-centered**.
 
-Shipped:
+Shipped (historical):
 
-- **`game/main.gd`** — **`MAP_LAYER_TILT_Y`** **`0.85`** next to **`MAP_LAYER_ORIGIN`**; **`position`** **`MAP_LAYER_ORIGIN`** and **`scale`** **`Vector2(1.0, MAP_LAYER_TILT_Y)`** on **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, **`SelectionController`**. **`Main`** unscaled.
-- **`game/main.tscn`** — same **`scale`** on those five nodes (editor **preview** matches runtime).
-- **`game/presentation/units_view.gd`** — **`unit_icon_foot_offset_ratio`** **`0.20`**; textured path uses **`foot_y`** = **`world.y + HexLayout.SIZE * ratio`** and **`Rect2(world.x - icon_side*0.5, foot_y - icon_side, icon_side, icon_side)`**. Fallback disk path unchanged.
+- **`game/main.gd`** — previously **`MAP_LAYER_TILT_Y`** + **`Node2D`** **`scale`** (**4.5c** replaces with **`MapPlaneProjection`**). **`unit_icon_foot_offset_ratio`** semantics **retained**.
+- **`game/main.tscn`** — previously mirrored **`scale`** (**removed** in **4.5c**).
+- **`game/presentation/units_view.gd`** — **`unit_icon_foot_offset_ratio`** **`0.20`**; foot in layout space.
 - **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
 
 Must not:
 
-- **No** **`HexLayout.SIZE`** / **`MAP_LAYER_ORIGIN`** / viewport / terrain / marker import / domain changes; **no** `Camera2D`, zoom, pan, occlusion, new assets; **no** per-layer **offset** hacks — **`SelectionController`** uses the **same** transform as map layers and **`to_local()`** for hit-tests.
+- **No** **`HexLayout.SIZE`** / **`MAP_LAYER_ORIGIN`** / viewport / terrain / marker import / domain changes; **no** `Camera2D`, zoom, pan, occlusion, new assets; **no** per-layer **offset** hacks — **`SelectionController`** and drawn layers share **`MapPlaneProjection`** (**4.5c**).
 
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0**
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.5b — Map-plane projection (documentation-only design checkpoint)
 
@@ -1197,7 +1197,200 @@ Must not (checkpoint):
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Expected **48** scripts, all **PASS**, exit **0** (**documentation-only**; behaviour unchanged)
+- Expected **49** scripts, all **PASS**, exit **0** (**documentation-only**; behaviour unchanged)
+
+### Phase 4.5c — Shared map-plane projection (implemented)
+
+Goal:
+
+- Replace **`4.5a`** uniform **`Node2D`** **Y-scale** with a **shared invertible affine** **map-plane** projection (**shear** + **vertical scale**) for a **receding-board** read.
+- **Terrain** and **selection** polygons use **projected** corners; **UVs** remain **layout**-anchored (**4.1d**). **Unit** **foot** and **city** **centers** in **layout** space, then **projected**; **marker** textures **upright** (**axis-aligned** rects). **Picking** uses **`to_layout(to_local(mouse))`**.
+
+Shipped:
+
+- **`game/presentation/map_plane_projection.gd`** — **`to_presentation`** / **`to_layout`**; introduced **`plane_y_scale`** **`0.82`**, **`shear_x_per_world_y`** **`0.12`** (**4.5d** tunes shear to **`-0.10`** — see **4.5d**).
+- **`game/main.gd`**, **`game/main.tscn`** — **`MapPlaneProjection`** instance; **`MAP_LAYER_ORIGIN`**; **`scale`** **`(1,1)`**; **no** **`MAP_LAYER_TILT_Y`**
+- **`game/presentation/map_view.gd`**, **`selection_view.gd`**, **`units_view.gd`**, **`cities_view.gd`**, **`selection_controller.gd`**
+- **`game/presentation/tests/test_map_plane_projection.gd`**; **`scripts/run-godot-tests.ps1`** lists **49** scripts
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/VISUAL_DIRECTION.md`**
+
+Must not:
+
+- **No** domain / **`HexLayout.SIZE`** / viewport / terrain types / assets / imports / **`Camera2D`** zoom-pan / **3D** / foreground occlusion.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.5d — Map-plane projection tuning: away direction (implemented)
+
+Goal:
+
+- Tune **4.5c** **`MapPlaneProjection`** **defaults** so the board reads **receding** rather than **sideways-sheared**; **architecture** unchanged.
+
+Shipped:
+
+- **`game/presentation/map_plane_projection.gd`** — **`shear_x_per_world_y`** **`0.12` → `-0.10`**; **`plane_y_scale`** **`0.82`** unchanged; **`MAP_LAYER_ORIGIN`** unchanged.
+- **`game/presentation/tests/test_map_plane_projection.gd`** — asserts match new default
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **No** API change, **no** **`SelectionController`** / inverse / foot / billboard / **`HexLayout`** / domain / viewport / UV logic changes beyond **export default**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.5e — Projective map-plane perspective (implemented)
+
+Goal:
+
+- Replace **affine** **`MapPlaneProjection`** with **invertible** **projective** (**perspective divide**) so the map **recedes** toward the **viewport center**, not only **shear**.
+
+Shipped:
+
+- **`game/presentation/map_plane_projection.gd`** — **`w`**, **`scale = 1/w`**, **`vanishing_pres`**, **`depth_strength`**, **`near_world_y`**; **`shear_x_per_world_y`** **removed**; **closed-form** **`to_layout`**
+- **`game/main.gd`** — **`projection.vanishing_pres = (get_viewport_rect().size * 0.5) - MAP_LAYER_ORIGIN`**
+- **`game/presentation/tests/test_map_plane_projection.gd`**
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/VISUAL_DIRECTION.md`** (cross-ref)
+
+Must not:
+
+- **No** **`HexLayout`**, domain, viewport size, assets, marker ratios, foot ratio, **`Camera2D`**, **3D**, shaders, occlusion.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.5f — Perspective tuning + hit-test usability + anchor polish (implemented)
+
+Goal:
+
+- **Softer** **4.5e** **depth**; **forgiving** **picks** aligned to **drawn** **hexes**; **foot** / **city** **anchor** polish.
+
+Shipped:
+
+- **`game/presentation/map_plane_projection.gd`** — **`depth_strength`** **`0.0010`**
+- **`game/presentation/selection_controller.gd`** — **`projected_hex_contains`** (**`Geometry2D.is_point_in_polygon`**)
+- **`game/presentation/units_view.gd`** — **`unit_icon_foot_offset_ratio`** **`0.24`**
+- **`game/presentation/cities_view.gd`** — **`city_marker_center_y_offset_ratio`** **`0.05`**
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/SELECTION.md`**
+
+Must not:
+
+- **No** **affine** **revert**, **no** domain / **`HexLayout`** / viewport / assets.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.5g — Civ6-like mild perspective + marker scale/centroid (implemented)
+
+Goal:
+
+- **Much** milder **projective** read (**almost** top-down, **subtle** recession); **less** tabletop **shear**; **perspective-matched** billboards. **Marker** centroid **anchoring** was **superseded** by **4.5h** (projected **layout** **hex** **center**).
+
+Shipped:
+
+- **`game/presentation/map_plane_projection.gd`** — **`depth_strength`** **`0.0004`**, **`plane_y_scale`** **`0.90`**; **`perspective_scale_at`** (**`projected_hex_centroid_pres`** added then **removed** in **4.5h**)
+- **`game/presentation/units_view.gd`**, **`game/presentation/cities_view.gd`** — **`perspective_scale_at`** on **`icon_side`**; **4.5h** corrects **anchor** to **`to_presentation(hex_to_world)`**
+- **`game/presentation/tests/test_map_plane_projection.gd`**
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/SELECTION.md`**
+
+Must not:
+
+- **No** domain / **`HexLayout.SIZE`** / **`MAP_LAYER_ORIGIN`** / viewport / **`project.godot`** / assets / **`Camera2D`**; **no** change to **polygon** picking math beyond **API** **survival**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.5h — Projected top-view hex center marker anchoring (implemented)
+
+Goal:
+
+- **Correct** marker **placement** under **projective** map: **`projection(layout hex center)`** ≠ **centroid** of **projected** hex **polygon**.
+
+Shipped:
+
+- **`game/presentation/units_view.gd`**, **`game/presentation/cities_view.gd`** — **`anchor_pres = projection.to_presentation(layout.hex_to_world(q, r))`**; **`perspective_scale_at(world_center)`** unchanged
+- **`game/presentation/map_plane_projection.gd`** — **`projected_hex_centroid_pres`** **removed**
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/SELECTION.md`**
+
+Must not:
+
+- **No** change to **projection** **constants** / **formulas**, **polygon** **picking**, **terrain** **draw**, domain, **`HexLayout.SIZE`**, **`MAP_LAYER_ORIGIN`**, viewport, assets, **`Camera2D`**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.5i — Unit marker foot-pivot anchoring (implemented)
+
+Goal:
+
+- **Hex** **center** **in** **presentation** stays **`to_presentation(hex_to_world)`**; **textured** **unit** **sprite** **pivot** matches **painted** **feet** (**not** **rect** **bottom**).
+
+Shipped:
+
+- **`game/presentation/units_view.gd`** — **`unit_marker_pivot_x_ratio`**, **`unit_marker_pivot_y_ratio`**; **`Rect2(anchor_pres.x - side*pivot_x, anchor_pres.y - side*pivot_y, side, side)`**
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/SELECTION.md`**
+
+Must not:
+
+- **No** projection **constant**/**formula**/**`perspective_scale_at`** changes; **no** **polygon** picking / **terrain** / **city** placement / domain / assets / **`Camera2D`**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.5j — Per–type_id unit marker pivot overrides (implemented)
+
+Goal:
+
+- **Default** **`unit_marker_pivot_*`** **for** **most** **units**; **sparse** **overrides** **only** **for** **marker** **assets** **with** **different** **foot/contact** (**e.g.** **`settler`**).
+
+Shipped:
+
+- **`game/presentation/units_view.gd`** — **`_UNIT_MARKER_PIVOT_BY_TYPE`**, **`_resolved_marker_pivot(type_id)`**
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/SELECTION.md`**
+
+Must not:
+
+- **No** projection / **`perspective_scale_at`** / scaling / **city** / **terrain** / **picking** / domain / assets / **`Camera2D`**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.5k — Settler pivot override fine-tune (implemented)
+
+Goal:
+
+- **Lower** **settler** **marker** **slightly** (**`pivot_y`** **`0.88` → `0.86`**).
+
+Shipped:
+
+- **`game/presentation/units_view.gd`** — **`_UNIT_MARKER_PIVOT_BY_TYPE["settler"]`**
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/SELECTION.md`**
+
+Must not:
+
+- **No** changes **beyond** **settler** **pivot** **Y** **in** **code**; **no** projection / picking / **city** / domain.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
 
 ### Phase 4.5 — Camera / perspective / animation pass
 

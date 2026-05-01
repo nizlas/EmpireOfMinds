@@ -82,13 +82,12 @@
 - **Candidates:** smoother **Camera2D** behaviour, **zoom limits** that preserve readability, **selected-hex** highlight polish, **light** motion on **accepted** actions (non-authoritative).
 - **Must not:** hide rules state in **tween-only** client assumptions; **RENDERING.md**’s domain-vs-presentation boundary applies.
 
-### Map-plane / faux perspective (future; Phase 4.5b design checkpoint)
+### Map-plane / faux perspective (Phase 4.5b design → **4.5c implemented**)
 
-- **Intent:** The **board** should read like a **parchment / terrain plane** **receding** from the viewer — **not** merely **uniform** vertical squash on **`Node2D`** (**`4.5a`** **`MAP_LAYER_TILT_Y`** stays **temporary** flattening until a real projection lands).
-- **Mechanism (steering):** A **shared** **forward + inverse** **map-plane projection** in **presentation** space — **one** canonical path for **terrain**, **selection** geometry, **unit foot** anchors, **city** centers, and **picking** — detailed in **[RENDERING.md](RENDERING.md)** **Phase 4.5b**.
-- **Units:** Preserve **`4.5a`** **foot anchoring** in **layout** space; **prefer** **upright** **billboard** icons (no inherited map-plane **squash** on the **sprite**).
-- **Layering (later):** **Terrain base** → **unit** → **optional** **foreground** occluder — **no** new occlusion work mandated by **4.5b** itself; **forest / cover** remain future.
-- **Checkpoint scope:** **4.5b** as documented **does not** add **Camera2D** **zoom/pan**, **real 3D**, or **domain** changes — only **documents** the target.
+- **Intent:** The **board** reads like a **parchment / terrain plane** **receding** from the viewer — **not** merely **uniform** vertical squash on **`Node2D`**.
+- **Mechanism:** **[RENDERING.md](RENDERING.md)** **Phase 4.5c–4.5e** — **`MapPlaneProjection`**; **4.5e** **projective** convergence toward **viewport-center** **`vanishing_pres`**.
+- **Units:** **`4.5a`** **foot** semantics in **layout** space; **upright** **`draw_texture_rect`** billboards.
+- **Layering (later):** **Terrain base** → **unit** → **optional** **foreground** occluder — **no** new occlusion in **4.5c**.
 
 ## Prototype asset folder policy
 

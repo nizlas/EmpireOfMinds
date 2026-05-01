@@ -14,10 +14,13 @@ const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 const CompleteProgressScript = preload("res://domain/actions/complete_progress.gd")
 const ProgressCandidateFilterScript = preload("res://domain/progress_candidate_filter.gd")
+const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 
 var scenario
 var game_state
 var layout
+## Phase 4.5c: shared projection; Phase 4.5f — tile picks use projected hex geometry in layer-local space.
+var projection
 var selection
 var selection_view
 var units_view
@@ -26,7 +29,21 @@ var turn_label
 var log_view
 @export var marker_hit_radius_ratio: float = 0.35
 
-func _unhandled_input(event: InputEvent) -> void:
+## Phase 4.5f — true if [pres_pt] lies inside the hex cell's **projected** polygon (matches drawn terrain); same layer-local space as [to_local] mouse.
+static func projected_hex_contains(layout, projection, q: int, r: int, pres_pt: Vector2) -> bool:
+	if layout == null or projection == null:
+		return false
+	var center = layout.hex_to_world(q, r)
+	var corners = layout.hex_corners(center)
+	var poly = PackedVector2Array()
+	poly.resize(6)
+	var i = 0
+	while i < 6:
+		poly[i] = projection.to_presentation(corners[i])
+		i = i + 1
+	return Geometry2D.is_point_in_polygon(pres_pt, poly)
+
+func _unhandled_input(event):
 	assert(HexCoordScript != null)
 	assert(MoveUnitScript != null)
 	assert(MovementRulesScript != null)
@@ -131,16 +148,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mb = event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 			var scen = game_state.scenario
+			if projection == null:
+				projection = MapPlaneProjectionScript.new()
 			var local_point = to_local(get_global_mouse_position())
 			if not selection.is_empty():
 				var dests = MovementRulesScript.legal_destinations(scen, selection.unit_id)
 				var dest_hit = null
 				var di = 0
-				var dest_radius = HexLayoutScript.SIZE * 0.85
 				while di < dests.size():
 					var dcell = dests[di]
-					var dw = layout.hex_to_world(dcell.q, dcell.r)
-					if local_point.distance_to(dw) <= dest_radius:
+					if SelectionController.projected_hex_contains(layout, projection, dcell.q, dcell.r, local_point):
 						dest_hit = dcell
 						break
 					di = di + 1
@@ -169,14 +186,12 @@ func _unhandled_input(event: InputEvent) -> void:
 					else:
 						push_warning("MoveUnit rejected: %s" % result["reason"])
 					return
-			var hit_radius = HexLayoutScript.SIZE * marker_hit_radius_ratio
 			var ulist = scen.units()
 			var found = false
 			var i = 0
 			while i < ulist.size():
 				var u2 = ulist[i]
-				var uw = layout.hex_to_world(u2.position.q, u2.position.r)
-				if local_point.distance_to(uw) <= hit_radius:
+				if SelectionController.projected_hex_contains(layout, projection, u2.position.q, u2.position.r, local_point):
 					selection.select(u2.id)
 					found = true
 					break

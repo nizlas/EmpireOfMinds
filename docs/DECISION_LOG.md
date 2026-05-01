@@ -1,4 +1,134 @@
-# Empire of Minds — Decision Log
+## 2026-05-01 — Settler pivot override fine-tune (Phase 4.5k)
+
+Decision:
+
+- **`UnitsView._UNIT_MARKER_PIVOT_BY_TYPE["settler"]`**: **`y`** **`0.88` → `0.86`** (**presentation-only**).
+
+Caveat:
+
+- **Rollback** = restore **`0.88`**.
+
+## 2026-05-01 — Per–**type_id** unit marker pivot overrides (Phase 4.5j)
+
+Decision:
+
+- **`UnitsView._UNIT_MARKER_PIVOT_BY_TYPE`** — **only** **type_id**s whose **marker** **art** **differs** from **`unit_marker_pivot_*`** defaults; **settler** **`Vector2(0.50, 0.86)`** (**4.5k**; **was** **`0.88`** **at** **4.5j** **ship**) (**warrior** unlisted → **default** **`0.90`** **Y**).
+
+Rationale:
+
+- **Settler** **asset** **foot** / **alpha** **margin** **differs** from **warrior**; **per-type** **table** **avoids** **global** **pivot** **drift**.
+
+Caveat:
+
+- **Rollback** = remove **table** / **settler** **entry** and **`_resolved_marker_pivot`**, use **export** **pivots** **only** (**4.5i**).
+
+## 2026-05-01 — Unit marker foot-pivot in texture space (Phase 4.5i)
+
+Decision:
+
+- **`UnitsView`**: **`unit_marker_pivot_x_ratio`** (**default** **`0.50`**) and **`unit_marker_pivot_y_ratio`** (**default** **`0.90`**) — **`anchor_pres`** (**`projection.to_presentation(layout.hex_to_world)`**) aligns to that **fraction** inside the **square** **`draw_texture_rect`**, not the **image** **bottom** **edge** (**prior** behavior = **implicit** **`(0.5, 1.0)`**).
+- **Textured** **`Rect2`**: **`anchor_pres - (side * pivot_x, side * pivot_y)`** origin; **`side`** = **`unit_icon_height_ratio`** span × **`perspective_scale_at(world_center)`** — **unchanged**.
+
+Rationale:
+
+- **Asset** **feet** sit **above** the **PNG** **bottom**; anchoring the **rect** **bottom** at the **hex** **center** drew units **too** **high**.
+
+Caveat:
+
+- **Rollback** = restore **`Rect2(..., anchor.y - side, ...)`** with **fixed** **½** / **full-height** **offset** only.
+
+## 2026-05-01 — Projected top-view hex center marker anchoring (Phase 4.5h)
+
+Decision:
+
+- **Units** / **cities:** **anchor** = **`projection.to_presentation(layout.hex_to_world(q, r))`** — **logical** top-view **hex** **center** then **projected**, **not** **centroid(projection(hex corners))** (those differ under **non-affine** **projection**).
+- **`MapPlaneProjection.projected_hex_centroid_pres`** **removed** (was **4.5g** only); **`perspective_scale_at(world_center)`**, **polygon** **picking**, **depth** / **`plane_y_scale`** **unchanged**.
+
+Rationale:
+
+- **Live review:** **4.5g** centroid **mis-placed** markers vs **intended** **gameplay** **cell** **center**.
+
+Caveat:
+
+- **Rollback** = restore **4.5g** **centroid** helper + **call** **sites**.
+
+## 2026-05-01 — Civ6-like mild perspective + marker scale/centroid (Phase 4.5g)
+
+Decision:
+
+- **`depth_strength`** **`0.0010` → `0.0004`** — **intended tuning band** **`0.0003`–`0.0005`** for a **mild** strategic-map recession (**Civ6** ballpark), not a **steep** tabletop strip.
+- **`plane_y_scale`** **`0.82` → `0.90`** — **less** vertical flattening; **broader** readable board.
+- **`MapPlaneProjection.perspective_scale_at(world)`** — **`1.0 / (1.0 + depth_strength * (near_world_y - world.y))`**, same as **`to_presentation`** scale; **UnitsView** / **CitiesView** textured markers multiply **`icon_side`** by this **exactly** (no **lerp**).
+- **`MapPlaneProjection.projected_hex_centroid_pres`** — **shoelace** centroid of **projected** hex corners; **units**: **bottom-center** of upright **`draw_texture_rect`** at centroid; **cities**: **centered** textured rect on centroid. **`vanishing_pres`** policy (**viewport center** − **`MAP_LAYER_ORIGIN`**) **unchanged**; **SelectionController** still **picks** on the **full projected hex polygon** (same corners as terrain).
+- **`city_marker_center_y_offset_ratio`** default **`0.05` → `0.0`**; **draw** **ignores** pre-projection **Y** nudge (**4.5g** centroid path). **`unit_icon_foot_offset_ratio`** **unused** on textured path (**compat** export).
+
+Rationale:
+
+- **Live review:** **4.5f** still read as **strong** **shear** / **tabletop**; **weaker** **`depth_strength`** + **higher** **`plane_y_scale`** move toward **almost** top-down with **subtle** depth.
+
+Caveat:
+
+- **Rollback** = revert **4.5g** commit; reverts **marker** **scale** + **centroid** anchoring to **4.5f** behavior.
+
+## 2026-05-01 — Perspective tuning + picks + anchors (Phase 4.5f)
+
+Decision:
+
+- **`depth_strength`** **`0.0015` → `0.0010`** — softer **projective** **recession**; **`vanishing_pres`** wiring unchanged.
+- **`SelectionController`**: **legal** hexes + **unit** hexes — **`Geometry2D.is_point_in_polygon`** on **projected** corners vs **`to_local(mouse)`** (matches **drawn** **cells**).
+- **`unit_icon_foot_offset_ratio`** **`0.20` → `0.24`**; **`city_marker_center_y_offset_ratio`** **`0.05`** (**+layout** **Y** before **project**).
+
+Rationale:
+
+- **4.5e** felt **strong**; **layout**-space **radius** **picks** mis-aligned with **skewed** **hex** **silhouettes**.
+
+Caveat:
+
+- **`marker_hit_radius_ratio`** **unused** for **mouse** **path**; **rollback** = revert **4.5f** **commit**.
+
+## 2026-05-01 — Projective map-plane perspective (Phase 4.5e)
+
+Decision:
+
+- **`MapPlaneProjection`**: replace **affine** **`shear_x_per_world_y`** with **projective** **`w` / `scale`**, **`depth_strength`** **`0.0015`** at ship (**4.5f** softens to **`0.0010`**), **`near_world_y`** **`192.0`**, **`plane_y_scale`** **`0.82`**, **`vanishing_pres`** from **viewport center** − **`MAP_LAYER_ORIGIN`** in **`main.gd`**. **Closed-form** **`to_layout`**.
+
+Rationale:
+
+- **Affine** **4.5d** still read as **shear**; **perspective divide** gives **receding** convergence toward **visible** **center**.
+
+Caveat:
+
+- **Terrain** **UVs** stay **layout**-anchored; slight **non-perspective-correct** **per-hex** **warp** — **prototype** **acceptable**. **Rollback** = **git** revert to **4.5d** **affine**.
+
+## 2026-05-01 — Map-plane shear sign tuning (Phase 4.5d)
+
+Decision:
+
+- **`shear_x_per_world_y`** **`0.12` → `-0.10`** — **`plane_y_scale`** **`0.82`** unchanged; **`MAP_LAYER_ORIGIN`** unchanged. **4.5c** **`MapPlaneProjection`** **API** and **inverse** unchanged.
+
+Rationale:
+
+- **Live:** positive shear read as **lateral** skew vs **receding** plane; **negative** shear reverses **X** drift vs layout **Y** for a better **away-from-viewer** read with the board on the **left**.
+
+Caveat:
+
+- If **`-0.10`** feels strong, try **`-0.08`**; **no** per-layer hacks.
+
+## 2026-05-01 — Shared map-plane projection (Phase 4.5c)
+
+Decision:
+
+- **`MapPlaneProjection`** (**`to_presentation`** / **`to_layout`**) — affine **`shear_x_per_world_y`** **`0.12`**, **`plane_y_scale`** **`0.82`** at ship (**4.5d** adjusts default shear — see **4.5d** entry); **one** instance from **`main.gd`** shared by **`MapView`**, **`SelectionView`**, **`UnitsView`**, **`CitiesView`**, **`SelectionController`**. **`MAP_LAYER_TILT_Y`** / layer **`scale`** **removed**.
+- **Terrain / selection:** project **polygon** corners; **UVs** remain **layout**-anchored (**4.1d**). **4.1e** details use **projected** positions.
+- **Units / cities:** **layout** anchors + **upright** rects. **Picking:** **`to_layout(to_local(mouse))`** vs **`hex_to_world`**.
+
+Rationale:
+
+- **Receding-plane** read without **3D** / **`Camera2D`**; **foot** anchoring preserved; **icons** not **squashed** by **`Node2D`** scale.
+
+Caveat:
+
+- **Affine** only; **rollback** = restore **`4.5a`** **`Node2D`** **`scale`** + drop projection wiring.
 
 ## 2026-05-01 — Map-plane projection design checkpoint (Phase 4.5b; docs only)
 
