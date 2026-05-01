@@ -27,6 +27,7 @@ Use **map marker icons** or **marker icons** only. Do **not** describe these as 
 
 - **Format:** **512×512 px** PNG (high-res source for 4K and future zoom); implementation draws **smaller** in world/view space.
 - **Background:** **Transparent** (alpha).
+- **Delivery (Phase 4.3i / 4.3j — approved):** **PNG RGBA** (**color type 6**), **true** transparent background (**alpha 0** in empty corners / background), **antialiased** fringe pixels — **not** **RGB** + **runtime** keying. **Wiring:** **`ResourceLoader.load`** **`Texture2D`**; **scoped** **`mipmaps/generate=true`** and **`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`** on **`UnitsView`** / **`CitiesView`** for these icons (see **[RENDERING.md](../RENDERING.md)**). Default **import / quality** expectations for other prototype rasters: **[VISUAL_DIRECTION.md](../VISUAL_DIRECTION.md)** (**Prototype raster import quality standard**).
 - **Silhouette occupancy (meaningful motif on canvas):**
   - **Unit** icons: roughly **60–75%** of the canvas (leave margin for scaling/clipping).
   - **City** icon: roughly **70–85%** of the canvas.

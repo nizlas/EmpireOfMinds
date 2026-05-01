@@ -7,7 +7,6 @@ const ScenarioScript = preload("res://domain/scenario.gd")
 const CityScript = preload("res://domain/city.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
-const MarkerTextureUtilScript = preload("res://presentation/marker_texture_util.gd")
 
 const _CITY_MARKER_PATH = "res://assets/prototype/map_markers/city_marker.png"
 
@@ -47,12 +46,23 @@ static func compute_marker_items(a_scenario, a_layout) -> Array:
 		i = i + 1
 	return out
 
+static func _load_rgba_marker_texture(path: String) -> Texture2D:
+	# Phase 4.3i — true-alpha PNGs loaded directly (no background keying).
+	var res = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REUSE)
+	if res == null:
+		return null
+	if res is Texture2D:
+		return res as Texture2D
+	return null
+
 func _ready() -> void:
+	# Phase 4.3h/4.3i — downscale: linear + mipmaps (marker imports only).
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	if scenario == null:
 		scenario = ScenarioScript.make_tiny_test_scenario()
 	if layout == null:
 		layout = HexLayoutScript.new()
-	_city_icon_tex = MarkerTextureUtilScript.load_marker_icon(_CITY_MARKER_PATH)
+	_city_icon_tex = CitiesView._load_rgba_marker_texture(_CITY_MARKER_PATH)
 	if _city_icon_tex == null:
 		push_warning("CitiesView: failed to load city_marker.png, using diamond fallback")
 	queue_redraw()

@@ -22,7 +22,7 @@
   - **`HexMap.Terrain.PLAINS`** — `Color(0.74, 0.67, 0.52)` (parchment-style land).
   - **`HexMap.Terrain.WATER`** — `Color(0.28, 0.46, 0.62)` (slate-teal water).
   - Unknown — `Color(1, 0, 1)` (should not occur for current enums).
-- **Phase 4.1c (current draw path):** When **`plains_painterly.png`** / **`water_painterly.png`** load successfully, **`MapView._draw()`** fills each hex with **`draw_colored_polygon(corners, Color.WHITE, uvs, texture)`** — **UVs** map the hex vertex **AABB** to **0-1** texture space so the image is **clipped to the hex** without spilling into neighbors. **PLAINS** and **WATER** each use their own cached **`Texture2D`**, loaded once in **`_ready()`** via **`ResourceLoader.load`** ([assets](../game/assets/prototype/terrain/) — see **`PROVENANCE.md`**).
+- **Phase 4.1c / 4.1d (current draw path):** When **`plains_painterly.png`** / **`water_painterly.png`** load successfully, **`MapView._draw()`** fills each hex with **`draw_colored_polygon(corners, Color.WHITE, uvs, texture)`**. **Phase 4.1d:** **UVs** are **world-anchored**: each corner uses **`layout`**-space **`(x, y) / terrain_texture_world_scale`** so the same world point maps to the same UV on every hex — textures read as a **continuous layer**, not a per-hex **0–1 AABB** stamp. **`MapView.texture_repeat`** is **`TEXTURE_REPEAT_ENABLED`** so UVs outside **0–1** tile the image. Default **`terrain_texture_world_scale`** **512** (~**2.3** hex widths per repeat at **`SIZE` 128**). **PLAINS** and **WATER** each use their own cached **`Texture2D`**, loaded in **`_ready()`** via **`ResourceLoader.load`** ([assets](../game/assets/prototype/terrain/) — see **`PROVENANCE.md`**).
 - **Fallback:** If either **`ResourceLoader.load`** fails or the resource is not a **`Texture2D`**, **`MapView`** logs a warning and uses **`draw_colored_polygon(corners, color)`** only (Phase **4.1** behavior).
 - **Historical:** Pre-4.1 PLAINS `Color(0.50, 0.78, 0.47)`, WATER `Color(0.20, 0.45, 0.80)`. **Not** final art.
 
@@ -30,6 +30,10 @@
 
 - **Scope:** **Presentation-only** PNGs for **PLAINS** and **WATER** only — **no** new **`HexMap.Terrain`** values, **no** domain or movement changes.
 - **Provenance:** **`game/assets/prototype/terrain/PROVENANCE.md`** — externally generated (**ChatGPT** / image generation); **prototype / replaceable**.
+
+## Phase 4.1d — Terrain texture UV polish (implemented)
+
+- **UV mapping:** **World-anchored** (**corner / `terrain_texture_world_scale`**) replaces per-hex **AABB 0–1** mapping to reduce **per-hex stamp** repetition. **`texture_repeat`** on **`MapView`** for seamless tiling in UV space; hex clip shape unchanged.
 
 ## Optional labels (Phase 1.3)
 
@@ -47,7 +51,7 @@
 ## Phase 1.4b — Unit markers
 
 - **[UnitsView](../game/presentation/units_view.gd)** is a **`Node2D`** **sibling** of **MapView** under **`Main`** in [main.tscn](../game/main.tscn). **Draw order:** **MapView** → **SelectionView** (Phase 1.5) → **UnitsView**, so terrain is bottom, selection overlays mid, markers top. **[main.gd](../game/main.gd)** creates **`GameState`** over the initial **`Scenario`**, **`HexLayout`**, and **`SelectionState`**, assigns **`scenario.map`** and **`layout`** to **MapView**, `scenario` / `layout` / `selection` to **SelectionView** and **UnitsView**, and wires **SelectionController** with **`game_state`**, **`units_view`**, **`selection_view`**, **`layout`**, **`selection`** — so views can follow **`game_state.scenario`** after Phase 1.6 moves (see [ACTIONS.md](ACTIONS.md)).
-- **MapView** still derives which hexes to draw and terrain colors from **`HexMap`** (via `coords()` / `terrain_at()`). **UnitsView** derives marker positions, colors, and count **only** from **`Scenario.units()`** through the static **`UnitsView.compute_marker_items(scenario, layout)`** — not from a hand-authored coordinate list. **`compute_marker_items`** includes **`type_id`** (read from domain **`Unit`**, presentation-only). **Phase 4.3f** (current): for **`settler`** / **`warrior`**, **`MarkerTextureUtil.load_marker_icon`** textures render as **`draw_texture_rect`** only — **no** unit **selection halo**, **no** owner under-circle, **no** rim **rings** around icons. **Selected unit** reads from **`SelectionView`** hex highlight / legal-destination tint (**Phase 1.5**). **Fallback** (unknown **`type_id`**, missing file, failed load): **owner-coloured** filled disk + optional **`type_id`** first-letter **glyph** — **no** rim arc. **`type_id`** remains authoritative. **`main.gd`** still assigns **`units_view.selection`** for API compat; **`SelectionController`** may **`queue_redraw()`** **`UnitsView`** on pick/clear. See **[PHASE_4_3A_MARKER_SET.md](ASSET_REQUEST_PACKS/PHASE_4_3A_MARKER_SET.md)** and **`game/assets/prototype/map_markers/PROVENANCE.md`**.
+- **MapView** still derives which hexes to draw and terrain colors from **`HexMap`** (via `coords()` / `terrain_at()`). **UnitsView** derives marker positions, colors, and count **only** from **`Scenario.units()`** through the static **`UnitsView.compute_marker_items(scenario, layout)`** — not from a hand-authored coordinate list. **`compute_marker_items`** includes **`type_id`** (read from domain **`Unit`**, presentation-only). **Phase 4.3f / 4.3i** (current): for **`settler`** / **`warrior`**, **`ResourceLoader.load`** **`Texture2D`** (**true** **RGBA** PNGs) renders as **`draw_texture_rect`** only — **no** runtime **background-keying** for these icons; **no** unit **selection halo**, **no** owner under-circle, **no** rim **rings**. **Selected unit** reads from **`SelectionView`** hex highlight / legal-destination tint (**Phase 1.5**). **Fallback** (unknown **`type_id`**, missing file, failed load): **owner-coloured** filled disk + optional **`type_id`** first-letter **glyph** — **no** rim arc. **`type_id`** remains authoritative. **`main.gd`** still assigns **`units_view.selection`** for API compat; **`SelectionController`** may **`queue_redraw()`** **`UnitsView`** on pick/clear. See **[PHASE_4_3A_MARKER_SET.md](ASSET_REQUEST_PACKS/PHASE_4_3A_MARKER_SET.md)** and **`game/assets/prototype/map_markers/PROVENANCE.md`**.
 - **Not in Phase 1.4b (historical note):** movement, **animation**, shipped **sprite** sheets, **labels**, health bars — **gameplay rules** are [SELECTION.md](SELECTION.md) / **Phase 1.5**; **map marker icons** are **static** presentation only (**Phase 4.3b**).
 
 ## Phase 4.2 — Unit marker readability (prototype; superseded in part by 4.3f)
@@ -62,8 +66,9 @@
 ## Phase 4.3b — Prototype map marker icons (wired)
 
 - **Presentation-only** textures under **`game/assets/prototype/map_markers/`** (see **[PHASE_4_3A_MARKER_SET.md](ASSET_REQUEST_PACKS/PHASE_4_3A_MARKER_SET.md)** and **`PROVENANCE.md`** in that folder). **Static map marker icons** only — **not** unit **sprite** sheets or animation.
-- **Load path:** **`MarkerTextureUtil.load_marker_icon`** ([marker_texture_util.gd](../game/presentation/marker_texture_util.gd)) — imported **RGB** PNGs (no alpha channel) are converted to **RGBA** and pixels matching the **top-left** background colour (within epsilon) are made **transparent** so icons blend over terrain (replace with **true RGBA** assets later for best results).
+- **Load path (Phase 4.3i):** **`CitiesView`** / **`UnitsView`** — **`ResourceLoader.load`** **`Texture2D`** for **`city_marker.png`**, **`unit_settler_marker.png`**, **`unit_warrior_marker.png`** (**true** **RGBA**, **no** **`MarkerTextureUtil`** keying for these). **[marker_texture_util.gd](../game/presentation/marker_texture_util.gd)** remains for **legacy** **RGB** sources if needed elsewhere; **not** used for the three approved marker paths.
 - **Scale:** icon **height** is a **ratio** of pointy-top hex height (**`2 × HexLayout.SIZE`**): **city** default **`city_icon_height_ratio` ≈ 0.90**; **unit** default **`unit_icon_height_ratio` ≈ 0.70** (**Phase 4.3f**) — tune in editor or code; sources are **512×512**, drawn smaller in world space.
+- **Filtering / minification (4.3h / 4.3i):** **`texture_filter`** **`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`** on **`UnitsView`** / **`CitiesView`**; **only** the three marker **`.import`** files set **`mipmaps/generate=true`** — **terrain** imports unchanged.
 - **Hit-testing:** **`SelectionController`** still uses **`HexLayout`** and **`marker_hit_radius_ratio`**; scales with **`SIZE`**.
 
 ## Phase 4.3c — Map scale + marker alpha repair (implemented)
@@ -85,6 +90,25 @@
 ## Phase 4.3g — Map layer origin / top padding (implemented)
 
 - **[main.gd](../game/main.gd)** **`MAP_LAYER_ORIGIN`** (`Vector2(400, 428)`) — **`+128`** screen **Y** vs prior **`(400, 300)`** so the top hex row clears the viewport top; applied in **`_ready()`** to **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, and **`SelectionController`** so **draw** and **`to_local(mouse)`** hit-tests share one **origin**. **Not** `Camera2D` / zoom / domain coords; **`HexLayout.SIZE`**, **viewport** **2400×1500**, and marker ratios unchanged.
+
+## Phase 4.3h — Marker texture filtering polish (implemented)
+
+- **Historical:** **`TEXTURE_FILTER_LINEAR`** first — superseded for markers by **4.3i** **`LINEAR_WITH_MIPMAPS`** + marker-only **mipmaps**.
+
+## Phase 4.3i — True-alpha marker adoption + sharp downscale (implemented)
+
+- **Assets:** **512×512** **PNG** **RGBA** (color type **6**), transparent background — verified before adoption (corners **a=0**, non-uniform alpha in image).
+- **Loading:** Direct **`Texture2D`** via **`ResourceLoader.load`** in **`UnitsView`** / **`CitiesView`**; **no** **`MarkerTextureUtil`** for city/settler/warrior.
+- **Import:** **`mipmaps/generate=true`** **only** on the three **`map_markers/*.png.import`** files; **`MapView`** / terrain **unchanged**.
+- **Draw:** **`texture_filter = TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`** on **`UnitsView`** / **`CitiesView`** for **`draw_texture_rect`** marker paths.
+
+## Phase 4.3j — Prototype asset import quality standard (documentation)
+
+- **Steering only** — codifies lessons from **4.3i** for **all** future **scaled** prototype rasters. Full policy: **[VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)** — **Prototype raster import quality standard**.
+- **Expectations in code paths:** **Approved** **RGBA** map markers → **`ResourceLoader.load`** **`Texture2D`**; **no** runtime keying **`MarkerTextureUtil`** for those paths; **`[marker_texture_util.gd](../game/presentation/marker_texture_util.gd)`** remains **legacy / RGB fallback** only.
+- **Import / filter:** Category-specific — map markers use **per-asset** **`.import`** **mipmaps** + **`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`** on **`UnitsView`** / **`CitiesView`** only; **terrain** textures keep their **own** import and **`MapView`** defaults.
+- **Verification** (when transparency is required): confirm **dimensions**, **PNG RGBA / color type 6**, **corner alpha** where applicable, **alpha** not **globally opaque**; reject **RGB** masquerading as transparent unless the **Asset Request Pack** documents an exception.
+- **Gameplay** still **must not** depend on pixels; **`PROVENANCE.md`** continues to record source, date, prototype status, and import notes.
 
 ## Phase 1.5 — Selection overlay
 

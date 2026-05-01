@@ -1,4 +1,5 @@
-# Loads prototype map marker PNGs; Phase 4.3c — RGB sources without alpha get RGBA + background keyed from top-left (parchment/paper margin).
+# Legacy helper: RGB marker PNGs without alpha → RGBA + top-left background keyed transparent.
+# Phase 4.3i+: city/settler/warrior use true RGBA assets loaded directly in CitiesView/UnitsView — this util is unused for those paths.
 # See docs/RENDERING.md — not gameplay; presentation only.
 class_name MarkerTextureUtil
 extends RefCounted

@@ -7,7 +7,6 @@ const ScenarioScript = preload("res://domain/scenario.gd")
 const UnitScript = preload("res://domain/unit.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
-const MarkerTextureUtilScript = preload("res://presentation/marker_texture_util.gd")
 
 const _SETTLER_MARKER_PATH = "res://assets/prototype/map_markers/unit_settler_marker.png"
 const _WARRIOR_MARKER_PATH = "res://assets/prototype/map_markers/unit_warrior_marker.png"
@@ -53,13 +52,24 @@ static func compute_marker_items(a_scenario, a_layout) -> Array:
 		i = i + 1
 	return out
 
+static func _load_rgba_marker_texture(path: String) -> Texture2D:
+	# Phase 4.3i — true-alpha PNGs loaded directly (no background keying).
+	var res = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REUSE)
+	if res == null:
+		return null
+	if res is Texture2D:
+		return res as Texture2D
+	return null
+
 func _ready() -> void:
+	# Phase 4.3h/4.3i — downscale: linear + mipmaps (marker imports only).
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	if scenario == null:
 		scenario = ScenarioScript.make_tiny_test_scenario()
 	if layout == null:
 		layout = HexLayoutScript.new()
-	_tex_settler = MarkerTextureUtilScript.load_marker_icon(_SETTLER_MARKER_PATH)
-	_tex_warrior = MarkerTextureUtilScript.load_marker_icon(_WARRIOR_MARKER_PATH)
+	_tex_settler = UnitsView._load_rgba_marker_texture(_SETTLER_MARKER_PATH)
+	_tex_warrior = UnitsView._load_rgba_marker_texture(_WARRIOR_MARKER_PATH)
 	if _tex_settler == null:
 		push_warning("UnitsView: failed to load unit_settler_marker.png, settler uses programmatic fallback")
 	if _tex_warrior == null:

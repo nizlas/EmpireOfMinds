@@ -773,4 +773,60 @@ Rationale:
 
 Caveat:
 
-- **Not** shipping art; **`PROVENANCE.md`** documents external generation; per-cell **AABB** UVs are a **minimal** fit — a future phase could use **world-space** tiling or **TileSet** if art direction requires it.
+- **Not** shipping art; **`PROVENANCE.md`** documents external generation; per-cell **AABB** UVs were a **minimal** first fit — **Phase 4.1d** replaces them with **world-anchored** UVs for continuity.
+
+## 2026-05-01 — World-anchored terrain UVs (Phase 4.1d)
+
+Decision:
+
+- **`MapView`**: **`uv = (corner.x, corner.y) / terrain_texture_world_scale`** (layout space, default scale **512**); **`texture_repeat = TEXTURE_REPEAT_ENABLED`** for **`draw_colored_polygon`** textured path. **Fallback** flat fill unchanged.
+
+Rationale:
+
+- Reduces **per-hex** texture **stamp** while keeping **hex clip** and **`terrain_at`** only.
+
+Caveat:
+
+- **Seamless** tiling still depends on **source PNG** edges; **coast blending** remains deferred.
+
+## 2026-05-01 — Linear texture filter for map markers (Phase 4.3h)
+
+Decision:
+
+- **`UnitsView`** and **`CitiesView`**: **`texture_filter = TEXTURE_FILTER_LINEAR`** in **`_ready()`** for **`draw_texture_rect`** marker paths. **`MapView`** unchanged.
+
+Rationale:
+
+- **512×512** icons drawn **smaller** in world space minify **cleaner** than default **nearest** / inherited sampling; **scoped** to marker **CanvasItems**.
+
+Caveat:
+
+- **Heavy** minification can still **soften** edges; **mipmaps** not enabled (2D **`draw_texture_rect`** path; **linear** is the minimal fix).
+
+## 2026-05-01 — True-alpha map markers + mipmapped downscale (Phase 4.3i)
+
+Decision:
+
+- **`city_marker.png`**, **`unit_settler_marker.png`**, **`unit_warrior_marker.png`**: verified **512×512** **PNG** **RGBA8** (corners **alpha 0**); **`UnitsView`** / **`CitiesView`** load via **`ResourceLoader.load`** — **no** **`MarkerTextureUtil`** keying. **`texture_filter`** **`LINEAR_WITH_MIPMAPS`**; **`mipmaps/generate=true`** on **those three** **`.import`** files only.
+
+Rationale:
+
+- **True** **RGBA** **alpha** removes keyed-edge artefacts; **mipmaps** + **linear** improve **minification** vs **base mip** alone.
+
+Caveat:
+
+- **`MarkerTextureUtil`** retained for **hypothetical** **RGB** sources; terrain **imports** untouched.
+
+## 2026-05-01 — Prototype raster import quality standard (Phase 4.3j)
+
+Decision:
+
+- **Docs-only** steering: **[VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)** adds a **default** **Prototype raster import quality standard** (true **RGBA** when transparency is required, **direct** **`Texture2D`** load, **scoped** mipmaps/filter where appropriate, **runtime keying** only as **temporary** **RGB** repair, verification checklist, **explicit** exceptions). **[RENDERING.md](RENDERING.md)**, **[PHASE_PLAN.md](PHASE_PLAN.md)**, marker **Asset Request Pack** updated for alignment.
+
+Rationale:
+
+- **Lock in** **4.3i** outcomes so future **Asset Request Packs** and implementers treat **alpha quality** as **contract**, not **rendering debt**.
+
+Caveat:
+
+- Category-specific **import** details still **evolve** per asset type; policy allows **ARP**-documented **exceptions**.

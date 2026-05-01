@@ -12,6 +12,8 @@ const _PLAINS_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/plains_
 const _WATER_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/water_painterly.png"
 
 @export var hex_tile_size: float = 128.0
+## World units per one UV tile along X/Y; larger = less frequent texture repeat (presentation-only).
+@export var terrain_texture_world_scale: float = 512.0
 
 var map
 var layout
@@ -27,38 +29,19 @@ static func _terrain_to_color(terrain: int) -> Color:
 		return Color(0.28, 0.46, 0.62)
 	return Color(1.0, 0.0, 1.0)
 
-static func _hex_corner_uvs(corners: PackedVector2Array) -> PackedVector2Array:
-	# Map each vertex into 0-1 UV space from the hex AABB (presentation-only; not gameplay).
+static func _world_anchored_corner_uvs(corners: PackedVector2Array, world_scale: float) -> PackedVector2Array:
+	# Phase 4.1d: UV from layout/world position so textures read continuous across hexes (presentation-only).
 	var n = corners.size()
 	var uvs = PackedVector2Array()
 	uvs.resize(n)
-	if n == 0:
+	if n == 0 or world_scale <= 0.0:
 		return uvs
-	var min_x = corners[0].x
-	var max_x = corners[0].x
-	var min_y = corners[0].y
-	var max_y = corners[0].y
-	var i = 1
+	var inv = 1.0 / world_scale
+	var i = 0
 	while i < n:
-		var c = corners[i]
-		min_x = minf(min_x, c.x)
-		max_x = maxf(max_x, c.x)
-		min_y = minf(min_y, c.y)
-		max_y = maxf(max_y, c.y)
+		var p = corners[i]
+		uvs[i] = Vector2(p.x * inv, p.y * inv)
 		i = i + 1
-	var w = max_x - min_x
-	var h = max_y - min_y
-	if w <= 0.0 or h <= 0.0:
-		var j = 0
-		while j < n:
-			uvs[j] = Vector2.ZERO
-			j = j + 1
-		return uvs
-	var k = 0
-	while k < n:
-		var p = corners[k]
-		uvs[k] = Vector2((p.x - min_x) / w, (p.y - min_y) / h)
-		k = k + 1
 	return uvs
 
 static func _try_load_terrain_tex(path: String) -> Texture2D:
@@ -103,6 +86,7 @@ func _ready() -> void:
 		layout = HexLayoutScript.new()
 	_plains_terrain_tex = MapView._try_load_terrain_tex(_PLAINS_TERRAIN_TEX_PATH)
 	_water_terrain_tex = MapView._try_load_terrain_tex(_WATER_TERRAIN_TEX_PATH)
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	queue_redraw()
 
 func _draw() -> void:
@@ -123,7 +107,7 @@ func _draw() -> void:
 		else:
 			tex = null
 		if tex != null:
-			var uvs = MapView._hex_corner_uvs(corners)
+			var uvs = MapView._world_anchored_corner_uvs(corners, terrain_texture_world_scale)
 			draw_colored_polygon(corners, Color.WHITE, uvs, tex)
 		else:
 			draw_colored_polygon(corners, col)

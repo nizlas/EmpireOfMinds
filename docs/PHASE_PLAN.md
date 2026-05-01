@@ -864,6 +864,26 @@ Validation:
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
 - Expected **48** scripts, all **PASS**, exit **0**
 
+### Phase 4.1d — Terrain texture UV polish (implemented)
+
+Goal:
+
+- **World-anchored** terrain **UVs** so prototype textures read more **continuous** across hexes — **no** per-hex **AABB** full-texture stamp; **MapView** only.
+
+Shipped:
+
+- **`game/presentation/map_view.gd`** — **`_world_anchored_corner_uvs`**, **`terrain_texture_world_scale`** (default **512**), **`texture_repeat = TEXTURE_REPEAT_ENABLED`**
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **No** domain / **`HexLayout.SIZE`** / viewport / marker / new assets / coast blending / shaders beyond this UV + repeat change.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
 ### Phase 4.2 — Unit visual style (implemented)
 
 Goal:
@@ -946,7 +966,7 @@ Shipped:
 - **`game/presentation/hex_layout.gd`** — **`SIZE`** **64.0 → 128.0** (presentation circumradius; **4×** original **32.0** baseline).
 - **`game/presentation/map_view.gd`** — **`hex_tile_size`** default **128.0**.
 - **`game/presentation/marker_texture_util.gd`** — **`load_marker_icon`**: **RGBA** + top-left **background** colour keyed transparent (epsilon); prefer replacing assets with **true** **PNG** **alpha** later.
-- **`game/presentation/cities_view.gd`** / **`units_view.gd`** — use **`MarkerTextureUtil`** for marker paths.
+- **`game/presentation/cities_view.gd`** / **`units_view.gd`** — use **`MarkerTextureUtil`** for marker paths (**4.3i**: **direct** **`ResourceLoader.load`** **`Texture2D`** for **RGBA** assets; util **legacy** for those three).
 - **`docs/RENDERING.md`**, **`docs/DECISION_LOG.md`** — **4.3c** notes.
 
 Must not:
@@ -1017,6 +1037,70 @@ Shipped:
 Must not:
 
 - **No** **`HexLayout.SIZE`** / **viewport** / marker-ratio edits; **no** zoom/pan/**`Camera2D`**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
+### Phase 4.3h — Marker texture filtering polish (implemented)
+
+Goal:
+
+- **Smoother** downscaled **city** / **unit** marker PNGs via **linear** **`CanvasItem.texture_filter`** — **presentation-only**; **no** size, ratio, asset, or terrain changes.
+
+Shipped:
+
+- **`game/presentation/units_view.gd`**, **`game/presentation/cities_view.gd`** — **`TEXTURE_FILTER_LINEAR`** in **`_ready()`**
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **No** **`unit_icon_height_ratio`** / **`city_icon_height_ratio`** / **`HexLayout.SIZE`** / viewport / **MapView** UV edits; **no** global texture defaults.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
+### Phase 4.3i — True-alpha marker adoption + sharp downscale (implemented)
+
+Goal:
+
+- **RGBA** **512×512** map markers loaded **directly**; **remove** runtime **background-keying** for city/settler/warrior; **scoped** import **mipmaps** + **`LINEAR_WITH_MIPMAPS`** for cleaner minification.
+
+Shipped:
+
+- **`game/presentation/units_view.gd`**, **`game/presentation/cities_view.gd`** — **`ResourceLoader.load`** **`Texture2D`**; **`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`**
+- **`game/presentation/marker_texture_util.gd`** — documented **legacy** (unused for those three paths)
+- **`game/assets/prototype/map_markers/*.png.import`** (three files) — **`mipmaps/generate=true`**
+- **`game/assets/prototype/map_markers/PROVENANCE.md`**, **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **No** marker ratio / **`SIZE`** / viewport / terrain / domain changes; **no** new assets; **no** global texture defaults.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
+### Phase 4.3j — Prototype asset import quality standard (implemented; documentation-only)
+
+Goal:
+
+- Preserve **4.3i** lessons as **default steering** for future **scaled** prototype rasters — **true RGBA**, **direct** load, **scoped** import/filter, **no** preferred runtime keying.
+
+Shipped:
+
+- **`docs/VISUAL_DIRECTION.md`** — **Prototype raster import quality standard** (default policy, verification, exceptions).
+- **`docs/RENDERING.md`** — **Phase 4.3j** practical expectations + cross-reference.
+- **`docs/ASSET_REQUEST_PACKS/PHASE_4_3A_MARKER_SET.md`** — approved **delivery format** note (markers).
+- **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **No** code, **no** assets, **no** **`.import`**, **no** **`project.godot`**.
 
 Validation:
 

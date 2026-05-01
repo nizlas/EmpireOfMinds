@@ -126,6 +126,25 @@ An **Asset Request Pack** must list **every** proposed asset:
 - **Confirmation** that the asset is **prototype-only**, **non-final**, **replaceable**.
 - **Confirmation** that **gameplay must not depend** on exact **pixel contents**.
 
+### Prototype raster import quality standard (Phase 4.3j — default)
+
+**Unless an Asset Request Pack explicitly justifies a different approach**, future **raster** assets that are **expected to be scaled in-game** should default to:
+
+- **Dimensions** stated in the **Asset Request Pack** (repo-ready; no ad hoc rescale as a substitute for spec).
+- **True PNG RGBA** (**color type 6**) when **transparency** is required — **real** transparent background, **not** checkerboard baked in, **not** a flat white/paper fill pretending to be transparency.
+- **Alpha 0** in **empty** corners / **empty** background regions where applicable.
+- **Antialiased semi-transparent** edge pixels where **silhouettes** meet transparency (alpha quality is part of the asset contract when the visual needs transparency).
+- **Direct loading** as **`Texture2D`** for **approved RGBA** deliveries — **no** runtime **background-keying** / **chroma-key** removal on the happy path.
+- **`MarkerTextureUtil`**-style runtime keying is **only** acceptable as a **temporary repair** or **fallback** for **bad RGB** prototype inputs — **not** the preferred pipeline.
+- **Scoped** Godot **import** settings and **`CanvasItem.texture_filter`** choices appropriate to the **asset category** (e.g. marker-like icons may use **scoped mipmaps** + **`LINEAR_WITH_MIPMAPS`** as implemented for map markers — **document** any category-specific import assumptions in **`PROVENANCE.md`** or the phase report).
+- **Gameplay must not depend** on image pixels; **provenance** must record **generation/source**, **date**, **prototype-only** / **replaceable** status, and **relevant import** assumptions.
+
+**Agent / implementation rule:** If a delivery is **flattened RGB** (no alpha) but the **pack** or **direction** expects **transparency**, treat that as an **asset-format problem** — **report** it; **do not** silently pile on **rendering hacks** beyond an explicitly scoped **temporary** fallback.
+
+**Exceptions:** Any departure from this standard must be **explicit** in the **Asset Request Pack** or the **Mandatory Implementation Report**.
+
+**Wording to remember:** Approved **scalable marker / icon-style** raster assets should be **true-alpha RGBA** files and should **not** require **runtime background removal**. If the visual needs transparency, **alpha quality** is part of the **asset contract**.
+
 ### Who may create assets
 
 - The **implementation agent** may create **trivial programmatic placeholders** when **explicitly useful** for the **current** phase and **in scope** — e.g. flat-colour debug tiles, simple rings, text labels, or stamped placeholder banners (as in Phase **3.5d**), with **honest** provenance.
@@ -159,7 +178,7 @@ This stays consistent with the rest of this document and **[FACTION_IDENTITY.md]
 ## Relationship to existing docs
 
 - **[FACTION_IDENTITY.md](FACTION_IDENTITY.md)** — Faction / custom-civ identity and **prototype / generated-art policy**; **VISUAL_DIRECTION** applies that policy to **map and HUD presentation** in Phase **4**.
-- **[RENDERING.md](RENDERING.md)** — **What exists in code today** (draw order, placeholder colours, deferred items); update when **4.1+** implementations change.
+- **[RENDERING.md](RENDERING.md)** — **What exists in code today** (draw order, placeholder colours, deferred items); update when **4.1+** implementations change. **Phase 4.3j** bridges policy (**this file**, **Prototype raster import quality standard**) with marker/texture expectations documented there.
 - **[PHASE_PLAN.md](PHASE_PLAN.md)** — Phase **4** roadmap and validation expectations.
 - **[DECISION_LOG.md](DECISION_LOG.md)** — Decision trace for **4.0** and later visual milestones.
 - **[PROJECT_BRIEF.md](PROJECT_BRIEF.md)** — Project intent and **IP boundary**; visual work must stay aligned and **non-infringing** as the project matures (**Phase 6** deep review).
