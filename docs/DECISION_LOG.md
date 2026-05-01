@@ -587,3 +587,23 @@ Caveat:
 
 - **No** new product feature: **documentation-only** change (**no** code, **no** tests, **no** assets in **3.5e**).
 - **No** final art commitment; **no** **`ART_DIRECTION.md`**; **Phase 4** and **Phase 6** boundaries unchanged.
+
+## 2026-05-01 — Visual direction checkpoint (Phase 4.0)
+
+Decision:
+
+- Add **`docs/VISUAL_DIRECTION.md`** as the **prototype visual direction** source of truth for **Phase 4.1–4.5**.
+- **Phase 4.0** is **documentation-only**: **no** code, assets, tests, scenes, or UI implementation.
+- **`RENDERING.md`** remains the **current implementation-state** doc; **`VISUAL_DIRECTION.md`** holds **intent** until subphases ship pixels.
+- Adopt a **hybrid** direction: **stylised painterly / parchment-map** terrain language plus **strong icon overlays** for units, cities, and feedback — **not** photorealism or final-release polish.
+- **F1 `FactionBannerGallery`** and similar surfaces stay **debug** unless a future phase explicitly promotes them.
+- **Final** lore, aesthetics, naming, and **IP** review remain **Phase 6**; **no** Steam or commercial release asset policy in **4.0**.
+
+Rationale:
+
+- Enters **Phase 4** deliberately after **3.5** identity and prototype-banner work — coherent rules before terrain/unit/city/HUD/camera slices.
+- Separates **direction doc** from **implementation doc** to reduce drift and scope creep.
+
+Caveat:
+
+- **Palette and contrast** in **`VISUAL_DIRECTION.md`** are **intent-only** until **4.1**; concrete RGB belongs in implementation + **`RENDERING.md` updates**, not premature locking in **4.0**.

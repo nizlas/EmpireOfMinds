@@ -291,6 +291,7 @@ The bullets below describe **Phase 3.5a only** — the original **docs-only** ch
 
 ## Relationship to existing docs
 
+- **[VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)** — Phase **4** prototype **visual direction** for map, markers, HUD, and camera (**4.0** checkpoint); complements **this file**’s faction / prototype-art policy.
 - **[PHASE_PLAN.md](PHASE_PLAN.md)** — Phase roadmap; **Phase 3.5** mechanical identity vs **Phase 6** lore, copy, naming, aesthetics, and IP review.
 - **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)** — Shared progression vocabulary; faction identity **may later bias interpretation** of progress but **does not** modify that model in 3.5a.
 - **[CONTENT_MODEL.md](CONTENT_MODEL.md)** — ID, definition, and state vocabulary for future registries (referenced conceptually; **not edited** in 3.5a).

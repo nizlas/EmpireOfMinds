@@ -780,35 +780,50 @@ Must not (roadmap):
 Note:
 **Placeholders** from **Phase 2.x** / **Phase 3.x** may remain until replaced here; **Phase 4** owns **coherent visual identity**.
 
-### Phase 4.0 — Visual direction checkpoint
+### Phase 4.0 — Visual direction checkpoint (implemented; documentation-only)
 
 Goal:
-Lock **look-and-feel** pillars (palette, readability, tone) before heavy asset work.
+
+- Lock **look-and-feel** pillars (palette intent, readability, tone, prototype vs final boundary) before heavier visual slices — via **[VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)**.
+
+Shipped:
+
+- **`docs/VISUAL_DIRECTION.md`** — prototype visual direction for **4.1–4.5**; **RENDERING.md** remains implementation state.
+- Steering updates: **`PHASE_PLAN.md`** (this block), **`DECISION_LOG.md`**, **`FACTION_IDENTITY.md`** (cross-reference only).
+
+Must not:
+
+- **No** code, **no** `game/**`, **no** `scripts/**`, **no** assets, **no** tests, **no** scenes, **no** UI implementation work in **4.0**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0** (regression-only).
 
 ### Phase 4.1 — Terrain visual style
 
 Goal:
-Terrain **readability** and silhouette; beyond flat debug fills.
+Terrain **readability** and silhouette; beyond flat debug fills. *(Direction: [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) — Terrain direction for 4.1.)*
 
 ### Phase 4.2 — Unit visual style
 
 Goal:
-**Sprites** or agreed **markers**, **owner** clarity, hooks for **selection** / **motion**.
+**Sprites** or agreed **markers**, **owner** clarity, hooks for **selection** / **motion**. *(Direction: [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) — Unit direction for 4.2.)*
 
 ### Phase 4.3 — City visual style
 
 Goal:
-Cities **read** at a glance; scale with zoom.
+Cities **read** at a glance; scale with zoom. *(Direction: [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) — City direction for 4.3.)*
 
 ### Phase 4.4 — UI / HUD style
 
 Goal:
-**HUD**, panels, **typography** — consistent with **Phase 6** copy where applicable.
+**HUD**, panels, **typography** — consistent with **Phase 6** copy where applicable. *(Direction: [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) — HUD / feedback direction for 4.4.)*
 
 ### Phase 4.5 — Camera / perspective / animation pass
 
 Goal:
-**Camera** UX, **perspective** experiments, **motion** principles (no gameplay truth hidden in tween-only client state).
+**Camera** UX, **perspective** experiments, **motion** principles (no gameplay truth hidden in tween-only client state). *(Direction: [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) — Camera / presentation direction for 4.5.)*
 
 Validation:
 Editor and checklist-driven; headless tests only for **pure** layout/formatting helpers if introduced.
