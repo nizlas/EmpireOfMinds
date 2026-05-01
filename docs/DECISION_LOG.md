@@ -570,3 +570,20 @@ Caveat:
 - **No** **`ART_DIRECTION.md`** yet.
 - Generated / prototype images must remain **replaceable**.
 - **Phase 4** and **Phase 6** still own broader visual direction and final identity.
+
+## 2026-05-01 — Faction identity scope cleanup (Phase 3.5e)
+
+Decision:
+
+- **3.5a** **explicit non-goals** are **explicitly scoped** to **3.5a** (the original **docs-only** checkpoint) in **`FACTION_IDENTITY.md`**.
+- **Later 3.5 subphases** may add **explicitly scoped** prototype assets, **debug** presentation, or registry slices without contradicting **3.5a**’s historical constraint.
+- **3.5d** remains the intentional slice for **non-final** prototype **banners**, **F1** **`FactionBannerGallery`**, **replaceable** assets, and **no** gameplay dependence on pixels — **not** a **Phase 4** visual pass and **not** final art.
+
+Rationale:
+
+- Avoids a **documentation contradiction** after **3.5d** added prototype PNGs and **F1** overlay while an unscoped list still read like a global “no assets / no UI” rule.
+
+Caveat:
+
+- **No** new product feature: **documentation-only** change (**no** code, **no** tests, **no** assets in **3.5e**).
+- **No** final art commitment; **no** **`ART_DIRECTION.md`**; **Phase 4** and **Phase 6** boundaries unchanged.

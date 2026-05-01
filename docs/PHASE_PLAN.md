@@ -747,6 +747,26 @@ Validation:
 - Expected **48** scripts, all **PASS**, exit **0**
 - **Manual** F5: **F1** toggles the gallery; map / turn / actions unchanged
 
+### Phase 3.5e — Faction identity doc scope cleanup (implemented; documentation-only)
+
+Goal:
+
+- Clarify **3.5a** explicit non-goals after **3.5d** shipped prototype assets and **F1** debug presentation — remove apparent contradiction between an older “no assets / no UI” list and intentionally scoped later **3.5** work.
+
+Shipped:
+
+- **`FACTION_IDENTITY.md`** — **§ Explicit non-goals** renamed / scoped to **Phase 3.5a**; short note that later **3.5** subphases may add **prototype** assets or **debug** presentation when **explicitly scoped**; **3.5d** remains the **non-final**, **replaceable** banner + **F1** gallery slice (**no** gameplay pixel dependence; **no Phase 4** broadening; **Phase 6** still owns final lore / art / IP).
+- **`DECISION_LOG.md`** entry for **3.5e**.
+
+Must not:
+
+- **No** code, **no** `game/**`, **no** `scripts/**`, **no** assets, **no** tests, **no** gameplay or **UI** implementation changes.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **48** scripts, all **PASS**, exit **0**
+
 ## Phase 4 — Visual identity and presentation foundation
 
 Goal:

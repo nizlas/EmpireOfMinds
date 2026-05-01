@@ -264,10 +264,15 @@ The three profiles below are **`profile_type: debug_example`**. They are **non-c
 - **3.5a** — Docs-only faction / custom-civ identity model (**this file**).
 - **3.5b** — **`FactionDefinitions`** debug seed: three non-canonical rows (**implemented**).
 - **3.5c** — Possible trait registry or concrete profile examples (future).
-- **3.5d** — Prototype faction-banner slice: **`game/assets/prototype/`** PNGs, **`FactionAssetPaths`**, **F1** **`FactionBannerGallery`** (**implemented**; **no** gameplay wiring).
+- **3.5d** — Prototype faction-banner slice: **`game/assets/prototype/`** PNGs, **`FactionAssetPaths`**, **F1** **`FactionBannerGallery`** (**implemented**; **no** gameplay wiring). Banners remain **non-final**, **replaceable**, **internal-test** only; **no** gameplay dependence on pixel content (**Phase 6** still owns final lore / art / IP review; this is **not** a Phase **4** visual pass).
+- **3.5e** — Faction identity **documentation scope cleanup** (**implemented**; **documentation-only**): clarifies that **§ Explicit non-goals for Phase 3.5a** (below) applied to **3.5a** only and does **not** retroactively forbid later **3.5** subphases when those subphases are **explicitly scoped** (see **3.5b** registry seed, **3.5d** prototype banners + **F1** gallery).
 - **Later** — Custom civ builder UI, balance system, art pipeline, **final** lore and IP review (**Phase 6**).
 
-## Explicit non-goals
+## Explicit non-goals for Phase 3.5a
+
+The bullets below describe **Phase 3.5a only** — the original **docs-only** checkpoint. They **do not** automatically apply to every later **3.5** subphase.
+
+**Later 3.5 subphases** may add **prototype assets**, **debug presentation**, or **registry slices** when **explicitly scoped** and **documented** (e.g. **3.5d** prototype banners and **F1** **`FactionBannerGallery`**). That does **not** retroactively change **3.5a**’s **docs-only** constraint. **Prototype** work stays **non-final** and **replaceable**; **no** workflow should treat prototype pixels as **final** or **canonical** (**Phase 6** remains authoritative for final lore, aesthetics, naming, and IP review). This **does not** broaden scope into a full **Phase 4** visual pass.
 
 - No full lore bible
 - No final faction roster
@@ -296,3 +301,4 @@ The three profiles below are **`profile_type: debug_example`**. They are **non-c
 
 - **Phase 6** owns **lore**, **final copy**, **final naming**, **deep aesthetics**, **worldbuilding**, and **IP review**.
 - **Phase 3.5a–d** own the **mechanical / structural identity layer** — preset + custom civ **shape**, trait vocabulary **at the concept level**, and internal prototype-art **rules** — **before** full worldbuilding.
+- **Phase 3.5e** (**documentation-only**) aligns **this file** with that evolution: **3.5a** explicit non-goals stay **scoped to 3.5a**; it adds **no** assets, code, or gameplay.
