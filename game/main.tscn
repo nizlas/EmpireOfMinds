@@ -1,10 +1,11 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Script" path="res://presentation/map_view.gd" id="2_mapview"]
 [ext_resource type="Script" path="res://presentation/cities_view.gd" id="10_citiesview"]
 [ext_resource type="Script" path="res://presentation/selection_view.gd" id="3_selectionview"]
 [ext_resource type="Script" path="res://presentation/units_view.gd" id="4_unitsview"]
+[ext_resource type="Script" path="res://presentation/terrain_foreground_view.gd" id="11_terrainforeground"]
 [ext_resource type="Script" path="res://presentation/selection_controller.gd" id="5_selectioncontroller"]
 [ext_resource type="Script" path="res://presentation/turn_label.gd" id="6_turnlabel"]
 [ext_resource type="Script" path="res://presentation/end_turn_controller.gd" id="7_endturncontroller"]
@@ -37,6 +38,10 @@ script = ExtResource("3_selectionview")
 [node name="UnitsView" type="Node2D" parent="."]
 position = Vector2(400, 428)
 script = ExtResource("4_unitsview")
+
+[node name="TerrainForegroundView" type="Node2D" parent="."]
+position = Vector2(400, 428)
+script = ExtResource("11_terrainforeground")
 
 [node name="SelectionController" type="Node2D" parent="."]
 position = Vector2(400, 428)

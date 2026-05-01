@@ -9,12 +9,13 @@ const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MovementRulesScript = preload("res://domain/movement_rules.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
+const MapCameraScript = preload("res://presentation/map_camera.gd")
 
 var scenario
 var layout
 var selection
-## Phase 4.5c: shared with MapView / main.
-var projection
+## Phase 4.5m: **MapCamera** shared with MapView / main.
+var camera
 
 static func compute_overlay_items(a_scenario, a_layout, a_selection) -> Array:
 	assert(HexCoordScript != null)
@@ -60,8 +61,10 @@ func _ready() -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	if projection == null:
-		projection = MapPlaneProjectionScript.new()
+	if camera == null:
+		var cam = MapCameraScript.new()
+		cam.projection = MapPlaneProjectionScript.new()
+		camera = cam
 	var fill_col = Color(1.0, 1.0, 1.0, 0.20)
 	var ring_col = Color(1.0, 1.0, 1.0, 0.95)
 	var items = compute_overlay_items(scenario, layout, selection)
@@ -73,7 +76,7 @@ func _draw() -> void:
 		corners_p.resize(corners.size())
 		var cidx2 = 0
 		while cidx2 < corners.size():
-			corners_p[cidx2] = projection.to_presentation(corners[cidx2])
+			corners_p[cidx2] = camera.to_presentation(corners[cidx2])
 			cidx2 = cidx2 + 1
 		if item["kind"] == "destination_fill":
 			draw_colored_polygon(corners_p, fill_col)

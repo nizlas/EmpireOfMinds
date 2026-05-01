@@ -11,6 +11,7 @@ var game_state
 var selection
 var selection_view
 var units_view
+var terrain_foreground_view
 var turn_label
 var log_view
 
@@ -39,8 +40,14 @@ func _unhandled_input(event: InputEvent) -> void:
 				selection.clear()
 				selection_view.scenario = game_state.scenario
 				units_view.scenario = game_state.scenario
+				if terrain_foreground_view != null:
+					var scen = game_state.scenario
+					terrain_foreground_view.scenario = scen
+					terrain_foreground_view.map = scen.map
 				selection_view.queue_redraw()
 				units_view.queue_redraw()
+				if terrain_foreground_view != null:
+					terrain_foreground_view.queue_redraw()
 				turn_label.refresh()
 				if log_view != null:
 					log_view.refresh()

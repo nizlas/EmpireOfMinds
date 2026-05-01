@@ -15,23 +15,26 @@ const SetCityProductionScript = preload("res://domain/actions/set_city_productio
 const CompleteProgressScript = preload("res://domain/actions/complete_progress.gd")
 const ProgressCandidateFilterScript = preload("res://domain/progress_candidate_filter.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
+const MapCameraScript = preload("res://presentation/map_camera.gd")
 
 var scenario
 var game_state
 var layout
-## Phase 4.5c: shared projection; Phase 4.5f — tile picks use projected hex geometry in layer-local space.
-var projection
+## Phase 4.5m: shared **MapCamera**; Phase 4.5f — tile picks use projected hex geometry in layer-local space.
+var camera
 var selection
 var selection_view
 var units_view
 var cities_view
+## Phase 4.6c: optional; **scenario** / **map** / **redraw** when units move (same **GameState.scenario** as other views).
+var terrain_foreground_view
 var turn_label
 var log_view
 @export var marker_hit_radius_ratio: float = 0.35
 
 ## Phase 4.5f — true if [pres_pt] lies inside the hex cell's **projected** polygon (matches drawn terrain); same layer-local space as [to_local] mouse.
-static func projected_hex_contains(layout, projection, q: int, r: int, pres_pt: Vector2) -> bool:
-	if layout == null or projection == null:
+static func projected_hex_contains(layout, camera, q: int, r: int, pres_pt: Vector2) -> bool:
+	if layout == null or camera == null:
 		return false
 	var center = layout.hex_to_world(q, r)
 	var corners = layout.hex_corners(center)
@@ -39,9 +42,17 @@ static func projected_hex_contains(layout, projection, q: int, r: int, pres_pt: 
 	poly.resize(6)
 	var i = 0
 	while i < 6:
-		poly[i] = projection.to_presentation(corners[i])
+		poly[i] = camera.to_presentation(corners[i])
 		i = i + 1
 	return Geometry2D.is_point_in_polygon(pres_pt, poly)
+
+func _sync_terrain_foreground_from_game_state() -> void:
+	if terrain_foreground_view == null or game_state == null:
+		return
+	var scen = game_state.scenario
+	terrain_foreground_view.scenario = scen
+	terrain_foreground_view.map = scen.map
+	terrain_foreground_view.queue_redraw()
 
 func _unhandled_input(event):
 	assert(HexCoordScript != null)
@@ -76,6 +87,7 @@ func _unhandled_input(event):
 					units_view.scenario = game_state.scenario
 				if cities_view != null:
 					cities_view.scenario = game_state.scenario
+				_sync_terrain_foreground_from_game_state()
 				selection.clear()
 				if selection_view != null:
 					selection_view.queue_redraw()
@@ -148,8 +160,10 @@ func _unhandled_input(event):
 		var mb = event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 			var scen = game_state.scenario
-			if projection == null:
-				projection = MapPlaneProjectionScript.new()
+			if camera == null:
+				var mc = MapCameraScript.new()
+				mc.projection = MapPlaneProjectionScript.new()
+				camera = mc
 			var local_point = to_local(get_global_mouse_position())
 			if not selection.is_empty():
 				var dests = MovementRulesScript.legal_destinations(scen, selection.unit_id)
@@ -157,7 +171,7 @@ func _unhandled_input(event):
 				var di = 0
 				while di < dests.size():
 					var dcell = dests[di]
-					if SelectionController.projected_hex_contains(layout, projection, dcell.q, dcell.r, local_point):
+					if SelectionController.projected_hex_contains(layout, camera, dcell.q, dcell.r, local_point):
 						dest_hit = dcell
 						break
 					di = di + 1
@@ -176,6 +190,7 @@ func _unhandled_input(event):
 						scenario = game_state.scenario
 						selection_view.scenario = game_state.scenario
 						units_view.scenario = game_state.scenario
+						_sync_terrain_foreground_from_game_state()
 						selection.clear()
 						selection_view.queue_redraw()
 						units_view.queue_redraw()
@@ -191,7 +206,7 @@ func _unhandled_input(event):
 			var i = 0
 			while i < ulist.size():
 				var u2 = ulist[i]
-				if SelectionController.projected_hex_contains(layout, projection, u2.position.q, u2.position.r, local_point):
+				if SelectionController.projected_hex_contains(layout, camera, u2.position.q, u2.position.r, local_point):
 					selection.select(u2.id)
 					found = true
 					break

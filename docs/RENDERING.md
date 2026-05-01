@@ -95,7 +95,7 @@
 
 ## Phase 4.3g — Map layer origin / top padding (implemented)
 
-- **[main.gd](../game/main.gd)** **`MAP_LAYER_ORIGIN`** (`Vector2(400, 428)`) — **`+128`** screen **Y** vs prior **`(400, 300)`** so the top hex row clears the viewport top; **4.5l:** **mutable** **`_map_layer_pos`** starts here for right-drag pan. Applied to **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, **`SelectionController`**. **Not** `Camera2D` / zoom; **`HexLayout.SIZE`**, **viewport** **2400×1500**, marker ratios unchanged.
+- **[main.gd](../game/main.gd)** **`MAP_LAYER_ORIGIN`** (`Vector2(400, 428)`) — **`+128`** screen **Y** vs prior **`(400, 300)`** so the top hex row clears the viewport top; **4.5m:** this **constant** is applied **once** in **`_ready`** to **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, **`TerrainForegroundView`**, **`SelectionController`** (**node** **`.position`** **not** mutated after **startup**). **Right-drag** pan updates **`MapCamera.camera_world_offset`** only. **Not** `Camera2D` / zoom; **`HexLayout.SIZE`**, **viewport** **2400×1500**, marker ratios unchanged.
 
 ## Phase 4.5a — Shared map-layer tilt scale + unit foot anchoring (historical; superseded by 4.5c)
 
@@ -125,13 +125,13 @@
 
 ## Phase 4.5c — Shared map-plane projection (implemented; math superseded by 4.5e)
 
-- **Architecture retained:** single **`MapPlaneProjection`** instance from **`[main.gd](../game/main.gd)`** on **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, **`SelectionController`**; **`MAP_LAYER_ORIGIN`** + **`scale`** **`Vector2.ONE`**; **`[main.tscn](../game/main.tscn)`** unchanged.
+- **Architecture:** **`[main.gd](../game/main.gd)`** owns one **`MapPlaneProjection`** (**`_map_projection`**) and one **`MapCamera`** (**`_map_camera`**) with **`camera.projection = _map_projection`** (**Phase 4.5m**). **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, **`TerrainForegroundView`**, **`SelectionController`** use **`.camera`** (**`MapCamera`**). **`MAP_LAYER_ORIGIN`** + **`scale`** **`Vector2.ONE`**; **`[main.tscn](../game/main.tscn)`** node order unchanged.
 - **Historical math:** **4.5c–4.5d** used **affine** **`shear_x_per_world_y`** + **`plane_y_scale`** (**4.5e** replaces with **projective** divide — see **4.5e**).
 - **`MapView`**: projects hex **corners** for **`draw_colored_polygon`**; **UVs** from **unprojected** layout corners (**4.1d** **`_world_anchored_corner_uvs`**). **4.5e:** vertices are **projectively** warped while **UVs** stay **layout/world**-anchored — small **non-perspective-correct** interpolation inside each hex is an accepted **prototype** tradeoff (painterly terrain hides most drift).
 - **`SelectionView`**: projects overlay **corners** like terrain.
 - **`UnitsView` / `CitiesView`**: project anchors; icons **axis-aligned** billboards.
-- **`SelectionController`**: **Phase 4.5f:** **`projected_hex_contains`** — **`Geometry2D.is_point_in_polygon`** on **`projection.to_presentation`** **hex** corners in **layer-local** space vs **`to_local(mouse)`** — matches **drawn** cells (**legal** **destinations** and **unit** **hex**). **`to_layout`** remains on **`MapPlaneProjection`** for other uses.
-- **Tests:** **`test_map_plane_projection.gd`** round-trip; runner **49** scripts.
+- **`SelectionController`**: **Phase 4.5f:** **`projected_hex_contains`** — **`Geometry2D.is_point_in_polygon`** on **`camera.to_presentation`** **hex** corners in **layer-local** space vs **`to_local(mouse)`** — matches **drawn** cells (**legal** **destinations** and **unit** **hex**). **4.5m:** **`MapCamera.to_layout`** / **`MapPlaneProjection.to_layout`** for pan math in **`main.gd`**.
+- **Tests:** **`test_map_plane_projection.gd`**, **`test_map_camera.gd`**; runner **50** scripts.
 
 ## Phase 4.5d — Map-plane away-direction tuning (historical; affine shear)
 
@@ -153,7 +153,7 @@
 ## Phase 4.5g — Civ6-like mild perspective + marker scale (implemented)
 
 - **`[map_plane_projection.gd](../game/presentation/map_plane_projection.gd)`** — **`depth_strength`** **`0.0004`** (tuning band **`0.0003`–`0.0005`**); **`plane_y_scale`** **`0.90`**; **`perspective_scale_at`**. **4.5g** briefly shipped **`projected_hex_centroid_pres`** (**removed** in **4.5h**).
-- **`[units_view.gd](../game/presentation/units_view.gd)`** / **`[cities_view.gd](../game/presentation/cities_view.gd)`** — upright **`draw_texture_rect`**: **`icon_side * perspective_scale_at(world_center)`**; **`anchor_pres = projection.to_presentation(layout.hex_to_world(q,r))`**. **Unit (textured):** **4.5i** **`unit_marker_pivot_*`** defaults; **4.5j** **per-** **`type_id`** **overrides** **only** **where** **art** **differs** — **hex** **center** = **foot/contact** **inside** **sprite** (**city** still **centered** on **`anchor_pres`**).
+- **`[units_view.gd](../game/presentation/units_view.gd)`** / **`[cities_view.gd](../game/presentation/cities_view.gd)`** — upright **`draw_texture_rect`**: **`icon_side * perspective_scale_at(world_center)`**; **`anchor_pres = camera.to_presentation(layout.hex_to_world(q,r))`**. **Unit (textured):** **4.5i** **`unit_marker_pivot_*`** defaults; **4.5j** **per-** **`type_id`** **overrides** **only** **where** **art** **differs** — **hex** **center** = **foot/contact** **inside** **sprite** (**city** still **centered** on **`anchor_pres`**).
 - **Picking:** unchanged **projected** hex **polygon** test (**[selection_controller.gd](../game/presentation/selection_controller.gd)**).
 
 ## Phase 4.5h — Projected top-view hex center marker anchoring (implemented)
@@ -174,11 +174,39 @@
 
 - **`[units_view.gd](../game/presentation/units_view.gd)`** — **settler** **`pivot_y`** **`0.88` → `0.86`** (**4.5k**).
 
-## Phase 4.5l — Larger prototype map + right-drag pan (implemented)
+## Phase 4.5l — Larger prototype map + right-drag pan (implemented; screen-space pan superseded by **4.5m**)
 
 - **`[hex_map.gd](../game/domain/hex_map.gd)`** — **`make_prototype_play_map()`**: axial disk **R** = **5**, **91** cells, **(-1,0)** **WATER**; **`make_tiny_test_map()`** unchanged (**7** cells, tests).
 - **`[scenario.gd](../game/domain/scenario.gd)`** — **`make_prototype_play_scenario()`** for **editor** play; headless tests keep **`make_tiny_test_scenario()`**.
-- **`[main.gd](../game/main.gd)`** — **`make_prototype_play_scenario()`**; **`_map_layer_pos`**; right-button **`_input`** drag **`+=`** **`relative`**; **`vanishing_pres`** = **`(get_viewport_rect().size * 0.5) - _map_layer_pos`** each update; five map nodes + **`SelectionController`** share **`position`**.
+- **Historical (pre-4.5m):** **`[main.gd](../game/main.gd)`** used **`_map_layer_pos`** and **`mm.relative`** so layers **slid** in **viewport** space; **`vanishing_pres`** tracked **`viewport_center - _map_layer_pos`**.
+
+## Phase 4.5m — Plane-space pan (**MapCamera**; implemented)
+
+- **`[map_camera.gd](../game/presentation/map_camera.gd)`** — **`MapCamera`** (**`RefCounted`**): wraps **`MapPlaneProjection`** and **`camera_world_offset: Vector2`**. **Forward:** **`to_presentation(world)`** = **`projection.to_presentation(world - camera_world_offset)`**; **inverse:** **`to_layout(local_pres)`** = **`projection.to_layout(local_pres) + camera_world_offset`**; **`perspective_scale_at(world)`** = **`projection.perspective_scale_at(world - camera_world_offset)`**. **`vanishing_pres`** getter/setter forwards to **`projection`** ( **`[map_plane_projection.gd](../game/presentation/map_plane_projection.gd)`** math **unchanged** ).
+- **`[main.gd](../game/main.gd)`** — Builds **`_map_projection`**, sets **`vanishing_pres`** **once** in **`_ready`** to **`(get_viewport_rect().size * 0.5) - MAP_LAYER_ORIGIN`** (**independent** of pan). Instantiates **`_map_camera`**, assigns **`_map_camera.projection`**, wires **`.camera = _map_camera`** on **`MapView`**, **`CitiesView`**, **`SelectionView`**, **`UnitsView`**, **`TerrainForegroundView`**, **`SelectionController`**. Map nodes **`position = MAP_LAYER_ORIGIN`** once; **`_redraw_map_layers()`** **`queue_redraw()`**s drawing views only.
+- **Right-drag:** layer-local pointer samples via **`MapView.to_local(mm.global_position)`** and **`to_local(mm.global_position - mm.relative)`** (same space as **`SelectionController.to_local(get_global_mouse_position())`**). **`camera_world_offset += prev_world - cur_world`** where **`prev_world` / `cur_world`** = **`_map_camera.to_layout(prev_local / cur_local)`**, preserving the **world** point under the cursor (**not** **`cur_world - prev_world`** — that inverts the grab invariant for this projection).
+- **Deferred:** **`Camera2D`**, **zoom**, **inertia**, **bounds**, **keyboard** pan — **not** in **4.5m**.
+
+## Phase 4.6a — Terrain layering + forest visual model (design checkpoint; documentation only)
+
+- **Scope:** **4.6a** **itself** was **documentation-only** — it recorded the **terrain layering** model and **4.6b** boundaries before implementation land. It did **not** add code or **`Terrain.FOREST`**.
+
+## Phase 4.6b — Visual-only prototype forest overlays on PLAINS (implemented)
+
+- **Scope:** **Presentation-only** — **decoration** on existing **`HexMap.Terrain.PLAINS`** cells only; **not** **`Terrain.FOREST`**, **not** movement / combat / vision rules, **no** domain / content / scenario semantics, **no** new assets or **PNG** imports. **MapPlaneProjection** constants and **formulas**, **right-drag** **panning** (**4.5m** **plane** **offset**), **projected** **polygon** **picking**, and **marker** placement / pivots / scaling follow **4.5c** / **4.5m** / **4.5x**.
+- **Draw / input order** (**[main.tscn](../game/main.tscn)** under **`Main`**, map layers at **`MAP_LAYER_ORIGIN`**; pan = **`MapCamera.camera_world_offset`**):
+  1. **[MapView](../game/presentation/map_view.gd)** — terrain hex polygons (unchanged **4.1d** UVs), **4.1e** procedural detail, then **4.6b** **back** canopy / clumps on **deterministically selected** PLAINS hexes (**after** detail, still under other map views).
+  2. **[CitiesView](../game/presentation/cities_view.gd)**
+  3. **[SelectionView](../game/presentation/selection_view.gd)**
+  4. **[UnitsView](../game/presentation/units_view.gd)**
+  5. **[TerrainForegroundView](../game/presentation/terrain_foreground_view.gd)** — on **decorated** **PLAINS**: **always** **terrain-owned** foreground clumps (**stable** per hex); **if** **`enable_unit_occlusion_test`**: **additional** unit-anchored occluder when **units** present and **no** **city** (**not** a replacement — **4.6d**); **no** **`_input`**.
+  6. **[SelectionController](../game/presentation/selection_controller.gd)** — hit-test / input only; **no** draw.
+  7. **HUD** — **`TurnLabel`**, **`LogView`**, etc.
+- **Shared gate:** **[plains_forest_decoration.gd](../game/presentation/plains_forest_decoration.gd)** — **`is_plains_forest_decorated(q, r, density_ratio)`** and **`cell_mix(q, r, salt)`** (same polynomial family as **`MapView._terrain_detail_hash`**; **no** RNG). **`[main.gd](../game/main.gd)`** assigns **`TerrainForegroundView.forest_density_ratio` from** **`MapView.forest_density_ratio`**, **`scenario`**, and **`foreground_unit_reference_height_ratio`** from **`UnitsView`** at startup so **back** and **foreground** gates match (**density** default **0.25**). **4.6c:** **`terrain_foreground_view`** wired to **controllers** for **scenario**/**map** sync and **redraw** after accepted actions.
+- **4.6b-debug (visibility + wiring):** **`[main.gd](../game/main.gd)`** assigns **`TerrainForegroundView.camera = _map_camera`** — **same** **`MapCamera`** (**shared** **`MapPlaneProjection`**) as **`MapView`** / markers — so **pan** stays **aligned** (**foreground** must **not** rely on a one-off default **`MapPlaneProjection`** in **`_draw()`**). **`MapView.forest_back_opacity`** (default **1.0**) scales **back** forest alpha only; **`TerrainForegroundView.forest_front_opacity`** scales **front** alpha. Optional **`TerrainForegroundView.forest_debug_log_counts_once`** prints **one** line (**PLAINS** count, **decorated** count, density, front opacity) for diagnosis — **off** by default.
+- **4.6b-polish (silhouette read):** **`MapView`** draws **2–3** **canopy** **clusters** per decorated hex — **few** **overlapping** **large** circles plus an optional **skewed** **quad** in **presentation** space so mass reads as **woodland** **silhouette**, not **grass** **speckle**. **`TerrainForegroundView`** draws **1–2** **front** **bushes** from **layered** circles and a **triangular** **olive** mass, placed **lower-front** but **slightly** **inward** from the hex bottom so clumps stay **visible** vs **unit** **feet**. Default **`forest_front_opacity`** **0.72**. **No** thin **stroke** **noise** on these layers.
+- **4.6c (unit-aware foreground occluder — layering test):** **`TerrainForegroundView`** holds **`Scenario`** (**read-only**) for **`units_at`** / **`cities_at`**. **4.6d:** **Terrain-owned** **`_draw_plains_forest_front`** runs **first** on **every** **decorated** **PLAINS** hex **independent** of **unit**/ **city** occupancy. **If** **`enable_unit_occlusion_test`** (**default** **true**) **and** **≥1** **unit** **and** **no** **city**, **`_draw_unit_forest_occluder`** draws **after** as an **extra** **test** overlay (does **not** replace hex bushes). **Long-term** model stays **terrain**/ **hex**-**owned** foreground. **Unit** mass: **`anchor_pres`**, **`side`** = **`2 × HexLayout.SIZE × foreground_unit_reference_height_ratio × perspective_scale_at`** (**`main.gd`** syncs ratio from **`UnitsView`**); **`unit_occluder_*`** exports. **Not** **`Terrain.FOREST`**, **not** **rules**. **`SelectionController`** / **`EndTurnController`** / **`AITurnController`**: **`terrain_foreground_view`** sync (**picking** unchanged).
+- **Future:** **Raster** forest / terrain overlays remain **deferred**; if added, **Phase 4.3j** (**true RGBA PNG**, transparency, scoped **`.import`** / filtering, mipmaps where appropriate, **provenance**). **Further** split of **terrain** into separate base/back nodes is **steering** only until a later phase.
 
 ## Phase 4.3h — Marker texture filtering polish (implemented)
 

@@ -53,6 +53,15 @@
 - **Terrain art is visual-only**; drawing remains derived from **`map.coords()`** / **`terrain_at()`** per **RENDERING.md**.
 - **Future (not Phase 4.1):** **Cover** terrain (e.g. forest / jungle / ruins) may use a simple **2.5D** stack: **(1)** terrain **base**, **(2)** **optional** detail **behind** the unit, **(3)** **unit marker**, **(4)** **optional** **foreground** occluder covering only a **small** part of the marker. **Readability:** unit **type** / **owner** / **selection** stay clear; **foreground** detail must **not** hide more than a **sliver** of the marker; **selection** overlay stays authoritative. **Phase 4.1e** adds only **subtle procedural** specks/lines **atop** the **base** terrain fill — **no** occlusion layers and **no** new terrain **types**.
 
+## Terrain direction for 4.6 (forest visual model; 4.6b implemented slice)
+
+- **Scope:** **4.6b** adds **visual-only** overlays on **PLAINS** — **not** a new **`HexMap.Terrain`** value and **not** **`Terrain.FOREST`**; **no** movement, combat, vision, or domain semantics.
+- **Style:** **Painterly**, **parchment-map**, **muted** greens/browns — **clustered** tree/bush **strokes**, **not** photoreal **tile** fill and **not** a **dense** carpet that **obscures** the board.
+- **Layering:** **Back** forest detail in **`MapView`** **behind** **units** and **most** of **city** markers; **`TerrainForegroundView`** (**4.6b**) draws **small** **foreground** bushes **after** **`UnitsView`** — overlap **only** the **lower** / **front** **portion** of **unit** billboards — **type**, **owner**, and **foot** contact must stay **readable**.
+- **Cities:** The **first** **visual** **prototype** **must not** **heavily** **occlude** **city** markers; **settlement** **read** stays **priority** vs **decorative** **clutter**.
+- **Selection:** **Legal** destinations and **selected** hex **ring** stay **unambiguous** vs **any** **forest** decoration; contrast and **overlay** **authority** per **[RENDERING.md](RENDERING.md)** / **Phase** **1.5**.
+- **Raster path (later only):** If **PNG** (or other **raster**) **terrain** overlays are added **after** procedural trials, they **must** follow the **Phase 4.3j** **prototype raster import quality standard** below (**true** **RGBA**, transparent background, scoped **import** / **filtering**, **mipmaps** where appropriate, **provenance**).
+
 ## Unit direction for 4.2
 
 - **Aim:** Clear **type** and **ownership** at a glance (and at modest zoom).

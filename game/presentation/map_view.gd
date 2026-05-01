@@ -8,6 +8,8 @@ const HexMapScript = preload("res://domain/hex_map.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
+const MapCameraScript = preload("res://presentation/map_camera.gd")
+const PlainsForestScript = preload("res://presentation/plains_forest_decoration.gd")
 
 const _PLAINS_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/plains_painterly.png"
 const _WATER_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/water_painterly.png"
@@ -15,11 +17,15 @@ const _WATER_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/water_pa
 @export var hex_tile_size: float = 128.0
 ## World units per one UV tile along X/Y; larger = less frequent texture repeat (presentation-only).
 @export var terrain_texture_world_scale: float = 512.0
+## Phase 4.6b: fraction of PLAINS cells that get procedural forest *decoration* (not Terrain.FOREST).
+@export_range(0.0, 1.0) var forest_density_ratio: float = 0.25
+## Multiplies alpha of back-canopy circles/lines (Phase 4.6b-debug — keep muted but readable over terrain art).
+@export_range(0.0, 3.0) var forest_back_opacity: float = 1.0
 
 var map
 var layout
-## Wired by main; Phase 4.5c projection for terrain + detail. Defaults in _draw for headless safety.
-var projection
+## Wired by main; Phase 4.5m **MapCamera** (wraps **MapPlaneProjection** + plane offset). Defaults in _draw for headless safety.
+var camera
 
 var _plains_terrain_tex: Texture2D
 var _water_terrain_tex: Texture2D
@@ -121,6 +127,51 @@ func _draw_terrain_detail_overlay(proj, world: Vector2, terrain: int, q: int, r:
 		_draw_water_detail(proj, world, q, r)
 
 
+func _draw_plains_forest_back(proj, world: Vector2, q: int, r: int) -> void:
+	# Phase 4.6b / 4.6b-polish: 2–3 large overlapping canopy masses (fewer, bigger than speckle pass).
+	var op: float = forest_back_opacity
+	var size: float = HexLayoutScript.SIZE
+	var n_clumps: int = 2 + (PlainsForestScript.cell_mix(q, r, 701) % 2)
+	var c: int = 0
+	while c < n_clumps:
+		var h0: int = PlainsForestScript.cell_mix(q, r, 810 + c * 17)
+		var base_ang: float = deg_to_rad(198.0 + float(h0 % 95))
+		var base_dist: float = size * (0.20 + float((h0 >> 7) % 28) / 100.0)
+		var hub: Vector2 = world + Vector2(cos(base_ang), sin(base_ang)) * base_dist
+		var b: int = 0
+		while b < 3:
+			var hb: int = PlainsForestScript.cell_mix(q, r, 830 + c * 11 + b)
+			var da: float = deg_to_rad(float(hb % 70) - 35.0)
+			var dd: float = size * (0.06 + float((hb >> 8) % 18) / 100.0)
+			var pw: Vector2 = hub + Vector2(cos(base_ang + da), sin(base_ang + da)) * dd
+			var pr: Vector2 = proj.to_presentation(pw)
+			var rr: float = 11.0 + float((hb >> 4) & 7) * 1.35
+			var fill_a: float = (0.11 + float((hb >> 12) & 3) * 0.025) * op
+			draw_circle(
+				pr,
+				rr,
+				Color(0.20, 0.40, 0.24, clampf(fill_a, 0.0, 1.0))
+			)
+			b += 1
+		if (PlainsForestScript.cell_mix(q, r, 860 + c) & 1) == 0:
+			var hp: int = PlainsForestScript.cell_mix(q, r, 870 + c)
+			var hx: Vector2 = proj.to_presentation(hub)
+			var rx: float = 14.0 + float((hp >> 5) & 7) * 1.2
+			var ry: float = 10.0 + float((hp >> 8) & 7) * 1.0
+			var skew: float = deg_to_rad(float((hp >> 11) % 40) - 20.0)
+			var cs: float = cos(skew)
+			var sn: float = sin(skew)
+			var poly: PackedVector2Array = PackedVector2Array([
+				hx + Vector2(-rx * cs + 0.3 * ry * sn, -rx * sn - 0.3 * ry * cs),
+				hx + Vector2(rx * cs + 0.2 * ry * sn, rx * sn - 0.2 * ry * cs),
+				hx + Vector2(0.45 * rx * cs - ry * sn, 0.45 * rx * sn + ry * cs),
+				hx + Vector2(-0.35 * rx * cs - 0.75 * ry * sn, -0.35 * rx * sn + 0.75 * ry * cs),
+			])
+			var pa: float = (0.08 + float((hp >> 14) & 3) * 0.018) * op
+			draw_colored_polygon(poly, Color(0.22, 0.36, 0.22, clampf(pa, 0.0, 1.0)))
+		c += 1
+
+
 static func compute_draw_items(a_map, a_layout) -> Array:
 	# Preloaded so headless/entry scripts do not depend on class_name order for the coord type.
 	assert(HexCoordScript != null)
@@ -168,8 +219,10 @@ func _projected_corners(proj, corners: PackedVector2Array) -> PackedVector2Array
 func _draw() -> void:
 	if map == null or layout == null:
 		return
-	if projection == null:
-		projection = MapPlaneProjectionScript.new()
+	if camera == null:
+		var cam = MapCameraScript.new()
+		cam.projection = MapPlaneProjectionScript.new()
+		camera = cam
 	var items = compute_draw_items(map, layout)
 	var j = 0
 	while j < items.size():
@@ -177,7 +230,7 @@ func _draw() -> void:
 		var corners = item["corners"]
 		var col = item["color"]
 		var terrain: int = int(item["terrain"])
-		var corners_draw = _projected_corners(projection, corners)
+		var corners_draw = _projected_corners(camera, corners)
 		var tex: Texture2D
 		if terrain == HexMapScript.Terrain.PLAINS:
 			tex = _plains_terrain_tex
@@ -192,5 +245,8 @@ func _draw() -> void:
 		else:
 			draw_colored_polygon(corners_draw, col)
 		var coord = item["coord"]
-		_draw_terrain_detail_overlay(projection, item["world"] as Vector2, terrain, coord.q, coord.r)
+		_draw_terrain_detail_overlay(camera, item["world"] as Vector2, terrain, coord.q, coord.r)
+		if terrain == HexMapScript.Terrain.PLAINS:
+			if PlainsForestScript.is_plains_forest_decorated(coord.q, coord.r, forest_density_ratio):
+				_draw_plains_forest_back(camera, item["world"] as Vector2, coord.q, coord.r)
 		j = j + 1

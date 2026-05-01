@@ -1392,7 +1392,7 @@ Validation:
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
 - Expected **49** scripts, all **PASS**, exit **0**
 
-### Phase 4.5l — Larger prototype map + right-drag pan (implemented)
+### Phase 4.5l — Larger prototype map + right-drag pan (implemented; pan mechanics superseded by **4.5m**)
 
 Goal:
 
@@ -1402,12 +1402,168 @@ Shipped:
 
 - **`game/domain/hex_map.gd`** — **`make_prototype_play_map()`** (**R**=**5**, **91** **cells**)
 - **`game/domain/scenario.gd`** — **`make_prototype_play_scenario()`**
-- **`game/main.gd`** — **prototype** **scenario**, **`_map_layer_pos`**, **`_input`** **pan**, **`vanishing_pres`**
+- **`game/main.gd`** — **prototype** **scenario**; **historical:** **`_map_layer_pos`**, **screen-space** **`_input`** pan, **`vanishing_pres`** tied to **`_map_layer_pos`**
 - **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/SELECTION.md`**
 
 Must not:
 
 - **No** **movement** / **rules** **changes**; **tests** **keep** **`make_tiny_test_*`**.
+
+Validation (at **4.5l** ship):
+
+- **`49`** **headless** **scripts** **PASS** (**before** **`test_map_camera.gd`**).
+
+### Phase 4.5m — Plane-space pan (**MapCamera**; implemented)
+
+Goal:
+
+- **Replace** **4.5l** **screen-space** **layer** **translation** with **plane-space** **`camera_world_offset`** **before** **`MapPlaneProjection`**, so **pan** **re-projects** the **map** instead of **sliding** a **flat** **bitmap**-like **composite**.
+
+Shipped:
+
+- **`game/presentation/map_camera.gd`**, **`game/presentation/tests/test_map_camera.gd`**, **`scripts/run-godot-tests.ps1`** (**+1** **script**).
+- **`game/main.gd`** — **`_map_camera`**, **constant** **layer** **positions**, **`_redraw_map_layers`**, **`_input`** **plane** **pan** **math**.
+- **`game/presentation/map_view.gd`**, **`cities_view.gd`**, **`selection_view.gd`**, **`units_view.gd`**, **`terrain_foreground_view.gd`**, **`selection_controller.gd`** — **`var camera`**, **`MapCamera`** **fallbacks** in **`_draw`** / **pick**.
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/SELECTION.md`**
+
+Must not:
+
+- **No** **`MapPlaneProjection`** **formula** / **export** **edits**; **no** **`Camera2D`** / **zoom** / **domain** / **`main.tscn`** **order** **changes**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **50** scripts, all **PASS**, exit **0**
+
+### Phase 4.6a — Terrain layering + forest visual model (design checkpoint; documentation only)
+
+Goal:
+
+- **Checkpoint** the **terrain layering** and **forest visual** model in **docs** after the **4.5l** presentation baseline — **no** implementation churn.
+
+Shipped:
+
+- **`docs/RENDERING.md`** — current **verified** map stack vs **intended** terrain-aware stack (**`TerrainForegroundView`** **planned** **between** **`UnitsView`** and **`SelectionController`**); **4.6b** boundary.
+- **`docs/VISUAL_DIRECTION.md`** — **4.6** / **forest** direction (**painterly**, **clustered**, **readability**).
+- **`docs/PHASE_PLAN.md`** — **this** **subsection**.
+- **`docs/DECISION_LOG.md`** — **4.6a** entry.
+
+Must not:
+
+- **No** **`game/**`**, **assets**, **`project.godot`**, **tests**, **scenes**, **domain/content**, or **`Terrain.FOREST`** — **documentation** **only**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.6b — Visual-only prototype forest overlays on PLAINS (implemented)
+
+Goal:
+
+- **Presentation-only** prototype: **forest**-**styled** **clusters** on **`HexMap.Terrain.PLAINS`** hexes — **visual** **decoration** **only**; **not** **`Terrain.FOREST`**, **not** gameplay **forest**.
+
+Shipped:
+
+- **`game/presentation/plains_forest_decoration.gd`** — deterministic **PLAINS** decoration gate + **`cell_mix`** (shared by **MapView** and **`TerrainForegroundView`**).
+- **`game/presentation/map_view.gd`** — **`forest_density_ratio`**; **back** canopy / stroke clumps after **4.1e** detail.
+- **`game/presentation/terrain_foreground_view.gd`** — foreground bush clumps; **`forest_density_ratio`**, **`forest_front_opacity`**.
+- **`game/main.tscn`**, **`game/main.gd`** — **`TerrainForegroundView`** after **`UnitsView`**, before **`SelectionController`**; pan / projection wiring.
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/VISUAL_DIRECTION.md`**
+
+Must not:
+
+- **No** **`HexMap.Terrain.FOREST`** / **`Terrain.FOREST`** **enum** value.
+- **No** **movement** / **combat** / **vision** **terrain** **rules** tied to overlays.
+- **No** **resources** or **economy** hooks from visuals.
+- **No** **domain** / **content** / **scenario** changes **for** **forest** semantics.
+- **No** **asset** **imports** in **4.6b** (procedural **only**); **later** rasters **must** follow **Phase** **4.3j** (true **RGBA** **PNG**, transparent background, scoped import/filtering, mipmaps where appropriate, provenance).
+- **No** **changes** to **projection**, **right-drag** **panning**, or **projected** **polygon** **picking** unless a **separate** **phase** **explicitly** **scopes** that work.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.6b-debug — Forest overlay readability (implemented)
+
+Goal:
+
+- **Prototype** forest marks **visible** in **editor** play; **foreground** uses the **same** **`MapPlaneProjection`** as **`MapView`** (**pan** / **`vanishing_pres`** aligned).
+
+Shipped:
+
+- **`game/main.gd`** — **`$TerrainForegroundView.projection = _map_projection`** (was missing).
+- **`game/presentation/map_view.gd`** — **`forest_back_opacity`**; **higher-contrast** **back** clumps.
+- **`game/presentation/terrain_foreground_view.gd`** — **higher-contrast** **foreground** clumps; optional **`forest_debug_log_counts_once`**.
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- Same **bounds** as **4.6b** — **no** **domain/rules/enum/assets**; **no** edits to **`MapPlaneProjection`** **math** (only **shared instance** wiring).
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.6b-polish — Forest silhouette read (implemented)
+
+Goal:
+
+- Forest **reads** as **fewer**, **larger** **layered** **clumps** (back **canopy** vs **front** **bush**), **less** **speckle**; **default** **`forest_density_ratio`** **0.25** **(was** **0.30**).
+
+Shipped:
+
+- **`game/presentation/map_view.gd`** — **2–3** **canopy** **clusters** / hex; **overlapping** **circles** + optional **quad** **silhouette**; no **thin** **line** **noise**.
+- **`game/presentation/terrain_foreground_view.gd`** — **1–2** **chunky** **front** **masses** (circles + **triangle**); **`forest_front_opacity`** default **0.72**.
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- Same **bounds** as **4.6b** / **4.6b-debug** (**presentation** **tuning** **only**).
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.6c — Unit-aware foreground forest occluder (implemented)
+
+Goal:
+
+- **Visual-only** test: **forest** **foreground** **mass** **scaled**/ **placed** from **unit** **marker** **geometry** on **decorated** **PLAINS** (**no** **city** on hex), to validate **2.5D** **in-front-of-unit** read — **not** **`Terrain.FOREST`**, **not** **rules**.
+
+Shipped:
+
+- **`game/presentation/terrain_foreground_view.gd`** — **`scenario`**, **`_draw_unit_forest_occluder`**, exports **`unit_occluder_*`**, **`foreground_unit_reference_height_ratio`**.
+- **`game/main.gd`** — **`scenario`** + height ratio wiring; **`terrain_foreground_view`** on **`SelectionController`**, **`EndTurnController`**, **`AITurnController`**.
+- **`game/presentation/selection_controller.gd`**, **`end_turn_controller.gd`**, **`ai_turn_controller.gd`** — optional **`terrain_foreground_view`**; **redraw**/**scenario** sync (**picking** unchanged).
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **No** **domain** / **enum** / **rules** / **`MapPlaneProjection`** **math** / **UnitsView** **pivots** / **marker** **placement** changes.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **49** scripts, all **PASS**, exit **0**
+
+### Phase 4.6d — Terrain-owned foreground preserved when units occupy hex (implemented)
+
+Goal:
+
+- **Bug:** **Unit** on **decorated** hex **replaced** terrain **foreground** with **only** the **unit** occluder **path** → **bushes** **vanished**. **Fix:** **always** draw **`_draw_plains_forest_front`**; **`enable_unit_occlusion_test`** gates **additive** **`_draw_unit_forest_occluder`** only.
+
+Shipped:
+
+- **`game/presentation/terrain_foreground_view.gd`** — **`enable_unit_occlusion_test`**; draw-order **general** **then** **optional** **unit** overlay.
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **Presentation** **only**; **no** **domain** / **picking** / **projection** changes.
 
 Validation:
 

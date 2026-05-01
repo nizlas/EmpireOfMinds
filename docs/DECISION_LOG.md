@@ -1,3 +1,102 @@
+## 2026-05-01 — Phase 4.5m — **MapCamera** plane-space pan (replaces **4.5l** screen-layer pan)
+
+Decision:
+
+- **`MapCamera`** (**`map_camera.gd`**) wraps **`MapPlaneProjection`** + **`camera_world_offset`**; views / **`SelectionController`** use **`camera.to_presentation`** / **`to_layout`** / **`perspective_scale_at`**. **`main.gd`:** **`vanishing_pres`** set **once** in **`_ready`** to **`viewport * 0.5 - MAP_LAYER_ORIGIN`**; map nodes **`position = MAP_LAYER_ORIGIN`** once; right-drag updates **`camera_world_offset`** from **layer-local** **`MapView.to_local`** samples (**grab** invariant: **`offset += prev_world - cur_world`**).
+
+Rationale:
+
+- **4.5l** panned by **moving** **Node2D** **layers** — the **projected** image **slides** as a **flat** **composite**. **4.5m** pans in **layout** **space** **before** **projection** so **recession** / **scale** **update** during drag.
+
+Caveat:
+
+- **No** **`Camera2D`**, **zoom**, **bounds**, **inertia** in **4.5m**; **window** **resize** does **not** **recompute** **`vanishing_pres`** after **`_ready`** (**unchanged** from **4.5m** **scope**).
+
+## 2026-05-01 — Phase 4.6d — terrain foreground stable; unit occluder additive only
+
+Decision:
+
+- **`TerrainForegroundView`:** **always** **`_draw_plains_forest_front`** on **decorated** **PLAINS**; **`_draw_unit_forest_occluder`** **only** **after**, **if** **`enable_unit_occlusion_test`** **and** **units** **without** **city**.
+
+Rationale:
+
+- **Occupied** hex **replaced** **branch** **dropped** **terrain**-**owned** **clumps**; **layering** **test** must **not** **remove** **hex** **vegetation**.
+
+Caveat:
+
+- **`enable_unit_occlusion_test`** remains **prototype** **overlay**; **final** **read** is **hex**/ **terrain**-**owned** **foreground**.
+
+## 2026-05-01 — Phase 4.6c — unit-aware forest foreground occluder (presentation test)
+
+Decision:
+
+- **`TerrainForegroundView`:** on **decorated** **PLAINS** with **units** and **no** **city**, draw **large** **occluder** from **`anchor_pres`** and **`side`** (**same** formula as **`UnitsView`** **`side`**); **`Scenario`** **read-only**; **controllers** **sync** **`scenario`**, **`map`**, **`queue_redraw`** on **accepted** actions.
+
+Rationale:
+
+- **Hex-only** foreground did **not** **overlap** **units** **meaningfully**; **unit-anchored** **mass** tests **layering** **without** **terrain** **rules**.
+
+Caveat:
+
+- **Prototype** **decoration** **only** — **not** **cover** / **combat** semantics.
+
+## 2026-05-01 — Phase 4.6b-polish — larger woodland clumps, density 0.25
+
+Decision:
+
+- **MapView** **back** forest: **2–3** **clusters** / **decorated** hex, **large** **overlapping** circles + **occasional** **skewed** **quad**; **TerrainForegroundView**: **1–2** **front** **masses** (circles + **triangle**), **stronger** **olive** read, **`forest_front_opacity`** default **0.72**. **`forest_density_ratio`** default **0.25** (**MapView** + **synced** in **`main.gd`**).
+
+Rationale:
+
+- **Live** read was **plot**/ **speckle**; **goal** is **painterly** **woodland** **silhouettes** with **clear** **front**/**back** **layering**.
+
+Caveat:
+
+- Still **PLAINS** **decoration** **only** / **no** **`Terrain.FOREST`**.
+
+## 2026-05-01 — Phase 4.6b-debug — forest visibility + shared projection (TerrainForegroundView)
+
+Decision:
+
+- **`Main`:** **`TerrainForegroundView.camera = _map_camera`** (**same** **`MapCamera`** / **`MapPlaneProjection`** as **`MapView`** / markers) — **not** a **fallback** **`MapPlaneProjection.new()`** in **`_draw()`**.
+- **`MapView` / `TerrainForegroundView`:** **raise** procedural forest **alpha** and **stroke/circle** sizes for readability over **terrain** art; **`MapView.forest_back_opacity`** export for quick tuning; **`TerrainForegroundView.forest_debug_log_counts_once`** for **one** **PLAINS**/**decorated** stats line.
+
+Rationale:
+
+- **Live** review: marks were **near-invisible** (**~0.08** alpha, **~2px** dots); **foreground** projection **wiring** was **missing**, so **pan** could **misalign** **layers**.
+
+Caveat:
+
+- Still **decoration-only** / **PLAINS-only** / **no** **`Terrain.FOREST`**.
+
+## 2026-05-01 — Visual-only PLAINS forest decoration prototype (Phase 4.6b; presentation only)
+
+Decision:
+
+- **`MapView`** draws **deterministic** **back** canopy/stroke clumps on a **density**-gated subset of **PLAINS** hexes (after **4.1e** detail); **`TerrainForegroundView`** draws **1–3** **foreground** bush clumps per the **same** hexes; sibling order **MapView** → **CitiesView** → **SelectionView** → **UnitsView** → **`TerrainForegroundView`** → **`SelectionController`**. **`plains_forest_decoration.gd`** holds the **shared** gate (**no** **`Terrain.FOREST`**).
+
+Rationale:
+
+- Exercises **4.6a** **layering** (back vs **foreground** occluder) **without** domain terrain types, **3D**, **shaders**, or **rule** changes.
+
+Caveat:
+
+- **Decoration** **only** — **no** combat/movement/vision semantics; **no** new **PNG**s; future **rasters** → **4.3j**.
+
+## 2026-05-01 — Terrain layering + forest visual model checkpoint (Phase 4.6a; documentation only)
+
+Decision:
+
+- Adopt a **terrain layering** model for future **2.5D** “**forest** / **cover**” **feel**: **terrain** **base** / **back** detail → **cities** → **selection**-**ground** overlays → **units** → **planned** **`TerrainForegroundView`** (**small** foreground occluders) **between** **`UnitsView`** and **`SelectionController`** → **controller** / **HUD**. **4.6a** updates **docs** **only** — **no** **`TerrainForegroundView`** node yet.
+
+Rationale:
+
+- Delivers a **simple** **layered** read (**depth** **without** full **3D**, **custom** **shaders**, or a **gameplay** **terrain** system) while keeping **units**, **cities**, and **selection** **readable**.
+
+Caveat:
+
+- **First** forest-**styled** delivery (**4.6b**) is **visual**-**only** on **PLAINS** — **no** **`Terrain.FOREST`** **enum**, **no** **rules**, **no** **domain** semantics; **procedural** **first**; **rasters** **later** only under **4.3j**.
+
 ## 2026-05-01 — Larger prototype map + right-drag pan (Phase 4.5l)
 
 Decision:

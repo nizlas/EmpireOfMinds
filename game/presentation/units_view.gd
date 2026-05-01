@@ -8,6 +8,7 @@ const UnitScript = preload("res://domain/unit.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
+const MapCameraScript = preload("res://presentation/map_camera.gd")
 
 const _SETTLER_MARKER_PATH = "res://assets/prototype/map_markers/unit_settler_marker.png"
 const _WARRIOR_MARKER_PATH = "res://assets/prototype/map_markers/unit_warrior_marker.png"
@@ -17,7 +18,7 @@ const _UNIT_MARKER_PIVOT_BY_TYPE: Dictionary = {"settler": Vector2(0.50, 0.86)}
 var scenario
 var layout
 ## Wired by main; projected hex center = foot pivot in sprite (**unit_marker_pivot_*** + **4.5j** per-**type_id** table).
-var projection
+var camera
 ## Wired by main for API compat; Phase 4.3f+ does not draw a unit selection halo — hex highlight only.
 var selection
 @export var marker_radius_ratio: float = 0.35
@@ -100,8 +101,10 @@ func _resolved_marker_pivot(type_id: String) -> Vector2:
 	return Vector2(unit_marker_pivot_x_ratio, unit_marker_pivot_y_ratio)
 
 func _draw() -> void:
-	if projection == null:
-		projection = MapPlaneProjectionScript.new()
+	if camera == null:
+		var cam = MapCameraScript.new()
+		cam.projection = MapPlaneProjectionScript.new()
+		camera = cam
 	var items = UnitsView.compute_marker_items(scenario, layout)
 	var r = HexLayoutScript.SIZE * marker_radius_ratio
 	var j = 0
@@ -116,8 +119,8 @@ func _draw() -> void:
 		var col = item["color"] as Color
 		var tid: String = str(item.get("type_id", ""))
 		var utex = _texture_for_type_id(tid)
-		var anchor_pres = projection.to_presentation(world_center)
-		var pscale = projection.perspective_scale_at(world_center)
+		var anchor_pres = camera.to_presentation(world_center)
+		var pscale = camera.perspective_scale_at(world_center)
 		if utex != null:
 			var side = icon_side * pscale
 			var piv = _resolved_marker_pivot(tid)
