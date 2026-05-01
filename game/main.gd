@@ -2,7 +2,7 @@
 # See docs/RENDERING.md, docs/SELECTION.md
 extends Node2D
 
-## Initial pixel origin for MapView, CitiesView, SelectionView, UnitsView, TerrainForegroundView, SelectionController (Phase 4.3g). **4.5m:** set **once** on each node in `_ready`; pan uses **MapCamera.camera_world_offset** only.
+## Initial pixel origin for MapView, CitiesView, SelectionView, UnitsView, TerrainForegroundView, SelectionController (Phase 4.3g). **4.5m:** set **once** on each node in `_ready`; pan uses **MapCamera.camera_world_offset**. **4.5n:** mouse-wheel zoom via **`MapCamera.set_zoom_clamped`** (center-anchored).
 const MAP_LAYER_ORIGIN: Vector2 = Vector2(400.0, 428.0)
 
 const ScenarioScript = preload("res://domain/scenario.gd")
@@ -12,6 +12,8 @@ const MapCameraScript = preload("res://presentation/map_camera.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
 const GameStateScript = preload("res://domain/game_state.gd")
 const FactionBannerGalleryScript = preload("res://presentation/faction_banner_gallery.gd")
+## Phase 4.5n: mouse-wheel zoom multiplier (center-anchored in layer-local space; not cursor-anchored).
+const ZOOM_STEP: float = 1.10
 
 var _faction_banner_gallery
 var _map_projection
@@ -118,6 +120,30 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if not mb.pressed:
+			return
+		var factor: float = 0.0
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			factor = ZOOM_STEP
+		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			factor = 1.0 / ZOOM_STEP
+		else:
+			return
+		var center_local: Vector2 = get_viewport_rect().size * 0.5 - MAP_LAYER_ORIGIN
+		var old_zoom: float = _map_camera.zoom
+		var world_before: Vector2 = _map_camera.to_layout(center_local)
+		_map_camera.set_zoom_clamped(_map_camera.zoom * factor)
+		if is_equal_approx(_map_camera.zoom, old_zoom):
+			get_viewport().set_input_as_handled()
+			return
+		var world_after: Vector2 = _map_camera.to_layout(center_local)
+		if world_before.is_finite() and world_after.is_finite():
+			_map_camera.camera_world_offset += world_before - world_after
+		_redraw_map_layers()
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseMotion:
 		var mm := event as InputEventMouseMotion
 		if mm.button_mask & MOUSE_BUTTON_MASK_RIGHT:

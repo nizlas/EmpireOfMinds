@@ -1428,7 +1428,29 @@ Shipped:
 
 Must not:
 
-- **No** **`MapPlaneProjection`** **formula** / **export** **edits**; **no** **`Camera2D`** / **zoom** / **domain** / **`main.tscn`** **order** **changes**.
+- **No** **`MapPlaneProjection`** **formula** / **export** **edits**; **no** **`Camera2D`** / **domain** / **`main.tscn`** **order** **changes**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **50** scripts, all **PASS**, exit **0**
+
+### Phase 4.5n — Center-anchored **MapCamera** zoom (**wheel**; implemented)
+
+Goal:
+
+- **Uniform** **layer-local** **zoom** **around** **`vanishing_pres`**, **Civ-like** **visible**-**center** **stability**, **no** **cursor**-**anchored** **zoom**.
+
+Shipped:
+
+- **`game/presentation/map_camera.gd`** — **`zoom`**, **`set_zoom_clamped`**, **`to_presentation` / `to_layout` / `perspective_scale_at`** **semantics**
+- **`game/main.gd`** — **`ZOOM_STEP`**, **`InputEventMouseButton`** **wheel** in **`_input`**
+- **`game/presentation/tests/test_map_camera.gd`** — **zoom** **invariants** (**no** **new** **runner** **scripts**)
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/SELECTION.md`**
+
+Must not:
+
+- **No** **per-view** **draw** **edits**; **no** **`MapPlaneProjection`** **math** **edits**; **no** **mouse-anchored** **zoom**; **no** **`Camera2D`** / **animation** / **inertia**
 
 Validation:
 

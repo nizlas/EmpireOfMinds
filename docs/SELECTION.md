@@ -22,7 +22,7 @@ Scene order under **`Main`**: **`TurnLabel`** (HUD) → **`MapView`** → **`Cit
 
 ## Interaction
 
-**Phase 4.5m:** **Right** **mouse** **drag** **(hold)** **pans** via **`[main.gd](../game/main.gd)`** **`_input`**: **`MapCamera.camera_world_offset`** in **plane** **space** (**`MapView.to_local`** **pointer** samples); **`SelectionController`** **remains** **left-button** **only** **for** **moves** / **selection** **[ACTIONS.md](ACTIONS.md)**. **`MapPlaneProjection.vanishing_pres`** is set **once** in **`_ready`** (**viewport** **center** **−** **`MAP_LAYER_ORIGIN`**) and does **not** **depend** on pan; **picking** uses **`camera.to_presentation`** like **`MapView`**.
+**Phase 4.5m / 4.5n:** **`[main.gd](../game/main.gd)`** **`_input`** handles **right-drag** **pan** (**`MapCamera.camera_world_offset`**) and **mouse-wheel** **zoom** (**`set_zoom_clamped`**, **center** = **`viewport * 0.5 - MAP_LAYER_ORIGIN`**; **not** **cursor**-**anchored** **zoom**). **`SelectionController`** remains **left-button** only for **moves** / **selection** **[ACTIONS.md](ACTIONS.md)**; **`vanishing_pres`** is set **once** in **`_ready`**; **picking** uses **`camera.to_presentation`** like **`MapView`** at any **zoom**.
 
 On **left mouse pressed**, **`SelectionController`** (see [ACTIONS.md](ACTIONS.md)):
 

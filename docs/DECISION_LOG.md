@@ -1,3 +1,18 @@
+## 2026-05-01 — Phase 4.5n — center-anchored MapCamera zoom (wheel; not cursor-anchored)
+
+Decision:
+
+- **`MapCamera`:** **`zoom`**, **`min_zoom` / `max_zoom`**, **`set_zoom_clamped`**; **presentation** **scale** **around** **`vanishing_pres`**; **`perspective_scale_at` * `zoom`** for **billboard** **sizing**. **`to_layout`** **divides** by **`max(zoom, 0.0001)`** **only** **when** **needed** ( **`zoom≈1`** **fast** **paths** **avoid** **FP** **drift** ).
+- **`main.gd`:** **wheel** **in** **`_input`**, **`ZOOM_STEP`**, **`center_local`** **correction** **`offset += world_before - world_after`**; **`old_zoom`** **guard** **when** **clamp** **blocks** **factor**; **no** **`Camera2D`**, **no** **mouse-anchored** **zoom** **this** **phase**.
+
+Rationale:
+
+- **Uniform** **zoom** **in** **map** **layer** **space** **keeps** **picking** / **markers** / **forest** **aligned** **through** **`MapCamera`** **only**.
+
+Caveat:
+
+- **`vanishing_pres`** **still** **set** **once** in **`_ready`**; **resize** **does** **not** **recalc**; **mouse**-**anchored** **zoom** **deferred**.
+
 ## 2026-05-01 — Phase 4.5m — **MapCamera** plane-space pan (replaces **4.5l** screen-layer pan)
 
 Decision:
@@ -10,7 +25,7 @@ Rationale:
 
 Caveat:
 
-- **No** **`Camera2D`**, **zoom**, **bounds**, **inertia** in **4.5m**; **window** **resize** does **not** **recompute** **`vanishing_pres`** after **`_ready`** (**unchanged** from **4.5m** **scope**).
+- **4.5n** adds **presentation** **zoom** (**wheel**); still **no** **`Camera2D`**, **bounds**, **inertia**; **window** **resize** does **not** **recompute** **`vanishing_pres`** after **`_ready`**.
 
 ## 2026-05-01 — Phase 4.6d — terrain foreground stable; unit occluder additive only
 
