@@ -48,11 +48,17 @@ func _ready() -> void:
 	$SelectionView.camera = _map_camera
 	$UnitsView.scale = Vector2.ONE
 	$UnitsView.camera = _map_camera
+	# Phase **4.6p:** **`TerrainForegroundView.z_index = 1`** lifts the **entire foreground canvas**
+	# above **`MapView`** / **`CitiesView`** / **`SelectionView`** / **`UnitsView`** node shells so **back**
+	# terrain stays behind **and** forest grid passes + unit pass run in **one** TFV **`_draw`** (draw order
+	# within that pass follows upper trees → units → lower trees, not z_index). **`UnitsView`** **`_draw`**
+	# is a no-op when wired to TFV — markers are not painted on a second **`CanvasItem`** (see **`main.gd`** wiring order).
+	$UnitsView.z_index = 0
 	$TerrainForegroundView.scale = Vector2.ONE
 	$TerrainForegroundView.camera = _map_camera
+	$TerrainForegroundView.z_index = 1
 	$SelectionController.scale = Vector2.ONE
 	$SelectionController.camera = _map_camera
-	_redraw_map_layers()
 	var scenario = ScenarioScript.make_prototype_play_scenario()
 	var game_state = GameStateScript.new(scenario)
 	var layout = HexLayoutScript.new()
@@ -60,28 +66,29 @@ func _ready() -> void:
 	var map_view = $MapView
 	map_view.map = scenario.map
 	map_view.layout = layout
-	map_view.queue_redraw()
 	var cities_view = $CitiesView
 	cities_view.scenario = scenario
 	cities_view.layout = layout
-	cities_view.queue_redraw()
 	var units_view = $UnitsView
 	units_view.scenario = scenario
 	units_view.layout = layout
 	units_view.selection = selection
-	units_view.queue_redraw()
 	var terrain_foreground = $TerrainForegroundView
+	map_view.terrain_foreground_view = terrain_foreground
 	terrain_foreground.map = scenario.map
 	terrain_foreground.layout = layout
 	terrain_foreground.scenario = scenario
 	terrain_foreground.forest_density_ratio = map_view.forest_density_ratio
 	terrain_foreground.foreground_unit_reference_height_ratio = units_view.unit_icon_height_ratio
-	terrain_foreground.queue_redraw()
+	# Phase **4.6p:** cross-wire **before** any **`queue_redraw`** so **`UnitsView._draw`** never paints
+	# markers on the own canvas when **`TerrainForegroundView`** hosts the three-pass forest + units order.
+	terrain_foreground.units_view = units_view
+	terrain_foreground.map_view = map_view
+	units_view.terrain_foreground_view = terrain_foreground
 	var selection_view = $SelectionView
 	selection_view.scenario = scenario
 	selection_view.layout = layout
 	selection_view.selection = selection
-	selection_view.queue_redraw()
 	var selection_controller = $SelectionController
 	selection_controller.scenario = scenario
 	selection_controller.game_state = game_state
@@ -117,6 +124,7 @@ func _ready() -> void:
 	ai_turn_controller.log_view = log_view
 	_faction_banner_gallery = FactionBannerGalleryScript.new()
 	add_child(_faction_banner_gallery)
+	_redraw_map_layers()
 
 
 func _input(event: InputEvent) -> void:

@@ -1,4 +1,5 @@
 # Draws a HexMap in world space. Domain is read-only; no gameplay state, no input.
+# Forest decoration (4.6h): composed scatter of tree symbol rasters under tree_symbols/ on decorated PLAINS.
 # See res://domain/* and docs/RENDERING.md
 class_name MapView
 extends Node2D
@@ -11,6 +12,16 @@ const MapPlaneProjectionScript = preload("res://presentation/map_plane_projectio
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const PlainsForestScript = preload("res://presentation/plains_forest_decoration.gd")
 
+const FOREST_BACK_CLUMP_01: Texture2D = preload("res://assets/prototype/terrain/forest/forest_back_clump_01.png")
+const FOREST_BACK_CLUMP_02: Texture2D = preload("res://assets/prototype/terrain/forest/forest_back_clump_02.png")
+
+## Phase **4.6g** — raster back clump choice (**4100–4199** band; **do** **not** overlap **4.6e** **foreground** salts).
+const _SALT_BACK_ASSET_TEX: int = 4100
+## Phase **4.6h** — **back** symbol scatter (**4200–4299**).
+const _SALT_BACK_SYM_COUNT: int = 4200
+const _SALT_BACK_SYM_BASE: int = 4210
+const _EOM_ENV_FOREST_GRID_PERFECT: String = "EOM_DEBUG_FOREST_GRID_PERFECT"
+
 const _PLAINS_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/plains_painterly.png"
 const _WATER_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/water_painterly.png"
 
@@ -20,15 +31,35 @@ const _WATER_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/water_pa
 ## Phase 4.6b: fraction of PLAINS cells that get procedural forest *decoration* (not Terrain.FOREST).
 @export_range(0.0, 1.0) var forest_density_ratio: float = 0.25
 ## Multiplies alpha of back-canopy circles/lines (Phase 4.6b-debug — keep muted but readable over terrain art).
-@export_range(0.0, 3.0) var forest_back_opacity: float = 1.0
+@export_range(0.0, 3.0) var forest_back_opacity: float = 0.85
+## Phase **4.6g:** **large** patch **back** (**MapView**); **off** when **4.6h** **symbol** scatter is primary.
+@export var use_forest_asset_overlays: bool = false
+@export_range(0.0, 1.0) var forest_back_asset_opacity: float = 0.90
+## Phase **4.6h:** **`use_forest_symbol_scatter`** — **forest** **decoration** = composed **scatter** of **tree** **symbol** PNGs (**`tree_symbols/`**); optional **fallback** to **procedural**/ **patch**.
+@export var use_forest_symbol_scatter: bool = true
+@export_range(0.0, 1.0) var forest_back_symbol_opacity: float = 0.84
 
 var map
 var layout
 ## Wired by main; Phase 4.5m **MapCamera** (wraps **MapPlaneProjection** + plane offset). Defaults in _draw for headless safety.
 var camera
+## Optional **4.6q:** wired by **main** — when **`TerrainForegroundView`** perfect-grid debug is on, back-forest overlays are skipped (non-dotted); only **`MapView` terrain + detail** draw here. **`forest_grid_debug_isolated`** on TFV also suppresses back forest.
+var terrain_foreground_view
+## **Headless / isolated debug:** count of **back** forest draw calls (**symbols** / **asset** / **procedural**) this **`MapView._draw`**; **`TerrainForegroundView`** reads it after **`MapView`** draws.
+var debug_plains_back_forest_draw_calls: int = 0
+## **Pipeline debug:** back-forest **symbol** scatter draw count this frame (**MapView** only).
+var debug_plains_back_symbol_draws: int = 0
+## **Pipeline debug:** back-forest **asset** patch draw count this frame.
+var debug_plains_back_asset_draws: int = 0
+## **Pipeline debug:** back-forest **procedural** draw count this frame.
+var debug_plains_back_procedural_draws: int = 0
 
 var _plains_terrain_tex: Texture2D
 var _water_terrain_tex: Texture2D
+var _forest_tree_symbols: Array[Texture2D] = []  # Cached tree symbol textures (building blocks for forest decoration).
+var _forest_symbol_scatter_unavailable_logged: bool = false
+
+const _TREE_SYMBOL_COUNT: int = 20
 
 static func _terrain_to_color(terrain: int) -> Color:
 	# Phase 4.1 — readable prototype palette (parchment land vs calm water). Not final art.
@@ -66,6 +97,15 @@ static func _try_load_terrain_tex(path: String) -> Texture2D:
 static func _terrain_detail_hash(q: int, r: int, salt: int) -> int:
 	# Deterministic mixing for Phase 4.1e procedural marks (presentation-only; no RNG).
 	return (q * 374761393 + r * 668265263 + salt * 1442695041) & 0x7FFFFFFF
+
+
+static func _tree_symbol_res_path(idx_1_based: int) -> String:
+	return "res://assets/prototype/terrain/tree_symbols/tree_symbol_%02d.png" % idx_1_based
+
+
+static func _mix255_u(h: int, shift: int) -> float:
+	return float((h >> shift) & 0xFF) / 255.0
+
 
 func _draw_plains_detail(proj, world: Vector2, q: int, r: int) -> void:
 	var lim: float = HexLayoutScript.SIZE * 0.82
@@ -172,6 +212,78 @@ func _draw_plains_forest_back(proj, world: Vector2, q: int, r: int) -> void:
 		c += 1
 
 
+func _draw_plains_forest_back_asset(proj, world: Vector2, q: int, r: int) -> void:
+	# Phase 4.6g: **hex-owned** back clump; **below** units (**MapView** layer). **Deterministic** texture **01**/**02**.
+	var anchor_pres: Vector2 = proj.to_presentation(world)
+	var pscale: float = proj.perspective_scale_at(world)
+	var h: float = HexLayoutScript.SIZE * pscale
+	var wrect: float = h * 2.2
+	var hrect: float = h * 1.7
+	var tex: Texture2D = (
+		FOREST_BACK_CLUMP_01
+		if (PlainsForestScript.cell_mix(q, r, _SALT_BACK_ASSET_TEX) & 1) == 0
+		else FOREST_BACK_CLUMP_02
+	)
+	var rect: Rect2 = Rect2(
+		anchor_pres.x - wrect * 0.5,
+		anchor_pres.y - hrect * 0.25,
+		wrect,
+		hrect
+	)
+	draw_texture_rect(
+		tex,
+		rect,
+		false,
+		Color(1.0, 1.0, 1.0, clampf(forest_back_asset_opacity, 0.0, 1.0))
+	)
+
+
+func _reload_forest_tree_symbols_if_needed() -> void:
+	if _forest_tree_symbols.size() == _TREE_SYMBOL_COUNT:
+		return
+	_forest_tree_symbols.clear()
+	var ii: int = 1
+	while ii <= _TREE_SYMBOL_COUNT:
+		var res = ResourceLoader.load(MapView._tree_symbol_res_path(ii), "", ResourceLoader.CACHE_MODE_REUSE)
+		if res is Texture2D:
+			_forest_tree_symbols.append(res as Texture2D)
+		else:
+			_forest_tree_symbols.clear()
+			return
+		ii += 1
+
+
+func _forest_symbol_scatter_ready() -> bool:
+	return _forest_tree_symbols.size() == _TREE_SYMBOL_COUNT
+
+
+func _draw_plains_forest_back_symbols(proj, world: Vector2, q: int, r: int) -> void:
+	# Phase 4.6k: **ellipse-fill** around **hub** (**anchor** **+** **(0,** **0.06×base)**); **no** **upper**-**arc** **zoning** — **full**-**hex** **forest** **mass**.
+	# Phase 4.6n: density tuned **18..30 → 14..22** — moderate reduction from the 4.6m bump per visual review.
+	# Placement / size formula unchanged; salts unchanged.
+	var anchor_pres: Vector2 = proj.to_presentation(world)
+	var pscale: float = proj.perspective_scale_at(world)
+	var base: float = HexLayoutScript.SIZE * pscale
+	var n_sym: int = 14 + (PlainsForestScript.cell_mix(q, r, _SALT_BACK_SYM_COUNT) % 9)
+	var op: float = clampf(forest_back_symbol_opacity, 0.0, 1.0)
+	var col: Color = Color(0.93, 0.87, 0.80, op)
+	var hub: Vector2 = anchor_pres + Vector2(0.0, base * 0.06)
+	var si: int = 0
+	while si < n_sym:
+		var h: int = PlainsForestScript.cell_mix(q, r, _SALT_BACK_SYM_BASE + si)
+		var ti: int = h % _TREE_SYMBOL_COUNT
+		var tex: Texture2D = _forest_tree_symbols[ti]
+		# Perceived size ~1.7× prior 0.30..0.46 band; placement unchanged.
+		var side: float = base * (0.51 + MapView._mix255_u(h, 8) * 0.27) * 0.5
+		var ang: float = TAU * float((h >> 9) & 1023) / 1024.0
+		var rad_scale: float = 0.30 + float((h >> 19) & 255) / 255.0 * 0.70
+		var rx: float = base * (0.45 + MapView._mix255_u(h, 24) * 0.27)
+		var ry: float = base * (0.30 + MapView._mix255_u(h, 0) * 0.28)
+		var pr: Vector2 = hub + Vector2(cos(ang) * rx * rad_scale, sin(ang) * ry * rad_scale)
+		draw_texture_rect(tex, Rect2(pr.x - side * 0.5, pr.y - side, side, side), false, col)
+		si += 1
+
+
 static func compute_draw_items(a_map, a_layout) -> Array:
 	# Preloaded so headless/entry scripts do not depend on class_name order for the coord type.
 	assert(HexCoordScript != null)
@@ -205,7 +317,22 @@ func _ready() -> void:
 	_plains_terrain_tex = MapView._try_load_terrain_tex(_PLAINS_TERRAIN_TEX_PATH)
 	_water_terrain_tex = MapView._try_load_terrain_tex(_WATER_TERRAIN_TEX_PATH)
 	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	queue_redraw()
+
+func _forest_grid_map_back_suppressed() -> bool:
+	if OS.get_environment(_EOM_ENV_FOREST_GRID_PERFECT) == "1":
+		return true
+	if terrain_foreground_view != null and is_instance_valid(terrain_foreground_view):
+		var tfv = terrain_foreground_view
+		if (
+			bool(tfv.forest_grid_debug_perfect)
+			or bool(tfv.forest_grid_debug_suppress_map_back)
+			or bool(tfv.forest_grid_debug_isolated)
+		):
+			return true
+	return false
+
 
 func _projected_corners(proj, corners: PackedVector2Array) -> PackedVector2Array:
 	var out = PackedVector2Array()
@@ -223,7 +350,13 @@ func _draw() -> void:
 		var cam = MapCameraScript.new()
 		cam.projection = MapPlaneProjectionScript.new()
 		camera = cam
+	debug_plains_back_forest_draw_calls = 0
+	debug_plains_back_symbol_draws = 0
+	debug_plains_back_asset_draws = 0
+	debug_plains_back_procedural_draws = 0
 	var items = compute_draw_items(map, layout)
+	var dbg_perf_plains_back_suppressed: int = 0
+	var tfv_suppress: bool = _forest_grid_map_back_suppressed()
 	var j = 0
 	while j < items.size():
 		var item = items[j]
@@ -248,5 +381,53 @@ func _draw() -> void:
 		_draw_terrain_detail_overlay(camera, item["world"] as Vector2, terrain, coord.q, coord.r)
 		if terrain == HexMapScript.Terrain.PLAINS:
 			if PlainsForestScript.is_plains_forest_decorated(coord.q, coord.r, forest_density_ratio):
-				_draw_plains_forest_back(camera, item["world"] as Vector2, coord.q, coord.r)
+				if tfv_suppress:
+					# **4.6q:** **MapView** back scatter / asset / procedural (no TFV root dots) — optional suppress.
+					dbg_perf_plains_back_suppressed += 1
+				else:
+					_reload_forest_tree_symbols_if_needed()
+					if use_forest_symbol_scatter and _forest_symbol_scatter_ready():
+						debug_plains_back_forest_draw_calls += 1
+						debug_plains_back_symbol_draws += 1
+						_draw_plains_forest_back_symbols(camera, item["world"] as Vector2, coord.q, coord.r)
+					elif use_forest_asset_overlays:
+						debug_plains_back_forest_draw_calls += 1
+						debug_plains_back_asset_draws += 1
+						_draw_plains_forest_back_asset(camera, item["world"] as Vector2, coord.q, coord.r)
+					else:
+						debug_plains_back_forest_draw_calls += 1
+						debug_plains_back_procedural_draws += 1
+						_draw_plains_forest_back(camera, item["world"] as Vector2, coord.q, coord.r)
 		j = j + 1
+	var iso_f: bool = false
+	var perf_f: bool = false
+	var sup_f: bool = false
+	var tfv_ok: bool = terrain_foreground_view != null and is_instance_valid(terrain_foreground_view)
+	if tfv_ok:
+		var tfvx = terrain_foreground_view
+		iso_f = bool(tfvx.forest_grid_debug_isolated)
+		perf_f = bool(tfvx.forest_grid_debug_perfect)
+		sup_f = bool(tfvx.forest_grid_debug_suppress_map_back)
+	print(
+		(
+			"[EOM_DEBUG_FOREST_PIPELINE] MapView forest suppression: isolated=%s perfect=%s suppress_map_back=%s suppressed_hexes=%d back_draws_total=%d back_sym=%d back_asset=%d back_proc=%d tfv_wired=%s"
+		)
+		% [
+			iso_f,
+			perf_f,
+			sup_f,
+			dbg_perf_plains_back_suppressed,
+			debug_plains_back_forest_draw_calls,
+			debug_plains_back_symbol_draws,
+			debug_plains_back_asset_draws,
+			debug_plains_back_procedural_draws,
+			tfv_ok,
+		]
+	)
+	if tfv_suppress and dbg_perf_plains_back_suppressed > 0:
+		print(
+			(
+				"[EOM_DEBUG_FOREST_GRID] MapView: suppressed back-forest on %d decorated PLAINS hexes (TFV perfect / suppress_map_back / forest_grid_debug_isolated); debug_plains_back_forest_draw_calls=%d"
+			)
+			% [dbg_perf_plains_back_suppressed, debug_plains_back_forest_draw_calls]
+		)

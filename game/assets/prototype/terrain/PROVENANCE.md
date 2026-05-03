@@ -8,6 +8,9 @@ All assets below are **prototype-only**, **non-final**, and **replaceable**. **G
 |----------|---------|-----------------|------|
 | `plains_painterly.png` | **PLAINS** hex fill in **MapView** | Generated externally (ChatGPT / image generation), per project workflow | 2026-05-01 |
 | `water_painterly.png` | **WATER** hex fill in **MapView** | Generated externally (ChatGPT / image generation), per project workflow | 2026-05-01 |
+| `tree_symbol_01.png` … `tree_symbol_16.png` | **PLAINS** **forest** **decoration** in **MapView** (back scatter) and **TerrainForegroundView** (front scatter) — small **tree** **symbol** assets | Project / external art pipeline (**replaceable**) | — |
+
+**Terminology:** each `tree_symbol_*.png` is an individual **tree symbol**; **forest decoration** is the **composed** result of placing multiple symbols on a density-gated hex.
 
 **Rendering:** Textures are mapped per-hex with **`draw_colored_polygon(..., uvs, texture)`** inside **`MapView._draw()`**. If load fails, **`MapView`** falls back to **Phase 4.1** flat colors (`_terrain_to_color`).
 

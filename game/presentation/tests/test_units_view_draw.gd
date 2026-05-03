@@ -81,6 +81,45 @@ func _init() -> void:
 		UnitsViewScript.compute_marker_items(sc, null).size() == 0,
 		"null layout should produce no items"
 	)
+	var rr = Rect2(100.0, 50.0, 40.0, 48.0)
+	const TamScript = preload("res://presentation/texture_alpha_metrics.gd")
+	var msett: Dictionary = TamScript.metrics_for_res_path(
+		UnitsViewScript.marker_texture_res_path("settler")
+	)
+	_check(msett.get("ok", false), "alpha metrics should load for settler marker PNG")
+	if msett.get("ok", false):
+		_check(int(msett["bottom_padding_px"]) >= 0, "bottom_padding_px should be non-negative")
+	var uv_align: UnitsViewScript = UnitsViewScript.new()
+	uv_align._ready()
+	var anch: Vector2 = Vector2(512.0, 384.0)
+	var psc: float = 1.0
+	var urect: Rect2 = uv_align.unit_marker_texture_rect_presentation(anch, psc, "settler")
+	if urect.size.x > 0.0:
+		var raw_b: Vector2 = UnitsViewScript.unit_png_bottom_center_from_rect(urect)
+		var pad_s: float = TamScript.scaled_bottom_padding_y(msett, urect.size.y)
+		var eff_pt: Vector2 = raw_b - Vector2(0.0, pad_s)
+		_check(
+			eff_pt.distance_to(anch) < 0.02,
+			"textured unit effective bottom (opaque) should match anchor_pres"
+		)
+	var urect_w: Rect2 = uv_align.unit_marker_texture_rect_presentation(anch, psc, "warrior")
+	if urect_w.size.x > 0.0:
+		var mwarr: Dictionary = TamScript.metrics_for_res_path(
+			UnitsViewScript.marker_texture_res_path("warrior")
+		)
+		var raw_w: Vector2 = UnitsViewScript.unit_png_bottom_center_from_rect(urect_w)
+		var pad_w: float = TamScript.scaled_bottom_padding_y(mwarr, urect_w.size.y)
+		var eff_w: Vector2 = raw_w - Vector2(0.0, pad_w)
+		_check(
+			eff_w.distance_to(anch) < 0.02,
+			"warrior textured effective bottom should match anchor_pres"
+		)
+	uv_align.queue_free()
+	var bc = UnitsViewScript.unit_png_bottom_center_from_rect(rr)
+	_check(
+		bc.is_equal_approx(Vector2(120.0, 98.0)),
+		"PNG bottom-center is rect mid-x and position.y+size.y"
+	)
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

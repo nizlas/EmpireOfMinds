@@ -1592,6 +1592,69 @@ Validation:
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
 - Expected **49** scripts, all **PASS**, exit **0**
 
+### Phase 4.6e — Hex-owned forest foreground composition (implemented)
+
+Goal:
+
+- **Foreground** vegetation is **hex-owned** and **identical** with or without **units**; **sizes**/**positions** scale with **`perspective_scale_at`** and **anchor** at **`to_presentation(hex_to_world)`** (**foot-contact** **convention**). **Larger** muted **masses** overlap **feet**/ **lower** **legs** without anchoring to **texture** **bottom** or **extreme** **hex** **front**. **City** hexes: **skip** **main** **clump**, keep optional **secondary**.
+
+Shipped:
+
+- **`game/presentation/terrain_foreground_view.gd`** — **`_draw_plains_forest_front_hex_owned`**, **`_should_skip_main_clump_for_city`**, salts **4000–4099**, **`forest_front_opacity`** default **0.62**, **`enable_unit_occlusion_test`** default **false**.
+- **`game/presentation/map_view.gd`** — **`forest_back_opacity`** default **0.85** only.
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/VISUAL_DIRECTION.md`**
+
+Must not:
+
+- **`game/domain/**`**, **`HexMap.Terrain`**, rules, **`MapCamera`** / **`MapPlaneProjection`** / picking, **`UnitsView`** / **`CitiesView`** markers, **`main.tscn`** order, new assets, **`project.godot`**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **50** scripts, all **PASS**, exit **0**
+
+### Phase 4.6f — Forest foreground visibility calibration (implemented)
+
+Goal:
+
+- **Live** review: **4.6e** geometry was **hard** to **judge** because **foreground** was **too** **subtle** vs **terrain**. **Raise** default **`forest_front_opacity`** and **slightly** **raise** per-primitive **alpha** multipliers (**muted** palette **unchanged**) so **clump** **shape**, **placement**, and **overlap** with **feet**/ **legs** / **selection** / **cities** can be **evaluated**. **Final** art may **tune** **down** again or **replace** procedural **draw** with **assets**.
+
+Shipped:
+
+- **`game/presentation/terrain_foreground_view.gd`** — **`forest_front_opacity`** default **0.85**; per-primitive **alpha** band **wider** (**no** **geometry** / **salt** / **density** / **city**-**skip** changes).
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**
+
+Must not:
+
+- **`game/domain/**`**, rules, **`MapCamera`** / **projection** / **picking**, markers, **`forest_back_opacity`** (stay **0.85** unless **small** tweak **only** — **prefer** **unchanged**).
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **50** scripts, all **PASS**, exit **0**
+
+### Phase 4.6g — Forest raster overlay assets (implemented)
+
+Goal:
+
+- **Primary** **visual** for **decorated** **PLAINS** forest: **RGBA** **PNG** **clumps** in **`MapView`** (back) and **`TerrainForegroundView`** (front), **hex-owned** / **`pscale`**-aware like **4.6e**; **procedural** **retained** when **`use_forest_asset_overlays`** is **false** (**per-node** export; **toggle** **both** for **full** **fallback**). **No** **`Terrain.FOREST`**, **no** domain/rules/camera/picking/marker changes.
+
+Shipped:
+
+- **`game/assets/prototype/terrain/forest/*.png`** + **`.import`** (**`mipmaps/generate=true`**).
+- **`game/presentation/map_view.gd`** — **`_draw_plains_forest_back_asset`**, **`forest_back_asset_opacity`**, **`use_forest_asset_overlays`**, **`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`**, salt **4100** for **01**/ **02**.
+- **`game/presentation/terrain_foreground_view.gd`** — **`_draw_plains_forest_front_asset`**, **`forest_front_asset_opacity`**, **`use_forest_asset_overlays`**, salts **4110–4112**; **city** hexes **skip** **front** **raster** ( **procedural** **secondary** only ).
+- **`docs/RENDERING.md`**, **`docs/PHASE_PLAN.md`**, **`docs/DECISION_LOG.md`**, **`docs/VISUAL_DIRECTION.md`**
+
+Must not:
+
+- **`game/domain/**`**, **`HexMap.Terrain`**, rules, **`MapCamera`** / **projection**, picking, **UnitsView** / **CitiesView** / **unit**/**city** **assets**, **`main.gd`** / **`main.tscn`**, **`project.godot`**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Expected **50** scripts, all **PASS**, exit **0**
+
 ### Phase 4.5 — Camera / perspective / animation pass
 
 Goal:

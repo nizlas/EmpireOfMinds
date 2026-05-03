@@ -20,3 +20,8 @@ func hex_corners(center: Vector2) -> PackedVector2Array:
 		var corner: Vector2 = center + Vector2(cos(rad) * SIZE, sin(rad) * SIZE)
 		out.append(corner)
 	return out
+
+
+## **Local** point **relative to hex center** in the same space as **hex_corners** (|**SIZE**| = vertex distance). Pointy-top footprint.
+func is_point_inside_hex_local(local_offset: Vector2) -> bool:
+	return Geometry2D.is_point_in_polygon(local_offset, hex_corners(Vector2.ZERO))

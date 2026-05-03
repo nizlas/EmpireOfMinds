@@ -1146,3 +1146,45 @@ Rationale:
 Caveat:
 
 - **Hex** **center** vs **visual** **foot** for **icons** can diverge from **disk** **hit** **radius** (**unchanged**); future **Phase** **4.5+** may refine **picking** if needed.
+
+## 2026-05-02 — Hex-owned foreground composition (Phase 4.6e)
+
+Decision:
+
+- **`TerrainForegroundView`** **foreground** is **hex-owned**: **deterministic** **main** + optional **secondary** from **`PlainsForestScript.cell_mix`** (**salts** **4000–4099**), **`anchor_pres`** = **`MapCamera.to_presentation(layout.hex_to_world(q,r))`**, **`base` = `HexLayout.SIZE × perspective_scale_at(world_center)`** for all **sizes**/ **offsets**. **Normal** path **does** **not** read **unit** occupancy. **City** hexes **omit** **main** **clump** only (**`scenario.cities_at(coord)`**). **`enable_unit_occlusion_test`** **default** **false**; **`_draw_unit_forest_occluder`** stays **debug**/ **test** **only**.
+
+Rationale:
+
+- **Stable** vegetation **independent** of **unit** **movement**; **overlap** **calibrated** to the **foot-contact** **region** (**`UnitsView`** **pivot** **convention** **unchanged**) so **mass** can **read** as **foreground** over **feet**/ **lower** **legs** without **tracking** **units**.
+
+Caveat:
+
+- **Still** **not** **`Terrain.FOREST`** / **not** **cover** **rules** — **procedural** **decoration** on **PLAINS** only.
+
+## 2026-05-02 — Forest foreground visibility calibration (Phase 4.6f)
+
+Decision:
+
+- **`TerrainForegroundView.forest_front_opacity`** default **0.62** → **0.85**; **main**/**secondary** per-primitive **alpha** multipliers **slightly** **increased** (**circles** / **polygon**) with **same** **RGB** bands — **evaluative** pass so **clump** **geometry** and **overlap** **read** clearly. **`forest_back_opacity`** **unchanged** (**0.85**). **No** changes to **salts**, **placement** **formulas**, **`forest_density_ratio`**, **city**-**skip**, or **hex**-**ownership** **model**.
+
+Rationale:
+
+- **4.6e** **structure** was **plausible** but **too** **transparent** to **verify** **foot**-zone **calibration** and **readability** tradeoffs **in** **editor**.
+
+Caveat:
+
+- **Final** **shipping** **look** may **lower** **opacity** again or **move** to **raster** **forest** (**4.3j**); this phase is **not** a **commitment** to **permanent** **brightness**.
+
+## 2026-05-02 — Forest raster overlays — PLAINS decoration (Phase 4.6g)
+
+Decision:
+
+- **`MapView`** / **`TerrainForegroundView`** draw **`res://assets/prototype/terrain/forest/forest_*_clump_0{1,2}.png`** (**preload** **`Texture2D`**) for **decorated** **PLAINS** when **`use_forest_asset_overlays`** (**default** **true**); **`PlainsForestScript.cell_mix`** salts **4100** / **4110–4112** for **variant** / **layout**; **`4.6e`** **4000–4099** **untouched**. **City** hexes: **skip** **front** **raster** only (**`scenario.cities_at`**) — **procedural** **secondary**-only; **back** **raster** still **draws**. **Procedural** **`_draw_plains_forest_*`** **preserved** for **`use_forest_asset_overlays = false`**. **Not** **`Terrain.FOREST`** / **not** **rules**.
+
+Rationale:
+
+- **Ship** **readable** **painterly** **masses** **aligned** to **pan**/ **zoom** while **keeping** a **deterministic** **debug**/**fallback** **path**.
+
+Caveat:
+
+- **Repo** paths are **`assets/prototype/terrain/forest/`** (not **`assets/terrain/forest/`**); **`main.gd`** **does** **not** **sync** **the** **two** **`use_forest_asset_overlays`** **flags** — **inspector** **must** **set** **both** **if** **toggling**.

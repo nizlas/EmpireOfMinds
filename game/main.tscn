@@ -1,64 +1,62 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene format=3 uid="uid://dmi4g7hgv8ubf"]
 
-[ext_resource type="Script" path="res://main.gd" id="1_main"]
-[ext_resource type="Script" path="res://presentation/map_view.gd" id="2_mapview"]
-[ext_resource type="Script" path="res://presentation/cities_view.gd" id="10_citiesview"]
-[ext_resource type="Script" path="res://presentation/selection_view.gd" id="3_selectionview"]
-[ext_resource type="Script" path="res://presentation/units_view.gd" id="4_unitsview"]
-[ext_resource type="Script" path="res://presentation/terrain_foreground_view.gd" id="11_terrainforeground"]
-[ext_resource type="Script" path="res://presentation/selection_controller.gd" id="5_selectioncontroller"]
-[ext_resource type="Script" path="res://presentation/turn_label.gd" id="6_turnlabel"]
-[ext_resource type="Script" path="res://presentation/end_turn_controller.gd" id="7_endturncontroller"]
-[ext_resource type="Script" path="res://presentation/ai_turn_controller.gd" id="8_aiturncontroller"]
-[ext_resource type="Script" path="res://presentation/log_view.gd" id="9_logview"]
+[ext_resource type="Script" uid="uid://dmwm52udx66hv" path="res://main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://bnv1dr72gtg7s" path="res://presentation/map_view.gd" id="2_mapview"]
+[ext_resource type="Script" uid="uid://dh7hmx8em5psm" path="res://presentation/selection_view.gd" id="3_selectionview"]
+[ext_resource type="Script" uid="uid://d037v86kksqnn" path="res://presentation/units_view.gd" id="4_unitsview"]
+[ext_resource type="Script" uid="uid://dg3mn2c2ia1yq" path="res://presentation/selection_controller.gd" id="5_selectioncontroller"]
+[ext_resource type="Script" uid="uid://caw3u4fxofmub" path="res://presentation/turn_label.gd" id="6_turnlabel"]
+[ext_resource type="Script" uid="uid://cadoh25mxrmfe" path="res://presentation/end_turn_controller.gd" id="7_endturncontroller"]
+[ext_resource type="Script" uid="uid://buktyxt3h7eg6" path="res://presentation/ai_turn_controller.gd" id="8_aiturncontroller"]
+[ext_resource type="Script" uid="uid://d10fxkv7xj2kt" path="res://presentation/log_view.gd" id="9_logview"]
+[ext_resource type="Script" uid="uid://bvivx0v63faj2" path="res://presentation/cities_view.gd" id="10_citiesview"]
+[ext_resource type="Script" uid="uid://5hpiblsbbmr5" path="res://presentation/terrain_foreground_view.gd" id="11_terrainforeground"]
 
-[node name="Main" type="Node2D"]
+[node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
 
-[node name="TurnLabel" type="Label" parent="."]
+[node name="TurnLabel" type="Label" parent="." unique_id=1248093829]
 offset_left = 20.0
 offset_top = 20.0
 offset_right = 800.0
 offset_bottom = 100.0
-text = ""
 script = ExtResource("6_turnlabel")
 
-[node name="MapView" type="Node2D" parent="."]
+[node name="MapView" type="Node2D" parent="." unique_id=1063845021]
 position = Vector2(400, 428)
 script = ExtResource("2_mapview")
 
-[node name="CitiesView" type="Node2D" parent="."]
+[node name="CitiesView" type="Node2D" parent="." unique_id=1402386329]
 position = Vector2(400, 428)
 script = ExtResource("10_citiesview")
 
-[node name="SelectionView" type="Node2D" parent="."]
+[node name="SelectionView" type="Node2D" parent="." unique_id=542404523]
 position = Vector2(400, 428)
 script = ExtResource("3_selectionview")
 
-[node name="UnitsView" type="Node2D" parent="."]
+[node name="UnitsView" type="Node2D" parent="." unique_id=1797332227]
 position = Vector2(400, 428)
 script = ExtResource("4_unitsview")
 
-[node name="TerrainForegroundView" type="Node2D" parent="."]
+[node name="TerrainForegroundView" type="Node2D" parent="." unique_id=555384625]
 position = Vector2(400, 428)
 script = ExtResource("11_terrainforeground")
+forest_grid_debug_suppress_map_back = true
+forest_grid_debug_isolated = true
 
-[node name="SelectionController" type="Node2D" parent="."]
+[node name="SelectionController" type="Node2D" parent="." unique_id=293165801]
 position = Vector2(400, 428)
 script = ExtResource("5_selectioncontroller")
 
-[node name="EndTurnController" type="Node2D" parent="."]
-position = Vector2(0, 0)
+[node name="EndTurnController" type="Node2D" parent="." unique_id=571711841]
 script = ExtResource("7_endturncontroller")
 
-[node name="AITurnController" type="Node2D" parent="."]
-position = Vector2(0, 0)
+[node name="AITurnController" type="Node2D" parent="." unique_id=2146991103]
 script = ExtResource("8_aiturncontroller")
 
-[node name="LogView" type="Label" parent="."]
+[node name="LogView" type="Label" parent="." unique_id=292342215]
 offset_left = 20.0
 offset_top = 1220.0
 offset_right = 1180.0
 offset_bottom = 1475.0
-text = ""
 script = ExtResource("9_logview")
