@@ -166,6 +166,26 @@ static func unit_png_bottom_center_from_rect(unit_rect: Rect2) -> Vector2:
 	)
 
 
+## **Presentation** anchor used for forest / unit **depth ordering** — same geometry as **`draw_unit_marker_at`**
+## (effective / “foot” point after **TextureAlphaMetrics** bottom padding when PNG path; else hex **anchor_pres**).
+func unit_effective_depth_presentation(
+	anchor_pres: Vector2, pscale: float, type_id: String
+) -> Vector2:
+	var utex = _texture_for_type_id(type_id)
+	if utex == null:
+		return anchor_pres
+	var rect: Rect2 = unit_marker_texture_rect_presentation(anchor_pres, pscale, type_id)
+	if rect.size.x <= 0.0:
+		return anchor_pres
+	var upath: String = marker_texture_res_path(type_id)
+	var mue: Dictionary = TextureAlphaMetricsClass.metrics_for_res_path(upath)
+	if mue.get("ok", false) and int(mue["height"]) > 0:
+		var raw_bc: Vector2 = unit_png_bottom_center_from_rect(rect)
+		var spy: float = TextureAlphaMetricsClass.scaled_bottom_padding_y(mue, rect.size.y)
+		return raw_bc - Vector2(0.0, spy)
+	return Vector2.ZERO
+
+
 ## Phase **4.6p:** Render one unit marker onto an arbitrary **CanvasItem** (`canvas`).
 ## Used by **`UnitsView._draw`** (`canvas == self`, legacy path) and **`TerrainForegroundView`**
 ## pass **2** (`canvas == terrain_foreground_view`) so pivot / scale / fallback logic stays single-sourced.
@@ -188,13 +208,9 @@ func draw_unit_marker_at(
 		UnitsView.debug_last_unit_png_bottom_center = (
 			UnitsView.unit_png_bottom_center_from_rect(rect)
 		)
-		var upath: String = UnitsView.marker_texture_res_path(type_id)
-		var mue: Dictionary = TextureAlphaMetricsClass.metrics_for_res_path(upath)
-		var ept: Vector2 = Vector2.ZERO
-		if mue.get("ok", false) and int(mue["height"]) > 0:
-			var spy: float = TextureAlphaMetricsClass.scaled_bottom_padding_y(mue, rect.size.y)
-			ept = UnitsView.debug_last_unit_png_bottom_center - Vector2(0.0, spy)
-		UnitsView.debug_last_unit_effective_depth_point = ept
+		UnitsView.debug_last_unit_effective_depth_point = unit_effective_depth_presentation(
+			anchor_pres, pscale, type_id
+		)
 		return
 	# Programmatic path: no PNG quad — clear texture debug snapshot.
 	UnitsView.debug_last_unit_png_rect = Rect2()
@@ -228,9 +244,10 @@ func _draw() -> void:
 	UnitsView.debug_last_units_drawn_on_own_canvas = 0
 	UnitsView.debug_last_draw_delegated = false
 	# Phase **4.6p:** when **`terrain_foreground_view`** is wired, unit markers draw in **`TerrainForegroundView`**
-	# between upper (**behind**) and lower (**in front**) forest grid passes. UnitsView **`_draw`** is a no-op then;
-	# **`queue_redraw`** from controllers still pings **`TerrainForegroundView`** via shared controllers. Unwired
-	# headless tests keep drawing on **`self`** here.
+	# — **legacy:** between upper / lower forest half-plane passes; **with units + symbol scatter**, a **single depth merge**
+	# orders each tree slot vs each unit by **`MapCamera.to_layout`** on shared presentation anchors (**`TerrainForegroundView`**).
+	# **`UnitsView._draw`** is a no-op then; **`queue_redraw`** from controllers still pings **`TerrainForegroundView`**
+	# via shared controllers. Unwired headless tests keep drawing on **`self`** here.
 	if delegates_unit_markers_to_terrain_foreground():
 		UnitsView.debug_last_draw_delegated = true
 		return

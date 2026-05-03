@@ -39,6 +39,7 @@ const MapPlaneProjectionScript = preload("res://presentation/map_plane_projectio
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const PlainsForestScript = preload("res://presentation/plains_forest_decoration.gd")
 const TextureAlphaMetricsClass = preload("res://presentation/texture_alpha_metrics.gd")
+const ForestDebugClustersScript = preload("res://presentation/forest_debug_clusters.gd")
 
 @export_range(0.0, 1.0) var forest_density_ratio: float = 0.25
 @export_range(0.0, 1.0) var forest_front_opacity: float = 0.62
@@ -91,17 +92,88 @@ const TextureAlphaMetricsClass = preload("res://presentation/texture_alpha_metri
 ## **Debug (isolated only):** replace canonical lattice with an exaggerated zig-zag layout to prove the **grid slot path** is live (**default** lattice unchanged when **off**).
 @export var forest_grid_debug_exaggerated_layout_probe: bool = false
 
+enum VisualMode {
+	PRODUCTION = 0,
+	FOREST_SINGLE_HEX_DEBUG = 1,
+	FOREST_CLUSTER_DEBUG = 2,
+}
+
+## High-level map/forest presentation mode. When **`PRODUCTION`**, legacy **`forest_grid_debug_*`** exports
+## control isolated/suppress/one_hex; when **`FOREST_SINGLE_HEX_DEBUG`** or **`FOREST_CLUSTER_DEBUG`**,
+## **`visual_mode`** wins for those three. **[Phase A--B]**
+@export var visual_mode: VisualMode = VisualMode.PRODUCTION
+
 ## Read-only **Scenario** for **units_at** / **cities_at** (presentation-only); **null** → city-skip always false.
 var scenario
 var map
 var layout
 var camera
-## Phase **4.6p:** when set, unit markers are drawn in **`TerrainForegroundView`** between
-## **upper** and **lower** local grid passes (**behind / in front** by construction), via
-## **`UnitsView.draw_unit_marker_at(self, …)`**. **`UnitsView._draw`** early-returns when wired.
+## Phase **4.6p:** when set, unit markers draw in **`TerrainForegroundView`**
+## — **legacy path:** between upper and lower local grid passes; **when symbol scatter is on and **`Scenario`** has units**,
+## markers interleave with **each** forest symbol slot by **map-plane depth** (**`MapCamera.to_layout`** on tree **`root_pres`**
+## vs **`UnitsView.unit_effective_depth_presentation`**). **`UnitsView.draw_unit_marker_at(self, …)`**. **`UnitsView._draw`** early-returns when wired.
 var units_view
 ## Wired by **`main`** — read **`MapView.debug_plains_back_forest_draw_calls`** for isolated summaries.
 var map_view
+
+
+## **[Phase A]** **`forest_grid_debug_isolated`** resolved for **`MapView`** suppression and TFV gating.
+func resolved_forest_grid_debug_isolated() -> bool:
+	match visual_mode:
+		VisualMode.FOREST_SINGLE_HEX_DEBUG, VisualMode.FOREST_CLUSTER_DEBUG:
+			return true
+		_:
+			return forest_grid_debug_isolated
+
+
+## **[Phase A]** One-hex picker + perfect invariants use this (cluster mode → **false**).
+func resolved_forest_grid_debug_isolated_one_hex() -> bool:
+	match visual_mode:
+		VisualMode.FOREST_SINGLE_HEX_DEBUG:
+			return true
+		VisualMode.FOREST_CLUSTER_DEBUG:
+			return false
+		_:
+			return forest_grid_debug_isolated_one_hex
+
+
+## **[Phase A]** MapView back-forest suppression.
+func resolved_forest_grid_debug_suppress_map_back() -> bool:
+	match visual_mode:
+		VisualMode.FOREST_SINGLE_HEX_DEBUG, VisualMode.FOREST_CLUSTER_DEBUG:
+			return true
+		_:
+			return forest_grid_debug_suppress_map_back
+
+
+## When **false**, forest-grid overlay exports (**draw_roots**, **jitter_circles**, …) are ignored so **PRODUCTION**
+## without **`forest_grid_debug_isolated`** cannot accidentally show overlays. **[Phase A]**
+func _fg_debug_low_level_exports_enabled() -> bool:
+	return visual_mode != VisualMode.PRODUCTION or forest_grid_debug_isolated
+
+
+func _fg_effective_draw_jitter_circles() -> bool:
+	return forest_grid_debug_draw_jitter_circles and _fg_debug_low_level_exports_enabled()
+
+
+func _fg_effective_draw_jitter_displacement_vectors() -> bool:
+	return forest_grid_debug_draw_jitter_displacement_vectors and _fg_debug_low_level_exports_enabled()
+
+
+func _fg_hex_has_forest_decoration_for_draw(q: int, r: int) -> bool:
+	if map == null:
+		return false
+	var hc = HexCoordScript.new(q, r)
+	if not map.has(hc):
+		return false
+	if int(map.terrain_at(hc)) != HexMapScript.Terrain.PLAINS:
+		return false
+	if visual_mode == VisualMode.FOREST_CLUSTER_DEBUG:
+		if ForestDebugClustersScript.is_cluster_hex(q, r):
+			return true
+	return PlainsForestScript.is_plains_forest_decorated(q, r, forest_density_ratio)
+
+
 ## **Six-row 2/3/5/5/3/2 lattice:** authoritative **`P = _GRID_ROW_PITCH_FRAC × HexLayout.SIZE`**. Row **y** = **(−2.5 … +2.5) × P** in half-P steps. Derived **production** circle edge gap = **`P − 2×R_jitter`**. (Legacy: **10** slots **2/3/3/2** with **(−1.5…+1.5)×P**.)
 ## **Authoritative vertical spacing** of grid rows (**fraction of `HexLayout.SIZE`**). Small bumps expand Y footprint; reduce only if **disk(S,R+M)** fails for outer rows.
 const _GRID_ROW_PITCH_FRAC: float = 0.28
@@ -237,7 +309,7 @@ func _eom_forest_grid_debug_log() -> bool:
 
 func _fg_should_print_runtime_identity() -> bool:
 	return (
-		forest_grid_debug_isolated
+		resolved_forest_grid_debug_isolated()
 		or forest_grid_debug_draw_jitter_circles
 		or forest_grid_debug_draw_jitter_displacement_vectors
 		or forest_grid_debug_log_grid_jitter_slots
@@ -258,7 +330,7 @@ func _fg_print_runtime_identity() -> void:
 	var P_frac: float = forest_grid_row_pitch_frac()
 	print(
 		(
-			"[EOM_DEBUG_FOREST_PIPELINE] TFV runtime_identity path=%s instance_id=%d script=%s | exports: isolated=%s one_hex=%s perfect=%s draw_roots=%s jitter_circles=%s jitter_disp_vec=%s jitter_slot_log=%s trace_pipeline=%s draw_slot_labels=%s exaggerated_probe=%s suppress_map_back=%s log_export=%s | scatter=%s asset_overlays=%s | lattice: P/H=%.5f R_jitter/H=%.3f diag_pad_ref/H=%.5f row_jitter_gap/H=%.5f A/H=%.3f B/H=%.3f F5o/H=%.3f F5i/H=%.3f eff_R_safe/H=%.3f SIZE=%.1f"
+			"[EOM_DEBUG_FOREST_PIPELINE] TFV runtime_identity path=%s instance_id=%d script=%s | exports: isolated=%s one_hex=%s perfect=%s draw_roots=%s jitter_circles=%s jitter_disp_vec=%s jitter_slot_log=%s trace_pipeline=%s draw_slot_labels=%s exaggerated_probe=%s suppress_map_back=%s log_export=%s | visual_mode=%d resolved: isolated=%s one_hex=%s suppress_map_back=%s | scatter=%s asset_overlays=%s | lattice: P/H=%.5f R_jitter/H=%.3f diag_pad_ref/H=%.5f row_jitter_gap/H=%.5f A/H=%.3f B/H=%.3f F5o/H=%.3f F5i/H=%.3f eff_R_safe/H=%.3f SIZE=%.1f"
 		)
 		% [
 			str(get_path()),
@@ -276,6 +348,10 @@ func _fg_print_runtime_identity() -> void:
 			forest_grid_debug_exaggerated_layout_probe,
 			forest_grid_debug_suppress_map_back,
 			forest_grid_debug_log,
+			int(visual_mode),
+			resolved_forest_grid_debug_isolated(),
+			resolved_forest_grid_debug_isolated_one_hex(),
+			resolved_forest_grid_debug_suppress_map_back(),
 			use_forest_symbol_scatter,
 			use_forest_asset_overlays,
 			P_frac,
@@ -301,14 +377,14 @@ func _fg_print_runtime_identity() -> void:
 			% [sb, bl.x / H, bl.y / H, bl.x, bl.y]
 		)
 		sb += 1
-	if forest_grid_debug_isolated and forest_grid_debug_exaggerated_layout_probe:
+	if resolved_forest_grid_debug_isolated() and forest_grid_debug_exaggerated_layout_probe:
 		print(
 			"[EOM_DEBUG_FOREST_PIPELINE] TFV grid pass uses EXAGGERATED_PROBE (not canonical bases above)"
 		)
 
 
 func _fg_resolved_slot_base_local(slot_index: int) -> Vector2:
-	if forest_grid_debug_isolated and forest_grid_debug_exaggerated_layout_probe:
+	if resolved_forest_grid_debug_isolated() and forest_grid_debug_exaggerated_layout_probe:
 		return forest_grid_exaggerated_probe_slot_local(slot_index)
 	return forest_grid_slot_base_local(slot_index)
 
@@ -332,7 +408,7 @@ func _fg_overlay_draw_slot_label(screen_pos: Vector2, slot_index: int, upper_ban
 
 
 func _fg_warn_isolated_non_grid_pipeline_leak() -> void:
-	if not forest_grid_debug_isolated:
+	if not resolved_forest_grid_debug_isolated():
 		return
 	var p: String = str(get_path())
 	if _fg_sess_frame_front_proc_calls != 0:
@@ -420,6 +496,19 @@ func _forest_symbol_scatter_ready() -> bool:
 func _fg_pick_sample_decorated_plains_hex(coord_list) -> void:
 	_fg_sess_detail_hex_chosen = false
 	if map == null:
+		return
+	if visual_mode == VisualMode.FOREST_CLUSTER_DEBUG:
+		var sorted_cl: Array[Vector2i] = ForestDebugClustersScript.all_cluster_hexes_sorted()
+		var ix: int = 0
+		while ix < sorted_cl.size():
+			var vv: Vector2i = sorted_cl[ix]
+			var hx2 = HexCoordScript.new(vv.x, vv.y)
+			if map.has(hx2) and int(map.terrain_at(hx2)) == HexMapScript.Terrain.PLAINS:
+				_fg_sess_detail_q = vv.x
+				_fg_sess_detail_r = vv.y
+				_fg_sess_detail_hex_chosen = true
+				return
+			ix += 1
 		return
 	var i: int = 0
 	while i < coord_list.size():
@@ -937,9 +1026,13 @@ func _forest_grid_jitter_local(q: int, r: int, slot_index: int) -> Vector2:
 
 
 func _fg_isolated_draw_this_hex(q: int, r: int) -> bool:
-	if not forest_grid_debug_isolated or not forest_grid_debug_isolated_one_hex:
+	if not resolved_forest_grid_debug_isolated():
 		return true
-	return _fg_sess_detail_hex_chosen and q == _fg_sess_detail_q and r == _fg_sess_detail_r
+	if visual_mode == VisualMode.FOREST_CLUSTER_DEBUG:
+		return ForestDebugClustersScript.is_cluster_hex(q, r)
+	if resolved_forest_grid_debug_isolated_one_hex():
+		return _fg_sess_detail_hex_chosen and q == _fg_sess_detail_q and r == _fg_sess_detail_r
+	return true
 
 
 ## **Single draw path** for **symbol-grid** root debug markers (**presentation px**; same perfect/normal/isolated).
@@ -1194,7 +1287,7 @@ func _fg_flush_debug_overlay_top() -> void:
 		for ue in _fg_overlay_unit_effective_depth:
 			_fg_overlay_draw_unit_effective_depth_tick(ue as Vector2)
 
-	if forest_grid_debug_isolated:
+	if resolved_forest_grid_debug_isolated():
 		debug_last_overlay_flush_roots = n_r
 		debug_last_overlay_flush_circles = n_j
 		debug_last_overlay_flush_vectors = n_jv
@@ -1214,7 +1307,7 @@ func _fg_flush_debug_overlay_top() -> void:
 				n_te,
 				n_ur,
 				n_ue,
-				str(forest_grid_debug_isolated),
+				str(resolved_forest_grid_debug_isolated()),
 				_fg_compact_overlay_debug_flags(),
 			]
 		)
@@ -1227,6 +1320,272 @@ func _fg_flush_debug_overlay_top() -> void:
 		)
 
 
+func _fg_forest_symbol_slot_core_geometry(proj, world: Vector2, q: int, r: int, si: int) -> Dictionary:
+	if layout == null:
+		return {"ok": false}
+	var loff: Vector2 = _fg_resolved_slot_base_local(si)
+	var jit_raw: Vector2 = _forest_grid_jitter_local(q, r, si)
+	var loc_j_unc: Vector2 = loff + jit_raw
+	var loc_j: Vector2 = loc_j_unc
+	var jitter_clamped: bool = false
+	if resolved_forest_grid_debug_isolated() and not _fg_sess_perfect:
+		loc_j = _fg_clamp_root_local(loc_j_unc, loff)
+		jitter_clamped = not loc_j.is_equal_approx(loc_j_unc)
+	var jit: Vector2 = loc_j - loff
+	var root_world: Vector2 = world + loc_j
+	var root_pres: Vector2 = proj.to_presentation(root_world)
+	var jitter_on: bool = not _fg_sess_no_jitter
+	return {
+		"ok": true,
+		"loff": loff,
+		"jit_raw": jit_raw,
+		"jit": jit,
+		"loc_j_unc": loc_j_unc,
+		"loc_j": loc_j,
+		"jitter_clamped": jitter_clamped,
+		"root_world": root_world,
+		"root_pres": root_pres,
+		"jitter_on": jitter_on,
+	}
+
+
+## **Map-plane depth** for painter ordering: **[member MapCamera.to_layout]** on the symbol’s **`root_pres`** (same frame as trees / unit feet).
+func _fg_depth_sort_xy_from_symbol_pres(root_pres: Vector2) -> Vector2:
+	var w: Vector2 = camera.to_layout(root_pres)
+	return Vector2(w.y, w.x)
+
+
+func _fg_draw_plains_forest_front_one_symbol_slot(
+	proj,
+	world: Vector2,
+	q: int,
+	r: int,
+	si: int,
+	upper_band: bool,
+	log_hex_detail: bool
+) -> int:
+	var cg: Dictionary = _fg_forest_symbol_slot_core_geometry(proj, world, q, r, si)
+	if not bool(cg.get("ok", false)):
+		return 0
+	var loff: Vector2 = cg["loff"]
+	var jit_raw: Vector2 = cg["jit_raw"]
+	var loc_j_unc: Vector2 = cg["loc_j_unc"]
+	var loc_j: Vector2 = cg["loc_j"]
+	var jitter_clamped: bool = cg["jitter_clamped"]
+	var jit: Vector2 = cg["jit"]
+	var root_pres: Vector2 = cg["root_pres"]
+	var jitter_on: bool = cg["jitter_on"]
+	var pipeline_trace_slot: bool = (
+		resolved_forest_grid_debug_isolated()
+		and _fg_sess_detail_hex_chosen
+		and q == _fg_sess_detail_q
+		and r == _fg_sess_detail_r
+		and (
+			resolved_forest_grid_debug_isolated_one_hex()
+			or visual_mode == VisualMode.FOREST_CLUSTER_DEBUG
+		)
+	)
+	var log_jitter_slot: bool = (
+		pipeline_trace_slot
+		and (
+			forest_grid_debug_trace_pipeline
+			or forest_grid_debug_log_grid_jitter_slots
+		)
+	)
+	if log_jitter_slot:
+		var mixes_log: Vector2i = forest_grid_jitter_mix_hashes(q, r, si)
+		var h_t_log: int = mixes_log.x
+		var h_r_log: int = mixes_log.y
+		var u_t_log: float = forest_grid_jitter_u_from_hash(h_t_log)
+		var u_r_log: float = forest_grid_jitter_u_from_hash(h_r_log)
+		var theta_log: float = TAU * u_t_log
+		var r_j_log: float = forest_grid_jitter_max_radius_world()
+		var rad_len_log: float = r_j_log * sqrt(u_r_log)
+		var jr_for_len: Vector2 = jit_raw if jitter_on else Vector2.ZERO
+		print(
+			(
+				"[EOM_DEBUG_FOREST_JITTER_SLOT] hex(%d,%d) slot=%2d upper=%s base_local=%s h_theta=%d h_radius=%d u_theta=%.6f u_radius=%.6f theta=%.6f rad_world=%.6f rad_div_R=%.6f jitter_raw_local=%s len_raw=%.6f len_raw_div_R=%.5f root_unc_local=%s root_clamped_local=%s jitter_post_clamp_local=%s len_post=%.6f len_post_div_R=%.5f clamped=%s jitter_on=%s"
+			)
+			% [
+				q,
+				r,
+				si,
+				upper_band,
+				loff,
+				h_t_log,
+				h_r_log,
+				u_t_log,
+				u_r_log,
+				theta_log,
+				rad_len_log,
+				rad_len_log / r_j_log if r_j_log > 0.0 else 0.0,
+				jr_for_len,
+				jr_for_len.length(),
+				jr_for_len.length() / r_j_log if r_j_log > 0.0 else 0.0,
+				loc_j_unc,
+				loc_j,
+				jit,
+				jit.length(),
+				jit.length() / r_j_log if r_j_log > 0.0 else 0.0,
+				str(jitter_clamped),
+				str(jitter_on),
+			]
+		)
+	var pscale: float = proj.perspective_scale_at(world)
+	var base: float = HexLayoutScript.SIZE * pscale
+	var op: float = clampf(forest_front_symbol_opacity, 0.0, 1.0)
+	var col: Color = Color(0.92, 0.86, 0.79, op)
+	var grid_mode_s: String = _fg_grid_mode_log_label()
+	var h_mix_sym: int = PlainsForestScript.cell_mix(q, r, _SALT_FRONT_SYM_BASE + si)
+	var ti: int = (si % _TREE_SYMBOL_COUNT) if _fg_sess_perfect else (h_mix_sym % _TREE_SYMBOL_COUNT)
+	var tex: Texture2D = _forest_tree_symbols[ti]
+	var side: float = base * (0.69 + _mix255(h_mix_sym >> 8) * 0.30) * 0.5
+	var sym_path: String = _tree_symbol_res_path(ti + 1)
+	var mtree: Dictionary = TextureAlphaMetricsClass.metrics_for_res_path(sym_path)
+	var tree_pad: float = TextureAlphaMetricsClass.scaled_bottom_padding_y(mtree, side)
+	var tree_sym_rect: Rect2 = Rect2(
+		root_pres.x - side * 0.5, root_pres.y + tree_pad - side, side, side
+	)
+	var rect_bottom: Vector2 = forest_grid_texture_rect_bottom_center(
+		root_pres, side, tree_pad
+	)
+	if pipeline_trace_slot or log_hex_detail:
+		var r_j: float = forest_grid_jitter_max_radius_world()
+		if pipeline_trace_slot:
+			print(
+				(
+					"[EOM_DEBUG_FOREST_PIPELINE] grid_draw tfv=%s tfv_id=%d _draw_plains_forest_front_symbol_grid_pass hex(%d,%d) slot=%2d upper_pass=%s tex_idx=%d grid_mode=%s base_local=%s base_frac/H=(%.4f,%.4f) jitter_local=%s jitter_len=%.5f root_local=%s root_pres=%s rect_bottom_center=%s jitter_on=%s perfect=%s R_jitter_world=%.5f clamped=%s"
+				)
+				% [
+					str(get_path()),
+					get_instance_id(),
+					q,
+					r,
+					si,
+					upper_band,
+					ti,
+					grid_mode_s,
+					loff,
+					loff.x / HexLayoutScript.SIZE,
+					loff.y / HexLayoutScript.SIZE,
+					jit,
+					jit.length(),
+					loc_j,
+					root_pres,
+					rect_bottom,
+					jitter_on,
+					_fg_sess_perfect,
+					r_j,
+					str(jitter_clamped),
+				]
+			)
+		elif log_hex_detail:
+			print(
+				(
+					"[EOM_DEBUG_FOREST_GRID] hex(%d,%d) slot=%2d upper=%s grid_mode=%s base_local=%s jitter_local=%s jitter_len=%.5f root_local=%s root_pres=%s rect_bottom_center=%s jitter_enabled=%s perfect=%s isolated=%s R_jitter_world=%.4f clamped=%s"
+				)
+				% [
+					q,
+					r,
+					si,
+					upper_band,
+					grid_mode_s,
+					loff,
+					jit,
+					jit.length(),
+					loc_j,
+					root_pres,
+					rect_bottom,
+					str(jitter_on),
+					_fg_sess_perfect,
+					resolved_forest_grid_debug_isolated(),
+					r_j,
+					str(jitter_clamped),
+				]
+			)
+	draw_texture_rect(
+		tex,
+		tree_sym_rect,
+		false,
+		col
+	)
+	if _fg_effective_draw_jitter_circles():
+		_fg_overlay_jitter_items.append(
+			{
+				"proj": proj,
+				"world": world,
+				"loff": loff,
+				"root_pres": root_pres,
+				"upper": upper_band,
+				"verify": pipeline_trace_slot,
+			}
+		)
+	if (
+		_fg_effective_draw_jitter_displacement_vectors()
+		and pipeline_trace_slot
+		and jitter_on
+	):
+		_fg_overlay_jitter_vectors.append(
+			{
+				"base_pres": proj.to_presentation(world + loff),
+				"root_pres": root_pres,
+				"upper": upper_band,
+			}
+		)
+	_fg_sess_grid_symbols_drawn += 1
+	if upper_band:
+		_fg_sess_grid_upper_symbols_drawn += 1
+	else:
+		_fg_sess_grid_lower_symbols_drawn += 1
+	if _fg_sess_perfect:
+		_dbg_perf_grid_tex_drawn += 1
+	if (
+		resolved_forest_grid_debug_isolated()
+		and _fg_debug_low_level_exports_enabled()
+		and (
+			forest_grid_debug_trace_pipeline
+			or forest_grid_debug_log_grid_jitter_slots
+			or forest_grid_debug_draw_slot_labels
+		)
+	):
+		_fg_overlay_slot_labels.append(
+			{"pres": root_pres, "slot": si, "upper": upper_band}
+		)
+	if _fg_sess_draw_roots:
+		_fg_overlay_root_markers.append(
+			{
+				"pres": root_pres,
+				"upper": upper_band,
+				"rect_bc": rect_bottom,
+				"side": side,
+				"tree_scaled_bottom_pad": tree_pad,
+			}
+		)
+	if debug_draw_effective_depth_points and _fg_debug_low_level_exports_enabled() and _forest_symbol_scatter_ready():
+		if mtree.get("ok", false):
+			var bpad_t: int = int(mtree["bottom_padding_px"])
+			var tht: int = int(mtree["height"])
+			_fg_overlay_tree_effective_depth.append(root_pres)
+			if pipeline_trace_slot:
+				print(
+					(
+						"[EOM_DEBUG_TREE_SYMBOL_DEPTH] slot=%2d tex_idx=%d path=%s size=%dx%d bottom_padding_px=%d scaled_tree_bottom_padding_y=%.5f raw_quad_bottom_center=%s effective_tree_root_pres=%s"
+					)
+					% [
+						si,
+						ti,
+						sym_path,
+						int(mtree["width"]),
+						tht,
+						bpad_t,
+						tree_pad,
+						rect_bottom,
+						root_pres,
+					]
+				)
+	return 1
+
+
 func _draw_plains_forest_front_symbol_grid_pass(
 	proj, world: Vector2, q: int, r: int, upper_band: bool, log_hex_detail: bool
 ) -> int:
@@ -1234,229 +1593,254 @@ func _draw_plains_forest_front_symbol_grid_pass(
 	# **`upper_band`:** slots **0–9** (**y < 0**). Else **10–19**. Symbol-grid path: **only** these calls (no parallel scatter).
 	if layout == null:
 		return 0
-	var pscale: float = proj.perspective_scale_at(world)
-	var base: float = HexLayoutScript.SIZE * pscale
-	var op: float = clampf(forest_front_symbol_opacity, 0.0, 1.0)
-	var col: Color = Color(0.92, 0.86, 0.79, op)
 	var si: int = 0 if upper_band else _GRID_UPPER_SLOT_COUNT
 	var end_i: int = _GRID_UPPER_SLOT_COUNT if upper_band else _GRID_SLOT_COUNT
 	var drawn: int = 0
-	var grid_mode_s: String = _fg_grid_mode_log_label()
-	var jitter_on: bool = not _fg_sess_no_jitter
 	while si < end_i:
-		var loff: Vector2 = _fg_resolved_slot_base_local(si)
-		var jit_raw: Vector2 = _forest_grid_jitter_local(q, r, si)
-		var loc_j_unc: Vector2 = loff + jit_raw
-		var loc_j: Vector2 = loc_j_unc
-		var jitter_clamped: bool = false
-		if forest_grid_debug_isolated and not _fg_sess_perfect:
-			loc_j = _fg_clamp_root_local(loc_j_unc, loff)
-			jitter_clamped = not loc_j.is_equal_approx(loc_j_unc)
-		var jit: Vector2 = loc_j - loff
-		var root_world: Vector2 = world + loc_j
-		var root_pres: Vector2 = proj.to_presentation(root_world)
-		var pipeline_trace_slot: bool = (
-			forest_grid_debug_isolated
-			and forest_grid_debug_isolated_one_hex
-			and _fg_sess_detail_hex_chosen
-			and q == _fg_sess_detail_q
-			and r == _fg_sess_detail_r
+		drawn += _fg_draw_plains_forest_front_one_symbol_slot(
+			proj, world, q, r, si, si < _GRID_UPPER_SLOT_COUNT, log_hex_detail
 		)
-		var log_jitter_slot: bool = (
-			pipeline_trace_slot
-			and (
-				forest_grid_debug_trace_pipeline
-				or forest_grid_debug_log_grid_jitter_slots
-			)
-		)
-		if log_jitter_slot:
-			var mixes_log: Vector2i = forest_grid_jitter_mix_hashes(q, r, si)
-			var h_t_log: int = mixes_log.x
-			var h_r_log: int = mixes_log.y
-			var u_t_log: float = forest_grid_jitter_u_from_hash(h_t_log)
-			var u_r_log: float = forest_grid_jitter_u_from_hash(h_r_log)
-			var theta_log: float = TAU * u_t_log
-			var r_j_log: float = forest_grid_jitter_max_radius_world()
-			var rad_len_log: float = r_j_log * sqrt(u_r_log)
-			var jr_for_len: Vector2 = jit_raw if jitter_on else Vector2.ZERO
-			print(
-				(
-					"[EOM_DEBUG_FOREST_JITTER_SLOT] hex(%d,%d) slot=%2d upper=%s base_local=%s h_theta=%d h_radius=%d u_theta=%.6f u_radius=%.6f theta=%.6f rad_world=%.6f rad_div_R=%.6f jitter_raw_local=%s len_raw=%.6f len_raw_div_R=%.5f root_unc_local=%s root_clamped_local=%s jitter_post_clamp_local=%s len_post=%.6f len_post_div_R=%.5f clamped=%s jitter_on=%s"
-				)
-				% [
-					q,
-					r,
-					si,
-					upper_band,
-					loff,
-					h_t_log,
-					h_r_log,
-					u_t_log,
-					u_r_log,
-					theta_log,
-					rad_len_log,
-					rad_len_log / r_j_log if r_j_log > 0.0 else 0.0,
-					jr_for_len,
-					jr_for_len.length(),
-					jr_for_len.length() / r_j_log if r_j_log > 0.0 else 0.0,
-					loc_j_unc,
-					loc_j,
-					jit,
-					jit.length(),
-					jit.length() / r_j_log if r_j_log > 0.0 else 0.0,
-					str(jitter_clamped),
-					str(jitter_on),
-				]
-			)
-		var h_mix_sym: int = PlainsForestScript.cell_mix(q, r, _SALT_FRONT_SYM_BASE + si)
-		var ti: int = (si % _TREE_SYMBOL_COUNT) if _fg_sess_perfect else (h_mix_sym % _TREE_SYMBOL_COUNT)
-		var tex: Texture2D = _forest_tree_symbols[ti]
-		var side: float = base * (0.69 + _mix255(h_mix_sym >> 8) * 0.30) * 0.5
-		var sym_path: String = _tree_symbol_res_path(ti + 1)
-		var mtree: Dictionary = TextureAlphaMetricsClass.metrics_for_res_path(sym_path)
-		var tree_pad: float = TextureAlphaMetricsClass.scaled_bottom_padding_y(mtree, side)
-		var tree_sym_rect: Rect2 = Rect2(
-			root_pres.x - side * 0.5, root_pres.y + tree_pad - side, side, side
-		)
-		var rect_bottom: Vector2 = forest_grid_texture_rect_bottom_center(
-			root_pres, side, tree_pad
-		)
-		if pipeline_trace_slot or log_hex_detail:
-			var r_j: float = forest_grid_jitter_max_radius_world()
-			if pipeline_trace_slot:
-				print(
-					(
-						"[EOM_DEBUG_FOREST_PIPELINE] grid_draw tfv=%s tfv_id=%d _draw_plains_forest_front_symbol_grid_pass hex(%d,%d) slot=%2d upper_pass=%s tex_idx=%d grid_mode=%s base_local=%s base_frac/H=(%.4f,%.4f) jitter_local=%s jitter_len=%.5f root_local=%s root_pres=%s rect_bottom_center=%s jitter_on=%s perfect=%s R_jitter_world=%.5f clamped=%s"
-					)
-					% [
-						str(get_path()),
-						get_instance_id(),
-						q,
-						r,
-						si,
-						upper_band,
-						ti,
-						grid_mode_s,
-						loff,
-						loff.x / HexLayoutScript.SIZE,
-						loff.y / HexLayoutScript.SIZE,
-						jit,
-						jit.length(),
-						loc_j,
-						root_pres,
-						rect_bottom,
-						jitter_on,
-						_fg_sess_perfect,
-						r_j,
-						str(jitter_clamped),
-					]
-				)
-			elif log_hex_detail:
-				print(
-					(
-						"[EOM_DEBUG_FOREST_GRID] hex(%d,%d) slot=%2d upper=%s grid_mode=%s base_local=%s jitter_local=%s jitter_len=%.5f root_local=%s root_pres=%s rect_bottom_center=%s jitter_enabled=%s perfect=%s isolated=%s R_jitter_world=%.4f clamped=%s"
-					)
-					% [
-						q,
-						r,
-						si,
-						upper_band,
-						grid_mode_s,
-						loff,
-						jit,
-						jit.length(),
-						loc_j,
-						root_pres,
-						rect_bottom,
-						str(jitter_on),
-						_fg_sess_perfect,
-						forest_grid_debug_isolated,
-						r_j,
-						str(jitter_clamped),
-					]
-				)
-		draw_texture_rect(
-			tex,
-			tree_sym_rect,
-			false,
-			col
-		)
-		if forest_grid_debug_draw_jitter_circles:
-			_fg_overlay_jitter_items.append(
-				{
-					"proj": proj,
-					"world": world,
-					"loff": loff,
-					"root_pres": root_pres,
-					"upper": upper_band,
-					"verify": pipeline_trace_slot,
-				}
-			)
-		if (
-			forest_grid_debug_draw_jitter_displacement_vectors
-			and pipeline_trace_slot
-			and jitter_on
-		):
-			_fg_overlay_jitter_vectors.append(
-				{
-					"base_pres": proj.to_presentation(world + loff),
-					"root_pres": root_pres,
-					"upper": upper_band,
-				}
-			)
-		_fg_sess_grid_symbols_drawn += 1
-		if upper_band:
-			_fg_sess_grid_upper_symbols_drawn += 1
-		else:
-			_fg_sess_grid_lower_symbols_drawn += 1
-		drawn += 1
-		if _fg_sess_perfect:
-			_dbg_perf_grid_tex_drawn += 1
-		if (
-			forest_grid_debug_isolated
-			and (
-				forest_grid_debug_trace_pipeline
-				or forest_grid_debug_log_grid_jitter_slots
-				or forest_grid_debug_draw_slot_labels
-			)
-		):
-			_fg_overlay_slot_labels.append(
-				{"pres": root_pres, "slot": si, "upper": upper_band}
-			)
-		if _fg_sess_draw_roots:
-			_fg_overlay_root_markers.append(
-				{
-					"pres": root_pres,
-					"upper": upper_band,
-					"rect_bc": rect_bottom,
-					"side": side,
-					"tree_scaled_bottom_pad": tree_pad,
-				}
-			)
-		if debug_draw_effective_depth_points and _forest_symbol_scatter_ready():
-			if mtree.get("ok", false):
-				var bpad_t: int = int(mtree["bottom_padding_px"])
-				var tht: int = int(mtree["height"])
-				_fg_overlay_tree_effective_depth.append(root_pres)
-				if pipeline_trace_slot:
-					print(
-						(
-							"[EOM_DEBUG_TREE_SYMBOL_DEPTH] slot=%2d tex_idx=%d path=%s size=%dx%d bottom_padding_px=%d scaled_tree_bottom_padding_y=%.5f raw_quad_bottom_center=%s effective_tree_root_pres=%s"
-						)
-						% [
-							si,
-							ti,
-							sym_path,
-							int(mtree["width"]),
-							tht,
-							bpad_t,
-							tree_pad,
-							rect_bottom,
-							root_pres,
-						]
-					)
 		si += 1
 	return drawn
+
+
+func _fg_should_depth_merge_forest_symbol_grid_with_units(symbol_scatter_active: bool) -> bool:
+	if not symbol_scatter_active:
+		return false
+	if units_view == null or not is_instance_valid(units_view):
+		return false
+	if scenario == null:
+		return false
+	return scenario.units().size() > 0
+
+
+func _fg_run_unit_forest_occluder_pass_for_map(coord_list, cam) -> void:
+	if (
+		not enable_unit_occlusion_test
+		or scenario == null
+		or resolved_forest_grid_debug_isolated()
+	):
+		return
+	var oi: int = 0
+	while oi < coord_list.size():
+		var ocoord = coord_list[oi]
+		var oter: int = int(map.terrain_at(ocoord))
+		if oter == HexMapScript.Terrain.PLAINS:
+			if _fg_hex_has_forest_decoration_for_draw(ocoord.q, ocoord.r):
+				if (
+					scenario.cities_at(ocoord).size() == 0
+					and scenario.units_at(ocoord).size() > 0
+				):
+					var oworld: Vector2 = layout.hex_to_world(ocoord.q, ocoord.r)
+					var anchor_pres_u: Vector2 = cam.to_presentation(oworld)
+					var pscale_u: float = cam.perspective_scale_at(oworld)
+					var hex_h: float = HexLayoutScript.SIZE * 2.0
+					var side_u: float = hex_h * foreground_unit_reference_height_ratio * pscale_u
+					_draw_unit_forest_occluder(anchor_pres_u, side_u, ocoord.q, ocoord.r)
+					_fg_sess_unit_occluder_draws += 1
+		oi += 1
+
+
+func _fg_depth_merge_item_lt(a: Dictionary, b: Dictionary) -> bool:
+	if a["sy"] < b["sy"]:
+		return true
+	if a["sy"] > b["sy"]:
+		return false
+	if a["sx"] < b["sx"]:
+		return true
+	if a["sx"] > b["sx"]:
+		return false
+	if a["ty"] < b["ty"]:
+		return true
+	if a["ty"] > b["ty"]:
+		return false
+	if int(a["ty"]) == 0:
+		if int(a["q"]) != int(b["q"]):
+			return int(a["q"]) < int(b["q"])
+		if int(a["r"]) != int(b["r"]):
+			return int(a["r"]) < int(b["r"])
+		return int(a["si"]) < int(b["si"])
+	return int(a["ui"]) < int(b["ui"])
+
+
+func _fg_draw_depth_merged_forest_symbol_grid_and_units(
+	coord_list, cam, symbol_scatter_active: bool
+) -> void:
+	if not symbol_scatter_active:
+		return
+	_reload_forest_tree_symbols_if_needed()
+	var items: Array = []
+	var ci: int = 0
+	while ci < coord_list.size():
+		var coord_m = coord_list[ci]
+		var terr_m: int = int(map.terrain_at(coord_m))
+		if terr_m == HexMapScript.Terrain.PLAINS:
+			if _fg_hex_has_forest_decoration_for_draw(coord_m.q, coord_m.r):
+				var allow_m: bool = _fg_isolated_draw_this_hex(coord_m.q, coord_m.r)
+				var skip_m: bool = _should_skip_main_clump_for_city(coord_m)
+				var log_hex_m: bool = (
+					_fg_sess_roots_detail_log
+					and _fg_sess_detail_hex_chosen
+					and coord_m.q == _fg_sess_detail_q
+					and coord_m.r == _fg_sess_detail_r
+				)
+				var skip_hex_for_merge: bool = (
+					resolved_forest_grid_debug_isolated() and not allow_m
+				)
+				if not skip_hex_for_merge:
+					var world_m: Vector2 = layout.hex_to_world(coord_m.q, coord_m.r)
+					var slot_max: int = (
+						_GRID_UPPER_SLOT_COUNT if skip_m else _GRID_SLOT_COUNT
+					)
+					var sii: int = 0
+					while sii < slot_max:
+						var cg2: Dictionary = _fg_forest_symbol_slot_core_geometry(
+							cam, world_m, coord_m.q, coord_m.r, sii
+						)
+						if bool(cg2.get("ok", false)):
+							var layer: Vector2 = _fg_depth_sort_xy_from_symbol_pres(
+								cg2["root_pres"]
+							)
+							items.append(
+								{
+									"ty": 0,
+									"sy": layer.x,
+									"sx": layer.y,
+									"q": coord_m.q,
+									"r": coord_m.r,
+									"si": sii,
+									"world": world_m,
+									"log_hex": log_hex_m,
+								}
+							)
+						sii += 1
+		ci += 1
+	var ulistm = scenario.units()
+	var ui2: int = 0
+	while ui2 < ulistm.size():
+		var u2 = ulistm[ui2]
+		var u_world2: Vector2 = layout.hex_to_world(u2.position.q, u2.position.r)
+		var u_anchor2: Vector2 = cam.to_presentation(u_world2)
+		var u_ps2: float = cam.perspective_scale_at(u_world2)
+		var eff2: Vector2 = units_view.unit_effective_depth_presentation(
+			u_anchor2, u_ps2, str(u2.type_id)
+		)
+		if eff2.length_squared() < 1e-20:
+			eff2 = u_anchor2
+		var ulayer: Vector2 = cam.to_layout(eff2)
+		items.append(
+			{
+				"ty": 1,
+				"sy": ulayer.y,
+				"sx": ulayer.x,
+				"ui": ui2,
+				"u": u2,
+				"u_anchor": u_anchor2,
+				"u_pscale": u_ps2,
+			}
+		)
+		ui2 += 1
+	items.sort_custom(_fg_depth_merge_item_lt)
+	var mi: int = 0
+	while mi < items.size():
+		var it: Dictionary = items[mi]
+		if int(it["ty"]) == 0:
+			var n_drawn: int = _fg_draw_plains_forest_front_one_symbol_slot(
+				cam,
+				it["world"],
+				int(it["q"]),
+				int(it["r"]),
+				int(it["si"]),
+				int(it["si"]) < _GRID_UPPER_SLOT_COUNT,
+				it["log_hex"]
+			)
+			_fg_sess_frame_grid_textures += n_drawn
+			if resolved_forest_grid_debug_isolated() and n_drawn > 0:
+				_fg_isolated_drawn_hex_keys["%d,%d" % [int(it["q"]), int(it["r"])]] = (
+					true
+				)
+			if it["log_hex"] and n_drawn > 0:
+				_fg_sess_detail_grid_acc += n_drawn
+		else:
+			var umi = it["u"]
+			units_view.draw_unit_marker_at(
+				self,
+				it["u_anchor"],
+				it["u_pscale"],
+				str(umi.type_id),
+				int(umi.owner_id)
+			)
+			var collect_png_bottom: bool = _eom_debug_unit_png_bottom()
+			var collect_unit_effective: bool = (
+				debug_draw_effective_depth_points and _fg_debug_low_level_exports_enabled()
+			)
+			if collect_png_bottom or collect_unit_effective:
+				var u_drawn: Rect2 = UnitsView.debug_last_unit_png_rect
+				if u_drawn.size.x > 0.0:
+					if collect_png_bottom:
+						var raw_png_bottom_center: Vector2 = (
+							UnitsView.debug_last_unit_png_bottom_center
+						)
+						_fg_overlay_unit_raw_png_bottom.append(raw_png_bottom_center)
+						var effective_unit_depth: Vector2 = (
+							UnitsView.debug_last_unit_effective_depth_point
+						)
+						var upath: String = UnitsView.marker_texture_res_path(
+							str(umi.type_id)
+						)
+						var mue: Dictionary = TextureAlphaMetricsClass.metrics_for_res_path(
+							upath
+						)
+						var bottom_pad_px: int = 0
+						var tex_w: int = 0
+						var tex_h: int = 0
+						var scaled_bottom_pad_y: float = 0.0
+						if mue.get("ok", false):
+							tex_w = int(mue["width"])
+							tex_h = int(mue["height"])
+							bottom_pad_px = int(mue["bottom_padding_px"])
+							if tex_h > 0:
+								scaled_bottom_pad_y = (
+									TextureAlphaMetricsClass.scaled_bottom_padding_y(
+										mue, u_drawn.size.y
+									)
+								)
+						if not _fg_sess_logged_unit_png_bottom_sample:
+							_fg_sess_logged_unit_png_bottom_sample = true
+							print(
+								(
+									"[EOM_DEBUG_UNIT_PNG_BOTTOM] type_id=%s path=%s tex_size=%dx%d unit_rect=%s raw_png_bottom_center=%s bottom_padding_px=%d scaled_bottom_padding_y=%.5f effective_unit_depth_point=%s anchor_pres=%s delta_effective_minus_anchor=%s (presentation px)"
+								)
+								% [
+									str(umi.type_id),
+									upath,
+									tex_w,
+									tex_h,
+									u_drawn,
+									raw_png_bottom_center,
+									bottom_pad_px,
+									scaled_bottom_pad_y,
+									effective_unit_depth,
+									it["u_anchor"],
+									effective_unit_depth - it["u_anchor"],
+								]
+							)
+					if collect_unit_effective:
+						_fg_overlay_unit_effective_depth.append(
+							UnitsView.debug_last_unit_effective_depth_point
+						)
+		mi += 1
+	# **Detail** grid summary: match legacy pass-3 **totals_printed** for sample hex.
+	if _fg_sess_roots_detail_log and _fg_sess_detail_hex_chosen:
+		var lx: int = 0
+		while lx < coord_list.size():
+			var lc = coord_list[lx]
+			if lc.q == _fg_sess_detail_q and lc.r == _fg_sess_detail_r:
+				if not _fg_sess_detail_totals_printed:
+					_fg_sess_detail_totals_printed = true
+					_fg_print_sample_hex_grid_summary(lc.q, lc.r)
+				break
+			lx += 1
 
 
 func _fg_expected_grid_slots_for_qr(q: int, r: int) -> int:
@@ -1469,10 +1853,10 @@ func _fg_expected_grid_slots_for_qr(q: int, r: int) -> int:
 
 
 func _fg_assert_isolated_perfect_invariants(symbol_scatter_active: bool) -> void:
-	if not forest_grid_debug_isolated or not _fg_sess_perfect:
+	if not resolved_forest_grid_debug_isolated() or not _fg_sess_perfect:
 		return
 	var n_hex: int = _fg_isolated_drawn_hex_keys.size()
-	if forest_grid_debug_isolated_one_hex and n_hex != 1:
+	if resolved_forest_grid_debug_isolated_one_hex() and n_hex != 1:
 		push_warning(
 			(
 				"EOM ISOLATED+PERFECT invariant FAILED: isolated_one_hex expects isolated_hexes_drawn==1, got %d (keys=%s). Check TFV instance / gating."
@@ -1491,14 +1875,18 @@ func _fg_assert_isolated_perfect_invariants(symbol_scatter_active: bool) -> void
 		)
 		return
 	var exp_sym: int = _fg_expected_grid_slots_for_qr(_fg_sess_detail_q, _fg_sess_detail_r)
-	if _fg_sess_grid_symbols_drawn != exp_sym:
+	if resolved_forest_grid_debug_isolated_one_hex() and _fg_sess_grid_symbols_drawn != exp_sym:
 		push_warning(
 			(
 				"EOM ISOLATED+PERFECT invariant FAILED: grid_symbols_drawn=%d expected %d for sample hex (city skips lower band)."
 			)
 			% [_fg_sess_grid_symbols_drawn, exp_sym]
 		)
-	if _fg_sess_draw_roots and _fg_sess_grid_root_markers_drawn != exp_sym:
+	if (
+		resolved_forest_grid_debug_isolated_one_hex()
+		and _fg_sess_draw_roots
+		and _fg_sess_grid_root_markers_drawn != exp_sym
+	):
 		push_warning(
 			(
 				"EOM ISOLATED+PERFECT invariant FAILED: grid_root_markers_drawn=%d expected %d (draw_roots=%s)."
@@ -1561,7 +1949,7 @@ func _fg_assert_isolated_perfect_invariants(symbol_scatter_active: bool) -> void
 
 
 func _fg_assert_isolated_grid_pass_consistency() -> void:
-	if not forest_grid_debug_isolated:
+	if not resolved_forest_grid_debug_isolated():
 		return
 	if not (use_forest_symbol_scatter and _forest_symbol_scatter_ready()):
 		return
@@ -1583,7 +1971,7 @@ func _fg_assert_isolated_grid_pass_consistency() -> void:
 
 
 func _fg_assert_isolated_normal_root_marker_counts() -> void:
-	if not forest_grid_debug_isolated or _fg_sess_perfect or not _fg_sess_draw_roots:
+	if not resolved_forest_grid_debug_isolated() or _fg_sess_perfect or not _fg_sess_draw_roots:
 		return
 	if _fg_root_markers_drawn_total != _fg_sess_grid_symbols_drawn:
 		push_warning(
@@ -1605,7 +1993,7 @@ func _fg_assert_isolated_normal_root_marker_counts() -> void:
 
 
 func _fg_print_root_marker_isolated_line() -> void:
-	if not forest_grid_debug_isolated or not _fg_sess_draw_roots:
+	if not resolved_forest_grid_debug_isolated() or not _fg_sess_draw_roots:
 		return
 	var mode_s: String = "perfect" if _fg_sess_perfect else "normal"
 	var je: String = str(not _fg_sess_no_jitter)
@@ -1771,14 +2159,14 @@ func _draw() -> void:
 			"TerrainForegroundView forest stats: PLAINS=%d decorated=%d density=%.3f front_opacity=%.3f"
 			% [plains_n, dec_n, forest_density_ratio, forest_front_opacity]
 		)
-	if not forest_grid_debug_isolated:
+	if not resolved_forest_grid_debug_isolated():
 		_fg_warned_isolated_no_symbols = false
 	var symbol_scatter_active: bool = (
 		use_forest_symbol_scatter and _forest_symbol_scatter_ready()
 	)
 	_fg_sess_perfect = _eom_forest_grid_perfect()
 	_fg_sess_no_jitter = _fg_sess_perfect
-	_fg_sess_draw_roots = forest_grid_debug_draw_roots
+	_fg_sess_draw_roots = forest_grid_debug_draw_roots and _fg_debug_low_level_exports_enabled()
 	_fg_sess_roots_detail_log = forest_grid_debug_log or forest_grid_debug_draw_roots
 	_fg_sess_detail_grid_acc = 0
 	_fg_sess_detail_totals_printed = false
@@ -1788,7 +2176,7 @@ func _draw() -> void:
 	if _fg_sess_perfect:
 		_dbg_perf_grid_tex_drawn = 0
 		_dbg_perf_root_markers_drawn = 0
-	if _fg_sess_roots_detail_log and not forest_grid_debug_isolated:
+	if _fg_sess_roots_detail_log and not resolved_forest_grid_debug_isolated():
 		print(
 			(
 				"[EOM_DEBUG_FOREST_GRID] session grid_mode=%s jitter_enabled=%s | resolved_perfect=%s export.forest_grid_debug_perfect=%s env.EOM_DEBUG_FOREST_GRID_PERFECT=%s no_jitter=%s draw_roots=%s R_max_world=%.4f M_safety_world=%.4f | Stale env still forces perfect: clear in shell/editor and restart."
@@ -1839,19 +2227,19 @@ func _draw() -> void:
 	_fg_root_marker_radius_px_used = 0.0
 	_fg_root_marker_geom_checks_passed = 0
 	_fg_sess_isolated_candidate_hexes = 0
-	if forest_grid_debug_isolated:
+	if resolved_forest_grid_debug_isolated():
 		var cix: int = 0
 		while cix < coord_list.size():
 			var cx = coord_list[cix]
 			if int(map.terrain_at(cx)) == HexMapScript.Terrain.PLAINS:
-				if PlainsForestScript.is_plains_forest_decorated(cx.q, cx.r, forest_density_ratio):
+				if _fg_hex_has_forest_decoration_for_draw(cx.q, cx.r):
 					_fg_sess_isolated_candidate_hexes += 1
 			cix += 1
 		print(
 			(
 				"[EOM_DEBUG_FOREST_ISOLATED_START] instance_id=%d path=%s"
 				+ " | export flags: isolated=%s perfect=%s one_hex=%s draw_roots=%s suppress_map_back=%s scatter=%s asset_overlay=%s"
-				+ " | grid_mode=%s jitter_enabled=%s | resolved _fg_sess_perfect=%s _fg_sess_no_jitter=%s env_PERFECT=%s | sample_chosen=%s sample=(%d,%d) candidate_decorated_hexes=%d"
+				+ " | grid_mode=%s jitter_enabled=%s | resolved _fg_sess_perfect=%s _fg_sess_no_jitter=%s env_PERFECT=%s | sample_chosen=%s sample=(%d,%d) candidate_decorated_hexes=%d | visual_mode=%d resolved_iso=%s resolved_one_hex=%s resolved_suppress=%s"
 			)
 			% [
 				get_instance_id(),
@@ -1872,7 +2260,19 @@ func _draw() -> void:
 				_fg_sess_detail_q,
 				_fg_sess_detail_r,
 				_fg_sess_isolated_candidate_hexes,
+				int(visual_mode),
+				resolved_forest_grid_debug_isolated(),
+				resolved_forest_grid_debug_isolated_one_hex(),
+				resolved_forest_grid_debug_suppress_map_back(),
 			]
+		)
+	var do_forest_unit_depth_merge: bool = (
+		_fg_should_depth_merge_forest_symbol_grid_with_units(symbol_scatter_active)
+	)
+	if do_forest_unit_depth_merge:
+		_fg_run_unit_forest_occluder_pass_for_map(coord_list, camera)
+		_fg_draw_depth_merged_forest_symbol_grid_and_units(
+			coord_list, camera, symbol_scatter_active
 		)
 	# Phase **4.6p — pass 1:** non-grid paths when symbol PNGs unavailable; else **only** upper grid (**0–4**).
 	var idx: int = 0
@@ -1880,7 +2280,7 @@ func _draw() -> void:
 		var coord = coord_list[idx]
 		var terrain: int = int(map.terrain_at(coord))
 		if terrain == HexMapScript.Terrain.PLAINS:
-			if PlainsForestScript.is_plains_forest_decorated(coord.q, coord.r, forest_density_ratio):
+			if _fg_hex_has_forest_decoration_for_draw(coord.q, coord.r):
 				var world: Vector2 = layout.hex_to_world(coord.q, coord.r)
 				_reload_forest_tree_symbols_if_needed()
 				var skip_main: bool = _should_skip_main_clump_for_city(coord)
@@ -1891,23 +2291,23 @@ func _draw() -> void:
 					and coord.q == _fg_sess_detail_q
 					and coord.r == _fg_sess_detail_r
 				)
-				if forest_grid_debug_isolated:
+				if resolved_forest_grid_debug_isolated():
 					if not symbol_scatter_active:
 						if not _fg_warned_isolated_no_symbols:
 							_fg_warned_isolated_no_symbols = true
 							push_warning(
 								"TerrainForegroundView: forest_grid_debug_isolated needs use_forest_symbol_scatter plus loadable tree_symbol_01..20; skipping TFV forest draws."
 							)
-					elif allow_iso:
+					elif allow_iso and not do_forest_unit_depth_merge:
 						var up_iso: int = _draw_plains_forest_front_symbol_grid_pass(
 							camera, world, coord.q, coord.r, true, log_hex
 						)
 						_fg_sess_frame_grid_textures += up_iso
-						if forest_grid_debug_isolated and up_iso > 0:
+						if resolved_forest_grid_debug_isolated() and up_iso > 0:
 							_fg_isolated_drawn_hex_keys["%d,%d" % [coord.q, coord.r]] = true
 						if log_hex:
 							_fg_sess_detail_grid_acc += up_iso
-				elif symbol_scatter_active:
+				elif symbol_scatter_active and not do_forest_unit_depth_merge:
 					var up_n: int = _draw_plains_forest_front_symbol_grid_pass(
 						camera, world, coord.q, coord.r, true, log_hex
 					)
@@ -1926,9 +2326,10 @@ func _draw() -> void:
 						camera, world, coord.q, coord.r, skip_main
 					)
 				if (
-					enable_unit_occlusion_test
+					(not do_forest_unit_depth_merge)
+					and enable_unit_occlusion_test
 					and scenario != null
-					and not forest_grid_debug_isolated
+					and not resolved_forest_grid_debug_isolated()
 				):
 					if (
 						scenario.cities_at(coord).size() == 0
@@ -1944,7 +2345,7 @@ func _draw() -> void:
 						_fg_sess_unit_occluder_draws += 1
 		idx += 1
 	# Phase **4.6p — pass 2:** units (**foot** = projected **hex center**, layout **y = 0** in local space for the band).
-	if units_view != null and scenario != null:
+	if units_view != null and scenario != null and not do_forest_unit_depth_merge:
 		var ulist = scenario.units()
 		var ui: int = 0
 		while ui < ulist.size():
@@ -1960,7 +2361,9 @@ func _draw() -> void:
 				int(u.owner_id)
 			)
 			var collect_png_bottom: bool = _eom_debug_unit_png_bottom()
-			var collect_unit_effective: bool = debug_draw_effective_depth_points
+			var collect_unit_effective: bool = (
+				debug_draw_effective_depth_points and _fg_debug_low_level_exports_enabled()
+			)
 			if collect_png_bottom or collect_unit_effective:
 				var u_drawn: Rect2 = UnitsView.debug_last_unit_png_rect
 				if u_drawn.size.x > 0.0:
@@ -2021,9 +2424,7 @@ func _draw() -> void:
 		var coord_c = coord_list[idx]
 		var terr_c: int = int(map.terrain_at(coord_c))
 		if terr_c == HexMapScript.Terrain.PLAINS:
-			if PlainsForestScript.is_plains_forest_decorated(
-				coord_c.q, coord_c.r, forest_density_ratio
-			):
+			if _fg_hex_has_forest_decoration_for_draw(coord_c.q, coord_c.r):
 				var world_c: Vector2 = layout.hex_to_world(coord_c.q, coord_c.r)
 				_reload_forest_tree_symbols_if_needed()
 				var skip_c: bool = _should_skip_main_clump_for_city(coord_c)
@@ -2034,8 +2435,12 @@ func _draw() -> void:
 					and coord_c.q == _fg_sess_detail_q
 					and coord_c.r == _fg_sess_detail_r
 				)
-				if forest_grid_debug_isolated:
-					if symbol_scatter_active and allow_iso_c:
+				if resolved_forest_grid_debug_isolated():
+					if (
+						symbol_scatter_active
+						and allow_iso_c
+						and not do_forest_unit_depth_merge
+					):
 						if skip_c:
 							if (
 								log_hex_c
@@ -2048,7 +2453,7 @@ func _draw() -> void:
 								camera, world_c, coord_c.q, coord_c.r, false, log_hex_c
 							)
 							_fg_sess_frame_grid_textures += lo_iso
-							if forest_grid_debug_isolated and lo_iso > 0:
+							if resolved_forest_grid_debug_isolated() and lo_iso > 0:
 								_fg_isolated_drawn_hex_keys[
 									"%d,%d" % [coord_c.q, coord_c.r]
 								] = true
@@ -2059,7 +2464,7 @@ func _draw() -> void:
 									_fg_print_sample_hex_grid_summary(
 										coord_c.q, coord_c.r
 									)
-				elif symbol_scatter_active and skip_c:
+				elif symbol_scatter_active and skip_c and not do_forest_unit_depth_merge:
 					if (
 						_fg_sess_roots_detail_log
 						and _fg_sess_detail_hex_chosen
@@ -2069,7 +2474,7 @@ func _draw() -> void:
 					):
 						_fg_sess_detail_totals_printed = true
 						_fg_print_sample_hex_grid_summary(coord_c.q, coord_c.r)
-				elif symbol_scatter_active and not skip_c:
+				elif symbol_scatter_active and not skip_c and not do_forest_unit_depth_merge:
 					var lo_n: int = _draw_plains_forest_front_symbol_grid_pass(
 						camera, world_c, coord_c.q, coord_c.r, false, log_hex_c
 					)
@@ -2081,7 +2486,7 @@ func _draw() -> void:
 							_fg_print_sample_hex_grid_summary(coord_c.q, coord_c.r)
 		idx += 1
 	_fg_flush_debug_overlay_top()
-	if forest_grid_debug_isolated:
+	if resolved_forest_grid_debug_isolated():
 		_fg_print_root_marker_isolated_line()
 		_fg_print_isolated_frame_summary()
 		print(
@@ -2111,7 +2516,7 @@ func _draw() -> void:
 		debug_last_isolated_grid_symbols_drawn = _fg_sess_grid_symbols_drawn
 		debug_last_isolated_grid_root_markers_drawn = _fg_sess_grid_root_markers_drawn
 		debug_last_isolated_jitter_ring_draws = (
-			_fg_sess_jitter_debug_rings_drawn if forest_grid_debug_draw_jitter_circles else -1
+			_fg_sess_jitter_debug_rings_drawn if _fg_effective_draw_jitter_circles() else -1
 		)
 	if _eom_debug_unit_tree_draw():
 		var uv_set: bool = units_view != null
@@ -2142,7 +2547,7 @@ func _draw() -> void:
 	if _fg_sess_perfect:
 		var rm_dbg: int = (
 			_fg_sess_grid_root_markers_drawn
-			if forest_grid_debug_isolated
+			if resolved_forest_grid_debug_isolated()
 			else _dbg_perf_root_markers_drawn
 		)
 		print(

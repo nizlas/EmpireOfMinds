@@ -325,11 +325,11 @@ func _forest_grid_map_back_suppressed() -> bool:
 		return true
 	if terrain_foreground_view != null and is_instance_valid(terrain_foreground_view):
 		var tfv = terrain_foreground_view
-		if (
-			bool(tfv.forest_grid_debug_perfect)
-			or bool(tfv.forest_grid_debug_suppress_map_back)
-			or bool(tfv.forest_grid_debug_isolated)
-		):
+		if bool(tfv.forest_grid_debug_perfect):
+			return true
+		if tfv.resolved_forest_grid_debug_suppress_map_back():
+			return true
+		if tfv.resolved_forest_grid_debug_isolated():
 			return true
 	return false
 
@@ -405,9 +405,9 @@ func _draw() -> void:
 	var tfv_ok: bool = terrain_foreground_view != null and is_instance_valid(terrain_foreground_view)
 	if tfv_ok:
 		var tfvx = terrain_foreground_view
-		iso_f = bool(tfvx.forest_grid_debug_isolated)
+		iso_f = bool(tfvx.resolved_forest_grid_debug_isolated())
 		perf_f = bool(tfvx.forest_grid_debug_perfect)
-		sup_f = bool(tfvx.forest_grid_debug_suppress_map_back)
+		sup_f = bool(tfvx.resolved_forest_grid_debug_suppress_map_back())
 	print(
 		(
 			"[EOM_DEBUG_FOREST_PIPELINE] MapView forest suppression: isolated=%s perfect=%s suppress_map_back=%s suppressed_hexes=%d back_draws_total=%d back_sym=%d back_asset=%d back_proc=%d tfv_wired=%s"
