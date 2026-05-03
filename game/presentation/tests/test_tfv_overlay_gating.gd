@@ -58,12 +58,10 @@ func _run() -> void:
 	var sym: int = TerrainForegroundViewScript.debug_last_isolated_grid_symbols_drawn
 	rt.remove_child(tfv)
 	tfv.queue_free()
-	if sym < 1:
+	if sym != TerrainForegroundViewScript.forest_grid_slot_count():
 		push_error(
-			(
-				"FAIL: overlay gating expected grid symbols in isolated mode (got %d); check scatter assets / tiny map PLAINS."
-				% sym
-			)
+			"FAIL: overlay gating expected %d grid symbols in isolated mode got %d"
+			% [TerrainForegroundViewScript.forest_grid_slot_count(), sym]
 		)
 		call_deferred("quit", 1)
 		return

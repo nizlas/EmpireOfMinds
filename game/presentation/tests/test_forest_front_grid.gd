@@ -1,4 +1,5 @@
-# Headless: forest front grid — uniform 4-row 2/3/3/2 lattice; **disk(S, R+M)** inside hex; deterministic jitter.
+# Headless: forest front grid — experimental **20** slots **`2/3/5/5/3/2`**; **disk(S, R+M)** inside hex; deterministic jitter.
+# Baseline revert: **10** slots **`2/3/3/2`**, **`_GRID_UPPER_SLOT_COUNT=5`**, old **`forest_grid_slot_base_local`** mapping.
 # Row pitch **P** = **`_GRID_ROW_PITCH_FRAC × HexLayout.SIZE`**; **row jitter gap** = **`P − 2×R_jitter`**. PNG **diag_pad_ref** does not drive **P**.
 # Editor: **TerrainForegroundView.forest_grid_debug_draw_jitter_circles** — optional projected jitter-ring overlay (base + circle + root); does not affect this script’s assertions.
 # Usage: godot --headless --path game -s res://presentation/tests/test_forest_front_grid.gd
@@ -10,10 +11,16 @@ const MapCameraScript = preload("res://presentation/map_camera.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 const TerrainForegroundViewScript = preload("res://presentation/terrain_foreground_view.gd")
 
-const _EXPECT_ROW_PITCH_FRAC: float = 0.26
+const _EXPECT_ROW_PITCH_FRAC: float = 0.28
 ## Upper bound on **row_jitter_gap/H** under old **P = 2×R + PNG-derived pad** (pre fraction-pitch); new gap must be larger.
 const _LEGACY_ROW_JITTER_GAP_FRAC_BEFORE_PITCH_MODEL: float = 0.0065
-
+const _EXPECT_GRID_SLOTS: int = 20
+const _EXPECT_UPPER_SLOTS: int = 10
+## **P/H = 0.28** row centers: **k × P** for **k ∈ {−2.5,…,2.5}**.
+const _EXPECT_ROW_Y_OVER_H: Array[float] = [-0.70, -0.42, -0.14, 0.14, 0.42, 0.70]
+## **(q,r)** for jitter diversity checks — chosen so column-slot decorrelation never degenerates for fixed hashes.
+const _JITTER_SAMPLE_Q: int = -8
+const _JITTER_SAMPLE_R: int = -3
 
 ## **True** if every **non-degenerate** pair in **slot_indices** has **|dot(na,nb)| > dot_thresh** (entire column near-parallel).
 func _forest_column_group_all_near_parallel(
@@ -110,10 +117,10 @@ func _run_isolated_draw_assertions() -> void:
 	var rm_p: int = TerrainForegroundViewScript.debug_last_isolated_grid_root_markers_drawn
 	rt.remove_child(tfv)
 	tfv.queue_free()
-	if sym_p != 10:
+	if sym_p != _EXPECT_GRID_SLOTS:
 		push_error(
-			"FAIL: isolated perfect expected 10 grid symbols got %d (symbol scatter / assets loaded?)"
-			% sym_p
+			"FAIL: isolated perfect expected %d grid symbols got %d (symbol scatter / assets loaded?)"
+			% [_EXPECT_GRID_SLOTS, sym_p]
 		)
 		call_deferred("quit", 1)
 		return
@@ -131,28 +138,28 @@ func _run_isolated_draw_assertions() -> void:
 		)
 		call_deferred("quit", 1)
 		return
-	if TerrainForegroundViewScript.debug_pipeline_tfv_grid_upper_symbols != 5:
+	if TerrainForegroundViewScript.debug_pipeline_tfv_grid_upper_symbols != _EXPECT_UPPER_SLOTS:
 		push_error(
-			"FAIL: isolated perfect expected upper grid symbols=5 got %d"
-			% TerrainForegroundViewScript.debug_pipeline_tfv_grid_upper_symbols
+			"FAIL: isolated perfect expected upper grid symbols=%d got %d"
+			% [_EXPECT_UPPER_SLOTS, TerrainForegroundViewScript.debug_pipeline_tfv_grid_upper_symbols]
 		)
 		call_deferred("quit", 1)
 		return
-	if TerrainForegroundViewScript.debug_pipeline_tfv_grid_lower_symbols != 5:
+	if TerrainForegroundViewScript.debug_pipeline_tfv_grid_lower_symbols != _EXPECT_UPPER_SLOTS:
 		push_error(
-			"FAIL: isolated perfect expected lower grid symbols=5 got %d"
-			% TerrainForegroundViewScript.debug_pipeline_tfv_grid_lower_symbols
+			"FAIL: isolated perfect expected lower grid symbols=%d got %d"
+			% [_EXPECT_UPPER_SLOTS, TerrainForegroundViewScript.debug_pipeline_tfv_grid_lower_symbols]
 		)
 		call_deferred("quit", 1)
 		return
-	if rm_p != 10:
-		push_error("FAIL: isolated perfect expected 10 root markers got %d" % rm_p)
+	if rm_p != _EXPECT_GRID_SLOTS:
+		push_error("FAIL: isolated perfect expected %d root markers got %d" % [_EXPECT_GRID_SLOTS, rm_p])
 		call_deferred("quit", 1)
 		return
-	if TerrainForegroundViewScript.debug_last_isolated_jitter_ring_draws != 10:
+	if TerrainForegroundViewScript.debug_last_isolated_jitter_ring_draws != _EXPECT_GRID_SLOTS:
 		push_error(
-			"FAIL: isolated perfect + jitter circles expected 10 ring draws got %d"
-			% TerrainForegroundViewScript.debug_last_isolated_jitter_ring_draws
+			"FAIL: isolated perfect + jitter circles expected %d ring draws got %d"
+			% [_EXPECT_GRID_SLOTS, TerrainForegroundViewScript.debug_last_isolated_jitter_ring_draws]
 		)
 		call_deferred("quit", 1)
 		return
@@ -166,18 +173,18 @@ func _run_isolated_draw_assertions() -> void:
 	var rm_n: int = TerrainForegroundViewScript.debug_last_isolated_grid_root_markers_drawn
 	rt.remove_child(tfv)
 	tfv.queue_free()
-	if sym_n != 10:
-		push_error("FAIL: isolated normal expected 10 grid symbols got %d" % sym_n)
+	if sym_n != _EXPECT_GRID_SLOTS:
+		push_error("FAIL: isolated normal expected %d grid symbols got %d" % [_EXPECT_GRID_SLOTS, sym_n])
 		call_deferred("quit", 1)
 		return
-	if rm_n != 10:
-		push_error("FAIL: isolated normal expected 10 root markers got %d" % rm_n)
+	if rm_n != _EXPECT_GRID_SLOTS:
+		push_error("FAIL: isolated normal expected %d root markers got %d" % [_EXPECT_GRID_SLOTS, rm_n])
 		call_deferred("quit", 1)
 		return
-	if TerrainForegroundViewScript.debug_last_isolated_jitter_ring_draws != 10:
+	if TerrainForegroundViewScript.debug_last_isolated_jitter_ring_draws != _EXPECT_GRID_SLOTS:
 		push_error(
-			"FAIL: isolated normal + jitter circles expected 10 ring draws got %d"
-			% TerrainForegroundViewScript.debug_last_isolated_jitter_ring_draws
+			"FAIL: isolated normal + jitter circles expected %d ring draws got %d"
+			% [_EXPECT_GRID_SLOTS, TerrainForegroundViewScript.debug_last_isolated_jitter_ring_draws]
 		)
 		call_deferred("quit", 1)
 		return
@@ -188,14 +195,16 @@ func _run_isolated_draw_assertions() -> void:
 func _init() -> void:
 	var layout = HexLayoutScript.new()
 	var n: int = TerrainForegroundViewScript.forest_grid_slot_count()
-	if n != 10:
-		push_error("FAIL: expected 10 grid slots got %d" % n)
+	if n != _EXPECT_GRID_SLOTS:
+		push_error("FAIL: expected %d grid slots got %d" % [_EXPECT_GRID_SLOTS, n])
 		call_deferred("quit", 1)
 		return
 	var H: float = HexLayoutScript.SIZE
 	var P_frac: float = TerrainForegroundViewScript.forest_grid_row_pitch_frac()
 	var A_frac: float = TerrainForegroundViewScript.forest_grid_two_slot_x_frac()
 	var B_frac: float = TerrainForegroundViewScript.forest_grid_three_slot_x_frac()
+	var Fo_frac: float = TerrainForegroundViewScript.forest_grid_five_slot_x_outer_frac()
+	var Fi_frac: float = TerrainForegroundViewScript.forest_grid_five_slot_x_inner_frac()
 	if not is_equal_approx(
 		TerrainForegroundViewScript.forest_grid_row_pitch_design_frac(), _EXPECT_ROW_PITCH_FRAC
 	):
@@ -211,26 +220,86 @@ func _init() -> void:
 		)
 		call_deferred("quit", 1)
 		return
-	if A_frac < 0.24:
+	if B_frac <= 0.47 + 1e-4:
 		push_error(
-			"FAIL: two-slot row |x|/H should stay >= 0.24 for widened tile footprint, got %.4f"
-			% A_frac
-		)
-		call_deferred("quit", 1)
-		return
-	if B_frac < 0.38:
-		push_error(
-			"FAIL: three-slot wing |x|/H should stay >= 0.38 for widened tile footprint, got %.4f"
+			"FAIL: three-slot should be wider than previous 0.47 for this slice, got %.6f"
 			% B_frac
 		)
 		call_deferred("quit", 1)
 		return
-	if not is_equal_approx(A_frac, 0.25):
-		push_error("FAIL: two-slot |x|/H expected 0.25 (tuned), got %.6f" % A_frac)
+	var y2_abs: float = TerrainForegroundViewScript.forest_grid_two_slot_row_abs_y_frac()
+	if not is_equal_approx(y2_abs, 2.5 * P_frac):
+		push_error("FAIL: two-slot |y|/H should be 2.5×P")
 		call_deferred("quit", 1)
 		return
-	if not is_equal_approx(B_frac, 0.40):
-		push_error("FAIL: three-slot wing |x|/H expected 0.40 (tuned), got %.6f" % B_frac)
+	if not is_equal_approx(A_frac, TerrainForegroundViewScript._GRID_TWO_SLOT_X_FRAC):
+		push_error(
+			"FAIL: two-slot |x|/H expected %.6f (reverted), got %.6f"
+			% [TerrainForegroundViewScript._GRID_TWO_SLOT_X_FRAC, A_frac]
+		)
+		call_deferred("quit", 1)
+		return
+	var hex2: float = TerrainForegroundViewScript.forest_grid_hex_half_width_frac_at_local_y_frac(y2_abs)
+	if A_frac + TerrainForegroundViewScript.forest_grid_eff_R_frac() > hex2 + 1e-4:
+		push_error("FAIL: two-slot |x|+(R+M) must not exceed hex_half at row y")
+		call_deferred("quit", 1)
+		return
+	if not is_equal_approx(B_frac, TerrainForegroundViewScript._GRID_THREE_SLOT_X_FRAC):
+		push_error(
+			"FAIL: three-slot wing |x|/H expected %.6f (tuned), got %.6f"
+			% [TerrainForegroundViewScript._GRID_THREE_SLOT_X_FRAC, B_frac]
+		)
+		call_deferred("quit", 1)
+		return
+	var R_frac: float = TerrainForegroundViewScript._GRID_JITTER_RADIUS_FRAC
+	var y5_abs: float = TerrainForegroundViewScript.forest_grid_five_slot_row_abs_y_frac()
+	var hex5: float = TerrainForegroundViewScript.forest_grid_hex_half_width_frac_at_local_y_frac(y5_abs)
+	var outer_vis_target: float = hex5 - 1.5 * R_frac
+	var outer_safe_target: float = hex5 - TerrainForegroundViewScript.forest_grid_eff_R_frac()
+	var Fo_target: float = minf(outer_vis_target, outer_safe_target)
+	if not is_equal_approx(Fo_frac, Fo_target):
+		push_error(
+			"FAIL: five-slot outer_x/H expected min(hex−1.5R, hex−(R+M))=%.6f got %.6f"
+			% [Fo_target, Fo_frac]
+		)
+		call_deferred("quit", 1)
+		return
+	var s5_expect: float = TerrainForegroundViewScript.forest_grid_five_slot_column_step_frac_for_row_y_frac(y5_abs)
+	if not is_equal_approx(Fi_frac, s5_expect) or not is_equal_approx(Fo_frac, 2.0 * s5_expect):
+		push_error(
+			"FAIL: five-slot must use x∈{−2s,−s,0,s,2s}; s=%.6f Fi=%.6f Fo=%.6f"
+			% [s5_expect, Fi_frac, Fo_frac]
+		)
+		call_deferred("quit", 1)
+		return
+	var vis_gap: float = TerrainForegroundViewScript.forest_grid_five_slot_edge_gap_visible_frac_for_row_y_frac(y5_abs)
+	if not is_equal_approx(vis_gap, 0.5 * R_frac):
+		push_error(
+			"FAIL: visible edge gap (hex−outer−R)/H should be 0.5×R/H; got %.6f want %.6f"
+			% [vis_gap, 0.5 * R_frac]
+		)
+		call_deferred("quit", 1)
+		return
+	if Fo_frac + TerrainForegroundViewScript.forest_grid_eff_R_frac() > hex5 + 1e-4:
+		push_error(
+			"FAIL: five-slot outer + (R+M)/H must not exceed hex_half/H"
+		)
+		call_deferred("quit", 1)
+		return
+	var safe5_deprecated: float = TerrainForegroundViewScript.forest_grid_safe_half_width_frac_at_local_y_frac(y5_abs)
+	var wrong_outer_scale: float = 0.8 * safe5_deprecated
+	if absf(Fo_frac - wrong_outer_scale) < 0.035:
+		push_error(
+			"FAIL: outer_x/H too close to deprecated narrow rule 0.8×safe_half (≈%.5f); got %.6f"
+			% [wrong_outer_scale, Fo_frac]
+		)
+		call_deferred("quit", 1)
+		return
+	if Fo_frac < 0.62:
+		push_error(
+			"FAIL: five-slot outer should be wide (continuous-edge rule); %.4f is suspiciously narrow"
+			% Fo_frac
+		)
 		call_deferred("quit", 1)
 		return
 	var R_world: float = TerrainForegroundViewScript.forest_grid_jitter_max_radius_world()
@@ -286,20 +355,58 @@ func _init() -> void:
 		push_error("FAIL: safe disk radius mismatch")
 		call_deferred("quit", 1)
 		return
-	var exp_fracs: Array[Vector2] = [
-		Vector2(-TerrainForegroundViewScript.forest_grid_two_slot_x_frac(), -1.5 * P_frac),
-		Vector2(TerrainForegroundViewScript.forest_grid_two_slot_x_frac(), -1.5 * P_frac),
-		Vector2(-TerrainForegroundViewScript.forest_grid_three_slot_x_frac(), -0.5 * P_frac),
-		Vector2(0.0, -0.5 * P_frac),
-		Vector2(TerrainForegroundViewScript.forest_grid_three_slot_x_frac(), -0.5 * P_frac),
-		Vector2(-TerrainForegroundViewScript.forest_grid_three_slot_x_frac(), 0.5 * P_frac),
-		Vector2(0.0, 0.5 * P_frac),
-		Vector2(TerrainForegroundViewScript.forest_grid_three_slot_x_frac(), 0.5 * P_frac),
-		Vector2(-TerrainForegroundViewScript.forest_grid_two_slot_x_frac(), 1.5 * P_frac),
-		Vector2(TerrainForegroundViewScript.forest_grid_two_slot_x_frac(), 1.5 * P_frac),
+	var row_fracs: Array[PackedVector2Array] = [
+		PackedVector2Array([Vector2(-A_frac, -2.5 * P_frac), Vector2(A_frac, -2.5 * P_frac)]),
+		PackedVector2Array(
+			[
+				Vector2(-B_frac, -1.5 * P_frac),
+				Vector2(0.0, -1.5 * P_frac),
+				Vector2(B_frac, -1.5 * P_frac),
+			]
+		),
+		PackedVector2Array(
+			[
+				Vector2(-Fo_frac, -0.5 * P_frac),
+				Vector2(-Fi_frac, -0.5 * P_frac),
+				Vector2(0.0, -0.5 * P_frac),
+				Vector2(Fi_frac, -0.5 * P_frac),
+				Vector2(Fo_frac, -0.5 * P_frac),
+			]
+		),
+		PackedVector2Array(
+			[
+				Vector2(-Fo_frac, 0.5 * P_frac),
+				Vector2(-Fi_frac, 0.5 * P_frac),
+				Vector2(0.0, 0.5 * P_frac),
+				Vector2(Fi_frac, 0.5 * P_frac),
+				Vector2(Fo_frac, 0.5 * P_frac),
+			]
+		),
+		PackedVector2Array(
+			[
+				Vector2(-B_frac, 1.5 * P_frac),
+				Vector2(0.0, 1.5 * P_frac),
+				Vector2(B_frac, 1.5 * P_frac),
+			]
+		),
+		PackedVector2Array([Vector2(-A_frac, 2.5 * P_frac), Vector2(A_frac, 2.5 * P_frac)]),
 	]
-	var row_bucket: Array[int] = [0, 0, 1, 1, 1, 2, 2, 2, 3, 3]
-	var row_tot: Array[int] = [0, 0, 0, 0]
+	var exp_fracs: Array[Vector2] = []
+	var rfi: int = 0
+	while rfi < row_fracs.size():
+		var jdx: int = 0
+		while jdx < row_fracs[rfi].size():
+			exp_fracs.append(row_fracs[rfi][jdx])
+			jdx += 1
+		rfi += 1
+	if exp_fracs.size() != n:
+		push_error("FAIL: exp_fracs size=%d expected n=%d" % [exp_fracs.size(), n])
+		call_deferred("quit", 1)
+		return
+	var row_bucket: Array[int] = [
+		0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 5, 5,
+	]
+	var row_tot: Array[int] = [0, 0, 0, 0, 0, 0]
 	var ej: int = 0
 	while ej < n:
 		var got_b: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(ej)
@@ -313,46 +420,43 @@ func _init() -> void:
 			return
 		row_tot[row_bucket[ej]] += 1
 		ej += 1
-	if row_tot[0] != 2 or row_tot[1] != 3 or row_tot[2] != 3 or row_tot[3] != 2:
-		push_error("FAIL: row structure must be 2/3/3/2; counts=%s" % row_tot)
+	if row_tot != [2, 3, 5, 5, 3, 2]:
+		push_error("FAIL: row structure must be 2/3/5/5/3/2; counts=%s" % row_tot)
 		call_deferred("quit", 1)
 		return
-	var y0n: float = TerrainForegroundViewScript.forest_grid_slot_base_local(0).y
-	var y1n: float = TerrainForegroundViewScript.forest_grid_slot_base_local(2).y
-	var y2n: float = TerrainForegroundViewScript.forest_grid_slot_base_local(5).y
-	var y3n: float = TerrainForegroundViewScript.forest_grid_slot_base_local(8).y
-	if not is_equal_approx(y0n / H, -1.5 * P_frac):
-		push_error("FAIL: outer row y0/H expected %.5f got %.5f" % [-1.5 * P_frac, y0n / H])
-		call_deferred("quit", 1)
-		return
-	if not is_equal_approx(y1n / H, -0.5 * P_frac):
-		push_error("FAIL: row y1/H expected %.5f got %.5f" % [-0.5 * P_frac, y1n / H])
-		call_deferred("quit", 1)
-		return
-	if not is_equal_approx(y2n / H, 0.5 * P_frac):
-		push_error("FAIL: row y2/H expected %.5f got %.5f" % [0.5 * P_frac, y2n / H])
-		call_deferred("quit", 1)
-		return
-	if not is_equal_approx(y3n / H, 1.5 * P_frac):
-		push_error("FAIL: outer row y3/H expected %.5f got %.5f" % [1.5 * P_frac, y3n / H])
-		call_deferred("quit", 1)
-		return
-	var pitch_01: float = y1n - y0n
-	var pitch_12: float = y2n - y1n
-	var pitch_23: float = y3n - y2n
-	if not is_equal_approx(pitch_01, pitch_12) or not is_equal_approx(pitch_12, pitch_23):
-		push_error(
-			"FAIL: uniform row pitch required: d01=%.4f d12=%.4f d23=%.4f"
-			% [pitch_01, pitch_12, pitch_23]
-		)
-		call_deferred("quit", 1)
-		return
+	var row_first: Array[int] = [0, 2, 5, 10, 15, 18]
+	var row_y: Array[float] = []
+	var ryi: int = 0
+	while ryi < row_first.size():
+		row_y.append(TerrainForegroundViewScript.forest_grid_slot_base_local(row_first[ryi]).y)
+		ryi += 1
+	var rm: int = 0
+	while rm < 6:
+		if not is_equal_approx(row_y[rm] / H, _EXPECT_ROW_Y_OVER_H[rm]):
+			push_error(
+				"FAIL: row %d y/H expected %.5f (0.28 pitch model) got %.5f"
+				% [rm, _EXPECT_ROW_Y_OVER_H[rm], row_y[rm] / H]
+			)
+			call_deferred("quit", 1)
+			return
+		if not is_equal_approx(_EXPECT_ROW_Y_OVER_H[rm], (-2.5 + float(rm)) * P_frac):
+			push_error("FAIL: _EXPECT_ROW_Y_OVER_H[%d] out of sync with P/H" % rm)
+			call_deferred("quit", 1)
+			return
+		rm += 1
 	var P_world: float = TerrainForegroundViewScript.forest_grid_row_pitch_world()
-	if not is_equal_approx(absf(pitch_01), P_world):
-		push_error("FAIL: row pitch world %.4f vs forest_grid_row_pitch_world %.4f" % [absf(pitch_01), P_world])
-		call_deferred("quit", 1)
-		return
-	var gap_from_pitch: float = absf(pitch_01) - 2.0 * R_world
+	var pr: int = 1
+	while pr < 6:
+		var dyp: float = row_y[pr] - row_y[pr - 1]
+		if not is_equal_approx(absf(dyp), P_world):
+			push_error(
+				"FAIL: uniform row pitch: |y_row%d - y_row%d| expected %.4f got %.4f"
+				% [pr, pr - 1, P_world, absf(dyp)]
+			)
+			call_deferred("quit", 1)
+			return
+		pr += 1
+	var gap_from_pitch: float = absf(row_y[1] - row_y[0]) - 2.0 * R_world
 	if not is_equal_approx(gap_from_pitch, gap_world):
 		push_error(
 			"FAIL: vertical circle-edge gap world %.4f vs forest_grid_row_jitter_circle_gap_world %.4f"
@@ -360,21 +464,32 @@ func _init() -> void:
 		)
 		call_deferred("quit", 1)
 		return
-	if not is_equal_approx(y1n, -y2n):
-		push_error("FAIL: lattice row1/row2 must be symmetric (y1=%.4f y2=%.4f)" % [y1n, y2n])
+	var symr: int = 0
+	while symr < 3:
+		if not is_equal_approx(row_y[symr], -row_y[5 - symr]):
+			push_error(
+				"FAIL: row Y symmetry: row %d vs %d (%.6f vs %.6f)"
+				% [symr, 5 - symr, row_y[symr], row_y[5 - symr]]
+			)
+			call_deferred("quit", 1)
+			return
+		symr += 1
+	var s_top_l: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(0)
+	var s_top_r: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(1)
+	var s_bot_l: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(18)
+	var s_bot_r: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(19)
+	if (
+		not is_equal_approx(absf(s_top_l.x), absf(s_top_r.x))
+		or not is_equal_approx(absf(s_bot_l.x), absf(s_bot_r.x))
+	):
+		push_error("FAIL: two-slot rows need symmetric ±x wings within row")
 		call_deferred("quit", 1)
 		return
-	if not is_equal_approx(y0n, -y3n):
-		push_error("FAIL: outer rows must be symmetric (y0=%.4f y3=%.4f)" % [y0n, y3n])
-		call_deferred("quit", 1)
-		return
-	var x2_pat: float = absf(TerrainForegroundViewScript.forest_grid_slot_base_local(0).x)
-	var x2_b: float = absf(TerrainForegroundViewScript.forest_grid_slot_base_local(8).x)
-	if not is_equal_approx(x2_pat, x2_b):
+	if not is_equal_approx(absf(s_top_l.x), absf(s_bot_l.x)):
 		push_error("FAIL: two-slot rows must share |x| (top vs bottom)")
 		call_deferred("quit", 1)
 		return
-	if not is_equal_approx(x2_pat / H, A_frac):
+	if not is_equal_approx(absf(s_top_l.x) / H, A_frac):
 		push_error("FAIL: two-slot |x|/H expected %.4f" % A_frac)
 		call_deferred("quit", 1)
 		return
@@ -382,22 +497,80 @@ func _init() -> void:
 	var lx4: float = TerrainForegroundViewScript.forest_grid_slot_base_local(4).x
 	var lx3: float = TerrainForegroundViewScript.forest_grid_slot_base_local(3).x
 	if not is_equal_approx(lx3, 0.0):
-		push_error("FAIL: middle slot of three-row band must be on vertical axis")
+		push_error("FAIL: middle slot of three-row bands must be on vertical axis")
 		call_deferred("quit", 1)
 		return
 	if not is_equal_approx(absf(lx2), absf(lx4)):
-		push_error("FAIL: three-row band must have symmetric ±x wings")
+		push_error("FAIL: three-row bands must have symmetric ±x wings (upper)")
 		call_deferred("quit", 1)
 		return
 	if not is_equal_approx(absf(lx2) / H, B_frac):
 		push_error("FAIL: three-slot |x|/H expected %.4f" % B_frac)
 		call_deferred("quit", 1)
 		return
+	var l15: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(15)
+	var l17: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(17)
+	var l16: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(16)
+	if not is_equal_approx(l16.x, 0.0):
+		push_error("FAIL: lower three-row center must be on vertical axis")
+		call_deferred("quit", 1)
+		return
+	if not is_equal_approx(absf(l15.x), absf(l17.x)) or not is_equal_approx(absf(l15.x) / H, B_frac):
+		push_error("FAIL: lower three-row wings must mirror upper three-row")
+		call_deferred("quit", 1)
+		return
+	var s5: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(5)
+	var s14: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(14)
+	if not is_equal_approx(s5.x, -s14.x) or not is_equal_approx(s5.y, -s14.y):
+		push_error("FAIL: five-slot outer wings must be origin-symmetric (slot 5 vs 14)")
+		call_deferred("quit", 1)
+		return
+	var s9: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(9)
+	if not is_equal_approx(s9.x, s14.x) or not is_equal_approx(s9.y, -s14.y):
+		push_error("FAIL: five-slot right column must mirror across y=0 (slot 9 vs 14)")
+		call_deferred("quit", 1)
+		return
+	var s10v: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(10)
+	if not is_equal_approx(s5.x, s10v.x) or not is_equal_approx(s5.y, -s10v.y):
+		push_error("FAIL: five-slot left column must mirror across y=0 (slot 5 vs 10)")
+		call_deferred("quit", 1)
+		return
+	var s6: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(6)
+	var s11: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(11)
+	if not is_equal_approx(s6.x, s11.x) or not is_equal_approx(s6.y, -s11.y):
+		push_error("FAIL: five-slot inner-left column must mirror across y=0 (slot 6 vs 11)")
+		call_deferred("quit", 1)
+		return
+	var s8: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(8)
+	var s13: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(13)
+	if not is_equal_approx(s8.x, s13.x) or not is_equal_approx(s8.y, -s13.y):
+		push_error("FAIL: five-slot inner-right column must mirror across y=0 (slot 8 vs 13)")
+		call_deferred("quit", 1)
+		return
+	var s7: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(7)
+	var s12v: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(12)
+	if not is_equal_approx(s7.x, 0.0) or not is_equal_approx(s12v.x, 0.0):
+		push_error("FAIL: five-slot spine centers must sit on x=0")
+		call_deferred("quit", 1)
+		return
+	if not is_equal_approx(s7.y, -s12v.y):
+		push_error("FAIL: five-slot spine must mirror across y=0 (slot 7 vs 12)")
+		call_deferred("quit", 1)
+		return
+	var d56: float = TerrainForegroundViewScript.forest_grid_slot_base_local(6).x - TerrainForegroundViewScript.forest_grid_slot_base_local(5).x
+	var d89: float = TerrainForegroundViewScript.forest_grid_slot_base_local(9).x - TerrainForegroundViewScript.forest_grid_slot_base_local(8).x
+	if not is_equal_approx(d56 / H, s5_expect) or not is_equal_approx(d89 / H, s5_expect):
+		push_error(
+			"FAIL: five-slot horizontal step outer→inner must be s/H; d56/H=%.5f d89/H=%.5f s=%.5f"
+			% [d56 / H, d89 / H, s5_expect]
+		)
+		call_deferred("quit", 1)
+		return
 	var si: int = 0
 	while si < n:
 		var loff: Vector2 = TerrainForegroundViewScript.forest_grid_slot_base_local(si)
 		var cat: int = TerrainForegroundViewScript.forest_grid_local_depth_category(loff)
-		var want: int = -1 if si < 5 else 1
+		var want: int = -1 if loff.y < 0.0 else 1
 		if cat != want:
 			push_error("FAIL: slot %d loff=%s cat=%d want=%d" % [si, loff, cat, want])
 			call_deferred("quit", 1)
@@ -424,18 +597,20 @@ func _init() -> void:
 		push_error("FAIL: jitter not deterministic for same cell")
 		call_deferred("quit", 1)
 		return
-	if TerrainForegroundViewScript.forest_grid_symbol_rect_cap_per_decorated_hex(false) != 10:
-		push_error("FAIL: expected cap 10 for non-city decorated hex")
+	if TerrainForegroundViewScript.forest_grid_symbol_rect_cap_per_decorated_hex(false) != _EXPECT_GRID_SLOTS:
+		push_error("FAIL: expected cap %d for non-city decorated hex" % _EXPECT_GRID_SLOTS)
 		call_deferred("quit", 1)
 		return
-	if TerrainForegroundViewScript.forest_grid_symbol_rect_cap_per_decorated_hex(true) != 5:
-		push_error("FAIL: expected cap 5 when lower band skipped (city)")
+	if TerrainForegroundViewScript.forest_grid_symbol_rect_cap_per_decorated_hex(true) != _EXPECT_UPPER_SLOTS:
+		push_error(
+			"FAIL: expected cap %d when lower band skipped (city)" % _EXPECT_UPPER_SLOTS
+		)
 		call_deferred("quit", 1)
 		return
 	# **Authoritative path:** mix hashes + **for_tests** must match **forest_grid_jitter_local_deterministic**.
 	var R_mix: float = TerrainForegroundViewScript.forest_grid_jitter_max_radius_world()
 	var s_mix: int = 0
-	while s_mix < 10:
+	while s_mix < n:
 		var mx: Vector2i = TerrainForegroundViewScript.forest_grid_jitter_mix_hashes(1, -2, s_mix)
 		var j_from_h: Vector2 = TerrainForegroundViewScript.forest_grid_jitter_local_for_tests(
 			mx.x, mx.y, R_mix
@@ -451,29 +626,29 @@ func _init() -> void:
 			call_deferred("quit", 1)
 			return
 		s_mix += 1
-	var qh: int = -5
-	var rh: int = 1
+	var qh: int = _JITTER_SAMPLE_Q
+	var rh: int = _JITTER_SAMPLE_R
 	var slot_vecs: Array[Vector2] = []
 	var svi: int = 0
-	while svi < 10:
+	while svi < n:
 		slot_vecs.append(
 			TerrainForegroundViewScript.forest_grid_jitter_local_deterministic(qh, rh, svi, false)
 		)
 		svi += 1
 	var nz0: int = -1
 	var svj: int = 0
-	while svj < 10:
+	while svj < n:
 		if slot_vecs[svj].length_squared() > 1e-12:
 			nz0 = svj
 			break
 		svj += 1
 	if nz0 < 0:
-		push_error("FAIL: hex (-5,1) expected at least one non-zero jitter among slots")
+		push_error("FAIL: hex (%d,%d) expected at least one non-zero jitter among %d slots" % [qh, rh, n])
 		call_deferred("quit", 1)
 		return
 	var dir_diff: bool = false
 	var svk: int = 0
-	while svk < 10:
+	while svk < n:
 		var v_a: Vector2 = slot_vecs[nz0]
 		var v_b: Vector2 = slot_vecs[svk]
 		if v_b.length_squared() > 1e-12 and not v_a.is_equal_approx(v_b):
@@ -482,15 +657,15 @@ func _init() -> void:
 		svk += 1
 	if not dir_diff:
 		push_error(
-			"FAIL: hex (-5,1) slots should not all share identical jitter; vecs=%s"
-			% slot_vecs
+			"FAIL: hex (%d,%d) slots should not all share identical jitter; vecs=%s"
+			% [qh, rh, str(slot_vecs)]
 		)
 		call_deferred("quit", 1)
 		return
 	var theta_bucket: Dictionary = {}
 	var rad_key: Dictionary = {}
 	var svt: int = 0
-	while svt < 10:
+	while svt < n:
 		var vt: Vector2 = slot_vecs[svt]
 		if vt.length_squared() > 1e-12:
 			var ang_t: float = atan2(vt.y, vt.x)
@@ -502,43 +677,55 @@ func _init() -> void:
 		svt += 1
 	if theta_bucket.size() < 7:
 		push_error(
-			"FAIL: expected >=7 distinct angle buckets (32-bin) on (-5,1), got %d"
-			% theta_bucket.size()
+			"FAIL: expected >=7 distinct angle buckets (32-bin) on (%d,%d), got %d"
+			% [qh, rh, theta_bucket.size()]
 		)
 		call_deferred("quit", 1)
 		return
 	if rad_key.size() < 5:
 		push_error(
-			"FAIL: expected >=5 distinct jitter radii (mille-R) on (-5,1), got %d"
-			% rad_key.size()
+			"FAIL: expected >=5 distinct jitter radii (mille-R) on (%d,%d), got %d"
+			% [qh, rh, rad_key.size()]
 		)
 		call_deferred("quit", 1)
 		return
-	var col_groups: Array = [[0, 3, 6, 9], [1, 4, 7], [2, 5, 8]]
+	var col_groups: Array = [
+		[0, 2, 5, 10, 15, 18],
+		[1, 4, 9, 14, 17, 19],
+		[3, 7, 12, 16],
+		[6, 11],
+		[8, 13],
+	]
 	var cgi: int = 0
 	while cgi < col_groups.size():
 		var cg: Array = col_groups[cgi]
 		if _forest_column_group_all_near_parallel(qh, rh, cg, 0.95):
 			push_error(
-				"FAIL: column slots %s on (-5,1): all pairwise directions |dot|>0.95 (residual correlation)"
-				% cg
+				(
+					"FAIL: column slots "
+					+ str(cg)
+					+ (
+						" on (%d,%d): all pairwise directions |dot|>0.95 (residual correlation)"
+						% [qh, rh]
+					)
+				)
 			)
 			call_deferred("quit", 1)
 			return
 		cgi += 1
 	var j_hex_a: Vector2 = TerrainForegroundViewScript.forest_grid_jitter_local_deterministic(
-		0, 0, 4, false
+		0, 0, 12, false
 	)
 	var j_hex_b: Vector2 = TerrainForegroundViewScript.forest_grid_jitter_local_deterministic(
-		2, -1, 4, false
+		2, -1, 12, false
 	)
 	var j_hex_c: Vector2 = TerrainForegroundViewScript.forest_grid_jitter_local_deterministic(
-		-3, 2, 4, false
+		-3, 2, 12, false
 	)
 	if j_hex_a.is_equal_approx(j_hex_b) and j_hex_a.is_equal_approx(j_hex_c):
 		push_error(
 			(
-				"FAIL: slot 4 jitter identical on hexes (0,0) vs (2,-1) vs (-3,2): %s — unlikely except hash bug"
+				"FAIL: slot 12 jitter identical on hexes (0,0) vs (2,-1) vs (-3,2): %s — unlikely except hash bug"
 				% j_hex_a
 			)
 		)
@@ -562,7 +749,7 @@ func _init() -> void:
 		var rr: int = -4
 		while rr <= 4:
 			var tt: int = 0
-			while tt < 10:
+			while tt < n:
 				var jj: Vector2 = TerrainForegroundViewScript.forest_grid_jitter_local_deterministic(qq, rr, tt, false)
 				if jj.length_squared() > 1e-12:
 					found_nonzero = true
@@ -630,7 +817,7 @@ func _init() -> void:
 		var rr2: int = -6
 		while rr2 <= 6:
 			var sl: int = 0
-			while sl < 10:
+			while sl < n:
 				var jjv: Vector2 = TerrainForegroundViewScript.forest_grid_jitter_local_deterministic(
 					qq2, rr2, sl, false
 				)
@@ -646,11 +833,11 @@ func _init() -> void:
 				sl += 1
 			rr2 += 1
 		qq2 += 1
-	if total_s < 80:
+	if total_s < 160:
 		push_error("FAIL: expected many non-zero jitter samples in coarse scan got %d" % total_s)
 		call_deferred("quit", 1)
 		return
-	if interior_ct < 10:
+	if interior_ct < 20:
 		push_error(
 			(
 				"FAIL: uniform disk sampling should yield interior radii; interior_ct=%d total=%d (circumference bug?)"
@@ -691,7 +878,8 @@ func _init() -> void:
 		s1 += 1
 	if nonzero_normal_slots < 1:
 		push_error(
-			"FAIL: normal mode (jitter on) expected at least one nonzero jitter among 10 slots for sample hex"
+			"FAIL: normal mode (jitter on) expected at least one nonzero jitter among %d slots for sample hex"
+			% n
 		)
 		call_deferred("quit", 1)
 		return

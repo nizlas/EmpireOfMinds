@@ -42,7 +42,6 @@ script = ExtResource("4_unitsview")
 position = Vector2(400, 428)
 script = ExtResource("11_terrainforeground")
 forest_grid_debug_suppress_map_back = true
-forest_grid_debug_draw_jitter_circles = true
 forest_grid_debug_isolated = true
 
 [node name="SelectionController" type="Node2D" parent="." unique_id=293165801]

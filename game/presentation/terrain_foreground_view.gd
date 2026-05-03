@@ -66,7 +66,7 @@ const TextureAlphaMetricsClass = preload("res://presentation/texture_alpha_metri
 @export var debug_draw_unit_png_bottom_center: bool = false
 ## **Debug:** draw raw (**cyan**) + **effective** depth ticks for trees/units (**effective** matches **production** anchors when alpha metrics apply).
 @export var debug_draw_effective_depth_points: bool = false
-## **Debug:** zero jitter, full **10** slots; set or **`EOM_DEBUG_FOREST_GRID_PERFECT=1`**. Implies **no_jitter** only. **Root markers** require **`forest_grid_debug_draw_roots`**; **perfect does not** imply markers.
+## **Debug:** zero jitter, full **20** front-grid slots (see **`_GRID_SLOT_COUNT`**); set or **`EOM_DEBUG_FOREST_GRID_PERFECT=1`**. Implies **no_jitter** only. **Root markers** require **`forest_grid_debug_draw_roots`**; **perfect does not** imply markers.
 @export var forest_grid_debug_perfect: bool = false
 ## **Debug:** log resolved perfect/jitter state and per-slot **base / jitter / root_local** when set or **`EOM_DEBUG_FOREST_GRID=1`**. One banner per redraw; prefix **`[EOM_DEBUG_FOREST_GRID]`**. Also: clear stuck env — Windows CMD: `set EOM_DEBUG_FOREST_GRID_PERFECT=` then restart editor; PowerShell: `Remove-Item Env:EOM_DEBUG_FOREST_GRID_PERFECT`; bash: `unset EOM_DEBUG_FOREST_GRID_PERFECT`.
 @export var forest_grid_debug_log: bool = false
@@ -80,7 +80,7 @@ const TextureAlphaMetricsClass = preload("res://presentation/texture_alpha_metri
 @export var forest_grid_debug_draw_jitter_displacement_vectors: bool = false
 ## **Debug (isolated sample hex):** print **`[EOM_DEBUG_FOREST_JITTER_SLOT]`** per slot (**h_θ, h_r, u, θ, r, clamp**, …) when **`forest_grid_debug_trace_pipeline`** is **off**; also included whenever trace is **on**.
 @export var forest_grid_debug_log_grid_jitter_slots: bool = false
-## **Debug:** **only** the **10-slot** front **symbol** **grid** may draw forest trees on **`TerrainForegroundView`**; **MapView** back-forest suppressed; no procedural/asset fallbacks on TFV. **`forest_grid_debug_perfect`** → all defined slots + zero jitter; **off** → same slots + deterministic jitter. Units still draw. **`main`** wires **`map_view`** for **`map_back`** draw counts.
+## **Debug:** **only** the symbol **grid** (`_GRID_SLOT_COUNT` slots; baseline was **10**, experiment **20**) may draw forest trees on **`TerrainForegroundView`**; **MapView** back-forest suppressed; no procedural/asset fallbacks on TFV. **`forest_grid_debug_perfect`** → all defined slots + zero jitter; **off** → same slots + deterministic jitter. Units still draw. **`main`** wires **`map_view`** for **`map_back`** draw counts.
 @export var forest_grid_debug_isolated: bool = false
 ## **Debug (isolated only):** draw the grid on the **first** decorated PLAINS hex in **`map.coords()`** order only (clearest single-hex validation).
 @export var forest_grid_debug_isolated_one_hex: bool = true
@@ -102,25 +102,26 @@ var camera
 var units_view
 ## Wired by **`main`** — read **`MapView.debug_plains_back_forest_draw_calls`** for isolated summaries.
 var map_view
-## **Uniform 4-row lattice:** authoritative **`P = _GRID_ROW_PITCH_FRAC × HexLayout.SIZE`** (row-center spacing). Row **y** = **(−1.5, −0.5, +0.5, +1.5) × P**. Derived **production** circle edge gap = **`P − 2×R_jitter`** (uses **R**, not **R+M**).
-## **Authoritative vertical spacing** of grid rows (**fraction of `HexLayout.SIZE`**).
-const _GRID_ROW_PITCH_FRAC: float = 0.26
+## **Six-row 2/3/5/5/3/2 lattice:** authoritative **`P = _GRID_ROW_PITCH_FRAC × HexLayout.SIZE`**. Row **y** = **(−2.5 … +2.5) × P** in half-P steps. Derived **production** circle edge gap = **`P − 2×R_jitter`**. (Legacy: **10** slots **2/3/3/2** with **(−1.5…+1.5)×P**.)
+## **Authoritative vertical spacing** of grid rows (**fraction of `HexLayout.SIZE`**). Small bumps expand Y footprint; reduce only if **disk(S,R+M)** fails for outer rows.
+const _GRID_ROW_PITCH_FRAC: float = 0.28
 ## **Diagnostic only:** legacy PNG-at-512 reference × min displayed tree-side — **not** used for **`P`** or lattice geometry.
 const _GRID_DIAG_TREE_PAD_PX_AT_REF_SIZE: float = 8.0
 ## Min **(0.69 + 0×0.30)×0.5** of **`base/SIZE`** in **`side = base × (…) × 0.5`** — same tree-size formula floor, **pscale**-independent ratio.
 const _GRID_TREE_DISPLAYED_SIDE_MIN_FRAC: float = 0.69 * 0.5
-## **Two-slot** rows (**top/bottom**): **x = ±A × SIZE** (lateral spread vs compact center clump).
-const _GRID_TWO_SLOT_X_FRAC: float = 0.25
-## **Three-slot** rows (**middle**): **x ∈ { −B, 0, +B } × SIZE**.
-const _GRID_THREE_SLOT_X_FRAC: float = 0.40
+## **Two-slot** rows (outer **y = ±2.5P**): **x = ±A × SIZE**, **A** fixed **0.215** (reverted from experimental outward cap).
+const _GRID_TWO_SLOT_X_FRAC: float = 0.215
+## **Three-slot** rows (**y = ±1.5P**): **x ∈ { −B, 0, +B } ×** **H**; widened vs **0.47** (containment in tests).
+const _GRID_THREE_SLOT_X_FRAC: float = 0.49
+## **Five-slot** rows (**y = ±0.5P**): **x/H ∈ { −2s, −s, 0, +s, +2s }** for **s = outer_x / 2**, with **outer_x = min(hex_half(y) − 1.5R, hex_half(y) − (R+M))** (**/H**), **R** = production jitter frac, **M** = safety margin. Visually **hex_half − (outer_x + R) = 0.5R** gap from **R**-circle to hex edge when the **1.5R** rule binds (**~0.73** outer at mid-hex vertical sides). *Do not use **safe_half/2.5**.*
 ## Phase **4.6p** — max jitter disk radius (**layout/world**), **fraction of SIZE** (uniform-in-disk:
 ## **r = R_max × sqrt(U)**). **Promoted** from **0.030 × ~3.05 ≈ 0.0915H** (old **debug-only** scale removed — this **is** the real radius). With **`_GRID_SLOT_SAFETY_MARGIN_FRAC`**, **eff_R = R+M** keeps full disk inside the hex for every base slot **S**.
 const _GRID_JITTER_RADIUS_FRAC: float = 0.0915
 ## Extra **layout** margin **M** (fraction of **SIZE**) so **R+M** disks around each slot center stay strictly inside the hex (tests sample the full circle).
 const _GRID_SLOT_SAFETY_MARGIN_FRAC: float = 0.028
-## **10** roots (**2/3/3/2** row bands): **0–4** upper (**before** unit), **5–9** lower (**after** unit).
-const _GRID_SLOT_COUNT: int = 10
-const _GRID_UPPER_SLOT_COUNT: int = 5
+## **20** slots (**2/3/5/5/3/2**): indices **0–9** upper (**y < 0**, before unit), **10–19** lower (**y > 0**). *Revert: **10** slots **`2/3/3/2`** with **`_GRID_UPPER_SLOT_COUNT = 5`**.*
+const _GRID_SLOT_COUNT: int = 20
+const _GRID_UPPER_SLOT_COUNT: int = 10
 ## **Symbol-grid debug:** root markers use **fixed presentation px** (not **`side`** / **pscale**) so perfect vs normal isolated modes match size.
 const _FG_GRID_ROOT_MARKER_CIRCLE_R_PX: float = 6.0
 const _FG_GRID_ROOT_MARKER_CROSS_HALF_PX: float = 8.0
@@ -257,7 +258,7 @@ func _fg_print_runtime_identity() -> void:
 	var P_frac: float = forest_grid_row_pitch_frac()
 	print(
 		(
-			"[EOM_DEBUG_FOREST_PIPELINE] TFV runtime_identity path=%s instance_id=%d script=%s | exports: isolated=%s one_hex=%s perfect=%s draw_roots=%s jitter_circles=%s jitter_disp_vec=%s jitter_slot_log=%s trace_pipeline=%s draw_slot_labels=%s exaggerated_probe=%s suppress_map_back=%s log_export=%s | scatter=%s asset_overlays=%s | lattice: P/H=%.5f R_jitter/H=%.3f diag_pad_ref/H=%.5f row_jitter_gap/H=%.5f A/H=%.3f B/H=%.3f eff_R_safe/H=%.3f SIZE=%.1f"
+			"[EOM_DEBUG_FOREST_PIPELINE] TFV runtime_identity path=%s instance_id=%d script=%s | exports: isolated=%s one_hex=%s perfect=%s draw_roots=%s jitter_circles=%s jitter_disp_vec=%s jitter_slot_log=%s trace_pipeline=%s draw_slot_labels=%s exaggerated_probe=%s suppress_map_back=%s log_export=%s | scatter=%s asset_overlays=%s | lattice: P/H=%.5f R_jitter/H=%.3f diag_pad_ref/H=%.5f row_jitter_gap/H=%.5f A/H=%.3f B/H=%.3f F5o/H=%.3f F5i/H=%.3f eff_R_safe/H=%.3f SIZE=%.1f"
 		)
 		% [
 			str(get_path()),
@@ -283,6 +284,8 @@ func _fg_print_runtime_identity() -> void:
 			gap_f,
 			_GRID_TWO_SLOT_X_FRAC,
 			_GRID_THREE_SLOT_X_FRAC,
+			forest_grid_five_slot_x_outer_frac(),
+			forest_grid_five_slot_x_inner_frac(),
 			forest_grid_eff_R_frac(),
 			H,
 		]
@@ -613,6 +616,11 @@ static func forest_grid_two_slot_x_frac() -> float:
 	return _GRID_TWO_SLOT_X_FRAC
 
 
+## **Tests:** **|y|/H** of two-slot row (**2.5 × P/H**).
+static func forest_grid_two_slot_row_abs_y_frac() -> float:
+	return 2.5 * _GRID_ROW_PITCH_FRAC
+
+
 ## **Tests:** **|x|** of wing slots in **three-slot** rows, as fraction of **SIZE**.
 static func forest_grid_three_slot_x_frac() -> float:
 	return _GRID_THREE_SLOT_X_FRAC
@@ -623,7 +631,64 @@ static func forest_grid_eff_R_frac() -> float:
 	return _GRID_JITTER_RADIUS_FRAC + _GRID_SLOT_SAFETY_MARGIN_FRAC
 
 
-## **Tests / docs:** number of forest front grid slots (**10**).
+## **Tests:** **outer |x|/H** for five-slot row at **y = y_frac × H** (**continuous edge** rule: **hex_half − 1.5R**, clamped by **hex_half − (R+M)**).
+static func forest_grid_five_slot_outer_x_frac_for_row_y_frac(y_frac: float) -> float:
+	var hex_h: float = forest_grid_hex_half_width_frac_at_local_y_frac(y_frac)
+	var r: float = _GRID_JITTER_RADIUS_FRAC
+	var m: float = _GRID_SLOT_SAFETY_MARGIN_FRAC
+	var outer_vis: float = hex_h - 1.5 * r
+	var outer_safe: float = hex_h - r - m
+	return maxf(minf(outer_vis, outer_safe), 0.0)
+
+
+## **Tests:** column step **s/H = outer_x / 2** for **x ∈ {−2s,…,2s}**.
+static func forest_grid_five_slot_column_step_frac_for_row_y_frac(y_frac: float) -> float:
+	return forest_grid_five_slot_outer_x_frac_for_row_y_frac(y_frac) * 0.5
+
+
+## **Tests:** gap **/H** from **visible R** circle (**outer + R**) to hex edge (**hex_half − (outer+R)**); **≈ 0.5R** when **1.5R** rule binds.
+static func forest_grid_five_slot_edge_gap_visible_frac_for_row_y_frac(y_frac: float) -> float:
+	var hex_h: float = forest_grid_hex_half_width_frac_at_local_y_frac(y_frac)
+	var outer: float = forest_grid_five_slot_outer_x_frac_for_row_y_frac(y_frac)
+	return maxf(hex_h - outer - _GRID_JITTER_RADIUS_FRAC, 0.0)
+
+
+## **Tests:** **|x|** of **outer** five-slot wing (**±2s**).
+static func forest_grid_five_slot_x_outer_frac() -> float:
+	return 2.0 * forest_grid_five_slot_column_step_frac()
+
+
+## **Tests:** **|x|** of **inner** five-slot wing (**±s**).
+static func forest_grid_five_slot_x_inner_frac() -> float:
+	return forest_grid_five_slot_column_step_frac()
+
+
+## **Tests / layout:** pointy-top hex circumradius **H = HexLayout.SIZE**; max **+x** for points inside hex on horizontal line **y = y_frac × H** (**y_frac** = **local_y / H**).
+static func forest_grid_hex_half_width_frac_at_local_y_frac(y_frac: float) -> float:
+	var ya: float = absf(y_frac)
+	if ya <= 0.5:
+		return sqrt(3.0) * 0.5
+	if y_frac > 0.5:
+		return sqrt(3.0) * (1.0 - y_frac)
+	return sqrt(3.0) * (y_frac + 1.0)
+
+
+## **Tests / layout:** horizontal distance from center to **safe** boundary (**hex half-width − (R_jitter+M)**) at **y = y_frac × H**, as **/H**.
+static func forest_grid_safe_half_width_frac_at_local_y_frac(y_frac: float) -> float:
+	return maxf(forest_grid_hex_half_width_frac_at_local_y_frac(y_frac) - forest_grid_eff_R_frac(), 0.0)
+
+
+## **Tests:** **|y|/H** of five-slot row (**±0.5 × P/H**; same **|y|** top/bottom).
+static func forest_grid_five_slot_row_abs_y_frac() -> float:
+	return 0.5 * _GRID_ROW_PITCH_FRAC
+
+
+## **Tests:** five-slot **s/H** at current row **|y| = 0.5P** (uses **`forest_grid_five_slot_outer_x_frac_for_row_y_frac`** / **2**).
+static func forest_grid_five_slot_column_step_frac() -> float:
+	return forest_grid_five_slot_column_step_frac_for_row_y_frac(forest_grid_five_slot_row_abs_y_frac())
+
+
+## **Tests / docs:** number of forest front grid slots (**20** experimental **`2/3/5/5/3/2`**; baseline was **10**).
 static func forest_grid_slot_count() -> int:
 	return _GRID_SLOT_COUNT
 
@@ -716,67 +781,74 @@ static func forest_grid_vertical_gap_jitter_edges_frac() -> float:
 
 
 ## **Tests / docs:** **local** base slot offset from **hex center** (**layout/world** space) before jitter.
-## **Uniform 2/3/3/2 lattice:** **`y_k = (-1.5, -0.5, +0.5, +1.5) × P`** with **`P = forest_grid_row_pitch_world()`**; two-slot rows **`x = ±A×SIZE`**, three-slot **`x = −B, 0, +B×SIZE`**.
+## **Experimental `2/3/5/5/3/2` lattice:** **`y ∈ {−2.5,−1.5,−0.5,+0.5,+1.5,+2.5} × P`**; two-slot **`x=±A×H`**, three-slot **`−B,0,B`**, five-slot **`x ∈ {−2s,−s,0,s,2s}×H`** with **outer_x = min(hex_half(y)−1.5R, hex_half(y)−(R+M))**, **s = outer_x/2**. Slots **0–9** have **`y<0`** (upper pass).
 static func forest_grid_slot_base_local(slot_index: int) -> Vector2:
 	var H: float = HexLayoutScript.SIZE
 	var p_y: float = forest_grid_row_pitch_world()
-	var a_x: float = _GRID_TWO_SLOT_X_FRAC * H
+	var a_x: float = forest_grid_two_slot_x_frac() * H
 	var b_x: float = _GRID_THREE_SLOT_X_FRAC * H
-	var y0: float = -1.5 * p_y
-	var y1: float = -0.5 * p_y
-	var y2: float = 0.5 * p_y
-	var y3: float = 1.5 * p_y
+	var f_o: float = forest_grid_five_slot_x_outer_frac() * H
+	var f_i: float = forest_grid_five_slot_x_inner_frac() * H
+	var y_r0: float = -2.5 * p_y
+	var y_r1: float = -1.5 * p_y
+	var y_r2: float = -0.5 * p_y
+	var y_r3: float = 0.5 * p_y
+	var y_r4: float = 1.5 * p_y
+	var y_r5: float = 2.5 * p_y
 	match slot_index:
 		0:
-			return Vector2(-a_x, y0)
+			return Vector2(-a_x, y_r0)
 		1:
-			return Vector2(a_x, y0)
+			return Vector2(a_x, y_r0)
 		2:
-			return Vector2(-b_x, y1)
+			return Vector2(-b_x, y_r1)
 		3:
-			return Vector2(0.0, y1)
+			return Vector2(0.0, y_r1)
 		4:
-			return Vector2(b_x, y1)
+			return Vector2(b_x, y_r1)
 		5:
-			return Vector2(-b_x, y2)
+			return Vector2(-f_o, y_r2)
 		6:
-			return Vector2(0.0, y2)
+			return Vector2(-f_i, y_r2)
 		7:
-			return Vector2(b_x, y2)
+			return Vector2(0.0, y_r2)
 		8:
-			return Vector2(-a_x, y3)
+			return Vector2(f_i, y_r2)
 		9:
-			return Vector2(a_x, y3)
+			return Vector2(f_o, y_r2)
+		10:
+			return Vector2(-f_o, y_r3)
+		11:
+			return Vector2(-f_i, y_r3)
+		12:
+			return Vector2(0.0, y_r3)
+		13:
+			return Vector2(f_i, y_r3)
+		14:
+			return Vector2(f_o, y_r3)
+		15:
+			return Vector2(-b_x, y_r4)
+		16:
+			return Vector2(0.0, y_r4)
+		17:
+			return Vector2(b_x, y_r4)
+		18:
+			return Vector2(-a_x, y_r5)
+		19:
+			return Vector2(a_x, y_r5)
 		_:
 			return Vector2.ZERO
 
 
-## **Tests / pipeline probe:** exaggerated **layout/world** slot offsets (**zig-zag**); used only when **`forest_grid_debug_exaggerated_layout_probe`** **and** isolated.
+## **Tests / pipeline probe:** exaggerated offsets (**zig-zag** on top of canonical); isolated+flag only.
 static func forest_grid_exaggerated_probe_slot_local(slot_index: int) -> Vector2:
 	var H: float = HexLayoutScript.SIZE
-	match slot_index:
-		0:
-			return Vector2(-0.50 * H, -0.50 * H)
-		1:
-			return Vector2(0.50 * H, -0.38 * H)
-		2:
-			return Vector2(-0.45 * H, -0.15 * H)
-		3:
-			return Vector2(0.00 * H, -0.05 * H)
-		4:
-			return Vector2(0.45 * H, -0.12 * H)
-		5:
-			return Vector2(-0.48 * H, 0.12 * H)
-		6:
-			return Vector2(0.00 * H, 0.05 * H)
-		7:
-			return Vector2(0.48 * H, 0.15 * H)
-		8:
-			return Vector2(-0.42 * H, 0.42 * H)
-		9:
-			return Vector2(0.46 * H, 0.48 * H)
-		_:
-			return Vector2.ZERO
+	var base: Vector2 = forest_grid_slot_base_local(slot_index)
+	var zig: Vector2 = Vector2(
+		float((slot_index * 3) % 5 - 2) * 0.06 * H,
+		float((slot_index * 7) % 5 - 2) * 0.05 * H
+	)
+	return base + zig
 
 
 ## **Tests:** max **`draw_texture_rect`** tree symbols for one decorated PLAINS hex in symbol-grid mode (**city** → no lower pass).
@@ -1159,7 +1231,7 @@ func _draw_plains_forest_front_symbol_grid_pass(
 	proj, world: Vector2, q: int, r: int, upper_band: bool, log_hex_detail: bool
 ) -> int:
 	# **4.6p:** **intended tree root** (**visible ground**) **`= proj.to_presentation( hex_center + base_local + jitter_local )`** (**`root_pres`**). **`draw_texture_rect`** quad is offset **down** by **`scaled_bottom_padding_y`** so the **opaque** bottom meets **`root_pres`**.
-	# **`upper_band`:** slots **0–4**. Else **5–9**. Symbol-grid path: **only** these calls (no parallel scatter).
+	# **`upper_band`:** slots **0–9** (**y < 0**). Else **10–19**. Symbol-grid path: **only** these calls (no parallel scatter).
 	if layout == null:
 		return 0
 	var pscale: float = proj.perspective_scale_at(world)
@@ -1415,14 +1487,14 @@ func _fg_assert_isolated_perfect_invariants(symbol_scatter_active: bool) -> void
 		return
 	if not _fg_sess_detail_hex_chosen:
 		push_warning(
-			"EOM ISOLATED+PERFECT invariant FAILED: no decorated sample hex on map; cannot draw 10-slot grid."
+			"EOM ISOLATED+PERFECT invariant FAILED: no decorated sample hex on map; cannot draw full symbol grid."
 		)
 		return
 	var exp_sym: int = _fg_expected_grid_slots_for_qr(_fg_sess_detail_q, _fg_sess_detail_r)
 	if _fg_sess_grid_symbols_drawn != exp_sym:
 		push_warning(
 			(
-				"EOM ISOLATED+PERFECT invariant FAILED: grid_symbols_drawn=%d expected %d for sample hex (city skips lower band when expected==5)."
+				"EOM ISOLATED+PERFECT invariant FAILED: grid_symbols_drawn=%d expected %d for sample hex (city skips lower band)."
 			)
 			% [_fg_sess_grid_symbols_drawn, exp_sym]
 		)
@@ -1630,26 +1702,34 @@ func _fg_print_isolated_frame_summary() -> void:
 	var Hsz: float = HexLayoutScript.SIZE
 	var eff_r: float = forest_grid_safe_disk_radius_world()
 	var gap_f: float = forest_grid_vertical_gap_jitter_edges_frac()
-	var y0: float = forest_grid_slot_base_local(0).y / Hsz
-	var y1: float = forest_grid_slot_base_local(2).y / Hsz
-	var y2: float = forest_grid_slot_base_local(5).y / Hsz
-	var y3: float = forest_grid_slot_base_local(8).y / Hsz
-	var x2: float = absf(forest_grid_slot_base_local(0).x / Hsz)
-	var x3: float = absf(forest_grid_slot_base_local(2).x / Hsz)
+	var yr0: float = forest_grid_slot_base_local(0).y / Hsz
+	var yr1: float = forest_grid_slot_base_local(2).y / Hsz
+	var yr2: float = forest_grid_slot_base_local(5).y / Hsz
+	var yr3: float = forest_grid_slot_base_local(10).y / Hsz
+	var yr4: float = forest_grid_slot_base_local(15).y / Hsz
+	var yr5: float = forest_grid_slot_base_local(18).y / Hsz
+	var x_two: float = absf(forest_grid_slot_base_local(0).x / Hsz)
+	var x_three: float = absf(forest_grid_slot_base_local(2).x / Hsz)
+	var x_fo: float = absf(forest_grid_slot_base_local(5).x / Hsz)
+	var x_fi: float = absf(forest_grid_slot_base_local(6).x / Hsz)
 	var P_f: float = forest_grid_row_pitch_frac()
 	print(
 		(
-			"[EOM_DEBUG_FOREST_GRID] uniform_lattice row_y/H: y0=%.5f y1=%.5f y2=%.5f y3=%.5f P/H=%.5f | "
-			+ "x_two_row=±%.3fH x_three_row=±%.3fH,0 | row_jitter_gap/H=%.5f eff_R_safe=%.4f (R+M) SIZE=%.1f"
+			"[EOM_DEBUG_FOREST_GRID] uniform_lattice row_y/H: y0=%.5f y1=%.5f y2=%.5f y3=%.5f y4=%.5f y5=%.5f P/H=%.5f | "
+			+ "x_two=±%.3fH x_three=±%.3fH,0 x_five=±%.3fH,±%.3fH,0 | row_jitter_gap/H=%.5f eff_R_safe=%.4f (R+M) SIZE=%.1f"
 		)
 		% [
-			y0,
-			y1,
-			y2,
-			y3,
+			yr0,
+			yr1,
+			yr2,
+			yr3,
+			yr4,
+			yr5,
 			P_f,
-			x2,
-			x3,
+			x_two,
+			x_three,
+			x_fo,
+			x_fi,
 			gap_f,
 			eff_r,
 			Hsz,
