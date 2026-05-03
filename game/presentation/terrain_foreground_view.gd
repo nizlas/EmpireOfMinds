@@ -102,15 +102,17 @@ var camera
 var units_view
 ## Wired by **`main`** — read **`MapView.debug_plains_back_forest_draw_calls`** for isolated summaries.
 var map_view
-## **Uniform 4-row lattice:** **P = 2×R_jitter + padding** (**layout/world**). Row centers **y_k = (-1.5, -0.5, +0.5, +1.5) × P**. Circle-edge gap between adjacent rows = **padding** (not **R+M**).
-## **Padding** from min displayed symbol height × **padding_px_at_512/512** (see **`forest_grid_row_padding_world`**).
-const _GRID_ROW_PADDING_PX_AT_512: float = 5.0
+## **Uniform 4-row lattice:** authoritative **`P = _GRID_ROW_PITCH_FRAC × HexLayout.SIZE`** (row-center spacing). Row **y** = **(−1.5, −0.5, +0.5, +1.5) × P**. Derived **production** circle edge gap = **`P − 2×R_jitter`** (uses **R**, not **R+M**).
+## **Authoritative vertical spacing** of grid rows (**fraction of `HexLayout.SIZE`**).
+const _GRID_ROW_PITCH_FRAC: float = 0.26
+## **Diagnostic only:** legacy PNG-at-512 reference × min displayed tree-side — **not** used for **`P`** or lattice geometry.
+const _GRID_DIAG_TREE_PAD_PX_AT_REF_SIZE: float = 8.0
 ## Min **(0.69 + 0×0.30)×0.5** of **`base/SIZE`** in **`side = base × (…) × 0.5`** — same tree-size formula floor, **pscale**-independent ratio.
 const _GRID_TREE_DISPLAYED_SIDE_MIN_FRAC: float = 0.69 * 0.5
-## **Two-slot** rows (**top/bottom**): **x = ±A × SIZE**.
-const _GRID_TWO_SLOT_X_FRAC: float = 0.16
+## **Two-slot** rows (**top/bottom**): **x = ±A × SIZE** (lateral spread vs compact center clump).
+const _GRID_TWO_SLOT_X_FRAC: float = 0.25
 ## **Three-slot** rows (**middle**): **x ∈ { −B, 0, +B } × SIZE**.
-const _GRID_THREE_SLOT_X_FRAC: float = 0.28
+const _GRID_THREE_SLOT_X_FRAC: float = 0.40
 ## Phase **4.6p** — max jitter disk radius (**layout/world**), **fraction of SIZE** (uniform-in-disk:
 ## **r = R_max × sqrt(U)**). **Promoted** from **0.030 × ~3.05 ≈ 0.0915H** (old **debug-only** scale removed — this **is** the real radius). With **`_GRID_SLOT_SAFETY_MARGIN_FRAC`**, **eff_R = R+M** keeps full disk inside the hex for every base slot **S**.
 const _GRID_JITTER_RADIUS_FRAC: float = 0.0915
@@ -255,7 +257,7 @@ func _fg_print_runtime_identity() -> void:
 	var P_frac: float = forest_grid_row_pitch_frac()
 	print(
 		(
-			"[EOM_DEBUG_FOREST_PIPELINE] TFV runtime_identity path=%s instance_id=%d script=%s | exports: isolated=%s one_hex=%s perfect=%s draw_roots=%s jitter_circles=%s jitter_disp_vec=%s jitter_slot_log=%s trace_pipeline=%s draw_slot_labels=%s exaggerated_probe=%s suppress_map_back=%s log_export=%s | scatter=%s asset_overlays=%s | lattice: P/H=%.5f R_jitter/H=%.3f padding/H=%.5f row_edge_gap/H=%.5f A/H=%.3f B/H=%.3f eff_R_safe/H=%.3f SIZE=%.1f"
+			"[EOM_DEBUG_FOREST_PIPELINE] TFV runtime_identity path=%s instance_id=%d script=%s | exports: isolated=%s one_hex=%s perfect=%s draw_roots=%s jitter_circles=%s jitter_disp_vec=%s jitter_slot_log=%s trace_pipeline=%s draw_slot_labels=%s exaggerated_probe=%s suppress_map_back=%s log_export=%s | scatter=%s asset_overlays=%s | lattice: P/H=%.5f R_jitter/H=%.3f diag_pad_ref/H=%.5f row_jitter_gap/H=%.5f A/H=%.3f B/H=%.3f eff_R_safe/H=%.3f SIZE=%.1f"
 		)
 		% [
 			str(get_path()),
@@ -277,7 +279,7 @@ func _fg_print_runtime_identity() -> void:
 			use_forest_asset_overlays,
 			P_frac,
 			_GRID_JITTER_RADIUS_FRAC,
-			forest_grid_row_padding_frac(),
+			forest_grid_diagnostic_row_padding_ref_frac(),
 			gap_f,
 			_GRID_TWO_SLOT_X_FRAC,
 			_GRID_THREE_SLOT_X_FRAC,
@@ -669,33 +671,48 @@ static func forest_grid_safe_disk_radius_world() -> float:
 	return forest_grid_jitter_max_radius_world() + forest_grid_safety_margin_world()
 
 
-## **Tests / docs:** row **padding** in **layout/world** = **SIZE × min_displayed_side_frac × (padding_px_at_512/512)** (**min** matches **(0.69)×0.5** of **`side/base`** floor from the symbol **height** formula).
-static func forest_grid_row_padding_world() -> float:
+## **Diagnostic only:** reference **layout/world** scale (symbol-side floor × px@512); **does not** define row pitch.
+static func forest_grid_diagnostic_row_padding_ref_world() -> float:
 	return (
 		HexLayoutScript.SIZE
 		* _GRID_TREE_DISPLAYED_SIDE_MIN_FRAC
-		* (_GRID_ROW_PADDING_PX_AT_512 / 512.0)
+		* (_GRID_DIAG_TREE_PAD_PX_AT_REF_SIZE / 512.0)
 	)
 
 
-## **Tests:** padding / SIZE.
-static func forest_grid_row_padding_frac() -> float:
-	return forest_grid_row_padding_world() / HexLayoutScript.SIZE
+## **Diagnostic only:** **`forest_grid_diagnostic_row_padding_ref_world() / SIZE`**.
+static func forest_grid_diagnostic_row_padding_ref_frac() -> float:
+	return forest_grid_diagnostic_row_padding_ref_world() / HexLayoutScript.SIZE
 
 
-## **Tests / docs:** uniform row spacing **P** in **layout/world** = **2×R_jitter + padding** (production **R**, not **R+M**).
+## **Tests / docs:** uniform row spacing **P** in **layout/world** = **`_GRID_ROW_PITCH_FRAC × SIZE`**.
 static func forest_grid_row_pitch_world() -> float:
-	return 2.0 * forest_grid_jitter_max_radius_world() + forest_grid_row_padding_world()
+	return _GRID_ROW_PITCH_FRAC * HexLayoutScript.SIZE
 
 
-## **Tests:** **P/SIZE**.
+## **Tests:** design **`P/H`** (same as **`forest_grid_row_pitch_world() / SIZE`**).
 static func forest_grid_row_pitch_frac() -> float:
-	return forest_grid_row_pitch_world() / HexLayoutScript.SIZE
+	return _GRID_ROW_PITCH_FRAC
 
 
-## **Tests:** **P − 2×R_jitter** = **padding** ⇒ edge gap between adjacent **production** jitter circles / SIZE.
+## **Tests:** design **`P/H`** from **`_GRID_ROW_PITCH_FRAC`** (alias for **`forest_grid_row_pitch_frac()`**).
+static func forest_grid_row_pitch_design_frac() -> float:
+	return _GRID_ROW_PITCH_FRAC
+
+
+## **Tests / docs:** vertical gap between adjacent **production** (**R_jitter**) circle edges along row direction, in **layout/world** (**`P − 2×R_jitter`**).
+static func forest_grid_row_jitter_circle_gap_world() -> float:
+	return forest_grid_row_pitch_world() - 2.0 * forest_grid_jitter_max_radius_world()
+
+
+## **Tests:** **`(P − 2×R_jitter) / SIZE`**.
+static func forest_grid_row_jitter_circle_gap_frac() -> float:
+	return forest_grid_row_jitter_circle_gap_world() / HexLayoutScript.SIZE
+
+
+## **Tests:** edge gap between adjacent **production** jitter circles / SIZE (**`forest_grid_row_jitter_circle_gap_frac()`**).
 static func forest_grid_vertical_gap_jitter_edges_frac() -> float:
-	return forest_grid_row_padding_frac()
+	return forest_grid_row_jitter_circle_gap_frac()
 
 
 ## **Tests / docs:** **local** base slot offset from **hex center** (**layout/world** space) before jitter.
@@ -1597,7 +1614,7 @@ func _fg_print_isolated_frame_summary() -> void:
 	)
 	print(
 		(
-			"[EOM_DEBUG_FOREST_ISOLATED] detail: grid_mode=%s slots_drawn=%d roots_drawn=%d jitter_enabled=%s R_jitter_world=%.4f padding_world=%.4f P_world=%.4f grid_textures_pass_sum=%d"
+			"[EOM_DEBUG_FOREST_ISOLATED] detail: grid_mode=%s slots_drawn=%d roots_drawn=%d jitter_enabled=%s R_jitter_world=%.4f row_jitter_gap_world=%.4f P_world=%.4f grid_textures_pass_sum=%d"
 		)
 		% [
 			_fg_grid_mode_log_label(),
@@ -1605,7 +1622,7 @@ func _fg_print_isolated_frame_summary() -> void:
 			roots_iso,
 			str(not _fg_sess_no_jitter),
 			r0,
-			forest_grid_row_padding_world(),
+			forest_grid_row_jitter_circle_gap_world(),
 			forest_grid_row_pitch_world(),
 			_fg_sess_frame_grid_textures,
 		]
@@ -1623,7 +1640,7 @@ func _fg_print_isolated_frame_summary() -> void:
 	print(
 		(
 			"[EOM_DEBUG_FOREST_GRID] uniform_lattice row_y/H: y0=%.5f y1=%.5f y2=%.5f y3=%.5f P/H=%.5f | "
-			+ "x_two_row=±%.3fH x_three_row=±%.3fH,0 | padding/H=%.5f eff_R_safe=%.4f (R+M) SIZE=%.1f"
+			+ "x_two_row=±%.3fH x_three_row=±%.3fH,0 | row_jitter_gap/H=%.5f eff_R_safe=%.4f (R+M) SIZE=%.1f"
 		)
 		% [
 			y0,

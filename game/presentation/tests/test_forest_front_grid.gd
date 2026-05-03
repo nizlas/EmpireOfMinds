@@ -1,4 +1,5 @@
 # Headless: forest front grid — uniform 4-row 2/3/3/2 lattice; **disk(S, R+M)** inside hex; deterministic jitter.
+# Row pitch **P** = **`_GRID_ROW_PITCH_FRAC × HexLayout.SIZE`**; **row jitter gap** = **`P − 2×R_jitter`**. PNG **diag_pad_ref** does not drive **P**.
 # Editor: **TerrainForegroundView.forest_grid_debug_draw_jitter_circles** — optional projected jitter-ring overlay (base + circle + root); does not affect this script’s assertions.
 # Usage: godot --headless --path game -s res://presentation/tests/test_forest_front_grid.gd
 extends SceneTree
@@ -8,6 +9,10 @@ const HexMapScript = preload("res://domain/hex_map.gd")
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 const TerrainForegroundViewScript = preload("res://presentation/terrain_foreground_view.gd")
+
+const _EXPECT_ROW_PITCH_FRAC: float = 0.26
+## Upper bound on **row_jitter_gap/H** under old **P = 2×R + PNG-derived pad** (pre fraction-pitch); new gap must be larger.
+const _LEGACY_ROW_JITTER_GAP_FRAC_BEFORE_PITCH_MODEL: float = 0.0065
 
 
 ## **True** if every **non-degenerate** pair in **slot_indices** has **|dot(na,nb)| > dot_thresh** (entire column near-parallel).
@@ -187,25 +192,78 @@ func _init() -> void:
 		push_error("FAIL: expected 10 grid slots got %d" % n)
 		call_deferred("quit", 1)
 		return
+	var H: float = HexLayoutScript.SIZE
 	var P_frac: float = TerrainForegroundViewScript.forest_grid_row_pitch_frac()
 	var A_frac: float = TerrainForegroundViewScript.forest_grid_two_slot_x_frac()
 	var B_frac: float = TerrainForegroundViewScript.forest_grid_three_slot_x_frac()
-	var R_world: float = TerrainForegroundViewScript.forest_grid_jitter_max_radius_world()
-	var pad_world: float = TerrainForegroundViewScript.forest_grid_row_padding_world()
-	var P_world_check: float = TerrainForegroundViewScript.forest_grid_row_pitch_world()
-	if not is_equal_approx(P_world_check, 2.0 * R_world + pad_world):
+	if not is_equal_approx(
+		TerrainForegroundViewScript.forest_grid_row_pitch_design_frac(), _EXPECT_ROW_PITCH_FRAC
+	):
 		push_error(
-			"FAIL: row_pitch must be 2*R_jitter+padding got P=%.6f want %.6f"
-			% [P_world_check, 2.0 * R_world + pad_world]
+			"FAIL: _GRID_ROW_PITCH_FRAC (design) expected %.4f got %.4f"
+			% [_EXPECT_ROW_PITCH_FRAC, TerrainForegroundViewScript.forest_grid_row_pitch_design_frac()]
 		)
 		call_deferred("quit", 1)
 		return
-	var padding_frac: float = TerrainForegroundViewScript.forest_grid_row_padding_frac()
-	var gap_frac: float = TerrainForegroundViewScript.forest_grid_vertical_gap_jitter_edges_frac()
-	if not is_equal_approx(gap_frac, padding_frac):
+	if not is_equal_approx(P_frac, _EXPECT_ROW_PITCH_FRAC):
 		push_error(
-			"FAIL: vertical jitter edge gap/H should equal padding/H got %.8f want %.8f"
-			% [gap_frac, padding_frac]
+			"FAIL: forest_grid_row_pitch_frac expected %.4f got %.4f" % [_EXPECT_ROW_PITCH_FRAC, P_frac]
+		)
+		call_deferred("quit", 1)
+		return
+	if A_frac < 0.24:
+		push_error(
+			"FAIL: two-slot row |x|/H should stay >= 0.24 for widened tile footprint, got %.4f"
+			% A_frac
+		)
+		call_deferred("quit", 1)
+		return
+	if B_frac < 0.38:
+		push_error(
+			"FAIL: three-slot wing |x|/H should stay >= 0.38 for widened tile footprint, got %.4f"
+			% B_frac
+		)
+		call_deferred("quit", 1)
+		return
+	if not is_equal_approx(A_frac, 0.25):
+		push_error("FAIL: two-slot |x|/H expected 0.25 (tuned), got %.6f" % A_frac)
+		call_deferred("quit", 1)
+		return
+	if not is_equal_approx(B_frac, 0.40):
+		push_error("FAIL: three-slot wing |x|/H expected 0.40 (tuned), got %.6f" % B_frac)
+		call_deferred("quit", 1)
+		return
+	var R_world: float = TerrainForegroundViewScript.forest_grid_jitter_max_radius_world()
+	var P_world_check: float = TerrainForegroundViewScript.forest_grid_row_pitch_world()
+	if not is_equal_approx(P_world_check, _EXPECT_ROW_PITCH_FRAC * H):
+		push_error(
+			"FAIL: row pitch world expected %.6f (P/H=%.4f) got %.6f"
+			% [_EXPECT_ROW_PITCH_FRAC * H, _EXPECT_ROW_PITCH_FRAC, P_world_check]
+		)
+		call_deferred("quit", 1)
+		return
+	if not is_equal_approx(P_world_check, P_frac * H):
+		push_error("FAIL: row_pitch_world vs P_frac*H mismatch")
+		call_deferred("quit", 1)
+		return
+	var gap_frac: float = TerrainForegroundViewScript.forest_grid_vertical_gap_jitter_edges_frac()
+	var gap_world: float = TerrainForegroundViewScript.forest_grid_row_jitter_circle_gap_world()
+	var R_j_frac: float = R_world / H
+	if not is_equal_approx(gap_frac, P_frac - 2.0 * R_j_frac):
+		push_error(
+			"FAIL: row jitter gap/H expected P/H-2*R/H=%.8f got %.8f"
+			% [P_frac - 2.0 * R_j_frac, gap_frac]
+		)
+		call_deferred("quit", 1)
+		return
+	if not is_equal_approx(gap_world, P_world_check - 2.0 * R_world):
+		push_error("FAIL: row_jitter_circle_gap_world mismatch")
+		call_deferred("quit", 1)
+		return
+	if gap_frac <= _LEGACY_ROW_JITTER_GAP_FRAC_BEFORE_PITCH_MODEL:
+		push_error(
+			"FAIL: row jitter gap/H should exceed legacy ~PNG-padding model upper bound %.4f, got %.6f"
+			% [_LEGACY_ROW_JITTER_GAP_FRAC_BEFORE_PITCH_MODEL, gap_frac]
 		)
 		call_deferred("quit", 1)
 		return
@@ -228,7 +286,6 @@ func _init() -> void:
 		push_error("FAIL: safe disk radius mismatch")
 		call_deferred("quit", 1)
 		return
-	var H: float = HexLayoutScript.SIZE
 	var exp_fracs: Array[Vector2] = [
 		Vector2(-TerrainForegroundViewScript.forest_grid_two_slot_x_frac(), -1.5 * P_frac),
 		Vector2(TerrainForegroundViewScript.forest_grid_two_slot_x_frac(), -1.5 * P_frac),
@@ -264,6 +321,22 @@ func _init() -> void:
 	var y1n: float = TerrainForegroundViewScript.forest_grid_slot_base_local(2).y
 	var y2n: float = TerrainForegroundViewScript.forest_grid_slot_base_local(5).y
 	var y3n: float = TerrainForegroundViewScript.forest_grid_slot_base_local(8).y
+	if not is_equal_approx(y0n / H, -1.5 * P_frac):
+		push_error("FAIL: outer row y0/H expected %.5f got %.5f" % [-1.5 * P_frac, y0n / H])
+		call_deferred("quit", 1)
+		return
+	if not is_equal_approx(y1n / H, -0.5 * P_frac):
+		push_error("FAIL: row y1/H expected %.5f got %.5f" % [-0.5 * P_frac, y1n / H])
+		call_deferred("quit", 1)
+		return
+	if not is_equal_approx(y2n / H, 0.5 * P_frac):
+		push_error("FAIL: row y2/H expected %.5f got %.5f" % [0.5 * P_frac, y2n / H])
+		call_deferred("quit", 1)
+		return
+	if not is_equal_approx(y3n / H, 1.5 * P_frac):
+		push_error("FAIL: outer row y3/H expected %.5f got %.5f" % [1.5 * P_frac, y3n / H])
+		call_deferred("quit", 1)
+		return
 	var pitch_01: float = y1n - y0n
 	var pitch_12: float = y2n - y1n
 	var pitch_23: float = y3n - y2n
@@ -279,11 +352,10 @@ func _init() -> void:
 		push_error("FAIL: row pitch world %.4f vs forest_grid_row_pitch_world %.4f" % [absf(pitch_01), P_world])
 		call_deferred("quit", 1)
 		return
-	var gap_world: float = pad_world
 	var gap_from_pitch: float = absf(pitch_01) - 2.0 * R_world
 	if not is_equal_approx(gap_from_pitch, gap_world):
 		push_error(
-			"FAIL: vertical circle-edge gap world %.4f vs formula %.4f"
+			"FAIL: vertical circle-edge gap world %.4f vs forest_grid_row_jitter_circle_gap_world %.4f"
 			% [gap_from_pitch, gap_world]
 		)
 		call_deferred("quit", 1)
