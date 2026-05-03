@@ -334,6 +334,11 @@ func _forest_grid_map_back_suppressed() -> bool:
 	return false
 
 
+## **Skip MapView back-forest** when **`TerrainForegroundView`** is wired (it owns forest presentation) or debug suppression applies.
+func _mapview_skip_back_forest_overlay() -> bool:
+	return terrain_foreground_view != null and is_instance_valid(terrain_foreground_view)
+
+
 func _projected_corners(proj, corners: PackedVector2Array) -> PackedVector2Array:
 	var out = PackedVector2Array()
 	out.resize(corners.size())
@@ -356,7 +361,10 @@ func _draw() -> void:
 	debug_plains_back_procedural_draws = 0
 	var items = compute_draw_items(map, layout)
 	var dbg_perf_plains_back_suppressed: int = 0
-	var tfv_suppress: bool = _forest_grid_map_back_suppressed()
+	var tfv_suppress: bool = (
+		_forest_grid_map_back_suppressed()
+		or _mapview_skip_back_forest_overlay()
+	)
 	var j = 0
 	while j < items.size():
 		var item = items[j]
@@ -427,7 +435,7 @@ func _draw() -> void:
 	if tfv_suppress and dbg_perf_plains_back_suppressed > 0:
 		print(
 			(
-				"[EOM_DEBUG_FOREST_GRID] MapView: suppressed back-forest on %d decorated PLAINS hexes (TFV perfect / suppress_map_back / forest_grid_debug_isolated); debug_plains_back_forest_draw_calls=%d"
+				"[EOM_DEBUG_FOREST_GRID] MapView: skipped back-forest on %d decorated PLAINS hexes (TFV wired and/or debug suppression); debug_plains_back_forest_draw_calls=%d"
 			)
 			% [dbg_perf_plains_back_suppressed, debug_plains_back_forest_draw_calls]
 		)

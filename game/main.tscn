@@ -41,7 +41,7 @@ script = ExtResource("4_unitsview")
 [node name="TerrainForegroundView" type="Node2D" parent="." unique_id=555384625]
 position = Vector2(400, 428)
 script = ExtResource("11_terrainforeground")
-visual_mode = 2
+visual_mode = 0
 debug_draw_effective_depth_points = false
 debug_draw_unit_png_bottom_center = false
 forest_grid_debug_log = false

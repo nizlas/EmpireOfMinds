@@ -50,9 +50,8 @@ func _ready() -> void:
 	$UnitsView.camera = _map_camera
 	# Phase **4.6p:** **`TerrainForegroundView.z_index = 1`** lifts the **entire foreground canvas**
 	# above **`MapView`** / **`CitiesView`** / **`SelectionView`** / **`UnitsView`** node shells so **back**
-	# terrain stays behind **and** forest grid passes + unit pass run in **one** TFV **`_draw`** (draw order
-	# within that pass follows upper trees → units → lower trees, not z_index). **`UnitsView`** **`_draw`**
-	# is a no-op when wired to TFV — markers are not painted on a second **`CanvasItem`** (see **`main.gd`** wiring order).
+	# terrain stays behind **and** forest grid passes + marker pass run in **one** TFV **`_draw`**. **`UnitsView`** /
+	# **`CitiesView`** **`_draw`** are no-ops when wired to TFV — markers are not painted on a second **`CanvasItem`**.
 	$UnitsView.z_index = 0
 	$TerrainForegroundView.scale = Vector2.ONE
 	$TerrainForegroundView.camera = _map_camera
@@ -80,10 +79,12 @@ func _ready() -> void:
 	terrain_foreground.scenario = scenario
 	terrain_foreground.forest_density_ratio = map_view.forest_density_ratio
 	terrain_foreground.foreground_unit_reference_height_ratio = units_view.unit_icon_height_ratio
-	# Phase **4.6p:** cross-wire **before** any **`queue_redraw`** so **`UnitsView._draw`** never paints
-	# markers on the own canvas when **`TerrainForegroundView`** hosts the three-pass forest + units order.
+	# Phase **4.6p:** cross-wire **before** any **`queue_redraw`** so **`UnitsView._draw`** / **`CitiesView._draw`**
+	# skip own-canvas markers when **`TerrainForegroundView`** hosts forest + marker order.
 	terrain_foreground.units_view = units_view
 	terrain_foreground.map_view = map_view
+	terrain_foreground.cities_view = cities_view
+	cities_view.terrain_foreground_view = terrain_foreground
 	units_view.terrain_foreground_view = terrain_foreground
 	var selection_view = $SelectionView
 	selection_view.scenario = scenario

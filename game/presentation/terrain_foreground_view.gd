@@ -29,9 +29,6 @@ const _SALT_FRONT_SYM_BASE: int = 4320
 const _EOM_ENV_DEBUG_FOREST_GRID: String = "EOM_DEBUG_FOREST_GRID"
 const _EOM_ENV_FOREST_GRID_PERFECT: String = "EOM_DEBUG_FOREST_GRID_PERFECT"
 
-const FOREST_FRONT_CLUMP_01: Texture2D = preload("res://assets/prototype/terrain/forest/forest_front_clump_01.png")
-const FOREST_FRONT_CLUMP_02: Texture2D = preload("res://assets/prototype/terrain/forest/forest_front_clump_02.png")
-
 const HexMapScript = preload("res://domain/hex_map.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
@@ -51,14 +48,14 @@ const ForestDebugClustersScript = preload("res://presentation/forest_debug_clust
 @export_range(0.05, 0.55) var unit_occluder_height_ratio: float = 0.28
 ## Multiplies alphas for the **debug** unit-aware mass only (tune if occluder dominates).
 @export_range(0.0, 1.5) var unit_occluder_opacity_scale: float = 0.88
-## **Debug / test only (4.6e):** extra unit-anchored overlay when **true**. Normal look = hex-owned `_draw_plains_forest_front_hex_owned` only.
+## **Debug / test only (4.6e):** extra unit-anchored overlay when **true**. Production forest uses the symbol grid / depth merge, not procedural clumps.
 @export var enable_unit_occlusion_test: bool = false
 ## One-shot: prints PLAINS / decorated counts and density (editor or F5 run); no per-frame spam.
 @export var forest_debug_log_counts_once: bool = false
 ## Phase **4.6g:** **large** **front** **patch**; **off** when **symbol** scatter is primary.
 @export var use_forest_asset_overlays: bool = false
 @export_range(0.0, 1.0) var forest_front_asset_opacity: float = 0.95
-## Phase **4.6h:** **`use_forest_symbol_scatter`** — **forest** **decoration** = composed **scatter** of **tree** **symbol** PNGs (**`tree_symbols/`**); **fallback** **procedural**/ **patch**.
+## Phase **4.6h:** **`use_forest_symbol_scatter`** — **forest** **decoration** = composed **scatter** of **tree** **symbol** PNGs (**`tree_symbols/`**). Legacy procedural / PNG-clump front paths are retired from **`_draw`**.
 @export var use_forest_symbol_scatter: bool = true
 @export_range(0.0, 1.0) var forest_front_symbol_opacity: float = 0.84
 ## **Debug:** log unit draw delegation / cross-wiring once per **`TerrainForegroundView._draw`** when set or **`EOM_DEBUG_UNIT_DRAW=1`**.
@@ -113,6 +110,8 @@ var camera
 ## markers interleave with **each** forest symbol slot by **map-plane depth** (**`MapCamera.to_layout`** on tree **`root_pres`**
 ## vs **`UnitsView.unit_effective_depth_presentation`**). **`UnitsView.draw_unit_marker_at(self, …)`**. **`UnitsView._draw`** early-returns when wired.
 var units_view
+## Phase **4.6q:** city markers **`CitiesView.draw_city_marker_at(self, …)`** in the forest **+** cities **+** units depth merge; **`CitiesView._draw`** early-returns when wired.
+var cities_view
 ## Wired by **`main`** — read **`MapView.debug_plains_back_forest_draw_calls`** for isolated summaries.
 var map_view
 
@@ -595,109 +594,14 @@ func _draw_unit_forest_occluder(anchor_pres: Vector2, side: float, q: int, r: in
 	var ta: float = (0.12 + float((hp >> 13) & 3) * 0.03) * op
 	draw_colored_polygon(tri, Color(0.28, 0.40, 0.20, clampf(ta, 0.0, 1.0)))
 
-func _draw_plains_forest_front_hex_owned(proj, world: Vector2, q: int, r: int, skip_main_for_city: bool) -> void:
-	_fg_sess_frame_front_proc_calls += 1
-	# Phase 4.6e: pscale-scaled clumps around **anchor_pres** (foot/contact = projected hex center). No unit data.
-	# Phase 4.6f: per-primitive alpha multipliers slightly raised for evaluative readability (palette unchanged).
-	var op: float = forest_front_opacity
-	var anchor_pres: Vector2 = proj.to_presentation(world)
-	var pscale: float = proj.perspective_scale_at(world)
-	var base: float = HexLayoutScript.SIZE * pscale
+## **Deprecated:** legacy procedural “proto-forest” front. **Production** **`_draw`** never calls this; signature kept for incremental cleanup / direct test invocation.
+func _draw_plains_forest_front_hex_owned(_proj, _world: Vector2, _q: int, _r: int, _skip_main_for_city: bool) -> void:
+	pass
 
-	var hp: int = PlainsForestScript.cell_mix(q, r, _SALT_MAIN_PLACE)
-	var jx: float = (float(hp % 201) / 100.0 - 1.0) * 0.06 * base
-	var yo: float = 0.02 + _mix255(hp >> 9) * 0.08
-	var jy: float = (float((hp >> 17) % 201) / 100.0 - 1.0) * 0.03 * base
-	var cx: float = anchor_pres.x + jx
-	var cy: float = anchor_pres.y - base * yo + jy
 
-	var hs: int = PlainsForestScript.cell_mix(q, r, _SALT_MAIN_SIZE)
-	var w_main: float = (0.55 + _mix255(hs) * 0.17) * base
-	var h_main: float = (0.30 + _mix255(hs >> 8) * 0.12) * base
-
-	if not skip_main_for_city:
-		var n_main: int = 4 + (PlainsForestScript.cell_mix(q, r, _SALT_MAIN_NCIRC) % 3)
-		var k: int = 0
-		while k < n_main:
-			var hc: int = PlainsForestScript.cell_mix(q, r, _SALT_MAIN_CIRC0 + k)
-			var ox: float = (float(hc % 201) / 100.0 - 1.0) * w_main * 0.88
-			var oy: float = (float((hc >> 9) % 201) / 100.0 - 1.0) * h_main * 0.88
-			var rad: float = (0.18 + _mix255(hc >> 18) * 0.10) * base
-			var ca: float = (0.20 + _mix255(hc >> 2) * 0.16) * op
-			var cr: float = 0.22 + _mix255(hc >> 10) * 0.08
-			var cg: float = 0.40 + _mix255(hc >> 16) * 0.06
-			var cb: float = 0.20 + _mix255(hc >> 24) * 0.06
-			draw_circle(
-				Vector2(cx + ox, cy + oy),
-				rad,
-				Color(cr, cg, cb, clampf(ca, 0.0, 1.0))
-			)
-			k += 1
-		var hpol: int = PlainsForestScript.cell_mix(q, r, _SALT_MAIN_POLY)
-		var pw: float = w_main * 0.65
-		var ph: float = h_main * 0.70
-		var skew: float = deg_to_rad(float((hpol >> 5) % 28) - 14.0)
-		var ck: float = cos(skew)
-		var sk: float = sin(skew)
-		var qa: float = (0.18 + _mix255(hpol >> 13) * 0.12) * op
-		var pr: float = 0.24 + _mix255(hpol) * 0.06
-		var pg: float = 0.42 + _mix255(hpol >> 8) * 0.04
-		var pb: float = 0.22 + _mix255(hpol >> 16) * 0.04
-		var ovl: PackedVector2Array = PackedVector2Array([
-			Vector2(cx, cy) + Vector2(-pw * ck + 0.22 * ph * sk, -pw * sk - 0.22 * ph * ck),
-			Vector2(cx, cy) + Vector2(pw * ck * 0.86 + 0.30 * ph * sk, pw * sk * 0.86 - 0.30 * ph * ck),
-			Vector2(cx, cy) + Vector2(0.12 * pw * ck - ph * sk, 0.12 * pw * sk + ph * ck),
-		])
-		draw_colored_polygon(ovl, Color(pr, pg, pb, clampf(qa, 0.0, 1.0)))
-
-	if (PlainsForestScript.cell_mix(q, r, _SALT_SEC_GATE) & 1) != 0:
-		return
-	var hsec: int = PlainsForestScript.cell_mix(q, r, _SALT_SEC_LAYOUT)
-	var w_s: float = (0.30 + _mix255(hsec) * 0.12) * base
-	var h_s: float = (0.20 + _mix255(hsec >> 8) * 0.08) * base
-	var sign_s: float = -1.0 if ((hsec >> 16) & 1) == 0 else 1.0
-	var off_s: float = (0.30 + _mix255(hsec >> 17) * 0.12) * base
-	var cx2: float = anchor_pres.x + sign_s * off_s
-	var cy2: float = anchor_pres.y + (0.04 + _mix255(hsec >> 1) * 0.06) * base
-	var n_sec: int = 2 + (PlainsForestScript.cell_mix(q, r, _SALT_SEC_NCIRC) % 2)
-	var si: int = 0
-	while si < n_sec:
-		var hsc: int = PlainsForestScript.cell_mix(q, r, _SALT_SEC_CIRC0 + si)
-		var sx: float = (float(hsc % 181) / 90.0 - 1.0) * w_s * 0.82
-		var sy: float = (float((hsc >> 8) % 181) / 90.0 - 1.0) * h_s * 0.82
-		var srad: float = (0.16 + _mix255(hsc >> 16) * 0.12) * base
-		var sa: float = (0.20 + _mix255(hsc >> 1) * 0.16) * op
-		var sr: float = 0.22 + _mix255(hsc >> 10) * 0.08
-		var sg: float = 0.40 + _mix255(hsc >> 18) * 0.06
-		var sb: float = 0.20 + _mix255(hsc >> 24) * 0.06
-		draw_circle(Vector2(cx2 + sx, cy2 + sy), srad, Color(sr, sg, sb, clampf(sa, 0.0, 1.0)))
-		si += 1
-
-func _draw_plains_forest_front_asset(proj, world: Vector2, q: int, r: int) -> void:
-	_fg_sess_frame_front_asset_calls += 1
-	# Phase 4.6g: **hex-owned** front **raster**; **anchor_pres** = foot/contact **reference** (**no** **unit** **data**).
-	var anchor_pres: Vector2 = proj.to_presentation(world)
-	var pscale: float = proj.perspective_scale_at(world)
-	var base: float = HexLayoutScript.SIZE * pscale
-	var hd: int = PlainsForestScript.cell_mix(q, r, _SALT_FRONT_ASSET_DIM)
-	var wmult: float = 1.6 + _mix255(hd) * 0.40
-	var hmult: float = 1.0 + _mix255(hd >> 8) * 0.35
-	var wrect: float = base * wmult
-	var hrect: float = base * hmult
-	var hj: int = PlainsForestScript.cell_mix(q, r, _SALT_FRONT_ASSET_JX)
-	var jx: float = (float(hj % 201) / 100.0 - 1.0) * 0.06 * base
-	var tex: Texture2D = (
-		FOREST_FRONT_CLUMP_01
-		if (PlainsForestScript.cell_mix(q, r, _SALT_FRONT_ASSET_TEX) & 1) == 0
-		else FOREST_FRONT_CLUMP_02
-	)
-	var rect: Rect2 = Rect2(anchor_pres.x - wrect * 0.5 + jx, anchor_pres.y - hrect * 0.60, wrect, hrect)
-	draw_texture_rect(
-		tex,
-		rect,
-		false,
-		Color(1.0, 1.0, 1.0, clampf(forest_front_asset_opacity, 0.0, 1.0))
-	)
+## **Deprecated:** legacy front PNG clumps. **Production** **`_draw`** never calls this.
+func _draw_plains_forest_front_asset(_proj, _world: Vector2, _q: int, _r: int) -> void:
+	pass
 
 
 ## **Tests:** **|x|** in **two-slot** rows, as fraction of **SIZE**.
@@ -1607,11 +1511,17 @@ func _draw_plains_forest_front_symbol_grid_pass(
 func _fg_should_depth_merge_forest_symbol_grid_with_units(symbol_scatter_active: bool) -> bool:
 	if not symbol_scatter_active:
 		return false
-	if units_view == null or not is_instance_valid(units_view):
-		return false
 	if scenario == null:
 		return false
-	return scenario.units().size() > 0
+	var n_u: int = scenario.units().size()
+	var n_c: int = scenario.cities().size()
+	if n_u == 0 and n_c == 0:
+		return false
+	if n_u > 0 and (units_view == null or not is_instance_valid(units_view)):
+		return false
+	if n_c > 0 and (cities_view == null or not is_instance_valid(cities_view)):
+		return false
+	return true
 
 
 func _fg_run_unit_forest_occluder_pass_for_map(coord_list, cam) -> void:
@@ -1654,12 +1564,15 @@ func _fg_depth_merge_item_lt(a: Dictionary, b: Dictionary) -> bool:
 		return true
 	if a["ty"] > b["ty"]:
 		return false
-	if int(a["ty"]) == 0:
+	var ta: int = int(a["ty"])
+	if ta == 0:
 		if int(a["q"]) != int(b["q"]):
 			return int(a["q"]) < int(b["q"])
 		if int(a["r"]) != int(b["r"]):
 			return int(a["r"]) < int(b["r"])
 		return int(a["si"]) < int(b["si"])
+	if ta == 1:
+		return int(a["c"].id) < int(b["c"].id)
 	return int(a["ui"]) < int(b["ui"])
 
 
@@ -1715,6 +1628,29 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 							)
 						sii += 1
 		ci += 1
+	var clistm = scenario.cities()
+	var ci2: int = 0
+	while ci2 < clistm.size():
+		var c2 = clistm[ci2]
+		var c_world2: Vector2 = layout.hex_to_world(c2.position.q, c2.position.r)
+		var c_anchor2: Vector2 = cam.to_presentation(c_world2)
+		var c_ps2: float = cam.perspective_scale_at(c_world2)
+		var c_eff: Vector2 = cities_view.city_effective_depth_presentation(
+			c_anchor2, c_ps2
+		)
+		var clayer: Vector2 = cam.to_layout(c_eff)
+		items.append(
+			{
+				"ty": 1,
+				"sy": clayer.y,
+				"sx": clayer.x,
+				"c": c2,
+				"c_anchor": c_anchor2,
+				"c_pscale": c_ps2,
+				"c_world": c_world2,
+			}
+		)
+		ci2 += 1
 	var ulistm = scenario.units()
 	var ui2: int = 0
 	while ui2 < ulistm.size():
@@ -1730,7 +1666,7 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 		var ulayer: Vector2 = cam.to_layout(eff2)
 		items.append(
 			{
-				"ty": 1,
+				"ty": 2,
 				"sy": ulayer.y,
 				"sx": ulayer.x,
 				"ui": ui2,
@@ -1761,6 +1697,14 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 				)
 			if it["log_hex"] and n_drawn > 0:
 				_fg_sess_detail_grid_acc += n_drawn
+		elif int(it["ty"]) == 1:
+			cities_view.draw_city_marker_at(
+				self,
+				it["c_world"],
+				it["c_anchor"],
+				it["c_pscale"],
+				int(it["c"].owner_id)
+			)
 		else:
 			var umi = it["u"]
 			units_view.draw_unit_marker_at(
@@ -2281,70 +2225,70 @@ func _draw() -> void:
 		var terrain: int = int(map.terrain_at(coord))
 		if terrain == HexMapScript.Terrain.PLAINS:
 			if _fg_hex_has_forest_decoration_for_draw(coord.q, coord.r):
-				var world: Vector2 = layout.hex_to_world(coord.q, coord.r)
-				_reload_forest_tree_symbols_if_needed()
-				var skip_main: bool = _should_skip_main_clump_for_city(coord)
-				var allow_iso: bool = _fg_isolated_draw_this_hex(coord.q, coord.r)
-				var log_hex: bool = (
-					_fg_sess_roots_detail_log
-					and _fg_sess_detail_hex_chosen
-					and coord.q == _fg_sess_detail_q
-					and coord.r == _fg_sess_detail_r
-				)
-				if resolved_forest_grid_debug_isolated():
-					if not symbol_scatter_active:
-						if not _fg_warned_isolated_no_symbols:
-							_fg_warned_isolated_no_symbols = true
-							push_warning(
-								"TerrainForegroundView: forest_grid_debug_isolated needs use_forest_symbol_scatter plus loadable tree_symbol_01..20; skipping TFV forest draws."
+				if not do_forest_unit_depth_merge:
+					var world: Vector2 = layout.hex_to_world(coord.q, coord.r)
+					_reload_forest_tree_symbols_if_needed()
+					var allow_iso: bool = _fg_isolated_draw_this_hex(coord.q, coord.r)
+					var log_hex: bool = (
+						_fg_sess_roots_detail_log
+						and _fg_sess_detail_hex_chosen
+						and coord.q == _fg_sess_detail_q
+						and coord.r == _fg_sess_detail_r
+					)
+					if resolved_forest_grid_debug_isolated():
+						if not symbol_scatter_active:
+							if not _fg_warned_isolated_no_symbols:
+								_fg_warned_isolated_no_symbols = true
+								push_warning(
+									"TerrainForegroundView: forest_grid_debug_isolated needs use_forest_symbol_scatter plus loadable tree_symbol_01..20; skipping TFV forest draws."
+								)
+						elif allow_iso:
+							var up_iso: int = _draw_plains_forest_front_symbol_grid_pass(
+								camera, world, coord.q, coord.r, true, log_hex
 							)
-					elif allow_iso and not do_forest_unit_depth_merge:
-						var up_iso: int = _draw_plains_forest_front_symbol_grid_pass(
+							_fg_sess_frame_grid_textures += up_iso
+							if resolved_forest_grid_debug_isolated() and up_iso > 0:
+								_fg_isolated_drawn_hex_keys["%d,%d" % [coord.q, coord.r]] = true
+							if log_hex:
+								_fg_sess_detail_grid_acc += up_iso
+					elif symbol_scatter_active:
+						var up_n: int = _draw_plains_forest_front_symbol_grid_pass(
 							camera, world, coord.q, coord.r, true, log_hex
 						)
-						_fg_sess_frame_grid_textures += up_iso
-						if resolved_forest_grid_debug_isolated() and up_iso > 0:
-							_fg_isolated_drawn_hex_keys["%d,%d" % [coord.q, coord.r]] = true
+						_fg_sess_frame_grid_textures += up_n
 						if log_hex:
-							_fg_sess_detail_grid_acc += up_iso
-				elif symbol_scatter_active and not do_forest_unit_depth_merge:
-					var up_n: int = _draw_plains_forest_front_symbol_grid_pass(
-						camera, world, coord.q, coord.r, true, log_hex
-					)
-					_fg_sess_frame_grid_textures += up_n
-					if log_hex:
-						_fg_sess_detail_grid_acc += up_n
-				elif use_forest_asset_overlays:
-					if skip_main:
-						_draw_plains_forest_front_hex_owned(
-							camera, world, coord.q, coord.r, true
-						)
-					else:
-						_draw_plains_forest_front_asset(camera, world, coord.q, coord.r)
-				else:
-					_draw_plains_forest_front_hex_owned(
-						camera, world, coord.q, coord.r, skip_main
-					)
-				if (
-					(not do_forest_unit_depth_merge)
-					and enable_unit_occlusion_test
-					and scenario != null
-					and not resolved_forest_grid_debug_isolated()
-				):
+							_fg_sess_detail_grid_acc += up_n
 					if (
-						scenario.cities_at(coord).size() == 0
-						and scenario.units_at(coord).size() > 0
+						enable_unit_occlusion_test
+						and scenario != null
+						and not resolved_forest_grid_debug_isolated()
 					):
-						var anchor_pres_u: Vector2 = camera.to_presentation(world)
-						var pscale_u: float = camera.perspective_scale_at(world)
-						var hex_h: float = HexLayoutScript.SIZE * 2.0
-						var side_u: float = (
-							hex_h * foreground_unit_reference_height_ratio * pscale_u
-						)
-						_draw_unit_forest_occluder(anchor_pres_u, side_u, coord.q, coord.r)
-						_fg_sess_unit_occluder_draws += 1
+						if (
+							scenario.cities_at(coord).size() == 0
+							and scenario.units_at(coord).size() > 0
+						):
+							var anchor_pres_u: Vector2 = camera.to_presentation(world)
+							var pscale_u: float = camera.perspective_scale_at(world)
+							var hex_h: float = HexLayoutScript.SIZE * 2.0
+							var side_u: float = (
+								hex_h * foreground_unit_reference_height_ratio * pscale_u
+							)
+							_draw_unit_forest_occluder(anchor_pres_u, side_u, coord.q, coord.r)
+							_fg_sess_unit_occluder_draws += 1
 		idx += 1
-	# Phase **4.6p — pass 2:** units (**foot** = projected **hex center**, layout **y = 0** in local space for the band).
+	# Phase **4.6p — pass 2:** city markers, then units (**foot** = projected **hex center** …), when not depth-merged.
+	if cities_view != null and scenario != null and not do_forest_unit_depth_merge:
+		var clist_p2 = scenario.cities()
+		var ci_p2: int = 0
+		while ci_p2 < clist_p2.size():
+			var cp = clist_p2[ci_p2]
+			var c_world_p2: Vector2 = layout.hex_to_world(cp.position.q, cp.position.r)
+			var c_anchor_p2: Vector2 = camera.to_presentation(c_world_p2)
+			var c_pscale_p2: float = camera.perspective_scale_at(c_world_p2)
+			cities_view.draw_city_marker_at(
+				self, c_world_p2, c_anchor_p2, c_pscale_p2, int(cp.owner_id)
+			)
+			ci_p2 += 1
 	if units_view != null and scenario != null and not do_forest_unit_depth_merge:
 		var ulist = scenario.units()
 		var ui: int = 0
@@ -2425,65 +2369,62 @@ func _draw() -> void:
 		var terr_c: int = int(map.terrain_at(coord_c))
 		if terr_c == HexMapScript.Terrain.PLAINS:
 			if _fg_hex_has_forest_decoration_for_draw(coord_c.q, coord_c.r):
-				var world_c: Vector2 = layout.hex_to_world(coord_c.q, coord_c.r)
-				_reload_forest_tree_symbols_if_needed()
-				var skip_c: bool = _should_skip_main_clump_for_city(coord_c)
-				var allow_iso_c: bool = _fg_isolated_draw_this_hex(coord_c.q, coord_c.r)
-				var log_hex_c: bool = (
-					_fg_sess_roots_detail_log
-					and _fg_sess_detail_hex_chosen
-					and coord_c.q == _fg_sess_detail_q
-					and coord_c.r == _fg_sess_detail_r
-				)
-				if resolved_forest_grid_debug_isolated():
-					if (
-						symbol_scatter_active
-						and allow_iso_c
-						and not do_forest_unit_depth_merge
-					):
-						if skip_c:
-							if (
-								log_hex_c
-								and not _fg_sess_detail_totals_printed
-							):
-								_fg_sess_detail_totals_printed = true
-								_fg_print_sample_hex_grid_summary(coord_c.q, coord_c.r)
-						else:
-							var lo_iso: int = _draw_plains_forest_front_symbol_grid_pass(
-								camera, world_c, coord_c.q, coord_c.r, false, log_hex_c
-							)
-							_fg_sess_frame_grid_textures += lo_iso
-							if resolved_forest_grid_debug_isolated() and lo_iso > 0:
-								_fg_isolated_drawn_hex_keys[
-									"%d,%d" % [coord_c.q, coord_c.r]
-								] = true
-							if log_hex_c:
-								_fg_sess_detail_grid_acc += lo_iso
-								if not _fg_sess_detail_totals_printed:
-									_fg_sess_detail_totals_printed = true
-									_fg_print_sample_hex_grid_summary(
-										coord_c.q, coord_c.r
-									)
-				elif symbol_scatter_active and skip_c and not do_forest_unit_depth_merge:
-					if (
+				if not do_forest_unit_depth_merge:
+					var world_c: Vector2 = layout.hex_to_world(coord_c.q, coord_c.r)
+					_reload_forest_tree_symbols_if_needed()
+					var skip_c: bool = _should_skip_main_clump_for_city(coord_c)
+					var allow_iso_c: bool = _fg_isolated_draw_this_hex(coord_c.q, coord_c.r)
+					var log_hex_c: bool = (
 						_fg_sess_roots_detail_log
 						and _fg_sess_detail_hex_chosen
 						and coord_c.q == _fg_sess_detail_q
 						and coord_c.r == _fg_sess_detail_r
-						and not _fg_sess_detail_totals_printed
-					):
-						_fg_sess_detail_totals_printed = true
-						_fg_print_sample_hex_grid_summary(coord_c.q, coord_c.r)
-				elif symbol_scatter_active and not skip_c and not do_forest_unit_depth_merge:
-					var lo_n: int = _draw_plains_forest_front_symbol_grid_pass(
-						camera, world_c, coord_c.q, coord_c.r, false, log_hex_c
 					)
-					_fg_sess_frame_grid_textures += lo_n
-					if log_hex_c:
-						_fg_sess_detail_grid_acc += lo_n
-						if not _fg_sess_detail_totals_printed:
+					if resolved_forest_grid_debug_isolated():
+						if symbol_scatter_active and allow_iso_c:
+							if skip_c:
+								if (
+									log_hex_c
+									and not _fg_sess_detail_totals_printed
+								):
+									_fg_sess_detail_totals_printed = true
+									_fg_print_sample_hex_grid_summary(coord_c.q, coord_c.r)
+							else:
+								var lo_iso: int = _draw_plains_forest_front_symbol_grid_pass(
+									camera, world_c, coord_c.q, coord_c.r, false, log_hex_c
+								)
+								_fg_sess_frame_grid_textures += lo_iso
+								if resolved_forest_grid_debug_isolated() and lo_iso > 0:
+									_fg_isolated_drawn_hex_keys[
+										"%d,%d" % [coord_c.q, coord_c.r]
+									] = true
+								if log_hex_c:
+									_fg_sess_detail_grid_acc += lo_iso
+									if not _fg_sess_detail_totals_printed:
+										_fg_sess_detail_totals_printed = true
+										_fg_print_sample_hex_grid_summary(
+											coord_c.q, coord_c.r
+										)
+					elif symbol_scatter_active and skip_c:
+						if (
+							_fg_sess_roots_detail_log
+							and _fg_sess_detail_hex_chosen
+							and coord_c.q == _fg_sess_detail_q
+							and coord_c.r == _fg_sess_detail_r
+							and not _fg_sess_detail_totals_printed
+						):
 							_fg_sess_detail_totals_printed = true
 							_fg_print_sample_hex_grid_summary(coord_c.q, coord_c.r)
+					elif symbol_scatter_active:
+						var lo_n: int = _draw_plains_forest_front_symbol_grid_pass(
+							camera, world_c, coord_c.q, coord_c.r, false, log_hex_c
+						)
+						_fg_sess_frame_grid_textures += lo_n
+						if log_hex_c:
+							_fg_sess_detail_grid_acc += lo_n
+							if not _fg_sess_detail_totals_printed:
+								_fg_sess_detail_totals_printed = true
+								_fg_print_sample_hex_grid_summary(coord_c.q, coord_c.r)
 		idx += 1
 	_fg_flush_debug_overlay_top()
 	if resolved_forest_grid_debug_isolated():
