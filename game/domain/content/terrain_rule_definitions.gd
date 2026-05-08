@@ -7,7 +7,7 @@ const _HexMapScript = preload("res://domain/hex_map.gd")
 
 const TERRAIN_ID_UNKNOWN: String = ""
 
-const _ORDERED_IDS: Array = ["plains", "water"]
+const _ORDERED_IDS: Array = ["plains", "water", "grassland"]
 
 const _DEFINITIONS: Dictionary = {
 	"plains":
@@ -25,6 +25,14 @@ const _DEFINITIONS: Dictionary = {
 		"passable": false,
 		"movement_cost": 999,
 		"role": "blocked",
+	},
+	"grassland":
+	{
+		"id": "grassland",
+		"display_name": "Grassland",
+		"passable": true,
+		"movement_cost": 1,
+		"role": "default_land",
 	},
 }
 
@@ -62,6 +70,8 @@ static func terrain_id_for_hex_map_value(value: int) -> String:
 		return "plains"
 	if value == _HexMapScript.Terrain.WATER:
 		return "water"
+	if value == _HexMapScript.Terrain.GRASSLAND:
+		return "grassland"
 	return TERRAIN_ID_UNKNOWN
 
 

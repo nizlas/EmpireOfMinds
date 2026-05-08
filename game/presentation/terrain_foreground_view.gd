@@ -114,6 +114,9 @@ var units_view
 var cities_view
 ## Wired by **`main`** — read **`MapView.debug_plains_back_forest_draw_calls`** for isolated summaries.
 var map_view
+## Prototype / visual-review only: when non-empty, forest decoration gates use this hex set instead of `forest_density_ratio`.
+## Not gameplay forest, not a production biome. Wired from **`main`** for **`HexMap.make_prototype_play_map`** only; keep `{}` elsewhere.
+var forest_decoration_override: Dictionary = {}
 
 
 ## **[Phase A]** **`forest_grid_debug_isolated`** resolved for **`MapView`** suppression and TFV gating.
@@ -170,7 +173,9 @@ func _fg_hex_has_forest_decoration_for_draw(q: int, r: int) -> bool:
 	if visual_mode == VisualMode.FOREST_CLUSTER_DEBUG:
 		if ForestDebugClustersScript.is_cluster_hex(q, r):
 			return true
-	return PlainsForestScript.is_plains_forest_decorated(q, r, forest_density_ratio)
+	return PlainsForestScript.is_plains_forest_decorated_with_override(
+		q, r, forest_density_ratio, forest_decoration_override
+	)
 
 
 ## **Six-row 2/3/5/5/3/2 lattice:** authoritative **`P = _GRID_ROW_PITCH_FRAC × HexLayout.SIZE`**. Row **y** = **(−2.5 … +2.5) × P** in half-P steps. Derived **production** circle edge gap = **`P − 2×R_jitter`**. (Legacy: **10** slots **2/3/3/2** with **(−1.5…+1.5)×P**.)
@@ -513,7 +518,9 @@ func _fg_pick_sample_decorated_plains_hex(coord_list) -> void:
 	while i < coord_list.size():
 		var c = coord_list[i]
 		if int(map.terrain_at(c)) == HexMapScript.Terrain.PLAINS:
-			if PlainsForestScript.is_plains_forest_decorated(c.q, c.r, forest_density_ratio):
+			if PlainsForestScript.is_plains_forest_decorated_with_override(
+				c.q, c.r, forest_density_ratio, forest_decoration_override
+			):
 				_fg_sess_detail_q = c.q
 				_fg_sess_detail_r = c.r
 				_fg_sess_detail_hex_chosen = true
@@ -2096,7 +2103,9 @@ func _draw() -> void:
 			var c = cl[ii]
 			if int(map.terrain_at(c)) == HexMapScript.Terrain.PLAINS:
 				plains_n += 1
-				if PlainsForestScript.is_plains_forest_decorated(c.q, c.r, forest_density_ratio):
+				if PlainsForestScript.is_plains_forest_decorated_with_override(
+					c.q, c.r, forest_density_ratio, forest_decoration_override
+				):
 					dec_n += 1
 			ii += 1
 		print(

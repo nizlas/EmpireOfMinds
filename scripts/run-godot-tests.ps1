@@ -44,6 +44,8 @@ $GodotExe = Get-GodotExecutable
 $Tests = @(
 	"res://domain/tests/test_hex_coord.gd",
 	"res://domain/tests/test_hex_map.gd",
+	"res://domain/tests/test_hex_map_landform.gd",
+	"res://domain/tests/test_prototype_play_map_distribution.gd",
 	"res://domain/tests/test_unit.gd",
 	"res://domain/tests/test_unit_definitions.gd",
 	"res://domain/tests/test_terrain_rule_definitions.gd",
@@ -75,6 +77,7 @@ $Tests = @(
 	"res://domain/tests/test_end_turn.gd",
 	"res://domain/tests/test_turn_flow.gd",
 	"res://presentation/tests/test_map_view_draw.gd",
+	"res://presentation/tests/test_prototype_forest_clusters.gd",
 	"res://presentation/tests/test_map_plane_projection.gd",
 	"res://presentation/tests/test_map_camera.gd",
 	"res://presentation/tests/test_units_view_draw.gd",

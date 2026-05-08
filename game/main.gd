@@ -12,6 +12,7 @@ const MapCameraScript = preload("res://presentation/map_camera.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
 const GameStateScript = preload("res://domain/game_state.gd")
 const FactionBannerGalleryScript = preload("res://presentation/faction_banner_gallery.gd")
+const PlainsForestScript = preload("res://presentation/plains_forest_decoration.gd")
 ## Phase 4.5n: mouse-wheel zoom multiplier (center-anchored in layer-local space; not cursor-anchored).
 const ZOOM_STEP: float = 1.10
 
@@ -79,6 +80,10 @@ func _ready() -> void:
 	terrain_foreground.scenario = scenario
 	terrain_foreground.forest_density_ratio = map_view.forest_density_ratio
 	terrain_foreground.foreground_unit_reference_height_ratio = units_view.unit_icon_height_ratio
+	# Prototype play map only: deterministic forest clusters for visual review (not gameplay / not biome rules).
+	var proto_forest_override: Dictionary = PlainsForestScript.prototype_forest_cluster_set()
+	map_view.forest_decoration_override = proto_forest_override
+	terrain_foreground.forest_decoration_override = proto_forest_override
 	# Phase **4.6p:** cross-wire **before** any **`queue_redraw`** so **`UnitsView._draw`** / **`CitiesView._draw`**
 	# skip own-canvas markers when **`TerrainForegroundView`** hosts forest + marker order.
 	terrain_foreground.units_view = units_view

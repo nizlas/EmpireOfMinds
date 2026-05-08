@@ -41,16 +41,6 @@ script = ExtResource("4_unitsview")
 [node name="TerrainForegroundView" type="Node2D" parent="." unique_id=555384625]
 position = Vector2(400, 428)
 script = ExtResource("11_terrainforeground")
-visual_mode = 0
-debug_draw_effective_depth_points = false
-debug_draw_unit_png_bottom_center = false
-forest_grid_debug_log = false
-forest_grid_debug_draw_roots = false
-forest_grid_debug_draw_jitter_circles = false
-forest_grid_debug_draw_jitter_displacement_vectors = false
-forest_grid_debug_log_grid_jitter_slots = false
-forest_grid_debug_trace_pipeline = false
-forest_grid_debug_draw_slot_labels = false
 
 [node name="SelectionController" type="Node2D" parent="." unique_id=293165801]
 position = Vector2(400, 428)

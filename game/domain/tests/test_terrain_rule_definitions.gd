@@ -11,15 +11,19 @@ var _any_fail = false
 func _init() -> void:
 	_check(TerrainRuleDefinitionsScript.has("plains"), "has plains")
 	_check(TerrainRuleDefinitionsScript.has("water"), "has water")
+	_check(TerrainRuleDefinitionsScript.has("grassland"), "has grassland")
 	_check(not TerrainRuleDefinitionsScript.has("forest"), "no forest")
 
 	var ids0 = TerrainRuleDefinitionsScript.ids() as Array
-	_check(ids0.size() == 2 and ids0[0] == "plains" and ids0[1] == "water", "ids order")
+	_check(
+		ids0.size() == 3 and ids0[0] == "plains" and ids0[1] == "water" and ids0[2] == "grassland",
+		"ids order"
+	)
 
 	ids0.append("bogus")
 	var ids1 = TerrainRuleDefinitionsScript.ids() as Array
 	_check(
-		ids1.size() == 2 and ids1[0] == "plains" and ids1[1] == "water",
+		ids1.size() == 3 and ids1[0] == "plains" and ids1[1] == "water" and ids1[2] == "grassland",
 		"ids duplicate safe"
 	)
 
@@ -37,6 +41,13 @@ func _init() -> void:
 	_check(int(dw["movement_cost"]) == 999, "water movement_cost")
 	_check(dw["role"] == "blocked", "water role")
 
+	var dg = TerrainRuleDefinitionsScript.get_definition("grassland") as Dictionary
+	_check(dg["id"] == "grassland", "grassland id")
+	_check(dg["display_name"] == "Grassland", "grassland display_name")
+	_check(bool(dg["passable"]), "grassland passable")
+	_check(int(dg["movement_cost"]) == 1, "grassland movement_cost")
+	_check(dg["role"] == "default_land", "grassland role")
+
 	_check(TerrainRuleDefinitionsScript.get_definition("nope") == null, "unknown null")
 
 	var dup1 = TerrainRuleDefinitionsScript.get_definition("plains") as Dictionary
@@ -46,10 +57,12 @@ func _init() -> void:
 
 	_check(TerrainRuleDefinitionsScript.is_passable("plains"), "is_passable plains")
 	_check(not TerrainRuleDefinitionsScript.is_passable("water"), "is_passable water")
+	_check(TerrainRuleDefinitionsScript.is_passable("grassland"), "is_passable grassland")
 	_check(not TerrainRuleDefinitionsScript.is_passable("nope"), "is_passable unknown")
 
 	_check(TerrainRuleDefinitionsScript.movement_cost("plains") == 1, "cost plains")
 	_check(TerrainRuleDefinitionsScript.movement_cost("water") == 999, "cost water")
+	_check(TerrainRuleDefinitionsScript.movement_cost("grassland") == 1, "cost grassland")
 	_check(TerrainRuleDefinitionsScript.movement_cost("nope") == 999, "cost unknown")
 
 	_check(
@@ -62,11 +75,20 @@ func _init() -> void:
 		== "water",
 		"enum water id"
 	)
+	_check(
+		TerrainRuleDefinitionsScript.terrain_id_for_hex_map_value(HexMapScript.Terrain.GRASSLAND)
+		== "grassland",
+		"enum grassland id"
+	)
 	_check(TerrainRuleDefinitionsScript.terrain_id_for_hex_map_value(99) == "", "unknown enum id")
 
 	_check(
 		TerrainRuleDefinitionsScript.is_passable_hex_map_value(HexMapScript.Terrain.PLAINS),
 		"hex passable plains"
+	)
+	_check(
+		TerrainRuleDefinitionsScript.is_passable_hex_map_value(HexMapScript.Terrain.GRASSLAND),
+		"hex passable grassland"
 	)
 	_check(
 		not TerrainRuleDefinitionsScript.is_passable_hex_map_value(HexMapScript.Terrain.WATER),

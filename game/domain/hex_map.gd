@@ -9,13 +9,20 @@ const _HexCoordT = preload("res://domain/hex_coord.gd")
 const _HEX_MAP_SCRIPT = preload("res://domain/hex_map.gd")
 
 ## Tag only in Phase 1.2 — no movement cost, visibility, or resources.
-enum Terrain { PLAINS, WATER }
+## Append-only: existing enum values stay stable.
+enum Terrain { PLAINS, WATER, GRASSLAND }
+
+## Visual / data only — not interpreted by movement rules in the current slice.
+enum Landform { FLAT, HILLS }
 
 var _cells: Dictionary
+var _landforms: Dictionary
 
-func _init(cells: Dictionary = {}) -> void:
+
+func _init(cells: Dictionary = {}, landforms: Dictionary = {}) -> void:
 	# Shallow copy: caller cannot mutate the map after construction via the same dict reference.
 	_cells = cells.duplicate()
+	_landforms = landforms.duplicate()
 
 func has(coord: _HexCoordT) -> bool:
 	return _cells.has(Vector2i(coord.q, coord.r))
@@ -23,6 +30,13 @@ func has(coord: _HexCoordT) -> bool:
 func terrain_at(coord: _HexCoordT) -> int:
 	assert(has(coord), "terrain_at called for missing coordinate")
 	return _cells[Vector2i(coord.q, coord.r)]
+
+func landform_at(coord: _HexCoordT) -> int:
+	assert(has(coord), "landform_at called for missing coordinate")
+	var k: Vector2i = Vector2i(coord.q, coord.r)
+	if not _landforms.has(k):
+		return Landform.FLAT
+	return int(_landforms[k])
 
 func size() -> int:
 	return _cells.size()
@@ -49,20 +63,44 @@ static func make_tiny_test_map():
 	# new(c) is not available from static in GDScript; self-preload avoids global "HexMap" at compile time.
 	return _HEX_MAP_SCRIPT.new(c)
 
-## Phase 4.5l — larger axial disk for editor pan / perspective testing. Tests keep `make_tiny_test_map` (7 cells). Radius R = 5 → 91 cells; terrain pattern matches tiny: (-1,0) WATER, else PLAINS.
+## Phase 4.5l — larger axial disk for editor pan / perspective testing. Tests keep `make_tiny_test_map` (7 cells).
+## R = 7 → 169 cells. Hand-authored sectors; (-1,0) and a small lake are WATER; (0,0) PLAINS + FLAT.
 static func make_prototype_play_map():
-	var R: int = 5
+	var R: int = 7
+	var lake: Array[Vector2i] = [
+		Vector2i(-1, 0),
+		Vector2i(-2, 0),
+		Vector2i(-2, 1),
+		Vector2i(-1, -1),
+		Vector2i(-3, 0),
+	]
+	var lake_set: Dictionary = {}
+	for h in lake:
+		lake_set[h] = true
 	var c: Dictionary = {}
+	var lf: Dictionary = {}
 	var q: int = -R
 	while q <= R:
 		var r: int = -R
 		while r <= R:
 			var dist: int = (abs(q) + abs(r) + abs(q + r)) / 2
 			if dist <= R:
-				var t = Terrain.PLAINS
-				if q == -1 and r == 0:
-					t = Terrain.WATER
-				c[Vector2i(q, r)] = t
+				if q == 0 and r == 0:
+					c[Vector2i(q, r)] = Terrain.PLAINS
+				elif lake_set.has(Vector2i(q, r)):
+					c[Vector2i(q, r)] = Terrain.WATER
+				elif q + r > 0 and q >= 0:
+					c[Vector2i(q, r)] = Terrain.GRASSLAND
+				elif q + r < 0 and q <= 0:
+					c[Vector2i(q, r)] = Terrain.PLAINS
+				elif q > 0 and q + r <= 0:
+					c[Vector2i(q, r)] = Terrain.PLAINS
+					lf[Vector2i(q, r)] = Landform.HILLS
+				elif q < 0 and q + r >= 0:
+					c[Vector2i(q, r)] = Terrain.GRASSLAND
+					lf[Vector2i(q, r)] = Landform.HILLS
+				else:
+					c[Vector2i(q, r)] = Terrain.PLAINS
 			r = r + 1
 		q = q + 1
-	return _HEX_MAP_SCRIPT.new(c)
+	return _HEX_MAP_SCRIPT.new(c, lf)

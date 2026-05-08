@@ -12,6 +12,8 @@ const MapCameraScript = preload("res://presentation/map_camera.gd")
 
 const _CITY_MARKER_PATH = "res://assets/prototype/map_markers/city_marker.png"
 
+## **Debug:** last **`CitiesView._draw`** count when markers draw on **`self`** (not when delegated to **TFV**).
+static var debug_last_city_markers_drawn_on_own_canvas: int = 0
 ## **Debug:** last **`CitiesView._draw`** delegation when wired to **`TerrainForegroundView`**.
 static var debug_last_draw_delegated: bool = false
 
@@ -140,6 +142,7 @@ func draw_city_marker_at(
 
 func _draw() -> void:
 	CitiesView.debug_last_draw_delegated = false
+	CitiesView.debug_last_city_markers_drawn_on_own_canvas = 0
 	if delegates_city_markers_to_terrain_foreground():
 		CitiesView.debug_last_draw_delegated = true
 		return
@@ -157,3 +160,4 @@ func _draw() -> void:
 		var pscale: float = camera.perspective_scale_at(world_center)
 		draw_city_marker_at(self, world_center, anchor_pres, pscale, int(item["owner_id"]))
 		j = j + 1
+	CitiesView.debug_last_city_markers_drawn_on_own_canvas = items.size()

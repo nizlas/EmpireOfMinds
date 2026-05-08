@@ -49,6 +49,15 @@ func _init() -> void:
 			hasW = true
 	_check(has00, "coords() should include (0, 0)")
 	_check(hasW, "coords() should include (-1, 0) (W water tile)")
+	# Optional landforms dict defaults to FLAT; explicit HILLS per cell.
+	var cells_m = {
+		Vector2i(0, 0): HexMapScript.Terrain.PLAINS,
+		Vector2i(1, 0): HexMapScript.Terrain.GRASSLAND,
+	}
+	var lf_m = {Vector2i(0, 0): HexMapScript.Landform.HILLS}
+	var mm = HexMapScript.new(cells_m, lf_m)
+	_check(mm.landform_at(HexCoordScript.new(0, 0)) == HexMapScript.Landform.HILLS, "explicit HILLS")
+	_check(mm.landform_at(HexCoordScript.new(1, 0)) == HexMapScript.Landform.FLAT, "missing landform => FLAT")
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:
