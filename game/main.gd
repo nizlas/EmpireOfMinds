@@ -138,6 +138,9 @@ func _ready() -> void:
 	end_turn_controller.city_production_panel = city_production_panel
 	ai_turn_controller.city_production_panel = city_production_panel
 	city_production_panel.refresh()
+	var discovery_popup = $HudCanvas/DiscoveryPopup
+	discovery_popup.game_state = game_state
+	selection_controller.discovery_popup = discovery_popup
 	_faction_banner_gallery = FactionBannerGalleryScript.new()
 	add_child(_faction_banner_gallery)
 	_redraw_map_layers()

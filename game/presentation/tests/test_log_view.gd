@@ -135,10 +135,7 @@ func _init() -> void:
 			],
 		}
 	)
-	_check(
-		cp_fmt == "[5] P0 complete_progress foraging_systems (+4 unlocks)",
-		"complete_progress format with unlocks"
-	)
+	_check(cp_fmt == "[5] P0 Foraging Systems completed", "complete_progress no city_project train lines")
 	var cp_fmt0 = LogViewScript.format_entry(
 		{
 			"index": 5,
@@ -147,10 +144,35 @@ func _init() -> void:
 			"progress_id": "foraging_systems",
 		}
 	)
-	_check(
-		cp_fmt0 == "[5] P0 complete_progress foraging_systems (+0 unlocks)",
-		"complete_progress format missing unlocks"
+	_check(cp_fmt0 == "[5] P0 Foraging Systems completed", "complete_progress missing unlocks array")
+	const _UNLOCK_IND = "       "
+	var cp_settler = LogViewScript.format_entry(
+		{
+			"index": 5,
+			"action_type": "complete_progress",
+			"actor_id": 0,
+			"progress_id": "controlled_fire",
+			"unlocked_targets": [
+				{"target_type": "city_project", "target_id": "produce_unit:settler"},
+				{"target_type": "building", "target_id": "hearth"},
+			],
+		}
 	)
+	var expect_settler = "[5] P0 Controlled Fire completed\n%sUnlocked: Train Settler" % _UNLOCK_IND
+	_check(cp_settler == expect_settler, "complete_progress settler unlock line + seven-space indent")
+	var cp_warrior = LogViewScript.format_entry(
+		{
+			"index": 1,
+			"action_type": "complete_progress",
+			"actor_id": 0,
+			"progress_id": "stone_tools",
+			"unlocked_targets": [
+				{"target_type": "city_project", "target_id": "produce_unit:warrior"},
+			],
+		}
+	)
+	var expect_warrior = "[1] P0 Stone Tools completed\n%sUnlocked: Train Warrior" % _UNLOCK_IND
+	_check(cp_warrior == expect_warrior, "complete_progress warrior city_project mapping")
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

@@ -31,6 +31,7 @@ var terrain_foreground_view
 var turn_label
 var log_view
 var city_production_panel
+var discovery_popup
 @export var marker_hit_radius_ratio: float = 0.35
 
 ## Sentinels for **shared city / own-unit hex** click alternation (see **plan_shared_hex_pick**).
@@ -217,6 +218,8 @@ func _unhandled_input(event):
 				if log_view != null:
 					log_view.refresh()
 				_refresh_city_production_panel()
+				if discovery_popup != null:
+					discovery_popup.maybe_show_for_log_index(int(result["index"]))
 			else:
 				push_warning("CompleteProgress rejected: %s" % result["reason"])
 			return
@@ -232,6 +235,8 @@ func _unhandled_input(event):
 				if log_view != null:
 					log_view.refresh()
 				_refresh_city_production_panel()
+				if discovery_popup != null:
+					discovery_popup.maybe_show_for_log_index(int(result_h["index"]))
 			else:
 				push_warning("CompleteProgress (detector) rejected: %s" % result_h["reason"])
 			return

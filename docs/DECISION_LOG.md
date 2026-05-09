@@ -1,3 +1,19 @@
+## 2026-05-09 — Phase 5.1.7 — Discovery unlock popup (HudCanvas)
+
+- **Decision:** Add **[discovery_popup.gd](../game/presentation/discovery_popup.gd)** under **`HudCanvas`**: after **accepted** **`CompleteProgress`** from **`SelectionController`** (**`KEY_G`** / **`KEY_H`** only), **`maybe_show_for_log_index(int(try_apply["index"]))`** loads **`game_state.log.get_entry(index)`** and shows a **dismissible** panel when **`compute_view_model`** sees **`complete_progress`** with at least one **5.1.6-equivalent** **`city_project` / `produce_unit:*`** unlock; **`compute_view_model(log_entry)`** takes an **untyped** parameter so **`null`** and non-**`Dictionary`** inputs return **`visible: false`** without coercion errors, and **hidden** view models **do not** mutate existing popup visibility (**no** queue). **`controlled_fire`** uses fixed title (**`Discovery completed`**), heading, body, and **Unlocked:** bullets; other **`progress_id`** values with visible train unlocks use a **generic** body/heading. **No** domain / registry / **`LogView`** / production-panel / turn-controller edits.
+
+- **Rationale:** **5.1.6** log lines are **debug-adjacent**; a short **HUD** acknowledgment makes **Train Settler**-class unlocks legible without reading the tail log.
+
+- **Caveat:** Only **manual** **`KEY_G`** / **`KEY_H`** paths trigger the hook; other **`try_apply`** sites stay unchanged this phase.
+
+## 2026-05-09 — Phase 5.1.6 — Unlock feedback cue (LogView)
+
+- **Decision:** **[log_view.gd](../game/presentation/log_view.gd)** `format_entry` for **`complete_progress`** prints **`[<i>] P<p> <Humanized progress_id> completed`**, then one line per eligible unlock: **`       Unlocked: Train <Suffix>`** — **exactly seven ASCII spaces** before **`Unlocked`**. Only **`unlocked_targets`** rows with **`target_type` `city_project`** and **`target_id`** starting **`produce_unit:`** participate; **`buildings`**, **`modifiers`**, etc. stay hidden in this slice. String humanization only — **no** **`ProgressDefinitions`** / registry reads; **no** action log schema change.
+
+- **Rationale:** **5.1.0–5.1.3** loop is playable; players need a **visible** cue when **Train Settler** becomes legal without popups or city-panel churn.
+
+- **Caveat:** **`MAX_ENTRIES`** still counts **log entries**, not wrapped lines; **`complete_progress`** can add multiple visible lines per entry.
+
 ## 2026-05-09 — Phase 5.1.5 — City production panel polish
 
 Decision:

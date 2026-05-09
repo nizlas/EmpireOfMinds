@@ -13,7 +13,58 @@ const ProductionDeliveryScript = preload("res://domain/production_delivery.gd")
 
 const MAX_ENTRIES: int = 10
 
+## Exactly seven spaces before each `Unlocked: Train …` line under `complete_progress` (Phase 5.1.6).
+const _COMPLETE_PROGRESS_UNLOCK_INDENT: String = "       "
+
 var game_state
+
+
+static func _humanize_progress_id(raw: String) -> String:
+	var s = raw.strip_edges()
+	if s.is_empty() or s == "?":
+		return "Progress"
+	var parts = s.split("_")
+	var out = ""
+	var pi = 0
+	while pi < parts.size():
+		var seg = parts[pi]
+		if not seg.is_empty():
+			if out.length() > 0:
+				out = out + " "
+			out = out + seg.capitalize()
+		pi = pi + 1
+	if out.length() > 0:
+		return out
+	return "Progress"
+
+
+static func _train_label_from_city_project_target_id(target_id: String) -> String:
+	var tid = target_id.strip_edges()
+	if tid.is_empty():
+		return ""
+	var pos = tid.rfind(":")
+	var suffix = ""
+	if pos >= 0:
+		suffix = tid.substr(pos + 1)
+	else:
+		suffix = tid
+	suffix = suffix.strip_edges()
+	if suffix.is_empty():
+		suffix = tid
+	return suffix.capitalize()
+
+
+static func _complete_progress_unlock_line(row: Dictionary) -> String:
+	if str(row.get("target_type", "")) != "city_project":
+		return ""
+	var tid = str(row.get("target_id", ""))
+	if not tid.begins_with("produce_unit:"):
+		return ""
+	var train_name = _train_label_from_city_project_target_id(tid)
+	if train_name.is_empty():
+		return ""
+	return _COMPLETE_PROGRESS_UNLOCK_INDENT + "Unlocked: Train " + train_name
+
 
 static func _entry_index(entry: Dictionary) -> int:
 	if entry.has("index") and typeof(entry["index"]) == TYPE_INT:
@@ -78,11 +129,20 @@ static func format_entry(entry: Dictionary) -> String:
 		var project_id = String(entry.get("project_id", "?"))
 		return "[%d] P%d set_city_production c%d %s" % [idx, actor_id, cid_sp, project_id]
 	if at == CompleteProgressScript.ACTION_TYPE:
-		var prog_id = String(entry.get("progress_id", "?"))
-		var n_unlocks = 0
+		var human_prog = _humanize_progress_id(String(entry.get("progress_id", "")))
+		var hdr = "[%d] P%d %s completed" % [idx, actor_id, human_prog]
+		var chunk: Array = [hdr]
 		if entry.has("unlocked_targets") and typeof(entry["unlocked_targets"]) == TYPE_ARRAY:
-			n_unlocks = (entry["unlocked_targets"] as Array).size()
-		return "[%d] P%d complete_progress %s (+%d unlocks)" % [idx, actor_id, prog_id, n_unlocks]
+			var ut = entry["unlocked_targets"] as Array
+			var ui = 0
+			while ui < ut.size():
+				var raw_row = ut[ui]
+				if typeof(raw_row) == TYPE_DICTIONARY:
+					var ul = _complete_progress_unlock_line(raw_row as Dictionary)
+					if ul.length() > 0:
+						chunk.append(ul)
+				ui = ui + 1
+		return _join_lines(chunk)
 	if at == ProductionTickScript.EVENT_TYPE:
 		var cid_pr = 0
 		var ptt = "?"

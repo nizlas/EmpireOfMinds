@@ -90,6 +90,8 @@ $Tests = @(
 	"res://presentation/tests/test_city_production_panel.gd",
 	"res://presentation/tests/test_city_production_panel_button_deferred.gd",
 	"res://presentation/tests/test_main_hud_city_panel.gd",
+	"res://presentation/tests/test_main_hud_discovery_popup.gd",
+	"res://presentation/tests/test_discovery_popup.gd",
 	"res://presentation/tests/test_selection_view_draw.gd",
 	"res://presentation/tests/test_turn_label.gd",
 	"res://presentation/tests/test_faction_asset_paths.gd",

@@ -1857,6 +1857,42 @@ Validation:
 
 - Same runner count as **5.1.4**; **`test_city_production_panel*.gd`** assertions updated only for status text.
 
+### Phase 5.1.6 — Unlock feedback cue (presentation-only)
+
+Goal:
+
+- When **`complete_progress`** grants a **`city_project` / `produce_unit:*`** unlock (e.g. **Train Settler** after **`controlled_fire`**), show a short player-facing cue in **`LogView`** without popups or domain changes.
+
+Shipped:
+
+- **[log_view.gd](../game/presentation/log_view.gd)**: **`format_entry`** for **`complete_progress`** — `"[<idx>] P<id> <Humanized progress> completed"` plus optional lines **`       Unlocked: Train <Suffix>`** (**exactly seven spaces** before **`Unlocked`**) for each **`unlocked_targets`** row with **`target_type` `city_project`** and **`target_id`** prefixed **`produce_unit:`**; other target types omitted in this slice. **[test_log_view.gd](../game/presentation/tests/test_log_view.gd)** assertions updated; runner count **unchanged** (**63**).
+
+Must not:
+
+- **No** **`game/domain/**`** edits; **no** new HUD; **no** registry reads for legality.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 63 headless tests passed.`**
+
+### Phase 5.1.7 — Discovery unlock popup (presentation-only)
+
+Goal:
+
+- After **accepted** **`CompleteProgress`** when the new **log** entry would show at least one **`city_project` / `produce_unit:*`** line under **5.1.6** rules, present a **dismissible** **HUD** panel (**no** queue) with curated copy for **`controlled_fire`** and a generic fallback for other **`progress_id`** values that still list train unlocks.
+
+Shipped:
+
+- **[discovery_popup.gd](../game/presentation/discovery_popup.gd)** — **`PanelContainer`** on **`HudCanvas`**, **`compute_view_model(log_entry)`** takes an **untyped** argument (**`Variant`**) and returns **`visible: false`** when **`typeof(log_entry) != TYPE_DICTIONARY`**, when the dict is empty, when it is not a **`complete_progress`** entry, or when **no** qualifying train unlocks exist; otherwise **`maybe_show_for_log_index(index)`** reads **`game_state.log.get_entry(index)`** and applies the view model. **`OK`** hides the panel; **`MOUSE_FILTER_IGNORE` / `STOP`** mirrors **`CityProductionPanel`** visibility. **[main.tscn](../game/main.tscn)** + **[main.gd](../game/main.gd)** wiring; **`SelectionController`** calls **`maybe_show_for_log_index(int(result["index"]))`** after **accepted** **`KEY_G`** / **`KEY_H`** only. **[test_discovery_popup.gd](../game/presentation/tests/test_discovery_popup.gd)**, **[test_main_hud_discovery_popup.gd](../game/presentation/tests/test_main_hud_discovery_popup.gd)**; runner **65** scripts.
+
+Must not:
+
+- **No** **`game/domain/**`** edits; **no** **`LogView`** / **`CityProductionPanel`** / **`EndTurnController`** / **`AITurnController`** edits; **no** **`ProgressDefinitions`** / registry imports in this slice; **no** popup queue.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 65 headless tests passed.`**
+
 ## Phase 6 — Empire of Minds worldbuilding and identity
 
 Goal:
