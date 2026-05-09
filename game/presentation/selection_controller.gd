@@ -1,4 +1,4 @@
-# Mouse input: legal-destination MoveUnit (when selected) before unit re-selection; then unit pick; else clear.
+# Mouse input: legal-destination MoveUnit (when selected) before unit re-selection; shared city/own-unit hex alternates city then unit; then unit pick on other hexes; else clear.
 # Submits actions only via game_state.try_apply. Does not mutate Scenario or Unit directly.
 # See docs/SELECTION.md, docs/ACTIONS.md
 class_name SelectionController
@@ -33,6 +33,12 @@ var log_view
 var city_production_panel
 @export var marker_hit_radius_ratio: float = 0.35
 
+## Sentinels for **shared city / own-unit hex** click alternation (see **plan_shared_hex_pick**).
+const SHARED_HEX_TRACK_NONE: int = -2147483648
+var _shared_track_q: int = SHARED_HEX_TRACK_NONE
+var _shared_track_r: int = 0
+var _shared_phase: int = 0
+
 ## Phase 4.5f — true if [pres_pt] lies inside the hex cell's **projected** polygon (matches drawn terrain); same layer-local space as [to_local] mouse.
 static func projected_hex_contains(layout, camera, q: int, r: int, pres_pt: Vector2) -> bool:
 	if layout == null or camera == null:
@@ -59,6 +65,54 @@ func _sort_city_ids_asc(ids: Array) -> void:
 				ids[b] = t
 			b = b + 1
 		a = a + 1
+
+
+func _reset_shared_hex_cycle() -> void:
+	_shared_track_q = SHARED_HEX_TRACK_NONE
+	_shared_phase = 0
+
+
+## Pure helper: **shared** tile = city + current-player unit on that hex. Alternates **city** then **unit** (lowest **unit id**) on repeated clicks **same** **(q,r)**; new hex resets to **city** first. See **docs/SELECTION.md**.
+static func plan_shared_hex_pick(
+	track_q: int,
+	track_r: int,
+	phase: int,
+	click_q: int,
+	click_r: int,
+	city_id: int,
+	own_unit_ids_sorted: Array
+) -> Dictionary:
+	var nq: int = track_q
+	var nr: int = track_r
+	var ph: int = phase
+	if nq != click_q or nr != click_r or nq == SHARED_HEX_TRACK_NONE:
+		nq = click_q
+		nr = click_r
+		ph = 0
+	if ph == 0:
+		return {
+			"pick": "city",
+			"city_id": city_id,
+			"next_track_q": nq,
+			"next_track_r": nr,
+			"next_phase": 1,
+		}
+	if own_unit_ids_sorted.is_empty():
+		return {
+			"pick": "city",
+			"city_id": city_id,
+			"next_track_q": nq,
+			"next_track_r": nr,
+			"next_phase": 1,
+		}
+	return {
+		"pick": "unit",
+		"city_id": city_id,
+		"unit_id": int(own_unit_ids_sorted[0]),
+		"next_track_q": nq,
+		"next_track_r": nr,
+		"next_phase": 0,
+	}
 
 
 func _refresh_city_production_panel() -> void:
@@ -216,6 +270,7 @@ func _unhandled_input(event):
 						selection_view.scenario = game_state.scenario
 						units_view.scenario = game_state.scenario
 						_sync_terrain_foreground_from_game_state()
+						_reset_shared_hex_cycle()
 						selection.clear()
 						selection_view.queue_redraw()
 						units_view.queue_redraw()
@@ -227,22 +282,6 @@ func _unhandled_input(event):
 					else:
 						push_warning("MoveUnit rejected: %s" % result["reason"])
 					return
-			var ulist = scen.units()
-			var found = false
-			var i = 0
-			while i < ulist.size():
-				var u2 = ulist[i]
-				if SelectionController.projected_hex_contains(layout, camera, u2.position.q, u2.position.r, local_point):
-					selection.select(u2.id)
-					found = true
-					break
-				i = i + 1
-			if found:
-				selection_view.queue_redraw()
-				if units_view != null:
-					units_view.queue_redraw()
-				_refresh_city_production_panel()
-				return
 			var city_hits: Array = []
 			var cj = 0
 			var c_all = scen.cities()
@@ -255,13 +294,73 @@ func _unhandled_input(event):
 				cj = cj + 1
 			_sort_city_ids_asc(city_hits)
 			if city_hits.size() > 0:
-				selection.select_city(city_hits[0] as int)
+				var primary_cid: int = city_hits[0] as int
+				var primary_cty = scen.city_by_id(primary_cid)
+				if primary_cty == null:
+					return
+				var pq: int = int(primary_cty.position.q)
+				var pr: int = int(primary_cty.position.r)
+				var pid_move: int = game_state.turn_state.current_player_id()
+				var own_ids_on_tile: Array = []
+				var u_all = scen.units()
+				var uk: int = 0
+				while uk < u_all.size():
+					var ux = u_all[uk]
+					if int(ux.position.q) == pq and int(ux.position.r) == pr:
+						if int(ux.owner_id) == pid_move:
+							own_ids_on_tile.append(ux.id)
+					uk = uk + 1
+				_sort_city_ids_asc(own_ids_on_tile)
+				var is_shared_tile: bool = own_ids_on_tile.size() > 0
+				if is_shared_tile:
+					var plan: Dictionary = SelectionController.plan_shared_hex_pick(
+						_shared_track_q,
+						_shared_track_r,
+						_shared_phase,
+						pq,
+						pr,
+						primary_cid,
+						own_ids_on_tile
+					)
+					_shared_track_q = int(plan["next_track_q"])
+					_shared_track_r = int(plan["next_track_r"])
+					_shared_phase = int(plan["next_phase"])
+					if str(plan["pick"]) == "city":
+						selection.select_city(int(plan["city_id"]))
+					else:
+						selection.select(int(plan["unit_id"]))
+					selection_view.queue_redraw()
+					if units_view != null:
+						units_view.queue_redraw()
+					_refresh_city_production_panel()
+					return
+				_reset_shared_hex_cycle()
+				selection.select_city(primary_cid)
+				selection_view.queue_redraw()
+				if units_view != null:
+					units_view.queue_redraw()
+				_refresh_city_production_panel()
+				return
+			_reset_shared_hex_cycle()
+			var ulist = scen.units()
+			var found = false
+			var i = 0
+			while i < ulist.size():
+				var u2 = ulist[i]
+				if SelectionController.projected_hex_contains(layout, camera, u2.position.q, u2.position.r, local_point):
+					_reset_shared_hex_cycle()
+					selection.select(u2.id)
+					found = true
+					break
+				i = i + 1
+			if found:
 				selection_view.queue_redraw()
 				if units_view != null:
 					units_view.queue_redraw()
 				_refresh_city_production_panel()
 				return
 			selection.clear()
+			_reset_shared_hex_cycle()
 			selection_view.queue_redraw()
 			if units_view != null:
 				units_view.queue_redraw()

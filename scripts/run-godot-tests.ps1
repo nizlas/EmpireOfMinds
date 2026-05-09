@@ -86,7 +86,10 @@ $Tests = @(
 	"res://presentation/tests/test_map_camera.gd",
 	"res://presentation/tests/test_units_view_draw.gd",
 	"res://presentation/tests/test_selection_state.gd",
+	"res://presentation/tests/test_selection_shared_hex_pick.gd",
 	"res://presentation/tests/test_city_production_panel.gd",
+	"res://presentation/tests/test_city_production_panel_button_deferred.gd",
+	"res://presentation/tests/test_main_hud_city_panel.gd",
 	"res://presentation/tests/test_selection_view_draw.gd",
 	"res://presentation/tests/test_turn_label.gd",
 	"res://presentation/tests/test_faction_asset_paths.gd",
@@ -99,7 +102,9 @@ $Tests = @(
 	"res://presentation/tests/test_log_view.gd",
 	"res://domain/tests/test_city.gd",
 	"res://domain/tests/test_scenario_cities.gd",
-	"res://presentation/tests/test_cities_view_draw.gd"
+	"res://presentation/tests/test_cities_view_draw.gd",
+	"res://presentation/tests/test_tfv_depth_merge_city_unit_sort_keys.gd",
+	"res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd"
 )
 
 if (-not (Test-Path -LiteralPath $GamePath)) {

@@ -1642,10 +1642,11 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 		var c_world2: Vector2 = layout.hex_to_world(c2.position.q, c2.position.r)
 		var c_anchor2: Vector2 = cam.to_presentation(c_world2)
 		var c_ps2: float = cam.perspective_scale_at(c_world2)
-		var c_eff: Vector2 = cities_view.city_effective_depth_presentation(
-			c_anchor2, c_ps2
-		)
-		var clayer: Vector2 = cam.to_layout(c_eff)
+		# Depth-merge sort uses projected **hex center** only — not city/unit effective-depth
+		# markers (`city_effective_depth_presentation` / `unit_effective_depth_presentation`).
+		# Those differ on the same tile, so using them here let cities win the painter order and
+		# buried unit markers. Draw calls still use anchors + per-sprite depth helpers.
+		var clayer: Vector2 = cam.to_layout(c_anchor2)
 		items.append(
 			{
 				"ty": 1,
@@ -1665,12 +1666,7 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 		var u_world2: Vector2 = layout.hex_to_world(u2.position.q, u2.position.r)
 		var u_anchor2: Vector2 = cam.to_presentation(u_world2)
 		var u_ps2: float = cam.perspective_scale_at(u_world2)
-		var eff2: Vector2 = units_view.unit_effective_depth_presentation(
-			u_anchor2, u_ps2, str(u2.type_id)
-		)
-		if eff2.length_squared() < 1e-20:
-			eff2 = u_anchor2
-		var ulayer: Vector2 = cam.to_layout(eff2)
+		var ulayer: Vector2 = cam.to_layout(u_anchor2)
 		items.append(
 			{
 				"ty": 2,

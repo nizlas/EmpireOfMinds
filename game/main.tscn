@@ -23,13 +23,22 @@ offset_right = 800.0
 offset_bottom = 100.0
 script = ExtResource("6_turnlabel")
 
-[node name="CityProductionPanel" type="VBoxContainer" parent="." unique_id=3847291051]
-offset_left = 780.0
-offset_top = 100.0
-offset_right = 1160.0
-offset_bottom = 400.0
-mouse_filter = 0
-theme_override_constants/separation = 6
+[node name="HudCanvas" type="CanvasLayer" parent="." unique_id=928810041]
+layer = 16
+
+[node name="CityProductionPanel" type="PanelContainer" parent="HudCanvas" unique_id=3847291051]
+layout_mode = 1
+anchors_preset = 0
+anchor_left = 1.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 0.0
+offset_left = -404.0
+offset_top = 64.0
+offset_right = -12.0
+offset_bottom = 392.0
+grow_horizontal = 0
+grow_vertical = 0
 script = ExtResource("12_cityprod")
 
 [node name="MapView" type="Node2D" parent="." unique_id=1063845021]

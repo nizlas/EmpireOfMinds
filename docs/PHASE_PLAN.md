@@ -1827,7 +1827,7 @@ Goal:
 
 Shipped:
 
-- **`game/presentation/city_production_panel.gd`** (+ **`.uid`**), **`SelectionState.city_id`** (mutually exclusive with **`unit_id`**), **`SelectionController`** city hex pick and **`city_production_panel.refresh()`** hook; **`EndTurnController`** / **`AITurnController`** call **`selection.clear_unit()`** (not full **`clear()`**) on accept so **city selection persists across** **`EndTurn`** when the city still exists; panel **`compute_view_model`** hides when **`city_id`** is missing from **`scenario`**. **`main.tscn` / `main.gd`** wiring; **`test_city_production_panel.gd`**, expanded **`test_selection_state.gd`**; runner **58** scripts; docs below.
+- **`game/presentation/city_production_panel.gd`** (+ **`.uid`**), **`SelectionState.city_id`**, **`SelectionController`** city hex pick (before unit pick) and **`city_production_panel.refresh()`** hook; **`HudCanvas`** **`CanvasLayer`** in **`main.tscn`** for viewport-anchored HUD; **`EndTurnController`** / **`AITurnController`** **`selection.clear_unit()`** on **`EndTurn`** accept; **shared city / own-unit hex:** repeated clicks alternate **city** then **current-player unit** (**`plan_shared_hex_pick`**); **`test_city_production_panel.gd`**, **`test_main_hud_city_panel.gd`**, **`test_selection_shared_hex_pick.gd`**, expanded **`test_selection_state.gd`**; runner **63** scripts; docs below.
 
 Must not:
 
@@ -1837,7 +1837,25 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
-- Exit **0**; log line **`All 58 headless tests passed.`**
+- Exit **0**; log line **`All 63 headless tests passed.`**
+
+### Phase 5.1.5 — City production panel visual polish
+
+Goal:
+
+- Improve **readability** and **prototype** presentation of **`CityProductionPanel`** without expanding scope (no city screen, no new mechanics, no domain/UI architecture churn).
+
+Shipped:
+
+- **`city_production_panel.gd`**: **`PanelContainer`** + inner **`VBox`**, **parchment** **`StyleBoxFlat`**, **separators**, structured labels, **Train …** buttons; copy for idle / producing / ready / empty actions; **[main.tscn](../game/main.tscn)** panel bounds tweak.
+
+Must not:
+
+- **No** domain / **LegalActions** / **EffectiveRules** / new **HUD** systems / assets / fonts.
+
+Validation:
+
+- Same runner count as **5.1.4**; **`test_city_production_panel*.gd`** assertions updated only for status text.
 
 ## Phase 6 — Empire of Minds worldbuilding and identity
 

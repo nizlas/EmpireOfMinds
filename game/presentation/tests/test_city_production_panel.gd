@@ -70,7 +70,11 @@ func _init() -> void:
 		"set warrior production"
 	)
 	var vm_prog = CityProductionPanelScript.compute_view_model(gs2, sel)
-	_check(str(vm_prog.get("status", "")).find("progress") >= 0, "status mentions progress while building")
+	var st_busy = str(vm_prog.get("status", ""))
+	_check(
+		st_busy.find("Producing") >= 0 or st_busy.find("/") >= 0,
+		"status shows production progress while building"
+	)
 	var opts_busy = vm_prog.get("options", []) as Array
 	_check(opts_busy.is_empty(), "no new production choices while project active")
 

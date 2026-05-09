@@ -128,7 +128,7 @@ func _ready() -> void:
 	selection_controller.log_view = log_view
 	end_turn_controller.log_view = log_view
 	ai_turn_controller.log_view = log_view
-	var city_production_panel = $CityProductionPanel
+	var city_production_panel = $HudCanvas/CityProductionPanel
 	city_production_panel.game_state = game_state
 	city_production_panel.selection = selection
 	city_production_panel.cities_view = cities_view

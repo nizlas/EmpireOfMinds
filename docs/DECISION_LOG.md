@@ -1,3 +1,59 @@
+## 2026-05-09 — Phase 5.1.5 — City production panel polish
+
+Decision:
+
+- Present **`CityProductionPanel`** as a restrained **`PanelContainer`** with **StyleBoxFlat** (parchment tone, border, light corner radius, subtle shadow), **HSeparator** section breaks, **theme** font sizes/colors on **Labels** / **Buttons**, and clearer **view-model** strings (**City**, **#id · Owner**, **Producing:** / **Ready:** / **No active project**, **Available production**, empty **busy** vs **no projects** lines). **`compute_view_model`** still drives options from **`LegalActions`** only; **`call_deferred("refresh")`** after button **`try_apply`** unchanged.
+
+Rationale:
+
+- **5.1.4** functionally complete; **playtest** readability benefits from hierarchy and muted strategy-HUD feel **without** art imports or gameplay edits.
+
+Caveat:
+
+- **Multi-line** status may grow with future project types; panel width is **viewport-anchored** in **main.tscn**.
+
+## 2026-05-09 — Phase 5.1.4b — Shared city / own-unit hex click cycling
+
+Decision:
+
+- When the hex under the cursor contains **both** the **selected** city (lowest **`city.id`** hit) **and** **at least one unit owned by** **`turn_state.current_player_id()`**, **`SelectionController`** alternates on **repeated left clicks** on **that** **(q,r)**: **city** → **unit** (**lowest unit id** on the tile) → **city** → …**. **Implementation:** pure helper **`plan_shared_hex_pick`** + **instance** **track** **`(q,r)`** + **`phase`**, reset when the player clicks another hex, clears selection, moves successfully, or picks a unit on a **non-city** tile.
+
+Rationale:
+
+- **Phase 5.1.4** routed **city** pick **before** **unit** pick so the **CityProductionPanel** was reachable; that made **own units** on the **city** hex **unselectable**. **Cycling** preserves **first** click = **city** / **panel**, **second** = **unit**, without new HUD or domain changes.
+
+Caveat:
+
+- Multiple **own** units on one city hex always use the **same** **lowest-id** target on the **unit** step (**no** per-hex **unit** round-robin yet).
+
+## 2026-05-09 — TerrainForegroundView symbol-grid merge — city/unit sort keys
+
+Decision:
+
+- In **`_fg_draw_depth_merged_forest_symbol_grid_and_units`**, **merge list entries** for **cities** and **units** use **`cam.to_layout(cam.to_presentation(hex_center_world))`** as **`sy`/`sx`**, not **`city_effective_depth_presentation`** / **`unit_effective_depth_presentation`**. **`draw_city_marker_at`** / **`draw_unit_marker_at`** still receive **anchors** and **scale** as before; only **interleave order** vs **forest symbols** changes.
+
+Rationale:
+
+- **Effective-depth** presentation points differ on the **same hex**, so **`ty`** tie-break never ran and **cities** could **paint after** **units** in the merge pass, **hiding warriors** (including **starting** units on **city** tiles). **Hex-center** keys align **same-tile** **`sy`/`sx`** so **`ty` 1 < 2** draws **units on top**.
+
+Caveat:
+
+- **Forest** symbol **interleaving** vs **city/unit** on **adjacent** hexes now keys off **hex-center** depth in **merge mode** (not sprite foot/bottom); **TFV** remains **visual-only**.
+
+## 2026-05-09 — Phase 5.1.4 bugfix — City panel input + pick order
+
+Decision:
+
+- Move **`CityProductionPanel`** under **`HudCanvas`** (**`CanvasLayer`**) with **top-right anchors**; **`refresh()`** sets **`mouse_filter`** to **`IGNORE`** when hidden and **`STOP`** when visible. Run **city** hex hit-test **before** **unit** hex hit-test so a **unit** on the **city tile** does not block **`select_city`**.
+
+Rationale:
+
+- **Manual smoke:** map clicks are **`_unhandled_input`** on **`SelectionController`**; a **`Control`** using **`MOUSE_FILTER_STOP`** must not sit in the **Node2D** root in a way that **starves** that path, and **hidden** panels must **not** steal input. **Pick order** matches **city management** expectations on **shared** tiles.
+
+Caveat:
+
+- **Clicking** a **hex** that has **both** a **city** and a **unit** now **prefers** the **city** (panel); select the **unit** via a **hex** that contains **only** that **unit** (or clear the **city** focus first).
+
 ## 2026-05-09 — Phase 5.1.4 — Minimal city production panel
 
 Decision:
