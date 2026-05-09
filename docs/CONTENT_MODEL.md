@@ -121,7 +121,9 @@ See [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) for **capability / material rol
 - The **first** implementation slice after **5.1.0** introduces that façade and routes **exactly one** existing read (e.g. whether a **`project_id`** is supported for **`SetCityProduction`** / **`LegalActions`**) through it; remaining reads stay on registries until later small slices migrate them.
 - Baseline registries remain **definition providers**; **EffectiveRules** is the **read** boundary **Phase 5.0a** points at once code lands — **not** a second source of truth for authoring rows.
 
-See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1** / **5.1.0**, [CORE_LOOP.md](CORE_LOOP.md) **Phase 5.1 embryo intent**.
+**Phase 5.1.1 (implemented):** domain type **`EffectiveRules`** ([`effective_rules.gd`](../game/domain/effective_rules.gd)) with **`with_baseline_registries()`** and **`is_city_project_supported`**. **`LegalActions.for_current_player`** accepts an optional **`effective_rules`** argument (default: baseline façade) and consults **`is_city_project_supported`** for the warrior **`project_id`** before enumerating **`SetCityProduction`** for that id — **`SetCityProduction.validate`** and progress unlock checks stay on the existing path. Further reads and match-bound RuleSet wiring remain future slices.
+
+See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1** / **5.1.0** / **5.1.1**, [CORE_LOOP.md](CORE_LOOP.md) **Phase 5.1 embryo intent**.
 
 ## Related docs
 

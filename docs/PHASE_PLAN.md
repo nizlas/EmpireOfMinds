@@ -1754,6 +1754,29 @@ Validation:
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
 - Exit **0**; observed headless **test script count** must match the **Phase 5.0a** **docs-only** baseline (unchanged runner list).
 
+### Phase 5.1.1 — EffectiveRules façade + one read path (LegalActions)
+
+Goal:
+
+- Introduce a minimal domain **`EffectiveRules`** façade (**`RefCounted`**, **no** autoload) and route **exactly one** existing gameplay read through it: whether the enumerated **`SetCityProduction`** warrior **`project_id`** is supported before **`LegalActions`** builds that candidate. **Baseline** façade behavior must match **`CityProjectDefinitions`** today so default enumeration stays unchanged.
+
+Shipped:
+
+- **`game/domain/effective_rules.gd`** — **`with_baseline_registries()`**, **`is_city_project_supported(project_id)`**.
+- **`game/domain/legal_actions.gd`** — optional second argument **`effective_rules`** (default resolves to baseline façade); warrior production enumeration gated on **`er.is_city_project_supported(...)`** before **`SetCityProduction.make`** / **`validate`** / progress unlock check.
+- Headless tests **`test_effective_rules.gd`**, **`test_legal_actions_effective_rules.gd`**; runner lists **55** scripts.
+
+Must not:
+
+- **No** new canonical content rows, registry rows, or **`ProgressDefinitions`** changes.
+- **No** **`GameState`** constructor or member changes; **no** schema, save/load, or cloud changes; **no** generated **`RuleSet`** support; **no** visuals; **no** **`docs/player/**` or **`.cursor/**`** edits.
+- **Do not** expand **city project** registry rows, **LegalActions** enumeration, or steering in this slice beyond the warrior façade hook — deferred labels remain covered only by prior **5.1.0** documentation.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Exit **0**; log line **`All 55 headless tests passed.`**
+
 ## Phase 6 — Empire of Minds worldbuilding and identity
 
 Goal:

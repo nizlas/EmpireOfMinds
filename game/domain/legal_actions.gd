@@ -8,6 +8,7 @@ const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
+const EffectiveRulesScript = preload("res://domain/effective_rules.gd")
 
 static func _sort_units_by_id(units: Array) -> void:
 	var a = 0
@@ -54,9 +55,12 @@ static func _sort_coords_by_qr(coords: Array) -> void:
 		a = a + 1
 
 
-static func for_current_player(game_state) -> Array:
+static func for_current_player(game_state, effective_rules = null) -> Array:
 	if game_state == null:
 		return []
+	var er = effective_rules
+	if er == null:
+		er = EffectiveRulesScript.with_baseline_registries()
 	var scenario = game_state.scenario
 	var cp = game_state.turn_state.current_player_id()
 	var owned = []
@@ -96,22 +100,23 @@ static func for_current_player(game_state) -> Array:
 	while cj < p0cities.size():
 		var cy = p0cities[cj]
 		if cy.current_project == null:
-			var sp = SetCityProductionScript.make(
-				cp,
-				cy.id,
-				SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR
-			)
-			var sv = SetCityProductionScript.validate(scenario, sp)
-			if sv["ok"]:
-				if (
-					game_state.progress_state == null
-					or game_state.progress_state.has_unlocked_target(
-						cp,
-						"city_project",
-						SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR
-					)
-				):
-					out.append(sp)
+			if er.is_city_project_supported(SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR):
+				var sp = SetCityProductionScript.make(
+					cp,
+					cy.id,
+					SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR
+				)
+				var sv = SetCityProductionScript.validate(scenario, sp)
+				if sv["ok"]:
+					if (
+						game_state.progress_state == null
+						or game_state.progress_state.has_unlocked_target(
+							cp,
+							"city_project",
+							SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR
+						)
+					):
+						out.append(sp)
 		cj = cj + 1
 	out.append(EndTurnScript.make(cp))
 	return out

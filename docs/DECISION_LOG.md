@@ -1,3 +1,17 @@
+## 2026-05-09 — Phase 5.1.1 — EffectiveRules façade + LegalActions read path
+
+Decision:
+
+- Ship minimal **`EffectiveRules`** ([`effective_rules.gd`](../game/domain/effective_rules.gd)) and route **one** read through **`LegalActions.for_current_player`**: **`is_city_project_supported`** before warrior **`SetCityProduction`** enumeration; optional injectable façade for tests; baseline matches **`CityProjectDefinitions`**.
+
+Rationale:
+
+- Establishes the **read boundary** from **Phase 5.0a** in code without changing default behavior; keeps validation and progress gating order intact.
+
+Caveat:
+
+- Only the warrior **`project_id`** is enumerated today; **AllTrue**-style fakes prove the gate does not bypass **`validate`** for current actions, not filtering of hypothetical extra ids.
+
 ## 2026-05-09 — Phase 5.1 — Ancient mini-game embryo umbrella
 
 Decision:
