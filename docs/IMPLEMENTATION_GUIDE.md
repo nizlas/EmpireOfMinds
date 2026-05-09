@@ -380,3 +380,35 @@ Wrong:
 Correct:
 - local Phase 1 can be authoritative locally
 - action/state model remains compatible with future server authority
+
+### 7. Gameplay reads raw registries instead of EffectiveRules
+
+Wrong:
+- validators, **`LegalActions`**, **`ProductionTick`**, **`MovementRules`**, or **AI** call **`UnitDefinitions`**, **`CityProjectDefinitions`**, **`ProgressDefinitions`**, **`TerrainRuleDefinitions`**, or future **material** registries **directly** as the runtime oracle once a **RuleSet / EffectiveRules** layer exists
+
+Correct:
+- gameplay queries **EffectiveRules** compiled from the match **RuleSet**; registries remain **definition providers**, not bypass paths
+
+### 8. Hardcoded historical material names in rules
+
+Wrong:
+- **`iron`**, **`bronze`**, **`steel`**, or similar names are wired into validators, **`LegalActions`**, **`RuleBasedAIPlayer`**, **`ProductionTick`**, or other gameplay systems as fixed progression assumptions
+
+Correct:
+- rules reference **stable IDs** and **role bindings** from **EffectiveRules** / world content so alternate worlds can omit or replace historical material paths (see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md))
+
+### 9. Generator output reaches gameplay without validation
+
+Wrong:
+- **LLM**- or tool-generated RuleSet fragments are applied straight to **`GameState`** or enumeration
+
+Correct:
+- candidates pass a **deterministic** validation / compilation step; only **EffectiveRules** from an accepted **RuleSet** drive play (see [AI_DESIGN.md](AI_DESIGN.md), [CONTENT_MODEL.md](CONTENT_MODEL.md))
+
+### 10. Saves without RuleSet snapshot identity
+
+Wrong:
+- save / replay payloads omit **RuleSet id**, **content hash**, and **`schema_version`** concepts, so replays implicitly assume “whatever definitions ship with the client”
+
+Correct:
+- persisted sessions reference the **same** validated content snapshot the **ActionLog** was played against (see [CLOUD_PLAY.md](CLOUD_PLAY.md))

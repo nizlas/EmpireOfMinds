@@ -174,6 +174,14 @@ Avoid:
 - state that only exists inside scenes
 - hidden singletons with gameplay state
 
+## Gameplay consumes EffectiveRules, not raw registries
+
+Once the RuleSet / EffectiveRules layer exists (**Phase 5.0a** direction in [CONTENT_MODEL.md](CONTENT_MODEL.md)), **runtime gameplay** must treat **EffectiveRules** as the authoritative content view for a match, not ad hoc reads of definition modules.
+
+- **Definitions / registries** such as **`UnitDefinitions`**, **`CityProjectDefinitions`**, **`ProgressDefinitions`**, **`TerrainRuleDefinitions`**, and future **material / role** registries are **inputs** to a validated **RuleSet**, not direct oracle tables for every rule check.
+- **Runtime gameplay code** (validators, **`GameState.try_apply`**, **`LegalActions`**, **`ProductionTick`**, **`ProductionDelivery`**, **`MovementRules`**, **AI**, and similar systems) must read **EffectiveRules** after that layer ships, not raw global static registries.
+- This preserves **replay determinism**, supports **generated worlds** with different content graphs, and keeps the **cloud-shaped** boundary stable (server and client agree on the same compiled rules for a session).
+
 ## Engine dependency rule
 
 Godot-specific code is allowed in the client layer.

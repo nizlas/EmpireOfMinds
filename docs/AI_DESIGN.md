@@ -37,3 +37,12 @@ For Phase 1, `action_plan` is expected to be a small set of actions chosen only 
 ## Phase 1 scope
 
 Phase 1 targets a simple rule-based opponent: it receives legal actions and returns choices; it does not implement a strategic planner, LLM integration, or learning. Broader AI features are out of scope until later phases (see [PHASE_PLAN.md](PHASE_PLAN.md)).
+
+## Generation vs validation (Phase 5.0a)
+
+**Docs-only checkpoint** — does not change the **AI player** surface in this slice.
+
+- Any **LLM** or other **generator** role for **RuleSets** is **candidate generation** only.
+- A **deterministic validator / compiler** decides what becomes a **playable** RuleSet and thus drives **EffectiveRules** (see [CONTENT_MODEL.md](CONTENT_MODEL.md)).
+- **Generated candidate content** must **not** reach gameplay **directly**; it must pass validation / compilation.
+- **AI players** still choose from **legal actions** enumerated against **EffectiveRules** once that layer exists — the **Core AI Principle** stands: the **engine** is the judge; the AI does **not** bypass the rules engine.

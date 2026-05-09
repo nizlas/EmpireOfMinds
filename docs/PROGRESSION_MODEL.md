@@ -46,6 +46,18 @@
 
 - **`ProgressCandidateFilter`** ([progress_candidate_filter.gd](../game/domain/progress_candidate_filter.gd)) — **`for_current_player(game_state)`** returns detector candidates whose **`actor_id`** equals **`turn_state.current_player_id()`** only (**no** **`CompleteProgress.validate`** — **`GameState.try_apply`** stays authoritative). **`SelectionController`**: **`KEY_H`** submits the **first** filtered candidate via **`try_apply`**; **no** auto-apply, **no** **`LegalActions`** / **AI**; **`TurnLabel`** / **`LogView`** refresh on **accept** only.
 
+## Capability and material roles (Phase 5.0a)
+
+**Documentation-only.** No registries, JSON, `.tres`, detectors, implementation details, or schema tables in this subphase.
+
+- The engine must **not** assume fixed historical materials such as **iron**, **bronze**, or **steel** always exist in every world.
+- The engine must **not** assume those materials always sit on **one fixed dependency chain**.
+- **Role abstractions** at the **model** level (examples only, not registry rows): **`primary_edge_material`**, **`primary_armor_material`**, **`smelting_capability`**, **`metallurgy_tier`**.
+- **Sciences**, **breakthroughs**, **unlocks**, **units**, **city projects**, and **material paths** should be able to reference **roles** rather than hardcoded material names where appropriate.
+- **Curated** worlds may bind concrete materials to roles in familiar ways.
+- **Generated** worlds may bind roles differently, alter **rarity**, change **costs**, or provide **alternate dependencies**.
+- This supports worlds where e.g. **iron** is absent or unimportant while other material systems become strategically central.
+
 ## Core separation
 
 Four conceptual layers:

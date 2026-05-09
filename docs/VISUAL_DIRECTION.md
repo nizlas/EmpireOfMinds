@@ -7,6 +7,13 @@
 - **This document** is the **direction source of truth** for upcoming **Phase 4** visual work (**4.1–4.5**): what the prototype should *aim for* before concrete pixels land.
 - **[RENDERING.md](RENDERING.md)** remains the **current implementation-state** document (how `MapView`, `UnitsView`, `SelectionView`, `CitiesView`, labels, and draw order work today). When **4.1+** change rendering, **RENDERING.md** should be updated to match; **this file** should change only when the *intended* direction changes.
 
+## Phase 5.0a — visual polish paused
+
+- The **Phase 4** visual checkpoint is **complete**.
+- Starting in **5.0a**, **visual polish** is **paused** until the **playable gameplay embryo** direction is established ([PHASE_PLAN.md](PHASE_PLAN.md)).
+- Any **new** visual work must be **explicitly phase-scoped** — no silent forward drift.
+- When polish **resumes**, the **Asset request workflow** / **Asset Request Pack** in this document remains the **gate** for non-trivial prototype art.
+
 ## Visual goals
 
 - Make the prototype **read as a small strategy game** at a glance — not only a debug hex board.

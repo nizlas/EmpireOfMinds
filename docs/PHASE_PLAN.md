@@ -1665,6 +1665,8 @@ Editor and checklist-driven; headless tests only for **pure** layout/formatting 
 
 ## Phase 5 — Strategic dynamics
 
+Phase 5 implementation work consumes the **RuleSet / EffectiveRules** model defined in **Phase 5.0a** (documentation checkpoint). Gameplay must treat **EffectiveRules** as the runtime content boundary once that layer is implemented; see [CONTENT_MODEL.md](CONTENT_MODEL.md) and [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md).
+
 Goal:
 **Combat**, **expansion pressure**, **terrain / value** tradeoffs, **production** tradeoffs, **AI priorities** — still **legal-actions**-driven; **no LLM** required for core play.
 
@@ -1681,6 +1683,32 @@ Must not (roadmap):
 
 Validation:
 To be detailed; AI must still submit only **validated** actions per [AI_DESIGN.md](AI_DESIGN.md).
+
+### Phase 5.0a — RuleSet / EffectiveRules + playable embryo checkpoint (docs-only)
+
+Goal:
+
+- Define the **ancient-era playable embryo** direction and the **content/rules layer** it will consume.
+- **Pause** further **visual polish** while the **gameplay embryo** direction is established.
+
+Shipped:
+
+- Documentation updates in the approved owner docs (**`ARCHITECTURE_PRINCIPLES`**, **`CONTENT_MODEL`**, **`PROGRESSION_MODEL`**, **`AI_DESIGN`**, **`CLOUD_PLAY`**, **`IMPLEMENTATION_GUIDE`**, **`VISUAL_DIRECTION`**, **`DECISION_LOG`**).
+- New skeleton player-facing **`docs/player/PLAYTEST_GUIDE.md`**.
+
+Must not:
+
+- No **`game/**`** changes.
+- No **`scripts/**`** changes.
+- No registry implementation.
+- No JSON / `.tres` / autoload content implementation.
+- No action, **`GameState`**, **`ProductionTick`**, **`MovementRules`**, **`LegalActions`**, AI, presentation, scene, asset, **`project.godot`**, or **`.import`** changes.
+- Do not enumerate concrete **RuleSet** schema fields or pin numeric balance values.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Exit **0**; observed headless **test script count** must match the **docs-only** baseline (unchanged runner list).
 
 ## Phase 6 — Empire of Minds worldbuilding and identity
 

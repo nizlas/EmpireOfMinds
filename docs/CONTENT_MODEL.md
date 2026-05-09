@@ -95,6 +95,24 @@ Per [PROJECT_BRIEF.md](PROJECT_BRIEF.md) **IP Boundary**:
 
 **Why not put definitions in `Scenario`?** Mixing static tables with per-turn state makes snapshots heavier, blurs authority (which client owns definitions in cloud play?), and encourages accidental mutation. **State** stays in `Scenario`; **definitions** stay in versioned code modules until a deliberate data phase says otherwise.
 
+## RuleSet / EffectiveRules layer (Phase 5.0a)
+
+Concept-level checkpoint only — **no** detailed schema tables, **no** numeric balance, **no** implementation in this subphase.
+
+Three layers:
+
+1. **Definitions** — today’s GDScript registries and other **baseline content providers** ([CONTENT_MODEL.md](CONTENT_MODEL.md) envelope unchanged for how rows are authored).
+2. **RuleSet** — **canonical content snapshot** for a match (**curated** preset or **generated** world package). Baseline registries are **providers**, not the runtime rules engine.
+3. **EffectiveRules** — **validated**, repaired or normalized where specified, **compiled** view that **gameplay** queries for the match.
+
+**Snapshot metadata concepts** (exact field shapes deferred): **`ruleset_id`**, **`schema_version`**, **`source_kind`** (e.g. curated vs generated), **content hash**, **timestamp**.
+
+- **Validation / repair / compilation** must be **deterministic** and able to run **without human review**.
+- **Invalid** RuleSets are **rejected** or **repaired/recompiled** along deterministic rules; they are **not** silently played.
+- **Human curation** is optional later: interesting **generated** RuleSets may be **promoted** to **curated** presets.
+
+See [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) for **capability / material roles** and alternate world binding. See [CLOUD_PLAY.md](CLOUD_PLAY.md) for **RuleSet snapshot stability** and replay.
+
 ## Related docs
 
 - [ACTIONS.md](ACTIONS.md) — player vs engine actions, schema versioning.

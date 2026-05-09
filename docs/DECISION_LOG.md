@@ -1,3 +1,87 @@
+## 2026-05-09 — Phase 5.0a — RuleSet / EffectiveRules as runtime content boundary
+
+Decision:
+
+- **RuleSet** (canonical match snapshot) + **EffectiveRules** (validated / compiled view) are adopted as the **runtime content boundary** once implemented; **definitions / registries** remain **inputs**, not direct gameplay oracles. See [CONTENT_MODEL.md](CONTENT_MODEL.md), [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md).
+
+Rationale:
+
+- Supports **generated worlds**, **replay**, and **cloud-shaped** authority without baking one global static table into every rule path.
+
+Caveat:
+
+- **5.0a** is **docs-only**; no code, schema field tables, or balance numbers.
+
+## 2026-05-09 — Phase 5.0a — capability / material roles; no fixed historical material chain
+
+Decision:
+
+- Model work may use **role abstractions** (e.g. edge material, armor material, smelting capability, metallurgy tier); the engine must **not** assume **iron / bronze / steel** always exist or always form one fixed dependency chain. See [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md).
+
+Rationale:
+
+- Alternate worlds can make different materials **strategically central** or **absent**.
+
+Caveat:
+
+- **Roles** are conceptual in **5.0a**; binding and registry rows ship in later phases.
+
+## 2026-05-09 — Phase 5.0a — generation is candidate-only; validation / compilation is authoritative
+
+Decision:
+
+- **LLM** or other **generators** produce **candidates** only; **deterministic** validation / compilation decides playable **RuleSets**. **AI players** still choose from **legal actions** over **EffectiveRules**. See [AI_DESIGN.md](AI_DESIGN.md), [CONTENT_MODEL.md](CONTENT_MODEL.md).
+
+Rationale:
+
+- Keeps **replay** and **server authority** compatible with generative content without bypassing the rules engine.
+
+Caveat:
+
+- **5.0a** does not add generator or validator implementations.
+
+## 2026-05-09 — Phase 5.0a — RuleSet id + hash + schema_version for replay / cloud
+
+Decision:
+
+- Saved and **async / cloud** sessions must **reference** **RuleSet id**, **content hash**, and **`schema_version`** concepts so **`ActionLog`** replay uses the **same** **EffectiveRules**. See [CLOUD_PLAY.md](CLOUD_PLAY.md).
+
+Rationale:
+
+- Prevents silent mismatch between **log** and **content** across builds and generated worlds.
+
+Caveat:
+
+- **No** wire format or storage schema in **5.0a**.
+
+## 2026-05-09 — Phase 5.0a — visual polish paused after Phase 4 checkpoint
+
+Decision:
+
+- **Visual polish** is **paused** from **5.0a** until the **playable embryo** direction is established; resumption requires **explicit** later phase scoping. See [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md), [PHASE_PLAN.md](PHASE_PLAN.md).
+
+Rationale:
+
+- Avoids **scope bleed** between **terrain / presentation** iteration and **Phase 5** gameplay embryo work.
+
+Caveat:
+
+- **RENDERING.md** and implementation state are unchanged; only **direction / process** gate is updated.
+
+## 2026-05-09 — Phase 5.0a — playtest guide skeleton; Cursor skill for player copy deferred
+
+Decision:
+
+- Add **`docs/player/PLAYTEST_GUIDE.md`** as a **skeleton** (headings + intent notes only). **Defer** a dedicated **Cursor skill** for player guide / civilopedia-style writing until player-facing copy is actually authored.
+
+Rationale:
+
+- Reserves a **player-facing** channel without duplicating steering text; skill is unnecessary until there is recurring author work.
+
+Caveat:
+
+- **PLAYTEST_GUIDE** must stay **player-facing**; implementation detail belongs in **`docs/PHASE_PLAN.md`** and model docs.
+
 ## 2026-05-01 — Phase 4.5n — center-anchored MapCamera zoom (wheel; not cursor-anchored)
 
 Decision:
