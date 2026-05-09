@@ -113,6 +113,16 @@ Three layers:
 
 See [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) for **capability / material roles** and alternate world binding. See [CLOUD_PLAY.md](CLOUD_PLAY.md) for **RuleSet snapshot stability** and replay.
 
+## EffectiveRules first read pattern (Phase 5.1)
+
+**Concept checkpoint** — **no** new types, method signatures, or registry rows in **Phase 5.1.0** (docs only).
+
+- Gameplay that today reads **`CityProjectDefinitions`**, **`UnitDefinitions`**, or similar **directly** will migrate toward querying a thin domain **`EffectiveRules`** façade ( **`RefCounted`**, **no** autoload) that wraps the **curated** baseline registries for the **current** match.
+- The **first** implementation slice after **5.1.0** introduces that façade and routes **exactly one** existing read (e.g. whether a **`project_id`** is supported for **`SetCityProduction`** / **`LegalActions`**) through it; remaining reads stay on registries until later small slices migrate them.
+- Baseline registries remain **definition providers**; **EffectiveRules** is the **read** boundary **Phase 5.0a** points at once code lands — **not** a second source of truth for authoring rows.
+
+See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1** / **5.1.0**, [CORE_LOOP.md](CORE_LOOP.md) **Phase 5.1 embryo intent**.
+
 ## Related docs
 
 - [ACTIONS.md](ACTIONS.md) — player vs engine actions, schema versioning.

@@ -1,0 +1,125 @@
+/* Empire of Minds — player preview. System fonts only, no external resources. */
+
+:root {
+	--bg: #f8f6f2;
+	--text: #1a1814;
+	--muted: #534f47;
+	--banner-bg: #ede8df;
+	--banner-border: #8b7355;
+	--section-rule: #d8d2c8;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #141210;
+		--text: #e8e4dc;
+		--muted: #a8a098;
+		--banner-bg: #1f1c18;
+		--banner-border: #9a8470;
+		--section-rule: #2e2a24;
+	}
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	padding: 2rem 1.25rem 3rem;
+	font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	font-size: 1.0625rem;
+	line-height: 1.65;
+	color: var(--text);
+	background-color: var(--bg);
+}
+
+header,
+main,
+footer {
+	max-width: 70ch;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+header {
+	margin-bottom: 2rem;
+	padding-bottom: 1.5rem;
+	border-bottom: 1px solid var(--section-rule);
+}
+
+header h1 {
+	margin: 0 0 0.35rem;
+	font-size: 1.85rem;
+	font-weight: 650;
+	line-height: 1.2;
+	letter-spacing: -0.02em;
+}
+
+.tagline {
+	margin: 0;
+	font-size: 1.05rem;
+	color: var(--muted);
+	line-height: 1.5;
+}
+
+.status-banner {
+	max-width: 70ch;
+	margin: 0 auto 2.25rem;
+	padding: 1rem 1rem 1rem 1.1rem;
+	border-left: 4px solid var(--banner-border);
+	background-color: var(--banner-bg);
+	border-radius: 0 6px 6px 0;
+	font-size: 0.98rem;
+	line-height: 1.55;
+}
+
+main section {
+	margin-bottom: 2.25rem;
+}
+
+main section:last-child {
+	margin-bottom: 0;
+}
+
+main h2 {
+	margin: 0 0 0.75rem;
+	font-size: 1.2rem;
+	font-weight: 650;
+	line-height: 1.35;
+}
+
+main p {
+	margin: 0 0 0.75rem;
+}
+
+main p:last-child {
+	margin-bottom: 0;
+}
+
+main ul {
+	margin: 0;
+	padding-left: 1.35rem;
+}
+
+main li {
+	margin-bottom: 0.5rem;
+}
+
+main li:last-child {
+	margin-bottom: 0;
+}
+
+footer {
+	margin-top: 2.75rem;
+	padding-top: 1.5rem;
+	border-top: 1px solid var(--section-rule);
+	font-size: 0.92rem;
+	color: var(--muted);
+}
+
+footer p {
+	margin: 0;
+}

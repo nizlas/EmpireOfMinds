@@ -1710,6 +1710,50 @@ Validation:
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
 - Exit **0**; observed headless **test script count** must match the **docs-only** baseline (unchanged runner list).
 
+### Phase 5.1 — Ancient mini-game embryo
+
+Goal:
+
+- Grow the **first real gameplay loop** after Phase **2.x–4.x**: players experience civilization **emerging** through **cities**, **production progress**, and **knowledge / unlocks** that open **new** city options, on a **curated** baseline only (no generated worlds yet).
+
+Features (roadmap / intent):
+
+- **EffectiveRules** first read: gameplay consults a thin domain façade wrapping baseline registries before migrating additional reads.
+- **Second city project** (producing a **settler**-class unit) reachable only after a **science completion** unlock path (conceptually tied to the existing **`controlled_fire`** row after **`found_city`** in **`ProgressDetector`**).
+- Manual **`CompleteProgress`** application (**`KEY_H`**) remains valid in early slices; **auto-apply** of detector candidates is **deferred**.
+
+Must not (roadmap):
+
+- Generated worlds, RuleSet **generation** pipelines, or **LLM** content (**future** per **[Phase 5.0a](CONTENT_MODEL.md)**; **5.1** does not expand those concerns beyond existing steering).
+- Full ancient era, combat, diplomacy, trade, civics, happiness, real economy, save/load implementation, or visual architecture churn.
+
+Validation:
+
+- Per subphase; first code slice after **5.1.0** introduces **one** read path through **EffectiveRules** with tests.
+
+### Phase 5.1.0 — Embryo intent + content shortlist (docs-only)
+
+Goal:
+
+- Lock the **player-visible v0 loop intent**, **curated content shortlist** (documentation only), **EffectiveRules first-read pattern**, and explicit **deferrals** before any **5.1.x** code.
+- **5.1.0** only documents the **planned** future v0 unlock target (including the working label **`produce_unit:settler`** as a **future** city project id in the **`CityProjectDefinitions`** id family). The **actual registry row**, validation wiring, and any **minted** canonical id in code ship in a **later** implementation slice.
+
+Shipped:
+
+- Documentation updates in **`PHASE_PLAN.md`** (this block), **`CORE_LOOP.md`**, **`CONTENT_MODEL.md`**, **`PROGRESSION_MODEL.md`**, **`CITIES.md`**, **`DECISION_LOG.md`** only.
+
+Must not:
+
+- **No** **`game/**`**, **`scripts/**`**, **`project.godot`**, **`.import`**, scenes, assets, tests, registries, actions, **`GameState`**, **`ProductionTick`**, **`MovementRules`**, **`LegalActions`**, AI, presentation changes.
+- **Do not implement, register, validate, or add new canonical IDs in code in this slice.** It is **allowed** to document **`produce_unit:settler`** as the **planned** future v0 unlock target, but **no** registry row, schema change, action change, validator change, or implementation is allowed in **5.1.0**.
+- **Do not expand** LLM, generator, save/load, cloud, or networking concerns **beyond references already established in Phase 5.0a**. **5.1.0** stays focused on the **curated** Ancient mini-game embryo and must **not design or implement** those future systems.
+- **Do not** edit **`docs/player/**`**, **`.cursor/**`**, or any doc **outside** the six files listed for **5.1.0**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Exit **0**; observed headless **test script count** must match the **Phase 5.0a** **docs-only** baseline (unchanged runner list).
+
 ## Phase 6 — Empire of Minds worldbuilding and identity
 
 Goal:

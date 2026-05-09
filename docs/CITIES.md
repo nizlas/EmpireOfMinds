@@ -56,6 +56,16 @@ On **accepted** **`end_turn`**, **`ProductionTick`** ([production_tick.gd](../ga
 
 **[CitiesView](../game/presentation/cities_view.gd)** continues to draw cities from **`Scenario.cities()`**. **`SelectionController`** re-points **`cities_view.scenario`** after an **accepted** **`FoundCity`** (see [RENDERING.md](RENDERING.md)).
 
+## Phase 5.1 city yields direction
+
+**Docs-only in 5.1.0** — **no** new fields on **`City`**, **no** per-hex yields, **no** new economy stats.
+
+- The Ancient mini-game **embryo v0** reuses the **existing** **`produce_unit`** **`progress` / `cost` / `ready`** mechanic and **`ProductionTick`** / **`ProductionDelivery`** engine events as the only **city output** players see for production.
+- A dedicated **`science`**, **`research`**, or **`thought`** **yield** (numeric per turn, separate from **`produce_unit`** rows) is **deferred**; “science progress” in player-facing descriptions for v0 maps to **completing** **`ProgressDefinitions`** sciences via **`CompleteProgress`** and to **production** progress on city projects — not a second parallel yield meter.
+- The **planned** second project **`produce_unit:settler`** is documented in **[Phase 5.1 v0 ancient curated seed](PROGRESSION_MODEL.md)**; the **registry row** ships in a **later** code slice.
+
+See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1**, [CORE_LOOP.md](CORE_LOOP.md) **Phase 5.1 embryo intent**.
+
 ## Explicitly deferred
 
 - **`ProduceUnit`** **player** action, economy/yields beyond this minimal completion rule.

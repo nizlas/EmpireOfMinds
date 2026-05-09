@@ -83,6 +83,21 @@ Do **not** invoke `godot` directly for CI-style checks; the script resolves the 
 
 End-to-end loop guard: **`game/ai/tests/test_core_loop_ai_smoke.gd`** (AI drives the loop through at least one **`unit_produced`** delivery in bounded steps).
 
+## Phase 5.1 embryo intent (planned)
+
+Everything **above** this subsection remains the **shipped** Phase **2.x** / **3.x** core loop summary. **Phase 5.1** describes the **next** curated Ancient mini-game embryo; it is **not** implemented until **5.1.x** code slices land.
+
+**Intended player-visible v0 loop** (plain language):
+
+1. Found a city with a **settler** (existing).
+2. Practical knowledge becomes available after **founding** (today: debug paths and detectors toward **`controlled_fire`**; see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)).
+3. The player **completes** that knowledge step (**`CompleteProgress`**, manual **`KEY_H`** or a future deterministic auto-apply slice).
+4. An **unlock** opens a **new city production option** beyond today’s lone **`produce_unit:warrior`** path. Steering labels this planned v0 target as **`produce_unit:settler`** (settler-class production); **5.1.0** documents the **plan** only — the **actual** **`CityProjectDefinitions`** row and **`ProgressDefinitions`** unlock wiring are **minted in a later code slice** ([CONTENT_MODEL.md](CONTENT_MODEL.md), [CITIES.md](CITIES.md)).
+5. **Set city production** to that project; **existing** **`ProductionTick`** / **`ProductionDelivery`** advance and deliver the new unit (same engine shape as warriors).
+6. Expansion repeats: the new unit can **found** another city.
+
+**Explicitly not promised in docs-only 5.1.0:** generated worlds, a second science row, a dedicated **`science` / `thought` yield** stat per city (v0 reuses **`produce_unit`** progress only; see [CITIES.md](CITIES.md)), or AI policy updates. Umbrella tracking: [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1**.
+
 ## Cross-references
 
 - [ACTIONS.md](ACTIONS.md) — actions, `try_apply`, engine log types, legal enumeration.

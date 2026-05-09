@@ -58,6 +58,25 @@
 - **Generated** worlds may bind roles differently, alter **rarity**, change **costs**, or provide **alternate dependencies**.
 - This supports worlds where e.g. **iron** is absent or unimportant while other material systems become strategically central.
 
+## Phase 5.1 v0 ancient curated seed (planned)
+
+**Phase 5.1.0 is documentation only.** **5.1.0** documents the **planned** future v0 Ancient mini-game embryo seed; the **actual** registry IDs, **`ProgressDefinitions`** unlock rows, **`CityProjectDefinitions`** row, validators, and **`LegalActions`** wiring are **minted / implemented in later code slices** — not in **5.1.0**.
+
+**Planned v0 trigger (existing detector vocabulary):**
+
+- After an **accepted** **`found_city`** for a player, **`ProgressDetector`** already proposes **`CompleteProgress`** for **`controlled_fire`** (when not already completed). Manual **`KEY_H`** application remains the **player** path until a future auto-apply slice.
+
+**Planned v0 unlock target (documentation label only in 5.1.0):**
+
+- Completing **`controlled_fire`** should eventually unlock a **second** trainable city project so players can produce a **settler**-class unit. Steering uses the **planned** id **`produce_unit:settler`** (same **`project_id`** string family as **`produce_unit:warrior`**). **No** such row exists in **`CityProjectDefinitions`** until a **later** slice; **`LegalActions`** still enumerates only **`produce_unit:warrior`** until then.
+
+**Scope discipline for v0:**
+
+- **One** science completion path and **one** new production unlock in the **first** gameplay slice after docs — not a full ancient tech tree.
+- **Generated worlds**, extra sciences, spatial breakthrough detectors, and **LLM** / generator pipelines stay **future** per **[Phase 5.0a](CONTENT_MODEL.md)**; **5.1.0** does **not** expand those designs.
+
+See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1** / **5.1.0**, [CORE_LOOP.md](CORE_LOOP.md) **Phase 5.1 embryo intent**.
+
 ## Core separation
 
 Four conceptual layers:

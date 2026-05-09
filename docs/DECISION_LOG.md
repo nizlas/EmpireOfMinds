@@ -1,3 +1,73 @@
+## 2026-05-09 — Phase 5.1 — Ancient mini-game embryo umbrella
+
+Decision:
+
+- **Phase 5.1** owns the **curated** Ancient mini-game embryo: **EffectiveRules** first-read wiring, **second city project** after knowledge unlock, **no** generated worlds in v0. See [PHASE_PLAN.md](PHASE_PLAN.md).
+
+Rationale:
+
+- Separates **strategic-dynamics** growth from **2.x** loop freeze documentation without restarting terrain or presentation architecture.
+
+Caveat:
+
+- Subphases **5.1.1+** implement incrementally; this entry is **steering** only.
+
+## 2026-05-09 — Phase 5.1.0 — embryo intent + content shortlist (docs-only)
+
+Decision:
+
+- **5.1.0** ships **documentation only** in six owner files; **no** code, registry, action, or presentation changes.
+
+Rationale:
+
+- Locks **v0 loop intent** and **deferrals** before the first **EffectiveRules** code slice.
+
+Caveat:
+
+- Headless test count must stay unchanged (regression-only).
+
+## 2026-05-09 — Phase 5.1.0 — planned v0 unlock `produce_unit:settler`; minting deferred
+
+Decision:
+
+- Steering may name **`produce_unit:settler`** as the **planned** future v0 **city project** unlock target (settler-class production). **5.1.0** **does not** implement, register, validate, or **mint** that id in **`CityProjectDefinitions`** or elsewhere — that happens in a **later** code slice. See [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md), [CORE_LOOP.md](CORE_LOOP.md).
+
+Rationale:
+
+- Human-readable planning without premature registry churn or **`LegalActions`** surface expansion in a docs-only gate.
+
+Caveat:
+
+- Final id string remains subject to the same **[CONTENT_MODEL.md](CONTENT_MODEL.md)** id discipline when implemented.
+
+## 2026-05-09 — Phase 5.1.0 — EffectiveRules first-read pattern documented
+
+Decision:
+
+- First **5.1.x** code slice introduces a thin **`EffectiveRules`** façade and migrates **one** existing registry read; further reads migrate in small follow-ons. See [CONTENT_MODEL.md](CONTENT_MODEL.md).
+
+Rationale:
+
+- Satisfies **Phase 5.0a** runtime boundary intent without a monolithic rewrite.
+
+Caveat:
+
+- **`EffectiveRules`** owns **no** authoring tables in v0; curated baseline registries remain providers.
+
+## 2026-05-09 — Phase 5.1.0 — no expansion of 5.0a future systems; deferrals explicit
+
+Decision:
+
+- **5.1.0** does **not** expand LLM, generator, save/load, cloud, or networking design **beyond Phase 5.0a**; focus stays on the **curated** embryo. **Deferred:** dedicated per-city **science yield** stat, detector **auto-apply**, second science row, generated worlds. See [PHASE_PLAN.md](PHASE_PLAN.md), [CITIES.md](CITIES.md).
+
+Rationale:
+
+- Prevents scope bleed from embryo work into infrastructure not yet in implementation scope.
+
+Caveat:
+
+- Future slices add features only when explicitly steered.
+
 ## 2026-05-09 — Phase 5.0a — RuleSet / EffectiveRules as runtime content boundary
 
 Decision:
