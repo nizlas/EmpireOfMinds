@@ -98,6 +98,8 @@ Everything **above** this subsection remains the **shipped** Phase **2.x** / **3
 
 **Explicitly not promised in docs-only 5.1.0:** generated worlds, a second science row, a dedicated **`science` / `thought` yield** stat per city (v0 reuses **`produce_unit`** progress only; see [CITIES.md](CITIES.md)), or AI policy updates. Umbrella tracking: [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1**.
 
+**Phase 5.1.3 (implemented):** headless **`test_settler_production_flow.gd`** proves **`produce_unit:settler`** runs through the existing **`EndTurn`** → **`ProductionTick`** → **`ProductionDelivery`** chain and that the delivered **`settler`** can **`MoveUnit`** then **`FoundCity`** again (second city, founder consumed), with **no** production game code changes in that slice.
+
 ## Cross-references
 
 - [ACTIONS.md](ACTIONS.md) — actions, `try_apply`, engine log types, legal enumeration.

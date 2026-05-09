@@ -1,3 +1,31 @@
+## 2026-05-09 — Phase 5.1.4 — Minimal city production panel
+
+Decision:
+
+- Add **`CityProductionPanel`** (**`VBoxContainer`**, **`LegalActions`**-driven buttons only, **`try_apply`** on press) and **`SelectionState.city_id`** with **city** hex pick after **unit** pick; **`EndTurnController`** / **`AITurnController`** use **`selection.clear_unit()`** on accept so **city** focus survives **`EndTurn`**; panel hides when **`scenario.city_by_id`** is missing.
+
+Rationale:
+
+- Smallest **HUD** slice so players see **production** status and legal **SetCityProduction** targets without a second rules engine; **click-through** blocked via **`MOUSE_FILTER_STOP`**.
+
+Caveat:
+
+- **No** registry/EffectiveRules reads in the panel; **no** clear-production UI; labels are **substring** titles from **`project_id`**, not **`CityProjectDefinitions`** display names.
+
+## 2026-05-09 — Phase 5.1.3 — Settler production and delivery proof
+
+Decision:
+
+- Ship **`game/domain/tests/test_settler_production_flow.gd`** only: **`GameState.try_apply`** path from **`FoundCity`**, **`CompleteProgress(controlled_fire)`**, **`SetCityProduction(produce_unit:settler)`**, **`EndTurn`** cadence for **`ProductionTick`** / **`ProductionDelivery`**, then **`MoveUnit`** and **`FoundCity`** with the delivered settler. **No** changes to **`production_tick.gd`**, **`production_delivery.gd`**, **`game_state.gd`**, content, or actions.
+
+Rationale:
+
+- Confirms **5.1.2** wiring against the **existing** generic **`produces_unit_type`** resolution; keeps the slice proof-only and regression-safe.
+
+Caveat:
+
+- Test-only slice; does not change AI, UI, or auto-apply.
+
 ## 2026-05-09 — Phase 5.1.2 — Settler city project + controlled_fire unlock
 
 Decision:

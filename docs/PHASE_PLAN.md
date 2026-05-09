@@ -1798,6 +1798,47 @@ Validation:
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
 - Exit **0**; log line **`All 56 headless tests passed.`**
 
+### Phase 5.1.3 — Settler production and delivery proof
+
+Goal:
+
+- Prove end-to-end through **`GameState.try_apply`** that **`produce_unit:settler`** ticks to ready via **`ProductionTick`**, delivers a **`settler`** unit via **`ProductionDelivery`** on a later **`EndTurn`**, and the delivered settler can **`MoveUnit`** then **`FoundCity`** without changing production engine code.
+
+Shipped:
+
+- **`game/domain/tests/test_settler_production_flow.gd`** (+ **`.uid`**); runner **57** scripts; **no production game code changes** (only new domain test file and docs).
+
+Must not:
+
+- **No** changes to **`game/domain/*.gd`** production scripts (root), **`game/domain/content/**`**, **`game/domain/actions/**`**, **`game/domain/legal_actions.gd`**, **`game/domain/production_tick.gd`**, **`game/domain/production_delivery.gd`**, **`game/domain/game_state.gd`**, **`game/ai/**`**, **`game/presentation/**`**, scenes, assets, **`project.godot`**, or **`.import`**.
+- **No** new content rows; **no** schema bumps; **no** new action types; **no** **`EffectiveRules`** or **`LegalActions`** changes; **no** auto-apply; **no** UI / AI / save-load / cloud / LLM work.
+- **No** **`docs/player/**`** or **`.cursor/**`** edits.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Exit **0**; log line **`All 57 headless tests passed.`**
+
+### Phase 5.1.4 — Minimal city production panel
+
+Goal:
+
+- When the player selects a **city** (hex click after unit pass), show a small **HUD** with city id, **production status** from **`City.current_project`**, and **buttons** for each legal **`SetCityProduction`** the domain already enumerates for that city via **`LegalActions.for_current_player`**. **Clicks** apply **`GameState.try_apply`** (same pattern as **`SelectionController`**); **no** separate rules engine in UI. **`mouse_filter`** stops clicks from falling through to the map.
+
+Shipped:
+
+- **`game/presentation/city_production_panel.gd`** (+ **`.uid`**), **`SelectionState.city_id`** (mutually exclusive with **`unit_id`**), **`SelectionController`** city hex pick and **`city_production_panel.refresh()`** hook; **`EndTurnController`** / **`AITurnController`** call **`selection.clear_unit()`** (not full **`clear()`**) on accept so **city selection persists across** **`EndTurn`** when the city still exists; panel **`compute_view_model`** hides when **`city_id`** is missing from **`scenario`**. **`main.tscn` / `main.gd`** wiring; **`test_city_production_panel.gd`**, expanded **`test_selection_state.gd`**; runner **58** scripts; docs below.
+
+Must not:
+
+- **No** domain / content / action / schema / **`GameState`** / **`LegalActions`** / **`EffectiveRules`** behavior edits; **no** new actions; **no** clear-production control; **no** AI policy change; **no** auto-apply; **no** full city screen, economy, camera/terrain polish, save/load, cloud, or LLM.
+- **No** **`docs/player/**`** or **`.cursor/**`** edits.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Exit **0**; log line **`All 58 headless tests passed.`**
+
 ## Phase 6 — Empire of Minds worldbuilding and identity
 
 Goal:

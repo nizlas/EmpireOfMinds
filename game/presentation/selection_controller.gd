@@ -30,6 +30,7 @@ var cities_view
 var terrain_foreground_view
 var turn_label
 var log_view
+var city_production_panel
 @export var marker_hit_radius_ratio: float = 0.35
 
 ## Phase 4.5f — true if [pres_pt] lies inside the hex cell's **projected** polygon (matches drawn terrain); same layer-local space as [to_local] mouse.
@@ -45,6 +46,25 @@ static func projected_hex_contains(layout, camera, q: int, r: int, pres_pt: Vect
 		poly[i] = camera.to_presentation(corners[i])
 		i = i + 1
 	return Geometry2D.is_point_in_polygon(pres_pt, poly)
+
+
+func _sort_city_ids_asc(ids: Array) -> void:
+	var a = 0
+	while a < ids.size():
+		var b = a + 1
+		while b < ids.size():
+			if (ids[b] as int) < (ids[a] as int):
+				var t = ids[a]
+				ids[a] = ids[b]
+				ids[b] = t
+			b = b + 1
+		a = a + 1
+
+
+func _refresh_city_production_panel() -> void:
+	if city_production_panel != null:
+		city_production_panel.refresh()
+
 
 func _sync_terrain_foreground_from_game_state() -> void:
 	if terrain_foreground_view == null or game_state == null:
@@ -76,6 +96,7 @@ func _unhandled_input(event):
 					selection_view.queue_redraw()
 				if units_view != null:
 					units_view.queue_redraw()
+				_refresh_city_production_panel()
 				return
 			var fc_action = FoundCityScript.make(u_fc.owner_id, u_fc.id, u_fc.position.q, u_fc.position.r)
 			var fc_result = game_state.try_apply(fc_action)
@@ -99,6 +120,7 @@ func _unhandled_input(event):
 					turn_label.refresh()
 				if log_view != null:
 					log_view.refresh()
+				_refresh_city_production_panel()
 			else:
 				push_warning("FoundCity rejected: %s" % fc_result["reason"])
 			return
@@ -127,6 +149,7 @@ func _unhandled_input(event):
 					turn_label.refresh()
 				if log_view != null:
 					log_view.refresh()
+				_refresh_city_production_panel()
 			else:
 				push_warning("SetCityProduction rejected: %s" % sp_result["reason"])
 			return
@@ -139,6 +162,7 @@ func _unhandled_input(event):
 					turn_label.refresh()
 				if log_view != null:
 					log_view.refresh()
+				_refresh_city_production_panel()
 			else:
 				push_warning("CompleteProgress rejected: %s" % result["reason"])
 			return
@@ -153,6 +177,7 @@ func _unhandled_input(event):
 					turn_label.refresh()
 				if log_view != null:
 					log_view.refresh()
+				_refresh_city_production_panel()
 			else:
 				push_warning("CompleteProgress (detector) rejected: %s" % result_h["reason"])
 			return
@@ -198,6 +223,7 @@ func _unhandled_input(event):
 							turn_label.refresh()
 						if log_view != null:
 							log_view.refresh()
+						_refresh_city_production_panel()
 					else:
 						push_warning("MoveUnit rejected: %s" % result["reason"])
 					return
@@ -215,8 +241,28 @@ func _unhandled_input(event):
 				selection_view.queue_redraw()
 				if units_view != null:
 					units_view.queue_redraw()
+				_refresh_city_production_panel()
+				return
+			var city_hits: Array = []
+			var cj = 0
+			var c_all = scen.cities()
+			while cj < c_all.size():
+				var cc = c_all[cj]
+				if SelectionController.projected_hex_contains(
+					layout, camera, cc.position.q, cc.position.r, local_point
+				):
+					city_hits.append(cc.id)
+				cj = cj + 1
+			_sort_city_ids_asc(city_hits)
+			if city_hits.size() > 0:
+				selection.select_city(city_hits[0] as int)
+				selection_view.queue_redraw()
+				if units_view != null:
+					units_view.queue_redraw()
+				_refresh_city_production_panel()
 				return
 			selection.clear()
 			selection_view.queue_redraw()
 			if units_view != null:
 				units_view.queue_redraw()
+			_refresh_city_production_panel()

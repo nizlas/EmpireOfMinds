@@ -11,6 +11,7 @@
 [ext_resource type="Script" uid="uid://d10fxkv7xj2kt" path="res://presentation/log_view.gd" id="9_logview"]
 [ext_resource type="Script" uid="uid://bvivx0v63faj2" path="res://presentation/cities_view.gd" id="10_citiesview"]
 [ext_resource type="Script" uid="uid://5hpiblsbbmr5" path="res://presentation/terrain_foreground_view.gd" id="11_terrainforeground"]
+[ext_resource type="Script" uid="uid://ca7prodctnpan31" path="res://presentation/city_production_panel.gd" id="12_cityprod"]
 
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
@@ -21,6 +22,15 @@ offset_top = 20.0
 offset_right = 800.0
 offset_bottom = 100.0
 script = ExtResource("6_turnlabel")
+
+[node name="CityProductionPanel" type="VBoxContainer" parent="." unique_id=3847291051]
+offset_left = 780.0
+offset_top = 100.0
+offset_right = 1160.0
+offset_bottom = 400.0
+mouse_filter = 0
+theme_override_constants/separation = 6
+script = ExtResource("12_cityprod")
 
 [node name="MapView" type="Node2D" parent="." unique_id=1063845021]
 position = Vector2(400, 428)

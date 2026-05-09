@@ -14,6 +14,7 @@ var units_view
 var terrain_foreground_view
 var turn_label
 var log_view
+var city_production_panel
 
 func _unhandled_input(event: InputEvent) -> void:
 	assert(GameStateScript != null)
@@ -37,7 +38,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 			var result = game_state.try_apply(action)
 			if result["accepted"]:
-				selection.clear()
+				selection.clear_unit()
 				selection_view.scenario = game_state.scenario
 				units_view.scenario = game_state.scenario
 				if terrain_foreground_view != null:
@@ -51,5 +52,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				turn_label.refresh()
 				if log_view != null:
 					log_view.refresh()
+				if city_production_panel != null:
+					city_production_panel.refresh()
 			else:
 				push_warning("AI action rejected: %s" % result["reason"])

@@ -52,7 +52,7 @@ The canonical **`make_tiny_test_scenario()`** fixture has **no cities** in Phase
 
 On **accepted** **`end_turn`**, **`ProductionTick`** ([production_tick.gd](../game/domain/production_tick.gd)) increments **`progress`** and may set **`ready: true`** for **`produce_unit`** when **`progress` >= `cost`**; **`production_progress`** log lines are appended **before** **`turn_state`** advances and **before** the **`end_turn`** entry. **`ProductionDelivery`** ([production_delivery.gd](../game/domain/production_delivery.gd)) runs **after** **`end_turn`** for the **new** **`current_player_id`**, appending **`unit_produced`** and spawning **Units** (see [ACTIONS.md](ACTIONS.md), [TURNS.md](TURNS.md), [UNITS.md](UNITS.md)). Initial **`GameState`** construction may deliver **`ready`** projects for the opening current player.
 
-**Phase 3.3:** **`ProductionDelivery`** sets **`Unit.type_id`** via **`CityProjectDefinitions.produces_unit_type`** when **`current_project`** has a known **`project_id`**; legacy rows and unknown ids fall back to **`"warrior"`**. **`unit_produced`** log rows stay **unchanged** (**no** **`type_id`** / **`unit_type_id`** on the event yet).
+**Phase 3.3:** **`ProductionDelivery`** sets **`Unit.type_id`** via **`CityProjectDefinitions.produces_unit_type`** when **`current_project`** has a known **`project_id`**; legacy rows and unknown ids fall back to **`"warrior"`**. **`produce_unit:settler`** uses this same path — headless **`test_settler_production_flow.gd`** (Phase **5.1.3**) proves end-to-end delivery without engine code changes. **`unit_produced`** log rows stay **unchanged** (**no** **`type_id`** / **`unit_type_id`** on the event yet).
 
 **[CitiesView](../game/presentation/cities_view.gd)** continues to draw cities from **`Scenario.cities()`**. **`SelectionController`** re-points **`cities_view.scenario`** after an **accepted** **`FoundCity`** (see [RENDERING.md](RENDERING.md)).
 
@@ -65,6 +65,8 @@ On **accepted** **`end_turn`**, **`ProductionTick`** ([production_tick.gd](../ga
 - The **second** project **`produce_unit:settler`** is minted in **`CityProjectDefinitions`**; it is gated by a **`city_project`** unlock from completing **`controlled_fire`** via **`CompleteProgress`** (see **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)**).
 
 See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1**, [CORE_LOOP.md](CORE_LOOP.md) **Phase 5.1 embryo intent**.
+
+**Phase 5.1.4:** **[CityProductionPanel](../game/presentation/city_production_panel.gd)** is **presentation-only**: it **never** reads **`CityProjectDefinitions`** or **`EffectiveRules`**; production buttons and gating come **only** from filtering **`LegalActions.for_current_player(game_state)`** for **`set_city_production`** rows matching the selected **`city_id`**. Labels derive from **`project_id`** substrings (no registry display names).
 
 ## Explicitly deferred
 
