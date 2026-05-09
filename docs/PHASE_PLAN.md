@@ -1777,6 +1777,27 @@ Validation:
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
 - Exit **0**; log line **`All 55 headless tests passed.`**
 
+### Phase 5.1.2 — Settler city project + controlled_fire unlock
+
+Goal:
+
+- Mint curated **`produce_unit:settler`** in **`CityProjectDefinitions`**, wire **`controlled_fire`** **`concrete_unlocks`** to **`city_project` / produce_unit:settler**, and enumerate **`[warrior, settler]`** in **`LegalActions`** through the existing **`EffectiveRules.is_city_project_supported`** and **`ProgressState.has_unlocked_target`** gates. **`GameState.try_apply`** already rejects locked **`SetCityProduction`** with **`project_not_unlocked`**; **do not** change that path or **`SetCityProduction.validate` / `apply`**.
+
+Shipped:
+
+- **`produce_unit:settler`** row; **`controlled_fire`** third **`concrete_unlocks`** entry; **`PROJECT_ID_PRODUCE_UNIT_SETTLER`** on **`SetCityProduction`**; **`LegalActions`** per-city ordered candidates; headless **`test_settler_unlock_flow.gd`**; runner **56** scripts.
+
+Must not:
+
+- **No** action **`schema_version`** bumps; **no** new player action types; **no** **`EffectiveRules`** API expansion; **no** auto-apply; **no** city panel/menu; **no** AI strategy change; **no** **`ProductionDelivery`** tests for settler; **no** generated worlds, save/load, cloud, or LLM work.
+- **No** **`GameState`**, **`ProgressState`**, **`ProductionTick`**, **`ProductionDelivery`**, AI, or presentation code changes. **`ProgressUnlockResolver`** is exercised by data and existing behavior only — **no** structural code changes to the resolver in this slice (the existing **`concrete_unlocks`** row shape is already supported).
+- **No** **`docs/player/**`** or **`.cursor/**`** edits.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1`
+- Exit **0**; log line **`All 56 headless tests passed.`**
+
 ## Phase 6 — Empire of Minds worldbuilding and identity
 
 Goal:

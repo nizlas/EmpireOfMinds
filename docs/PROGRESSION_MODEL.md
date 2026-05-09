@@ -68,7 +68,7 @@
 
 **Planned v0 unlock target (documentation label only in 5.1.0):**
 
-- Completing **`controlled_fire`** should eventually unlock a **second** trainable city project so players can produce a **settler**-class unit. Steering uses the **planned** id **`produce_unit:settler`** (same **`project_id`** string family as **`produce_unit:warrior`**). **No** such row exists in **`CityProjectDefinitions`** until a **later** slice; **`LegalActions`** still enumerates only **`produce_unit:warrior`** until then.
+- Completing **`controlled_fire`** unlocks the **`city_project`** target **`produce_unit:settler`** ( **`ProgressDefinitions`** **`concrete_unlocks`** → **`ProgressUnlockResolver`** → **`ProgressState`**). The registry row **`produce_unit:settler`** lives in **`CityProjectDefinitions`**; **`LegalActions`** may enumerate it after unlock. Manual **`KEY_H`** / **`CompleteProgress`** remains the application path; **no** auto-apply in **5.1.2**.
 
 **Scope discipline for v0:**
 

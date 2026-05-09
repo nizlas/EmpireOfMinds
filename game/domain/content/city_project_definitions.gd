@@ -7,7 +7,7 @@ const _UnitDefinitionsScript = preload("res://domain/content/unit_definitions.gd
 
 const PROJECT_ID_NONE: String = "none"
 
-const _ORDERED_IDS: Array = ["produce_unit:warrior"]
+const _ORDERED_IDS: Array = ["produce_unit:warrior", "produce_unit:settler"]
 
 const _DEFINITIONS: Dictionary = {
 	"produce_unit:warrior":
@@ -18,6 +18,15 @@ const _DEFINITIONS: Dictionary = {
 		"produces_unit_type": "warrior",
 		"cost": 2,
 		"role": "basic_unit_training",
+	},
+	"produce_unit:settler":
+	{
+		"id": "produce_unit:settler",
+		"display_name": "Train Settler",
+		"project_type": "produce_unit",
+		"produces_unit_type": "settler",
+		"cost": 2,
+		"role": "founder_unit_training",
 	},
 }
 

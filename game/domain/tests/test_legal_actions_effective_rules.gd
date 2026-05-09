@@ -22,6 +22,7 @@ const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 const EffectiveRulesScript = preload("res://domain/effective_rules.gd")
+const ProgressStateScript = preload("res://domain/progress_state.gd")
 
 var _total = 0
 var _any_fail = false
@@ -95,8 +96,30 @@ func _init() -> void:
 	var L_at = LegalActionsScript.for_current_player(gs, _FakeAllTrue.new())
 	_check(
 		_lists_equal_actions(L_at, L_default),
-		"all-true EffectiveRules matches default for today enumerated actions (gate does not bypass validate)"
+		"all-true EffectiveRules matches default for enumerated city projects (gate does not bypass validate)"
 	)
+
+	var ps_both = ProgressStateScript.new(
+		{
+			0:
+			{
+				"unlocked_targets": [
+					{"target_type": "city_project", "target_id": SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR},
+					{"target_type": "city_project", "target_id": SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER},
+				],
+				"completed_progress_ids": [],
+			}
+		}
+	)
+	var gs_unlocked = GameStateScript.new(sc_c, ps_both)
+	var L_ff_both = LegalActionsScript.for_current_player(gs_unlocked, _FakeAllFalse.new())
+	var sp_ct_ff = 0
+	var t = 0
+	while t < L_ff_both.size():
+		if (L_ff_both[t] as Dictionary)["action_type"] == SetCityProductionScript.ACTION_TYPE:
+			sp_ct_ff = sp_ct_ff + 1
+		t = t + 1
+	_check(sp_ct_ff == 0, "all-false drops sp even when warrior and settler unlocked in ProgressState")
 
 	var saw_sp = false
 	var si = 0

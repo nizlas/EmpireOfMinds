@@ -66,6 +66,7 @@ const _DEFINITIONS: Dictionary = {
 		"concrete_unlocks": [
 			{"target_type": "building", "target_id": "hearth"},
 			{"target_type": "action", "target_id": "camp_clearing"},
+			{"target_type": "city_project", "target_id": "produce_unit:settler"},
 		],
 		"systemic_effects": [
 			{"target_type": "modifier", "target_id": "cold_terrain_growth_bonus"},

@@ -9,7 +9,7 @@
 - **`position`**: **`HexCoord`** — city tile; must be on the map and **not** **`HexMap.Terrain.WATER`**.
 - **`current_project`**: **`null`** **or** a **primitive** **`Dictionary`** — **Phase 2.3+** current build / production state. **`null`** means **no** project. For **`produce_unit`**, the shape includes **`progress`**, **`cost`**, and **`ready`** (**`bool`**, **`false`** until **`progress` >= `cost`** on an **accepted** **`end_turn`** tick, **Phase 2.4c**). When a **`Dictionary`** is passed to **`City._init`**, the constructor stores **`duplicate(true)`** so later mutation of the caller’s **`Dictionary`** does **not** affect the **`City`**.
 
-**Phase 3.3:** **`current_project`** may include **`project_id`** (e.g. **`"produce_unit:warrior"`**), copied from **`SetCityProduction.apply`** into **`City`**. **`cost`** for that project comes from **`CityProjectDefinitions`**; the only shipped project id is **`produce_unit:warrior`** ( **`produce_unit:settler`** is **deferred**). Completed units’ **`Unit.type_id`** comes from **`CityProjectDefinitions.produces_unit_type(project_id)`** in **`ProductionDelivery`**, with a transitional **`"warrior"`** fallback when **`project_id`** is missing or unknown (legacy **`current_project`** rows).
+**Phase 3.3:** **`current_project`** may include **`project_id`** (e.g. **`"produce_unit:warrior"`**, **`"produce_unit:settler"`**), copied from **`SetCityProduction.apply`** into **`City`**. **`cost`** for that project comes from **`CityProjectDefinitions`**. Completed units’ **`Unit.type_id`** comes from **`CityProjectDefinitions.produces_unit_type(project_id)`** in **`ProductionDelivery`**, with a transitional **`"warrior"`** fallback when **`project_id`** is missing or unknown (legacy **`current_project`** rows).
 
 Cities are **immutable** (no mutators): changes happen only via **`GameState.try_apply`** **player** actions (e.g. **`FoundCity`**, **`SetCityProduction`**) **or** via **engine** steps tied to an accepted **`end_turn`** (Phase **2.4a** **`production_progress`**, see [ACTIONS.md](ACTIONS.md)) that return a **new** **`Scenario`**.
 
@@ -46,7 +46,7 @@ The canonical **`make_tiny_test_scenario()`** fixture has **no cities** in Phase
 
 **`SetCityProduction.validate`** does **not** check **`current_player_id`** (**`not_current_player`** is only **`GameState.try_apply`**). Idempotent requests (**`project_already_set`**) are **rejected** (no log).
 
-**Phase 2.5 (AI / legal list):** **`LegalActions`** may emit **`set_city_production`** for cities with **`current_project == null`** when **`SetCityProduction.validate`** passes (**`produce_unit:warrior`** only today). **`RuleBasedAIPlayer`** prefers filling an empty project before movement. **`PROJECT_ID_NONE`** clears are **not** enumerated in **2.5**.
+**Phase 2.5 (AI / legal list):** **`LegalActions`** may emit **`set_city_production`** for cities with **`current_project == null`** when **`SetCityProduction.validate`** passes, in deterministic order (**`produce_unit:warrior`** then **`produce_unit:settler`** when the latter is supported and unlocked). **`RuleBasedAIPlayer`** prefers filling an empty project before movement. **`PROJECT_ID_NONE`** clears are **not** enumerated in **2.5**.
 
 ## Phase 2.4a–c — Production on EndTurn (engine)
 
@@ -62,7 +62,7 @@ On **accepted** **`end_turn`**, **`ProductionTick`** ([production_tick.gd](../ga
 
 - The Ancient mini-game **embryo v0** reuses the **existing** **`produce_unit`** **`progress` / `cost` / `ready`** mechanic and **`ProductionTick`** / **`ProductionDelivery`** engine events as the only **city output** players see for production.
 - A dedicated **`science`**, **`research`**, or **`thought`** **yield** (numeric per turn, separate from **`produce_unit`** rows) is **deferred**; “science progress” in player-facing descriptions for v0 maps to **completing** **`ProgressDefinitions`** sciences via **`CompleteProgress`** and to **production** progress on city projects — not a second parallel yield meter.
-- The **planned** second project **`produce_unit:settler`** is documented in **[Phase 5.1 v0 ancient curated seed](PROGRESSION_MODEL.md)**; the **registry row** ships in a **later** code slice.
+- The **second** project **`produce_unit:settler`** is minted in **`CityProjectDefinitions`**; it is gated by a **`city_project`** unlock from completing **`controlled_fire`** via **`CompleteProgress`** (see **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)**).
 
 See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1**, [CORE_LOOP.md](CORE_LOOP.md) **Phase 5.1 embryo intent**.
 

@@ -100,23 +100,25 @@ static func for_current_player(game_state, effective_rules = null) -> Array:
 	while cj < p0cities.size():
 		var cy = p0cities[cj]
 		if cy.current_project == null:
-			if er.is_city_project_supported(SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR):
-				var sp = SetCityProductionScript.make(
-					cp,
-					cy.id,
-					SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR
-				)
+			var candidate_pids = [
+				SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
+				SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER,
+			]
+			var pi = 0
+			while pi < candidate_pids.size():
+				var pid = candidate_pids[pi]
+				if not er.is_city_project_supported(pid):
+					pi = pi + 1
+					continue
+				var sp = SetCityProductionScript.make(cp, cy.id, pid)
 				var sv = SetCityProductionScript.validate(scenario, sp)
 				if sv["ok"]:
 					if (
 						game_state.progress_state == null
-						or game_state.progress_state.has_unlocked_target(
-							cp,
-							"city_project",
-							SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR
-						)
+						or game_state.progress_state.has_unlocked_target(cp, "city_project", pid)
 					):
 						out.append(sp)
+				pi = pi + 1
 		cj = cj + 1
 	out.append(EndTurnScript.make(cp))
 	return out

@@ -108,6 +108,15 @@ func _init() -> void:
 	_check(fd_after.size() == 2, "future_mut size restored")
 	_check((fd_after[0] as Dictionary)["target_id"] == "survival_knowledge", "future inner intact")
 
+	var cu_cf = ProgressDefinitionsScript.concrete_unlocks("controlled_fire") as Array
+	_check(cu_cf.size() == 3, "controlled_fire concrete_unlocks size")
+	_check((cu_cf[0] as Dictionary)["target_type"] == "building", "cf cu0 type")
+	_check((cu_cf[0] as Dictionary)["target_id"] == "hearth", "cf cu0 id")
+	_check((cu_cf[1] as Dictionary)["target_type"] == "action", "cf cu1 type")
+	_check((cu_cf[1] as Dictionary)["target_id"] == "camp_clearing", "cf cu1 id")
+	_check((cu_cf[2] as Dictionary)["target_type"] == "city_project", "cf cu2 type")
+	_check((cu_cf[2] as Dictionary)["target_id"] == "produce_unit:settler", "cf cu2 id")
+
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

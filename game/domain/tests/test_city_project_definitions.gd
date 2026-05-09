@@ -10,18 +10,22 @@ var _any_fail = false
 
 func _init() -> void:
 	_check(CityProjectDefinitionsScript.has("produce_unit:warrior"), "has warrior project")
-	_check(not CityProjectDefinitionsScript.has("produce_unit:settler"), "no settler project")
+	_check(CityProjectDefinitionsScript.has("produce_unit:settler"), "has settler project")
 	_check(not CityProjectDefinitionsScript.has("none"), "has none false")
 
 	var ids0 = CityProjectDefinitionsScript.ids() as Array
 	_check(
-		ids0.size() == 1 and str(ids0[0]) == "produce_unit:warrior",
-		"ids single warrior"
+		ids0.size() == 2
+		and str(ids0[0]) == "produce_unit:warrior"
+		and str(ids0[1]) == "produce_unit:settler",
+		"ids warrior then settler"
 	)
 	ids0.append("bogus")
 	var ids1 = CityProjectDefinitionsScript.ids() as Array
 	_check(
-		ids1.size() == 1 and str(ids1[0]) == "produce_unit:warrior",
+		ids1.size() == 2
+		and str(ids1[0]) == "produce_unit:warrior"
+		and str(ids1[1]) == "produce_unit:settler",
 		"ids duplicate safe"
 	)
 
@@ -32,6 +36,14 @@ func _init() -> void:
 	_check(d["produces_unit_type"] == "warrior", "def produces_unit_type")
 	_check(int(d["cost"]) == 2, "def cost")
 	_check(d["role"] == "basic_unit_training", "def role")
+
+	var ds = CityProjectDefinitionsScript.get_definition("produce_unit:settler") as Dictionary
+	_check(ds["id"] == "produce_unit:settler", "settler id")
+	_check(ds["display_name"] == "Train Settler", "settler display_name")
+	_check(ds["project_type"] == "produce_unit", "settler project_type")
+	_check(ds["produces_unit_type"] == "settler", "settler produces_unit_type")
+	_check(int(ds["cost"]) == 2, "settler cost")
+	_check(ds["role"] == "founder_unit_training", "settler role")
 
 	_check(CityProjectDefinitionsScript.get_definition("nope") == null, "unknown null")
 
@@ -47,15 +59,21 @@ func _init() -> void:
 	_check(CityProjectDefinitionsScript.cost("nope") == 0, "cost unknown")
 
 	_check(CityProjectDefinitionsScript.produces_unit_type("produce_unit:warrior") == "warrior", "produces ok")
+	_check(CityProjectDefinitionsScript.produces_unit_type("produce_unit:settler") == "settler", "produces settler")
 	_check(CityProjectDefinitionsScript.produces_unit_type("nope") == "", "produces unknown")
 
 	_check(CityProjectDefinitionsScript.is_supported_project_id("produce_unit:warrior"), "supported warrior")
+	_check(CityProjectDefinitionsScript.is_supported_project_id("produce_unit:settler"), "supported settler")
 	_check(not CityProjectDefinitionsScript.is_supported_project_id("none"), "none not supported id")
 	_check(not CityProjectDefinitionsScript.is_supported_project_id("nope"), "unknown not supported")
 
 	_check(
 		UnitDefinitionsScript.has(CityProjectDefinitionsScript.produces_unit_type("produce_unit:warrior")),
-		"produces_unit_type in UnitDefinitions"
+		"produces_unit_type warrior in UnitDefinitions"
+	)
+	_check(
+		UnitDefinitionsScript.has(CityProjectDefinitionsScript.produces_unit_type("produce_unit:settler")),
+		"produces_unit_type settler in UnitDefinitions"
 	)
 
 	if _any_fail:

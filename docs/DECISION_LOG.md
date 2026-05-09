@@ -1,3 +1,17 @@
+## 2026-05-09 — Phase 5.1.2 — Settler city project + controlled_fire unlock
+
+Decision:
+
+- Mint **`produce_unit:settler`** in **`CityProjectDefinitions`**, add **`city_project` / produce_unit:settler** to **`controlled_fire`** **`concrete_unlocks`**, expose **`PROJECT_ID_PRODUCE_UNIT_SETTLER`**, and have **`LegalActions`** enumerate warrior then settler through existing **`EffectiveRules`** and **`ProgressState`** gates. **`GameState.try_apply`** already returns **`project_not_unlocked`** for locked **`SetCityProduction`**; **5.1.2** does not change that branch.
+
+Rationale:
+
+- Smallest slice that makes the planned v0 second project playable after **`controlled_fire`** without schema bumps, UI, AI policy changes, or **`ProgressUnlockResolver`** code changes (data-only unlock row).
+
+Caveat:
+
+- **`LegalActions`** uses an explicit **`[warrior, settler]`** candidate list keyed on **`SetCityProduction`** constants; broader registry-driven enumeration remains a future slice. No **`ProductionDelivery`** regression test for settler in **5.1.2**.
+
 ## 2026-05-09 — Phase 5.1.1 — EffectiveRules façade + LegalActions read path
 
 Decision:
@@ -10,7 +24,7 @@ Rationale:
 
 Caveat:
 
-- Only the warrior **`project_id`** is enumerated today; **AllTrue**-style fakes prove the gate does not bypass **`validate`** for current actions, not filtering of hypothetical extra ids.
+- **5.1.1** introduced the façade and warrior-first enumeration; **5.1.2** adds settler when supported and unlocked. **AllTrue**-style fakes still prove the support gate does not bypass **`validate`** for enumerated ids.
 
 ## 2026-05-09 — Phase 5.1 — Ancient mini-game embryo umbrella
 

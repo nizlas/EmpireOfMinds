@@ -15,6 +15,10 @@ func _init() -> void:
 		er.is_city_project_supported(SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR),
 		"warrior project supported"
 	)
+	_check(
+		er.is_city_project_supported(SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER),
+		"settler project supported"
+	)
 	_check(er.is_city_project_supported(CityProjectDefinitionsScript.PROJECT_ID_NONE) == false, "none unsupported")
 	_check(er.is_city_project_supported("") == false, "empty unsupported")
 	_check(er.is_city_project_supported("clearly_not_a_real_id") == false, "garbage unsupported")

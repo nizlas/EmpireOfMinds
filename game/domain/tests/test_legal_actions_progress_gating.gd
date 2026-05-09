@@ -131,6 +131,35 @@ func _init() -> void:
 		si = si + 1
 	_check(sh_sp, "null progress shell still enumerates sp")
 
+	var ps_both = ProgressStateScript.new(
+		{
+			0:
+			{
+				"unlocked_targets": [
+					{"target_type": "city_project", "target_id": SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR},
+					{"target_type": "city_project", "target_id": SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER},
+				],
+				"completed_progress_ids": [],
+			}
+		}
+	)
+	var gs_both = GameStateScript.new(sc_c, ps_both)
+	var L_unlocked_both = LegalActionsScript.for_current_player(gs_both)
+	var sp_pair_warrior = -1
+	var sp_pair_settler = -1
+	var ub = 0
+	while ub < L_unlocked_both.size():
+		var eb = L_unlocked_both[ub] as Dictionary
+		if eb["action_type"] == SetCityProductionScript.ACTION_TYPE:
+			if str(eb["project_id"]) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR:
+				sp_pair_warrior = ub
+			elif str(eb["project_id"]) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER:
+				sp_pair_settler = ub
+		ub = ub + 1
+	_check(sp_pair_warrior >= 0 and sp_pair_settler >= 0, "both projects enumerated when unlocked")
+	_check(sp_pair_warrior < sp_pair_settler, "warrior before settler in legal list")
+	_check(sp_pair_settler == sp_pair_warrior + 1, "warrior and settler adjacent block")
+
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

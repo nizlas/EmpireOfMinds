@@ -7,6 +7,7 @@ const SCHEMA_VERSION: int = 2
 const ACTION_TYPE: String = "set_city_production"
 const PROJECT_ID_NONE: String = "none"
 const PROJECT_ID_PRODUCE_UNIT_WARRIOR: String = "produce_unit:warrior"
+const PROJECT_ID_PRODUCE_UNIT_SETTLER: String = "produce_unit:settler"
 const PROJECT_TYPE_PRODUCE_UNIT: String = "produce_unit"
 const PROJECT_TYPE_NONE: String = "none"
 
