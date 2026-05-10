@@ -14,6 +14,9 @@ var _units: Array
 var _cities: Array
 var _next_unit_id: int
 var _next_city_id: int
+## Optional prototype landmark axial cell. Null when unused. Phase 5.1.8a — Lightning-Scarred Tree observation gate for controlled_fire.
+## Untyped so callers may pass [param null] without GDScript type friction.
+var lightning_tree_hex = null
 
 
 static func _max_unit_id(units: Array) -> int:
@@ -43,7 +46,8 @@ func _init(
 	p_units: Array,
 	p_cities: Array = [],
 	p_next_unit_id: int = -1,
-	p_next_city_id: int = -1
+	p_next_city_id: int = -1,
+	p_lightning_tree_hex = null,
 ) -> void:
 	assert(p_map != null, "Scenario requires a map")
 	var seen_u = {}
@@ -91,6 +95,12 @@ func _init(
 			"next_city_id must stay above all existing city ids (replay-safe)"
 		)
 		_next_city_id = p_next_city_id
+	if p_lightning_tree_hex == null:
+		lightning_tree_hex = null
+	else:
+		assert(typeof(p_lightning_tree_hex) == TYPE_OBJECT)
+		assert(p_map.has(p_lightning_tree_hex), "lightning_tree_hex must be on the map")
+		lightning_tree_hex = p_lightning_tree_hex
 
 
 func peek_next_unit_id() -> int:
@@ -180,4 +190,5 @@ static func make_prototype_play_scenario():
 		UnitScript.new(2, 0, HexCoordScript.new(1, 0), "warrior"),
 		UnitScript.new(3, 1, HexCoordScript.new(0, -1), "settler"),
 	]
-	return _SCENARIO_SCRIPT.new(m, us)
+	# Open GRASSLAND (no prototype forest-cluster overlay). Phase 5.1.8c placement + 5.1.8a observation gate.
+	return _SCENARIO_SCRIPT.new(m, us, [], -1, -1, HexCoordScript.new(3, 0))

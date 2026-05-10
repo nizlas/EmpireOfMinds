@@ -122,6 +122,7 @@ static func deliver_pending_for_player(a_scenario, owner_id: int) -> Dictionary:
 		new_units,
 		new_cities,
 		running_next_unit_id,
-		a_scenario.peek_next_city_id()
+		a_scenario.peek_next_city_id(),
+		a_scenario.lightning_tree_hex,
 	)
 	return {"scenario": new_scenario, "events": events}

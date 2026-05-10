@@ -104,6 +104,13 @@ func _init() -> void:
 
 	var ok1 = CompleteProgressScript.validate(ps0, CompleteProgressScript.make(0, "foraging_systems"))
 	_check(ok1["ok"] and str(ok1["reason"]) == "", "accept empty state")
+	var rng = CompleteProgressScript.validate(ps0, CompleteProgressScript.make(0, "animal_tracking"))
+	_check(
+		not rng["ok"] and str(rng["reason"]) == "prerequisites_not_met",
+		"animal_tracking locked default"
+	)
+	var ok_cf = CompleteProgressScript.validate(ps0, CompleteProgressScript.make(0, "controlled_fire"))
+	_check(ok_cf["ok"] and str(ok_cf["reason"]) == "", "controlled_fire start-available validate")
 	var def = ProgressStateScript.with_default_unlocks_for_players([0, 1])
 	var ok2 = CompleteProgressScript.validate(def, CompleteProgressScript.make(0, "foraging_systems"))
 	_check(ok2["ok"], "accept default seeded")

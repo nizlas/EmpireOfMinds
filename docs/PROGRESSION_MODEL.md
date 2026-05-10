@@ -17,7 +17,7 @@
 ### Phase 3.4c status (implemented)
 
 - **[ProgressState](../game/domain/progress_state.gd)** (`class_name` **`ProgressState`**) — **immutable** snapshot of **player-specific** **unlocked targets** (`target_type` + **`target_id`** rows; literal gate type **`"city_project"`** for **`SetCityProduction`** in this slice).
-- **`GameState`** owns **`progress_state`** (**not** **`Scenario`**). **Default seed:** every **initial** **`turn_state.players`** id gets **`city_project` / `produce_unit:warrior`** unlocked; **`GameState.new(scenario)`** (omitted second arg) keeps that default.
+- **`GameState`** owns **`progress_state`** (**not** **`Scenario`**). **Default seed:** every **initial** **`turn_state.players`** id gets **`city_project` / `produce_unit:warrior`** and **`city_project` / `produce_unit:settler`** unlocked (**Phase 5.1.12d**); **`GameState.new(scenario)`** (omitted second arg) keeps that default.
 - **`GameState.try_apply`**: after **`SetCityProduction.validate`** succeeds, **`set_city_production`** may be rejected with **`project_not_unlocked`** if the **actor** lacks that **`city_project`** unlock; **`SetCityProduction.PROJECT_ID_NONE`** is **never** gated.
 - **`LegalActions`** mirrors the same rule when enumerating **`SetCityProduction`** for **`PROJECT_ID_PRODUCE_UNIT_WARRIOR`**. **`progress_state == null`** on a **synthetic shell** (`LegalActions` tests / helpers) keeps **legacy ungated** enumeration.
 - **No** progress accumulation tied to **`ProgressDefinitions`**, **no** breakthrough detectors, **no** **`ProgressDefinitions`** consumption for **`SetCityProduction`**, **no** **`SetCityProduction`** schema changes.
@@ -40,7 +40,7 @@
 
 ### Phase 3.4g status (implemented)
 
-- **`ProgressDetector`** ([progress_detector.gd](../game/domain/progress_detector.gd)) — read-only, candidate-generating: **`suggested_complete_progress_actions(game_state)`** returns **`CompleteProgress`** action **`Dictionary`** values (**no** **`try_apply`**, **no** mutation). **First rule:** log entry with **`action_type`** **`found_city`**, **`result`** **`"accepted"`**, matching **`actor_id`**, for an owner ⇒ propose **`controlled_fire`** unless **`has_completed_progress`**. **Not** invoked by **`GameState`**, **`LegalActions`**, **AI**, UI, or controllers.
+- **`ProgressDetector`** ([progress_detector.gd](../game/domain/progress_detector.gd)) — read-only, candidate-generating: **`suggested_complete_progress_actions(game_state)`** returns **`CompleteProgress`** action **`Dictionary`** values (**no** **`try_apply`**, **no** mutation). **Rule (Phase 5.1.8a):** when **`scenario.lightning_tree_hex`** is non-null (**prototype play map** carries a deterministic **Lightning-Scarred Tree** landmark cell — **not** a weather system, resource row, or feature catalogue), propose **`controlled_fire`** for a player who has **not** **`has_completed_progress`** and whose **`ActionLog`** contains an **accepted `move_unit`** for that **`actor_id`** whose **`to`** hex equals the tree or is **hex-adjacent** to it. Other scenarios keep **`lightning_tree_hex == null`** so this rule stays inert. **Not** invoked by **`GameState`**, **`LegalActions`**, **AI**, UI, or controllers.
 
 ### Phase 3.4h status (implemented)
 
@@ -62,13 +62,13 @@
 
 **Phase 5.1.0 is documentation only.** **5.1.0** documents the **planned** future v0 Ancient mini-game embryo seed; the **actual** registry IDs, **`ProgressDefinitions`** unlock rows, **`CityProjectDefinitions`** row, validators, and **`LegalActions`** wiring are **minted / implemented in later code slices** — not in **5.1.0**.
 
-**Planned v0 trigger (existing detector vocabulary):**
+**Planned v0 trigger (Phase 5.1.8a implementation):**
 
-- After an **accepted** **`found_city`** for a player, **`ProgressDetector`** already proposes **`CompleteProgress`** for **`controlled_fire`** (when not already completed). Manual **`KEY_H`** application remains the **player** path until a future auto-apply slice.
+- On the **prototype play** scenario, an optional **`Scenario.lightning_tree_hex`** marks a **Lightning-Scarred Tree** cell (**prototype map feature only** — **no** weather simulation, **no** random events, **no** resource system). **Phase 5.1.8c:** the axial cell is chosen so **base terrain** is **PLAINS** or **GRASSLAND** and the tile is **not** part of the hand-maintained **prototype forest-cluster / foreground decoration** list (visually **open** land, not forest-painted). **`ProgressDetector`** still proposes **`CompleteProgress`** for **`controlled_fire`** after the same **observation** predicate (for **`ProgressCandidateFilter`** / **`KEY_H`** debug only) — a **hint**, not a hard gate on the science loop. **Phase 5.1.9:** **normal** **`controlled_fire`** completion is **automatic** — **`ProgressState`** stores **`science_progress`** and per-science **observation** flags; each **owned city** adds **1** progress on the owner’s **EndTurn**; the tree grants a **one-time bonus** after an **accepted `move_unit`** whose **destination** is on/adjacent to **`lightning_tree_hex`** (not required to finish); at **cost 6**, **`ProgressUnlockResolver.complete_progress`** runs and the log records **`science_completed`**. **Phase 5.1.10:** that bonus also records **`science_bonus`** in the **`ActionLog`** so **`DiscoveryPopup`** can acknowledge the observation (**flavor + progress line**); completion feedback stays **`ScienceCompletedPopup`** via **`science_completed`**. **`DiscoveryActionPanel`** **hides** **`controlled_fire`** (UI reserved for future breakthroughs). Manual **`KEY_H`** can still apply an explicit detector **`CompleteProgress`** when a candidate exists and science is not yet complete.
 
 **Planned v0 unlock target (documentation label only in 5.1.0):**
 
-- Completing **`controlled_fire`** unlocks the **`city_project`** target **`produce_unit:settler`** ( **`ProgressDefinitions`** **`concrete_unlocks`** → **`ProgressUnlockResolver`** → **`ProgressState`**). The registry row **`produce_unit:settler`** lives in **`CityProjectDefinitions`**; **`LegalActions`** may enumerate it after unlock. Manual **`KEY_H`** / **`CompleteProgress`** remains the application path; **no** auto-apply in **5.1.2**.
+- Completing **`controlled_fire`** applies a **thematic bundle** (**`building` / `hearth`**, **`action` / `camp_clearing`**, **`modifier` / `controlled_fire_practice`**, plus **`systemic_effects`** modifiers **`cold_terrain_growth_bonus`**, **`small_health_bonus`**) via **`ProgressDefinitions`** → **`ProgressUnlockResolver`** → **`ProgressState`** (**Phase 5.1.12d**). **`produce_unit:settler`** is **not** part of that reward; **Train Settler** is **default-unlocked** from turn **1** alongside **`produce_unit:warrior`** (**`with_default_unlocks_for_players`**). The registry row **`produce_unit:settler`** lives in **`CityProjectDefinitions`**; **`LegalActions`** enumerates it when the project is supported and unlocked. Manual **`KEY_H`** / **`CompleteProgress`** remains a path for **`controlled_fire`**; **no** auto-apply in **5.1.2**.
 
 **Scope discipline for v0:**
 
@@ -545,13 +545,69 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 
 - Samples become **shipped IDs** only via a **future subphase** plus **[DECISION_LOG.md](DECISION_LOG.md)** entry — never by silent doc edit alone.
 
+## Phase 5.1.12 — Ancient science tree (documentation checkpoint)
+
+**Status:** **Phase 5.1.12a** (this section) is **documentation-only**. No registry rows, **`ProgressState`**, **`ScienceTick`**, or presentation changes ship in **5.1.12a**. Implementation is sequenced in **[PHASE_PLAN.md](PHASE_PLAN.md)** sub-slices **5.1.12b** / **5.1.12c** / **5.1.12d**.
+
+**Intent:** Replace the prototype **single-target** **`controlled_fire`** loop with a **real ancient science tree**: **19** sciences with **`cost`** (**int**) and **`prerequisites`** (science id strings), **bundle rewards** (`concrete_unlocks` / `systemic_effects`), **per-player current research target**, **deterministic availability** from prerequisites, and **city-per-turn yield** routed to the active target. **Discoveries** (e.g. lightning-tree bonus) remain **bonuses toward a specific science**, not mandatory gates. **No** full tech-tree visual UI in **5.1.12**; **auto-target** keeps play moving until a future **SciencePanel** slice.
+
+### Ancient tree (IDs, costs, prerequisites)
+
+Dependency rules for this doc table:
+
+- Every listed prerequisite is **real** (the parent science exists in this tree).
+- **No** decorative or **dead** prerequisites.
+- A science with **no outgoing edges** in this view (**no** later science lists it as a prerequisite) is a **leaf** in this curated view.
+- **`counting_marks`** feeds **`glyphic_records`** only — it is **not** a global convergence hub for unrelated branches.
+- **`textile_work`** is unlocked by **`foraging_systems`** alone (travel / material-support branch; avoids a Column 2 science with no inbound edge).
+
+| Science id | Cost | Prerequisites | Notes |
+| --- | --- | --- | --- |
+| **Column 1 — starting sciences** | | | |
+| `foraging_systems` | 6 | _(none)_ | |
+| `stone_tools` | 6 | _(none)_ | |
+| `controlled_fire` | 6 | _(none)_ | **5.1.12d (shipped):** metadata **bundle** only — no **`produce_unit:settler`** in **`concrete_unlocks`**. |
+| `oral_surveying` | 6 | _(none)_ | |
+| **Column 2 — early specializations** | | | |
+| `animal_tracking` | 10 | `foraging_systems`, `oral_surveying` | |
+| `seasonal_calendars` | 10 | `foraging_systems`, `controlled_fire` | |
+| `pottery_craft` | 10 | `controlled_fire` | |
+| `textile_work` | 10 | `foraging_systems` | |
+| `basic_mining` | 10 | `stone_tools` | |
+| `timber_working` | 10 | `stone_tools`, `controlled_fire` | |
+| **Column 3 — settled economy / administration** | | | |
+| `agrarian_practice` | 14 | `pottery_craft`, `seasonal_calendars` | |
+| `counting_marks` | 14 | `pottery_craft`, `oral_surveying` | Admin / writing branch toward **`glyphic_records`**. |
+| `mudbrick_construction` | 14 | `timber_working` | |
+| `simple_levers` | 14 | `stone_tools` | |
+| **Column 4 — later locked paths** | | | |
+| `pastoral_herding` | 18 | `animal_tracking` | **Leaf** in this view. |
+| `river_irrigation` | 18 | `seasonal_calendars` | **Leaf** in this view. |
+| `bronze_alloying` | 18 | `basic_mining` | **Leaf** in this view. |
+| `wheelwrighting` | 18 | `timber_working` | **Leaf** in this view. |
+| `glyphic_records` | 18 | `counting_marks` | **Leaf**; display / lore may read as **Glyphic Records / Formal Writing**. |
+
+### Model contracts (5.1.12 rollout)
+
+1. **`ProgressDefinitions`** row extension (science rows): **`cost`**: **`int`** and **`prerequisites`**: **`Array[String]`** — **shipped in 5.1.12b** with **`cost(id)`**, **`prerequisites(id)`**, **`is_science(id)`** (ordered prerequisite lists in data; validators require all completed).
+2. **`ProgressState`** (**5.1.12c** **shipped**): **`current_research_id`**: **`String`** per **`owner_id`** (**`""`** = auto-target); helpers **`current_research_for`**, **`with_current_research`**; **`ScienceTick`** uses explicit id when set **and** **`ScienceAvailability.is_available`**, else **first** **`available_for`**.
+3. **`ScienceAvailability`** (**5.1.12b**): **`available_for`**, **`locked_for`**, **`completed_for`**, **`is_available`** — **pure** domain helper; returned id lists sorted **alphabetically**. **Availability** is **derived** from **`completed_progress_ids`**, not stored separately on **`ProgressState`**.
+4. **`SetCurrentResearch`** (**5.1.12c** **shipped** — **`set_current_research`**): validates registry id, **science** row, **not** completed, **available**; **`science_id` `""`** clears explicit target; **`GameState.try_apply`** logs **`result`:** **`accepted`**.
+5. **`CompleteProgress.validate`** (**5.1.12b**): rejection **`prerequisites_not_met`** when a **science**’s prerequisites are not all in **`completed_progress_ids`** (**`try_apply`** surfaces this reason).
+6. **`ScienceTick`** (**5.1.12b**–**c** **shipped**): **`apply_for_player`** resolves dynamic **`progress_id`**, reads **`ProgressDefinitions.cost`**, completes via **`ProgressUnlockResolver`** at threshold (**no** overflow); emits **`science_progress`** / **`science_completed`** for that id; **`science_no_target`** when **zero** available sciences; **`add_observation_bonus_if_eligible`** uses **`controlled_fire`** only (**independent** of **`current_research_id`**).
+7. **Settler baseline** (**5.1.12d** **shipped**): **`ProgressState.with_default_unlocks_for_players`** includes **`city_project` / `produce_unit:settler`** from turn **1** (with **`produce_unit:warrior`**). **`controlled_fire`** **`concrete_unlocks`**: **`building` / `hearth`**, **`action` / `camp_clearing`**, **`modifier` / `controlled_fire_practice`**; **`systemic_effects`**: **`modifier` / `cold_terrain_growth_bonus`**, **`modifier` / `small_health_bonus`**. Gameplay effects for those targets remain **metadata-only** until later phases.
+8. **Science bundles:** every science row should declare **at least one** **`concrete_unlock`** **or** **`systemic_effect`**. **Placeholder** targets are acceptable until gameplay systems exist; unknown **`target_type`** rows may remain **metadata-only** in **`ProgressState.unlocked_targets`** without enforcement.
+9. **Discoveries / landmarks:** **bonus progress** toward a **named** science id, **not** mandatory gates on completing that science.
+10. **`ScienceCompletedPopup`:** remains **log-driven**; **no** **`ProgressDefinitions`** import in presentation — copy and bullet lists derive from **log** **`progress_id`**, **`unlocked_targets`**, and related fields only.
+11. **UI:** **no** tech-tree canvas in **5.1.12**; **auto-target** preserves a playable loop; **SciencePanel** / visual tree are **deferred**.
+
 ## Relationship to existing docs
 
 - **[CONTENT_MODEL.md](CONTENT_MODEL.md)** — general **content contract** (registries, IDs, duplication rules).
 - **[CONTENT_BACKLOG.md](CONTENT_BACKLOG.md)** & workbook — **non-canonical** raw lists and brainstorms.
 - **`PROGRESSION_MODEL.md`** (this file) — **systematic model** for progression / unlocks / detection vocabulary.
 - **Implemented registries today:** `UnitDefinitions`, `TerrainRuleDefinitions`, `CityProjectDefinitions`, and **`ProgressDefinitions`** (**Phase 3.4b** — **metadata-only** progression seed; **no** gameplay enforcement).
-- **Implemented session state:** **`GameState.progress_state`** (**Phase 3.4c**) — player-specific **`unlocked_targets`** and **`completed_progress_ids`** (**Phase 3.4d**); **deterministic** **`SetCityProduction`** gating (**`project_not_unlocked`** in **`try_apply`**); **`complete_progress`** (**Phase 3.4e**) applies definition unlocks via **`ProgressUnlockResolver`** without detectors or accumulation mechanics; **Phase 3.4f** adds **`KEY_G`** in **`SelectionController`** for a **manual** **`CompleteProgress`** debug slice (**still** **outside** **`LegalActions`** / **AI**); **Phase 3.4g** adds **`ProgressDetector`** (**read-only** **`CompleteProgress`** candidates from **`ActionLog`**, **not** auto-applied); **Phase 3.4h** adds **`ProgressCandidateFilter`** + **`KEY_H`** to **manually** submit **current-player** detector candidates through **`try_apply`** (**still** **outside** **`LegalActions`** / **AI**).
+- **Implemented session state:** **`GameState.progress_state`** (**Phase 3.4c**) — player-specific **`unlocked_targets`** (**Phase 5.1.12d:** baseline **`city_project` / `produce_unit:warrior`** and **`produce_unit:settler`**) and **`completed_progress_ids`** (**Phase 3.4d**); **Phase 5.1.9** adds **`science_progress`** and **`science_observation_flags`**; **Phase 5.1.12c** adds **`current_research_id`** (**`""`** = auto-target) and **`SetCurrentResearch`** through **`try_apply`**; **`ScienceTick.apply_for_player`** routes city yield to **explicit** target when set **and** available, else **first** **`ScienceAvailability.available_for`** (alphabetical), with **`science_no_target`** when none remain; lightning **`science_bonus`** remains **`controlled_fire`**-only; **deterministic** **`SetCityProduction`** gating (**`project_not_unlocked`** in **`try_apply`**); **`complete_progress`** (**Phase 3.4e**) applies definition unlocks via **`ProgressUnlockResolver`**; **Phase 3.4f** adds **`KEY_G`** in **`SelectionController`** for **manual** **`CompleteProgress`** (**still** **outside** **`LegalActions`** / **AI**); **Phase 3.4g** adds **`ProgressDetector`** (**read-only** candidates from **`ActionLog`**; **Phase 5.1.8a** gates **`controlled_fire`** detector on optional **`scenario.lightning_tree_hex`** + observation); **Phase 3.4h** adds **`ProgressCandidateFilter`** + **`KEY_H`** (**still** **outside** **`LegalActions`** / **AI**).
 - **[FACTION_IDENTITY.md](FACTION_IDENTITY.md)** defines the predefined/custom civilisation **identity layer** that may later **bias** progression **interpretation**, **presentation**, and trait-driven tuning; in **3.5a** it is **documentation-only** and **does not modify** the progression model.
 - **Phase 3.4a** changes **no** gameplay behavior.
 
@@ -559,11 +615,11 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 
 - **3.4a** — documentation-only progression model checkpoint (**this file**).
 - **3.4b** — **`ProgressDefinitions`** registry seed ([progress_definitions.gd](../game/domain/content/progress_definitions.gd)): **five** ancient/foundations sciences, **metadata-only**, **no** gating.
-- **3.4c** — **`ProgressState`** on **`GameState`**; **default** **`city_project` / `produce_unit:warrior`** for initial players; **`try_apply`** + **`LegalActions`** **`SetCityProduction`** gate (**`project_not_unlocked`**); **`ProgressDefinitions`** still **not** consumed in **`GameState`**.
+- **3.4c** — **`ProgressState`** on **`GameState`**; **default** **`city_project` / `produce_unit:warrior`** and **`produce_unit:settler`** for initial players (**5.1.12d**); **`try_apply`** + **`LegalActions`** **`SetCityProduction`** gate (**`project_not_unlocked`**); **`ProgressDefinitions`** still **not** consumed in **`GameState`**.
 - **3.4d** — **`ProgressUnlockResolver`** static helper applies a completed definition’s **`concrete_unlocks`** + **`systemic_effects`** into **`ProgressState`**; **`future_dependencies`** remain **metadata-only**; **no** detectors in **3.4d** alone.
 - **3.4e** — **`CompleteProgress`** player action through **`GameState.try_apply`**; **not** **`LegalActions`** / **AI**; uses **`ProgressUnlockResolver`**; logs **`unlocked_targets`** delta.
 - **3.4f** — **`KEY_G`** in **`SelectionController`**: manual **`CompleteProgress`** for **`foraging_systems`** only; **no** detectors, **no** **`LegalActions`**, **no** **AI**; **`LogView`** / **`TurnLabel`** refresh on **accept**; **no** definition cycling.
-- **3.4g** — **`ProgressDetector`**: **`suggested_complete_progress_actions`** proposes **`complete_progress`** (**`controlled_fire`**) from accepted **`found_city`** log rows; **read-only**, **not** **`GameState`**-wired; **no** **`LegalActions`** / **AI**.
+- **3.4g** — **`ProgressDetector`**: **`suggested_complete_progress_actions`** proposes **`complete_progress`** (**`controlled_fire`**) after an **accepted `move_unit`** **observation** of the optional **prototype** **`lightning_tree_hex`** (destination **on** the tree hex **or** **hex-adjacent** to it) when not already completed; **read-only**, **not** **`GameState`**-wired; **no** **`LegalActions`** / **AI**.
 - **3.4h** — **`ProgressCandidateFilter.for_current_player`** + **`KEY_H`**: manual **first** **current-player** detector candidate via **`try_apply`**; **no** validate in filter; **no** auto-apply; **no** **`LegalActions`** / **AI**.
 - **3.5a** — **[FACTION_IDENTITY.md](FACTION_IDENTITY.md)** docs-only checkpoint: predefined + custom civ identity model and balanced trait vocabulary; **bias layer** that **does not** alter **`ProgressDefinitions`**, **`ProgressState`**, **`ProgressUnlockResolver`**, **`ProgressDetector`**, **`LegalActions`**, **AI**, or **`GameState`** in **3.5a**.
 - **3.5b** — **`FactionDefinitions`** debug seed: **three** non-canonical debug faction rows exist as **metadata only**; they do **not** alter **`ProgressDefinitions`**, **`ProgressState`**, **`ProgressUnlockResolver`**, **`ProgressDetector`**, **`LegalActions`**, **AI**, or **`GameState`**.
@@ -571,6 +627,10 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 - **Phase 5** — strategic dynamics; many **modifiers** and **systems** become real.
 - **Phase 6** — world identity, names, flavor; does not replace this model.
 - **Phase 7** — balance and numeric tuning.
+- **5.1.12a** — **Ancient science tree documentation checkpoint** — **docs only**; **19-science** tree + model contracts in this file and **[PHASE_PLAN.md](PHASE_PLAN.md)**.
+- **5.1.12b** — **`ProgressDefinitions`** **`cost`** + **`prerequisites`** (19 sciences); **`ScienceAvailability`**; **`ScienceTick`** reads **`cost`** from definitions; **`CompleteProgress`** **`prerequisites_not_met`** — **shipped**.
+- **5.1.12c** — **`current_research_id`**, **`SetCurrentResearch`**, **`ScienceTick`** target routing + **`science_no_target`** — **shipped**.
+- **5.1.12d** — **Settler baseline** default unlock; **Controlled Fire** reward bundle correction — **shipped**.
 
 ## Explicit non-goals
 

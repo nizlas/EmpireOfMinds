@@ -146,20 +146,20 @@ func _init() -> void:
 	)
 	_check(cp_fmt0 == "[5] P0 Foraging Systems completed", "complete_progress missing unlocks array")
 	const _UNLOCK_IND = "       "
-	var cp_settler = LogViewScript.format_entry(
+	var cp_cf = LogViewScript.format_entry(
 		{
 			"index": 5,
 			"action_type": "complete_progress",
 			"actor_id": 0,
 			"progress_id": "controlled_fire",
 			"unlocked_targets": [
-				{"target_type": "city_project", "target_id": "produce_unit:settler"},
 				{"target_type": "building", "target_id": "hearth"},
+				{"target_type": "action", "target_id": "camp_clearing"},
 			],
 		}
 	)
-	var expect_settler = "[5] P0 Controlled Fire completed\n%sUnlocked: Train Settler" % _UNLOCK_IND
-	_check(cp_settler == expect_settler, "complete_progress settler unlock line + seven-space indent")
+	var expect_cf = "[5] P0 Controlled Fire completed"
+	_check(cp_cf == expect_cf, "complete_progress cf no train-only lines")
 	var cp_warrior = LogViewScript.format_entry(
 		{
 			"index": 1,

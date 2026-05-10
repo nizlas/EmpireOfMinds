@@ -37,17 +37,19 @@ func _init() -> void:
 	var vm_idle = CityProductionPanelScript.compute_view_model(gs2, sel)
 	_check(bool(vm_idle.get("visible", false)), "idle city shows panel")
 	var opts_idle = vm_idle.get("options", []) as Array
-	_check(opts_idle.size() == 1, "warrior only before unlock")
-	var a0 = (opts_idle[0] as Dictionary)["action"] as Dictionary
-	_check(str(a0.get("project_id", "")) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR, "first option warrior")
+	_check(opts_idle.size() == 2, "warrior and settler baseline empty city")
+	var a0i = (opts_idle[0] as Dictionary)["action"] as Dictionary
+	var a1i = (opts_idle[1] as Dictionary)["action"] as Dictionary
+	_check(str(a0i.get("project_id", "")) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR, "first warrior")
+	_check(str(a1i.get("project_id", "")) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER, "second settler")
 
 	_check(
 		gs2.try_apply(CompleteProgressScript.make(0, "controlled_fire"))["accepted"],
-		"controlled_fire for settler unlock"
+		"controlled_fire still completable"
 	)
 	var vm_two = CityProductionPanelScript.compute_view_model(gs2, sel)
 	var opts_two = vm_two.get("options", []) as Array
-	_check(opts_two.size() == 2, "warrior and settler when unlocked")
+	_check(opts_two.size() == 2, "still warrior and settler after CF")
 	var ids_two: Array = []
 	var ti = 0
 	while ti < opts_two.size():

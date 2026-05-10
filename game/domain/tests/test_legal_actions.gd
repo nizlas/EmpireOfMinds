@@ -121,22 +121,37 @@ func _init() -> void:
 	var gs_c = GameStateScript.new(sc_c)
 	var Lc = LegalActionsScript.for_current_player(gs_c)
 	_check_list_segments_no_engine(Lc)
-	var saw_sp = false
+	var sp_c: Array = []
 	var lk = 0
 	while lk < Lc.size() - 1:
 		if (Lc[lk] as Dictionary)["action_type"] == SetCityProductionScript.ACTION_TYPE:
-			saw_sp = true
-			var se = Lc[lk] as Dictionary
-			_check(se["city_id"] == 5, "set city 5")
-			_check(
-				se["project_id"] == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
-				"set project_id"
-			)
-			_check(not se.has("project_type"), "no project_type on action")
-			var sr = SetCityProductionScript.validate(gs_c.scenario, se)
-			_check(sr["ok"], "set validates")
+			sp_c.append(Lc[lk])
 		lk = lk + 1
-	_check(saw_sp, "SetCityProduction when city empty project")
+	_check(sp_c.size() == 2, "warrior and settler when city idle")
+	var seen_w = false
+	var seen_s = false
+	var si = 0
+	while si < sp_c.size():
+		var se = sp_c[si] as Dictionary
+		_check(se["city_id"] == 5, "set city 5")
+		var pid = str(se["project_id"])
+		if pid == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR:
+			seen_w = true
+		elif pid == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER:
+			seen_s = true
+		_check(not se.has("project_type"), "no project_type on action")
+		var sr = SetCityProductionScript.validate(gs_c.scenario, se)
+		_check(sr["ok"], "set validates")
+		si = si + 1
+	_check(seen_w and seen_s, "both baseline projects enumerated")
+	_check(
+		str((sp_c[0] as Dictionary)["project_id"]) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
+		"legal list warrior before settler"
+	)
+	_check(
+		str((sp_c[1] as Dictionary)["project_id"]) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER,
+		"legal list settler second"
+	)
 
 	var m_pr = HexMapScript.make_tiny_test_map()
 	var u_pr = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]

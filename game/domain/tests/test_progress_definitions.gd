@@ -6,38 +6,121 @@ const ProgressDefinitionsScript = preload("res://domain/content/progress_definit
 var _total = 0
 var _any_fail = false
 
+## Column order for registry `ids()` — not alphabetic; availability helpers sort alphabetically instead.
+const _EXPECTED_IDS: Array = [
+	"foraging_systems",
+	"stone_tools",
+	"controlled_fire",
+	"oral_surveying",
+	"animal_tracking",
+	"seasonal_calendars",
+	"pottery_craft",
+	"textile_work",
+	"basic_mining",
+	"timber_working",
+	"agrarian_practice",
+	"counting_marks",
+	"mudbrick_construction",
+	"simple_levers",
+	"pastoral_herding",
+	"river_irrigation",
+	"bronze_alloying",
+	"wheelwrighting",
+	"glyphic_records",
+]
+
+
+func _dfs_cycle_from(
+	sid: String,
+	visiting: Dictionary,
+	visited: Dictionary,
+	progress_definitions
+) -> bool:
+	if visiting.has(sid):
+		return true
+	if visited.has(sid):
+		return false
+	visiting[sid] = true
+	var req = progress_definitions.prerequisites(sid) as Array
+	var ri = 0
+	while ri < req.size():
+		var p = str(req[ri])
+		if _dfs_cycle_from(p, visiting, visited, progress_definitions):
+			return true
+		ri = ri + 1
+	visiting.erase(sid)
+	visited[sid] = true
+	return false
+
+
+func _has_prerequisite_cycle(progress_definitions) -> bool:
+	var visited: Dictionary = {}
+	var ids = progress_definitions.ids() as Array
+	var ii = 0
+	while ii < ids.size():
+		var sid = str(ids[ii])
+		if visited.has(sid):
+			ii = ii + 1
+			continue
+		var visiting: Dictionary = {}
+		if _dfs_cycle_from(sid, visiting, visited, progress_definitions):
+			return true
+		ii = ii + 1
+	return false
+
 
 func _init() -> void:
-	_check(ProgressDefinitionsScript.has("foraging_systems"), "has foraging_systems")
-	_check(ProgressDefinitionsScript.has("stone_tools"), "has stone_tools")
-	_check(ProgressDefinitionsScript.has("controlled_fire"), "has controlled_fire")
-	_check(ProgressDefinitionsScript.has("oral_surveying"), "has oral_surveying")
-	_check(ProgressDefinitionsScript.has("animal_tracking"), "has animal_tracking")
+	_check(_EXPECTED_IDS.size() == 19, "expected 19 ancient ids")
+	var ii = 0
+	while ii < _EXPECTED_IDS.size():
+		var eid = str(_EXPECTED_IDS[ii])
+		_check(ProgressDefinitionsScript.has(eid), "has %s" % eid)
+		_check(ProgressDefinitionsScript.is_science(eid), "is_science %s" % eid)
+		var c = ProgressDefinitionsScript.cost(eid)
+		_check(c > 0, "cost positive %s" % eid)
+		var pr = ProgressDefinitionsScript.prerequisites(eid) as Array
+		var pi = 0
+		while pi < pr.size():
+			var pre = str(pr[pi])
+			_check(ProgressDefinitionsScript.has(pre), "prereq exists %s <- %s" % [eid, pre])
+			_check(
+				ProgressDefinitionsScript.is_science(pre),
+				"prereq is science %s <- %s" % [eid, pre]
+			)
+			pi = pi + 1
+		ii = ii + 1
+
 	_check(not ProgressDefinitionsScript.has("rail_logistics"), "no rail_logistics")
 
-	var exp_ids = [
-		"foraging_systems",
-		"stone_tools",
-		"controlled_fire",
-		"oral_surveying",
-		"animal_tracking",
-	]
 	var ids0 = ProgressDefinitionsScript.ids() as Array
-	_check(ids0.size() == 5, "ids size")
-	var ii = 0
-	while ii < 5:
-		_check(str(ids0[ii]) == exp_ids[ii], "ids order %d" % ii)
-		ii = ii + 1
+	_check(ids0.size() == 19, "ids size 19")
+	var jj = 0
+	while jj < 19:
+		_check(str(ids0[jj]) == str(_EXPECTED_IDS[jj]), "ids registry order %d" % jj)
+		jj = jj + 1
 	ids0.append("bogus")
 	var ids1 = ProgressDefinitionsScript.ids() as Array
-	_check(ids1.size() == 5, "ids duplicate safe size")
-	var jj = 0
-	while jj < 5:
-		_check(str(ids1[jj]) == exp_ids[jj], "ids duplicate safe %d" % jj)
-		jj = jj + 1
+	_check(ids1.size() == 19, "ids duplicate safe size")
+
+	_check(ProgressDefinitionsScript.cost("controlled_fire") == 6, "controlled_fire cost 6")
+	var at_pr = ProgressDefinitionsScript.prerequisites("animal_tracking") as Array
+	_check(
+		at_pr.size() == 2
+		and str(at_pr[0]) == "foraging_systems"
+		and str(at_pr[1]) == "oral_surveying",
+		"animal_tracking prerequisites order"
+	)
+	var tw_pr = ProgressDefinitionsScript.prerequisites("textile_work") as Array
+	_check(tw_pr.size() == 1 and str(tw_pr[0]) == "foraging_systems", "textile_work prereqs")
+
+	_check(not _has_prerequisite_cycle(ProgressDefinitionsScript), "prerequisite graph acyclic")
+
+	_check(not ProgressDefinitionsScript.is_science("nope"), "is_science unknown false")
 
 	var d = ProgressDefinitionsScript.get_definition("foraging_systems") as Dictionary
 	_check(d["id"] == "foraging_systems", "def id")
+	_check(int(d.get("cost", 0)) == 6, "def cost in row")
+	_check((d.get("prerequisites", []) as Array).is_empty(), "foraging prereqs empty in def")
 	_check(d["display_name"] == "Foraging Systems", "def display_name")
 	_check(d["category"] == "science", "def category")
 	_check(d["era_bucket"] == "ancient_foundations", "def era_bucket")
@@ -80,9 +163,9 @@ func _init() -> void:
 	_check(fd_f.size() == 2, "future_dependencies size")
 	_check((fd_f[1] as Dictionary)["target_id"] == "woodland_logistics", "future sample id")
 
-	_check((ProgressDefinitionsScript.concrete_unlocks("nope") as Array).size() == 0, "concrete nope")
-	_check((ProgressDefinitionsScript.systemic_effects("nope") as Array).size() == 0, "systemic nope")
-	_check((ProgressDefinitionsScript.future_dependencies("nope") as Array).size() == 0, "future nope")
+	_check((ProgressDefinitionsScript.concrete_unlocks("nope") as Array).is_empty(), "concrete nope")
+	_check((ProgressDefinitionsScript.systemic_effects("nope") as Array).is_empty(), "systemic nope")
+	_check((ProgressDefinitionsScript.future_dependencies("nope") as Array).is_empty(), "future nope")
 
 	var cu_mut = ProgressDefinitionsScript.concrete_unlocks("foraging_systems") as Array
 	cu_mut.append({"target_type": "x", "target_id": "y"})
@@ -114,8 +197,12 @@ func _init() -> void:
 	_check((cu_cf[0] as Dictionary)["target_id"] == "hearth", "cf cu0 id")
 	_check((cu_cf[1] as Dictionary)["target_type"] == "action", "cf cu1 type")
 	_check((cu_cf[1] as Dictionary)["target_id"] == "camp_clearing", "cf cu1 id")
-	_check((cu_cf[2] as Dictionary)["target_type"] == "city_project", "cf cu2 type")
-	_check((cu_cf[2] as Dictionary)["target_id"] == "produce_unit:settler", "cf cu2 id")
+	_check((cu_cf[2] as Dictionary)["target_type"] == "modifier", "cf cu2 type")
+	_check((cu_cf[2] as Dictionary)["target_id"] == "controlled_fire_practice", "cf cu2 id")
+	var se_cf = ProgressDefinitionsScript.systemic_effects("controlled_fire") as Array
+	_check(se_cf.size() == 2, "controlled_fire systemic size")
+	_check((se_cf[0] as Dictionary)["target_id"] == "cold_terrain_growth_bonus", "cf se0")
+	_check((se_cf[1] as Dictionary)["target_id"] == "small_health_bonus", "cf se1")
 
 	if _any_fail:
 		call_deferred("quit", 1)

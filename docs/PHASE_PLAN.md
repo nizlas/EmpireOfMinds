@@ -621,7 +621,7 @@ Introduce the **first** **deterministic**, **read-only** **progress detector** t
 
 Shipped:
 
-- **[progress_detector.gd](../game/domain/progress_detector.gd)** — **`ProgressDetector.suggested_complete_progress_actions(game_state)`** returns **`Dictionary`** values shaped like **`CompleteProgress.make`**; **first rule:** **`found_city`** (**`result: accepted`**) ⇒ **`controlled_fire`** if not already completed; **`turn_state.players`** order; defensive **null** / **non-int** handling.
+- **[progress_detector.gd](../game/domain/progress_detector.gd)** — **`ProgressDetector.suggested_complete_progress_actions(game_state)`** returns **`Dictionary`** values shaped like **`CompleteProgress.make`**; **rule (Phase 5.1.8a):** when **`scenario.lightning_tree_hex`** is set, **`controlled_fire`** is proposed for each player who has **not** completed it and has an **accepted `move_unit`** whose **`to`** cell is **on or adjacent** to that hex; **`turn_state.players`** order; defensive **null** / **non-int** handling. **`lightning_tree_hex`** is **`null`** on most scenarios (e.g. **`make_tiny_test_scenario`**) so **no** candidate is proposed from this rule alone.
 - **`test_progress_detector.gd`**; runner **44** scripts.
 
 Must not (this subphase):
@@ -1892,6 +1892,223 @@ Must not:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 65 headless tests passed.`**
+
+### Phase 5.1.8a — Lightning-Scarred Tree observation gate (`controlled_fire` detector)
+
+Goal:
+
+- Replace **found_city-only** **`ProgressDetector`** gating with a **prototype map observation**: the **player** must first end a **legal `move_unit`** on the **Lightning-Scarred Tree** hex or an **adjacent** hex (deterministic optional landmark on **`make_prototype_play_scenario`** only). **No** weather, **no** random lightning, **no** resource / feature catalogue — a **single optional `Scenario.lightning_tree_hex`** (nullable).
+
+Shipped:
+
+- **[scenario.gd](../game/domain/scenario.gd)** — optional **`lightning_tree_hex`** (constructor **untyped** sixth parameter, **`null`** default); **`make_tiny_test_scenario`** keeps **`null`**; **`make_prototype_play_scenario`** sets **`(3, 0)`** (open **GRASSLAND**, **not** prototype forest-cluster decoration; Phase **5.1.8c**); field **preserved** through **every** **`ScenarioScript.new(...)`** rebuild (**`MoveUnit`**, **`FoundCity`**, **`SetCityProduction`**, **`ProductionTick`**, **`ProductionDelivery`**).
+- **[progress_detector.gd](../game/domain/progress_detector.gd)** — proposes **`controlled_fire`** when **`lightning_tree_hex != null`**, player has **not** completed it, and the **accepted `move_unit` log** for that **`actor_id`** has **`to`** on or adjacent to the tree.
+- **[test_lightning_tree_trigger.gd](../game/domain/tests/test_lightning_tree_trigger.gd)** + rewritten **`test_progress_detector`**, **`test_progress_candidate_filter`**; runner **66** scripts.
+
+Must not:
+
+- **No** presentation / **`main.tscn`** / **`HudCanvas`** in this slice; **no** **`try_apply`** shape change; **no** new action types; **no** **`ProgressDefinitions`** edits.
+
+### Phase 5.1.8b — Lightning-Scarred Tree marker + Discovery HUD panel
+
+Goal:
+
+- Make the **5.1.8a** prototype landmark **visible** on the map and offer **Controlled Fire** completion through the HUD (not only **`KEY_H`**), using the existing **`CompleteProgress`** action and **`DiscoveryPopup`** flow.
+
+Shipped:
+
+- **[lightning_tree_view.gd](../game/presentation/lightning_tree_view.gd)** — **`Node2D`** draws **`scarred_tree_stump.png`** at **`scenario.lightning_tree_hex`** (reads **`game_state.scenario`** when wired); conservative **magenta** chroma + prototype fallbacks via **`Image.load`** (Phase **5.1.8c** adjusts scale / open-terrain placement — see **5.1.8c**).
+- **[discovery_action_panel.gd](../game/presentation/discovery_action_panel.gd)** — **`PanelContainer`** under **`HudCanvas`**; **`compute_view_model(game_state)`** uses **`ProgressCandidateFilter.for_current_player`**; **Complete Discovery** calls **`try_apply`**; **`call_deferred("refresh")`** after accept; **`maybe_show_for_log_index`** on **`DiscoveryPopup`**.
+- **[main.tscn](../game/main.tscn)** / **[main.gd](../game/main.gd)** — sibling order **MapView → … → TerrainForegroundView → LightningTreeView** (same **`z_index`** as **TFV** so the stump paints **above** forest); **`DiscoveryActionPanel`** top-left under **`HudCanvas`**; map redraw includes **`LightningTreeView`**.
+- **[selection_controller.gd](../game/presentation/selection_controller.gd)** — **`discovery_action_panel`** refreshed in lockstep with **`city_production_panel`** via **`_refresh_discovery_action_panel`**.
+- **[end_turn_controller.gd](../game/presentation/end_turn_controller.gd)** / **[ai_turn_controller.gd](../game/presentation/ai_turn_controller.gd)** — null-safe **`discovery_action_panel.refresh()`** next to city panel.
+- Tests: **[test_lightning_tree_view_draw.gd](../game/presentation/tests/test_lightning_tree_view_draw.gd)**, **[test_discovery_action_panel.gd](../game/presentation/tests/test_discovery_action_panel.gd)**, **[test_discovery_action_panel_button_deferred.gd](../game/presentation/tests/test_discovery_action_panel_button_deferred.gd)**, **[test_main_hud_discovery_action_panel.gd](../game/presentation/tests/test_main_hud_discovery_action_panel.gd)**; **[test_main_tscn_map_layer_sibling_order.gd](../game/presentation/tests/test_main_tscn_map_layer_sibling_order.gd)** updated; baseline **+4** vs prior runner (see **5.1.8c** for current total).
+
+Must not:
+
+- **No** new actions, **no** **`try_apply`** / detector / progression-definition changes; **no** **`docs/player/**`** edits; **no** weather / resource / feature-registry fiction.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` — after **5.1.8c** → **`All 71 headless tests passed.`**
+
+### Phase 5.1.8c — Lightning tree open-terrain placement + stump scale
+
+Goal:
+
+- **Smaller** stump (**~half** prior screen height) and a prototype **`lightning_tree_hex`** on **visually open** **PLAINS/GRASSLAND** (**not** **prototype forest-cluster** overlay / **PROVENANCE** list cell), **not** adjacent to **starting units**.
+
+Shipped:
+
+- **[scenario.gd](../game/domain/scenario.gd)** — **`make_prototype_play_scenario`** **`lightning_tree_hex`** **`(3, 0)`**.
+- **[lightning_tree_view.gd](../game/presentation/lightning_tree_view.gd)** — **`STUMP_HEIGHT_HEX_FRAC`** **0.50**.
+- **[plains_forest_decoration.gd](../game/presentation/plains_forest_decoration.gd)** — **`is_prototype_foreground_forest_hex(q, r)`**.
+- **[test_prototype_lightning_tree_hex.gd](../game/domain/tests/test_prototype_lightning_tree_hex.gd)** + updates to **`test_scenario`**, **`test_lightning_tree_trigger`**, **`test_lightning_tree_view_draw`**; runner **71** scripts.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 71 headless tests passed.`**
+
+### Phase 5.1.9 — Single-target science loop (`controlled_fire` auto-complete)
+
+Goal:
+
+- **First real science accumulation loop** for **`controlled_fire`** only: per-owned-city yield on the owner’s **EndTurn**, optional one-time **Lightning-Scarred Tree** observation bonus on **accepted MoveUnit** (after the move log entry), **auto-completion** at threshold via **`ProgressUnlockResolver.complete_progress`**, engine log entries **`science_progress`** / **`science_completed`**, and a **`ScienceCompletedPopup`** driven only by **`ActionLog`**. **`DiscoveryActionPanel`** stays in the scene but **filters out** **`controlled_fire`** (reserved for future non-science discoveries).
+
+Shipped:
+
+- **[progress_state.gd](../game/domain/progress_state.gd)** — **`science_progress`**, **`science_observation_flags`** on owner rows; **`science_progress_for`**, **`with_science_progress_added`**, **`has_observation_bonus_granted`**, **`with_observation_bonus_granted`**; preserved across **`with_progress_id_completed`** / **`with_target_unlocked`**.
+- **[science_tick.gd](../game/domain/science_tick.gd)** — **`ScienceTick`**: **`TARGET_PROGRESS_ID`**, **`PER_CITY_YIELD` = 1**, **`COST` = 6**, **`OBSERVATION_BONUS` = 4**; idempotent when **`has_completed_progress`**; **`apply_for_player`**, **`add_observation_bonus_if_eligible`**.
+- **[game_state.gd](../game/domain/game_state.gd)** — after **MoveUnit** log append, observation bonus events; after **ProductionTick** on **EndTurn** and **before** **`turn_state.advance`**, science yield events.
+- **[science_completed_popup.gd](../game/presentation/science_completed_popup.gd)** + **[main.tscn](../game/main.tscn)** / **[main.gd](../game/main.gd)** — **`ScienceCompletedPopup`** under **`HudCanvas`**; curated copy for **`controlled_fire`** only (**no** **`ProgressDefinitions`** import).
+- **[discovery_action_panel.gd](../game/presentation/discovery_action_panel.gd)** — skips **`progress_id == controlled_fire`** candidates.
+- **[selection_controller.gd](../game/presentation/selection_controller.gd)** / **[end_turn_controller.gd](../game/presentation/end_turn_controller.gd)** / **[ai_turn_controller.gd](../game/presentation/ai_turn_controller.gd)** — after accepted **`try_apply`**, scan new log slice for **`science_completed`** → **`maybe_show_for_log_index`**.
+- Tests: **`test_progress_state_science_progress`**, **`test_science_tick`**, **`test_end_turn_science_flow`**, **`test_move_unit_science_observation_bonus`**, **`test_science_completed_popup`**, **`test_main_hud_science_completed_popup`**; updates **`test_end_turn_production_flow`**, **`test_discovery_action_panel*`**; runner **77** scripts.
+
+Must not:
+
+- **No** **`SelectScience`**, science tree UI, **`ProgressDefinitions`** schema changes, **`LegalActions`**, or **AI** changes; **no** **`docs/player/**`** edits.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 77 headless tests passed.`**
+
+### Phase 5.1.10 — Lightning tree science bonus feedback (`science_bonus` + `DiscoveryPopup`)
+
+Goal:
+
+- When **`ScienceTick`** grants the **one-time** **Lightning-Scarred Tree** observation bonus toward **`controlled_fire`**, append an engine log row **`action_type: science_bonus`** (with **`bonus_id: lightning_scarred_tree`**, **`delta`**, **`total`**, **`cost`**) **before** the existing **`science_progress`** / **`science_completed`** rows from that grant. Show a **`DiscoveryPopup`** on first new **`science_bonus`** after accepted **`try_apply`**; if the same apply batch also introduces **`science_completed`**, show **`DiscoveryPopup`** first and chain **`ScienceCompletedPopup`** after **OK** (no overlapping modals).
+
+Shipped:
+
+- **[science_tick.gd](../game/domain/science_tick.gd)** — prepended **`science_bonus`** event only when the bonus is **actually applied** (**not** repeat visits; **not** when **`controlled_fire`** already completed).
+- **[discovery_popup.gd](../game/presentation/discovery_popup.gd)** — **`compute_view_model`** branch for **`science_bonus`** + **`lightning_scarred_tree`**; **`practical_line`**; **`run_engine_popups_after_apply`** + log scan helpers; **`arm_science_completed_chain`** / **`OK`** handoff.
+- **[selection_controller.gd](../game/presentation/selection_controller.gd)** / **[end_turn_controller.gd](../game/presentation/end_turn_controller.gd)** / **[ai_turn_controller.gd](../game/presentation/ai_turn_controller.gd)** / **[main.gd](../game/main.gd)** — wire **`discovery_popup`** for turn/AI controllers; post-apply **`run_engine_popups_after_apply`**.
+- Tests: updates **`test_science_tick`**, **`test_move_unit_science_observation_bonus`**, **`test_discovery_popup`**; add **`test_discovery_popup_run_engine_popups`**; runner **78** scripts.
+
+Must not:
+
+- **No** new discovery action, **no** **`Complete Discovery`** for this path, **no** **`ProgressDefinitions`** / resolver changes, **no** **`docs/player/**`** edits.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 78 headless tests passed.`**
+
+### Phase 5.1.11 — Unit nameplates / ownership banners
+
+Goal:
+
+- **Code-drawn** nameplates above each **unit marker**: **`UnitDefinitions`** **display_name** (or humanized **type_id**), **muted owner accent** (teal / burgundy + stable fallbacks), parchment-styled banner. **Presentation-only** — **no** input, **no** **`CanvasItem`** hit-test role; **`HudCanvas`** popups/panels remain above the map layer.
+
+Shipped:
+
+- **[unit_nameplate_view.gd](../game/presentation/unit_nameplate_view.gd)** — **`Node2D`**; **`scenario`**, **`layout`**, **`camera`**, **`units_view`** (marker-top alignment); **`_draw`** + static helpers for tests.
+- **[main.tscn](../game/main.tscn)** / **[main.gd](../game/main.gd)** — sibling **after** **`LightningTreeView`**, **`z_index` 2**, **`MAP_LAYER_ORIGIN`**, **`_redraw_map_layers`**, wires **`SelectionController`** / **`EndTurnController`** / **`AITurnController`** to **`queue_redraw`** when scenario moves.
+- Tests: **`test_unit_nameplate_view`**, update **`test_main_tscn_map_layer_sibling_order`**; runner **79** scripts.
+
+Must not:
+
+- **No** **`game/domain/**`** edits; **no** **`docs/player/**`** edits; **no** faction system.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 79 headless tests passed.`**
+
+### Phase 5.1.12 — Ancient science tree (definitions, targeting, Settler baseline)
+
+**5.1.12** splits **progression** work into four sub-slices so **`ProgressDefinitions`**, **`ProgressState`**, **`ScienceTick`**, and **Settler** defaults stay reviewable. See **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)** Phase **5.1.12** for the **19-science** tree, **cost** / **prerequisites** contracts, **`ScienceAvailability`**, **`SetCurrentResearch`**, and **Controlled Fire** bundle correction.
+
+#### 5.1.12a — Ancient science tree documentation checkpoint
+
+**Status:** **Shipped** by this slice (**docs only**).
+
+Goal:
+
+- Record the **Ancient** **19-science** tree (columns, **costs** **6** / **10** / **14** / **18**, **prerequisites**, dependency rules) and the **model contracts** for **`ProgressDefinitions`** row extensions, **`ProgressState.current_research_id`**, planned **`ScienceAvailability`**, planned **`SetCurrentResearch`**, **`ScienceTick`** promotion, **`CompleteProgress`** **`prerequisites_not_met`**, and **5.1.12d** **Settler-baseline** repair — **no** code or registry edits.
+
+Shipped:
+
+- **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)** — Phase **5.1.12** section (table + contracts).
+- **[PHASE_PLAN.md](PHASE_PLAN.md)** — this block.
+- **[DECISION_LOG.md](DECISION_LOG.md)** — **5.1.12a** decisions.
+- Optional contract line in **[CONTENT_MODEL.md](CONTENT_MODEL.md)** — **`ProgressDefinitions`** row-shape note.
+
+Must not:
+
+- **No** edits under **`game/**`**, **`scripts/**`**, **`docs/player/**`**; **no** changes to **`docs/RENDERING.md`** or **`docs/CITIES.md`** for this slice.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **exit 0**; **same** headless test count as before (**docs-only** — expect **no** new or removed tests).
+
+#### 5.1.12b — ProgressDefinitions cost/prerequisites + ScienceAvailability
+
+**Status:** **Shipped.**
+
+Goal:
+
+- **`ProgressDefinitions`**: **19** Ancient sciences with **`cost`** and **`prerequisites`**; **`cost(id)`**, **`prerequisites(id)`**, **`is_science(id)`**; **`ids()`** column order (availability helpers sort **alphabetically**).
+- **`ScienceAvailability`**: derived **`available_for`** / **`locked_for`** / **`completed_for`** / **`is_available`** (**no** stored availability on **`ProgressState`**).
+- **`CompleteProgress.validate`**: **`prerequisites_not_met`** when a **science**’s prerequisites are not all completed (non-science rows unaffected if added later).
+- **`ScienceTick`**: **`science_progress`** / **`science_bonus`** / **`science_completed`** **`cost`** from **`ProgressDefinitions.cost`**; **at 5.1.12b ship** the tick target remained **fixed** to **`controlled_fire`** (**5.1.12c** replaces that with explicit / auto routing).
+
+Shipped:
+
+- **[progress_definitions.gd](../game/domain/content/progress_definitions.gd)** — curated **19** rows + helpers.
+- **[science_availability.gd](../game/domain/science_availability.gd)** — **`class_name ScienceAvailability`**.
+- **[complete_progress.gd](../game/domain/actions/complete_progress.gd)** — prerequisite gate.
+- **[science_tick.gd](../game/domain/science_tick.gd)** — dynamic **cost** lookup.
+- Tests: **`test_progress_definitions.gd`**, **`test_science_availability.gd`**, updates **`test_science_tick`**, **`test_complete_progress`**, **`test_complete_progress_flow`**, **`test_move_unit_science_observation_bonus`**; runner **`scripts/run-godot-tests.ps1`** (+**1** script → **80** total).
+
+Must not (this slice):
+
+- **No** **`current_research_id`**, **`SetCurrentResearch`**, or **auto-target** (**5.1.12c**).
+- **No** **Settler** baseline move off **`controlled_fire`** (**5.1.12d**).
+- **No** **`LegalActions`**, **AI**, **EffectiveRules**, or tech-tree **UI**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 80 headless tests passed.`**
+
+#### 5.1.12c — current_research_id + SetCurrentResearch + ScienceTick auto-target
+
+**Status:** **Shipped.**
+
+Goal:
+
+- **`ProgressState`**: **`current_research_id`** per owner (**`""`** = explicit unset / **auto-target**); **`current_research_for`**, **`with_current_research`**; all **`with_*`** mutators preserve it.
+- **`SetCurrentResearch`**: player **`Dictionary`** action; **`GameState.try_apply`** + log **`set_current_research`**; validate **`unknown_science`**, **`not_a_science`**, **`already_completed`**, **`prerequisites_not_met`**; **`science_id` `""`** clears explicit target.
+- **`ScienceTick.apply_for_player`**: resolve target = explicit id if **available**, else **first** **`ScienceAvailability.available_for`** (alphabetical); **`science_no_target`** when **none**; **`add_observation_bonus_if_eligible`** always **`controlled_fire`**.
+- **No** overflow carry-over; **no** **SciencePanel**; **no** **5.1.12d** **Settler** move.
+
+Shipped:
+
+- **[progress_state.gd](../game/domain/progress_state.gd)** — **`current_research_id`** + **`_inner_copy`** preservation.
+- **[set_current_research.gd](../game/domain/actions/set_current_research.gd)** — **`class_definition SetCurrentResearch`**.
+- **[game_state.gd](../game/domain/game_state.gd)** **`try_apply`** branch.
+- **[science_tick.gd](../game/domain/science_tick.gd)** — **`LIGHTNING_BONUS_PROGRESS_ID`**, **`_resolve_tick_target`**, **`science_no_target`**.
+- Tests: **`test_progress_state_current_research.gd`**, **`test_set_current_research.gd`**, **`test_science_tick.gd`** updates; runner **82** scripts.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 82 headless tests passed.`**
+
+#### 5.1.12d — Settler baseline + Controlled Fire reward correction
+
+**Status:** **Shipped.**
+
+- Default **`ProgressState`** unlocks include **`city_project` / `produce_unit:settler`** from turn **1**; **`controlled_fire`** **`concrete_unlocks`** / **`systemic_effects`** use the hearth / camp / survival **metadata bundle** only (no **Settler**); **`ScienceCompletedPopup`** copy no longer references **Train Settler**.
+
+Shipped:
+
+- **[progress_state.gd](../game/domain/progress_state.gd)** — **`with_default_unlocks_for_players`** includes **`produce_unit:settler`**.
+- **[progress_definitions.gd](../game/domain/content/progress_definitions.gd)** — **`controlled_fire`** reward rows.
+- **[science_completed_popup.gd](../game/presentation/science_completed_popup.gd)** — curated **Controlled Fire** body / practical line; **visible** when **`science_completed`** has **no** **`city_project`** train rows.
+- Tests: **`test_progress_state`**, **`test_settler_unlock_flow`**, **`test_settler_production_flow`**, **`test_progress_definitions`**, **`test_science_tick`**, **`test_end_turn_science_flow`**, **`test_legal_actions_progress_gating`**, **`test_game_state_progress_state`**, **`test_complete_progress_flow`**, **`test_city_production_panel`**, **`test_science_completed_popup`**, **`test_log_view`**, **`test_discovery_popup`**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 82 headless tests passed.`**
 
 ## Phase 6 — Empire of Minds worldbuilding and identity
 

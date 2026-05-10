@@ -1,4 +1,5 @@
 # Headless: godot --headless --path game -s res://domain/tests/test_settler_unlock_flow.gd
+# Phase 5.1.12d — Train Settler is baseline; Controlled Fire does not unlock settler production.
 extends SceneTree
 
 const GameStateScript = preload("res://domain/game_state.gd")
@@ -44,30 +45,39 @@ func _init() -> void:
 	var sc = ScenarioScript.new(m, u, [city], 10, 20)
 	var gs = GameStateScript.new(sc)
 
+	_check(
+		gs.progress_state.has_unlocked_target(0, "city_project", SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER),
+		"baseline settler unlock in progress_state"
+	)
+
+	var L0 = LegalActionsScript.for_current_player(gs)
+	_check(_has_settler_sp(L0), "legal list includes settler from turn 1")
+	var blk0 = _sp_block_for_city(L0, city.id)
+	_check(blk0.size() == 2, "warrior and settler actions for empty city")
+	_check(
+		str((blk0[0] as Dictionary)["project_id"]) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
+		"warrior first"
+	)
+	_check(
+		str((blk0[1] as Dictionary)["project_id"]) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER,
+		"settler second"
+	)
+
 	var pre_sp = SetCityProductionScript.make(
 		0,
 		city.id,
 		SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER
 	)
 	var r_pre = gs.try_apply(pre_sp)
-	_check(not r_pre["accepted"], "pre-unlock settler rejected")
-	_check(r_pre["reason"] == "project_not_unlocked", "pre-unlock reason project_not_unlocked")
-
-	var L0 = LegalActionsScript.for_current_player(gs)
-	_check(not _has_settler_sp(L0), "legal list omits settler before unlock")
-	var blk0 = _sp_block_for_city(L0, city.id)
-	_check(blk0.size() == 1, "one warrior sp before unlock")
-	_check(
-		str((blk0[0] as Dictionary)["project_id"]) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
-		"pre-unlock warrior only"
-	)
+	_check(r_pre["accepted"], "settler production accepted without controlled_fire")
 
 	var r_cp = gs.try_apply(CompleteProgressScript.make(0, "controlled_fire"))
 	_check(r_cp["accepted"], "controlled_fire accepted")
 	_check(
 		gs.progress_state.has_unlocked_target(0, "city_project", SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER),
-		"progress unlocks settler project"
+		"settler remains available after CF"
 	)
+	_check(gs.progress_state.has_unlocked_target(0, "building", "hearth"), "cf unlocks hearth")
 	var log_e = gs.log.get_entry(r_cp["index"]) as Dictionary
 	var ut = log_e["unlocked_targets"] as Array
 	var saw_settler_unlock = false
@@ -77,28 +87,12 @@ func _init() -> void:
 		if str(row["target_type"]) == "city_project" and str(row["target_id"]) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER:
 			saw_settler_unlock = true
 		ui = ui + 1
-	_check(saw_settler_unlock, "log unlock row includes settler project")
-
-	var r_post = gs.try_apply(pre_sp)
-	_check(r_post["accepted"], "post-unlock settler accepted")
-	var c_after = gs.scenario.city_by_id(city.id)
-	var cpd = c_after.current_project as Dictionary
-	_check(str(cpd["project_id"]) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER, "city project id settler")
-	_check(str(cpd["project_type"]) == "produce_unit", "city project type produce_unit")
+	_check(not saw_settler_unlock, "complete_progress log omits produce_unit:settler")
 
 	var gs2 = GameStateScript.new(sc)
-	gs2.try_apply(CompleteProgressScript.make(0, "controlled_fire"))
 	var L1 = LegalActionsScript.for_current_player(gs2)
 	var blk1 = _sp_block_for_city(L1, city.id)
-	_check(blk1.size() == 2, "two sp after unlock empty city")
-	_check(
-		str((blk1[0] as Dictionary)["project_id"]) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
-		"legal warrior first"
-	)
-	_check(
-		str((blk1[1] as Dictionary)["project_id"]) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER,
-		"legal settler second"
-	)
+	_check(blk1.size() == 2, "two sp before any science")
 
 	if _any_fail:
 		call_deferred("quit", 1)

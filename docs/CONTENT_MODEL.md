@@ -73,7 +73,7 @@ Each subphase **must reference this document** when implementing code. Illustrat
 - **3.1 — Unit definitions:** registry of unit types; `Unit.type_id`; `FoundCity` / fixtures / `LegalActions` updated so founding and tests use explicit types where needed.
 - **3.2 — Terrain rules and movement costs:** terrain rule registry; **`MovementRules`** consults definitions for passability/cost while keeping **`MovementRules`** as the legality oracle ([MOVEMENT_RULES.md](MOVEMENT_RULES.md)).
 - **3.3 — City project definitions:** project registry; `current_project` gains `project_id`; **`SetCityProduction`** / **`ProductionDelivery`** tie **produce** completion to a definition (e.g. which `type_id` to spawn).
-- **3.4 — First tech / progress definitions:** minimal tech/civic registry and shape; **scoped** slice, flavor deferred to Phase 6.
+- **3.4 — First tech / progress definitions:** minimal tech/civic registry and shape; **scoped** slice, flavor deferred to Phase 6. **Phase 5.1.12b (planned):** **`ProgressDefinitions`** science rows may also declare **`cost`** (**int**) and **`prerequisites`** (**`Array[String]`** of prerequisite science ids); see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) Phase **5.1.12**.
 - **3.5 — First faction / world identity pass:** early mechanical knobs (e.g. faction id on players); **no** leader names or branded copy—that is Phase 6 ([PROJECT_BRIEF.md](PROJECT_BRIEF.md)).
 
 ## IP / non-Civ identity guardrails
@@ -121,7 +121,7 @@ See [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) for **capability / material rol
 - The **first** implementation slice after **5.1.0** introduces that façade and routes **exactly one** existing read (e.g. whether a **`project_id`** is supported for **`SetCityProduction`** / **`LegalActions`**) through it; remaining reads stay on registries until later small slices migrate them.
 - Baseline registries remain **definition providers**; **EffectiveRules** is the **read** boundary **Phase 5.0a** points at once code lands — **not** a second source of truth for authoring rows.
 
-**Phase 5.1.2 (implemented):** **`produce_unit:settler`** is a minted curated row in **`CityProjectDefinitions`**; **`controlled_fire`** **`concrete_unlocks`** includes **`city_project` / produce_unit:settler**. **`EffectiveRules.is_city_project_supported`** observes the new id automatically (**no** façade API change). **`LegalActions`** enumerates warrior then settler per empty city when each passes support and unlock checks. **`GameState.try_apply`** continues to gate **`SetCityProduction`** with the existing **`project_not_unlocked`** path for locked projects.
+**Phase 5.1.2 (implemented):** **`produce_unit:settler`** is a minted curated row in **`CityProjectDefinitions`**. **Phase 5.1.12d:** **`controlled_fire`** no longer unlocks **Settler**; **`produce_unit:settler`** is **default-unlocked** from turn **1** in **`ProgressState.with_default_unlocks_for_players`** alongside **`produce_unit:warrior`**. **`EffectiveRules.is_city_project_supported`** observes the new id automatically (**no** façade API change). **`LegalActions`** enumerates warrior then settler per empty city when each passes support and unlock checks. **`GameState.try_apply`** continues to gate **`SetCityProduction`** with the existing **`project_not_unlocked`** path for locked projects.
 
 See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1** / **5.1.0** / **5.1.1** / **5.1.2**, [CORE_LOOP.md](CORE_LOOP.md) **Phase 5.1 embryo intent**.
 

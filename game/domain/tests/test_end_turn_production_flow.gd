@@ -11,6 +11,7 @@ const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 const ProductionTickScript = preload("res://domain/production_tick.gd")
 const ProductionDeliveryScript = preload("res://domain/production_delivery.gd")
+const SCIENCE_PROGRESS_TYPE: String = "science_progress"
 
 var _total = 0
 var _any_fail = false
@@ -43,28 +44,33 @@ func _init() -> void:
 	var gs = GameStateScript.new(scen)
 
 	var et0 = gs.try_apply(EndTurnScript.make(0))
-	_check(et0["accepted"] and et0["index"] == 1, "end turn index et0")
-	_check(gs.log.size() == 2, "progress + end_turn")
+	_check(et0["accepted"] and et0["index"] == 2, "end turn index et0")
+	_check(gs.log.size() == 3, "progress science end_turn")
 	var lg0 = gs.log.get_entry(0) as Dictionary
 	var lg1 = gs.log.get_entry(1) as Dictionary
+	var lg2 = gs.log.get_entry(2) as Dictionary
 	_check(lg0["action_type"] == ProductionTickScript.EVENT_TYPE and lg0["city_id"] == 1, "first is production c1")
-	_check(lg1["action_type"] == EndTurnScript.ACTION_TYPE, "second is end_turn")
+	_check(lg1["action_type"] == SCIENCE_PROGRESS_TYPE, "science after production")
+	_check(lg2["action_type"] == EndTurnScript.ACTION_TYPE, "third is end_turn")
 	_check(gs.scenario.city_by_id(1).current_project["progress"] == 1, "p0 city ticked")
 	_check(gs.scenario.city_by_id(2).current_project["progress"] == 0, "p1 city not ticked")
 
 	var et1 = gs.try_apply(EndTurnScript.make(1))
-	_check(et1["accepted"] and et1["index"] == 3, "second cycle end index")
-	_check(gs.log.size() == 4, "two more entries")
-	_check(gs.log.get_entry(2)["city_id"] == 2, "p1 production")
-	_check(gs.log.get_entry(3)["action_type"] == EndTurnScript.ACTION_TYPE, "end_turn follows")
+	_check(et1["accepted"] and et1["index"] == 5, "second cycle end index")
+	_check(gs.log.size() == 6, "three more entries")
+	_check(gs.log.get_entry(3)["city_id"] == 2, "p1 production")
+	_check(gs.log.get_entry(4)["action_type"] == SCIENCE_PROGRESS_TYPE, "p1 science")
+	_check(gs.log.get_entry(5)["action_type"] == EndTurnScript.ACTION_TYPE, "end_turn follows")
 
 	var et2 = gs.try_apply(EndTurnScript.make(0))
-	_check(et2["accepted"] and et2["index"] == 5, "end_turn index before delivery tail")
-	_check(gs.log.size() == 6, "prog end only for p0 end")
-	var lg4 = gs.log.get_entry(4) as Dictionary
-	var lg5 = gs.log.get_entry(5) as Dictionary
-	_check(lg4["action_type"] == ProductionTickScript.EVENT_TYPE and lg4["city_id"] == 1, "second tick production")
-	_check(lg5["action_type"] == EndTurnScript.ACTION_TYPE, "end_turn after progress")
+	_check(et2["accepted"] and et2["index"] == 8, "end_turn index before delivery tail")
+	_check(gs.log.size() == 9, "prog science end for p0 end")
+	var lg6 = gs.log.get_entry(6) as Dictionary
+	var lg7 = gs.log.get_entry(7) as Dictionary
+	var lg8 = gs.log.get_entry(8) as Dictionary
+	_check(lg6["action_type"] == ProductionTickScript.EVENT_TYPE and lg6["city_id"] == 1, "second tick production")
+	_check(lg7["action_type"] == SCIENCE_PROGRESS_TYPE, "p0 science")
+	_check(lg8["action_type"] == EndTurnScript.ACTION_TYPE, "end_turn after progress")
 	_check(
 		bool((gs.scenario.city_by_id(1).current_project as Dictionary).get("ready", false)),
 		"p0 city ready pending"
@@ -73,15 +79,17 @@ func _init() -> void:
 	_check(gs.scenario.peek_next_unit_id() == 30, "peek not consumed yet")
 
 	var et3 = gs.try_apply(EndTurnScript.make(1))
-	_check(et3["accepted"] and et3["index"] == 7, "p1 end_turn index")
-	_check(gs.log.size() == 9, "p1 tick end then p0 delivery")
-	var lg6 = gs.log.get_entry(6) as Dictionary
-	var lg7 = gs.log.get_entry(7) as Dictionary
-	var lg8 = gs.log.get_entry(8) as Dictionary
-	_check(lg6["action_type"] == ProductionTickScript.EVENT_TYPE and lg6["city_id"] == 2, "p1 progress")
-	_check(lg7["action_type"] == EndTurnScript.ACTION_TYPE, "p1 end_turn")
-	_check(lg8["action_type"] == ProductionDeliveryScript.EVENT_TYPE, "unit_produced after p1 end_turn")
-	_check(lg8["unit_id"] == 30 and lg8["city_id"] == 1, "allocated unit from peek")
+	_check(et3["accepted"] and et3["index"] == 11, "p1 end_turn index")
+	_check(gs.log.size() == 13, "p1 tick science end then p0 delivery")
+	var lg9 = gs.log.get_entry(9) as Dictionary
+	var lg10 = gs.log.get_entry(10) as Dictionary
+	var lg11 = gs.log.get_entry(11) as Dictionary
+	var lg12 = gs.log.get_entry(12) as Dictionary
+	_check(lg9["action_type"] == ProductionTickScript.EVENT_TYPE and lg9["city_id"] == 2, "p1 progress")
+	_check(lg10["action_type"] == SCIENCE_PROGRESS_TYPE, "p1 science second")
+	_check(lg11["action_type"] == EndTurnScript.ACTION_TYPE, "p1 end_turn")
+	_check(lg12["action_type"] == ProductionDeliveryScript.EVENT_TYPE, "unit_produced after p1 end_turn")
+	_check(lg12["unit_id"] == 30 and lg12["city_id"] == 1, "allocated unit from peek")
 	_check(gs.scenario.city_by_id(1).current_project == null, "p0 city cleared after delivery")
 	var u30 = gs.scenario.unit_by_id(30)
 	_check(u30 != null and u30.owner_id == 0 and u30.position.equals(c_p0_pos), "unit at city hex")
@@ -105,14 +113,14 @@ func _init() -> void:
 	var scen2 = ScenarioScript.new(m1, us1, [ct2, ct1], 50, 60)
 	var gs1 = GameStateScript.new(scen2)
 	var et_a = gs1.try_apply(EndTurnScript.make(0))
-	_check(et_a["accepted"] and et_a["index"] == 2, "p0 end index first batch")
-	_check(gs1.log.size() == 3, "two prog one end")
+	_check(et_a["accepted"] and et_a["index"] == 3, "p0 end index first batch")
+	_check(gs1.log.size() == 4, "two prog science end")
 	var et_b = gs1.try_apply(EndTurnScript.make(1))
-	_check(et_b["accepted"] and et_b["index"] == 3, "p1 end_turn index")
-	_check(gs1.log.size() == 6, "end two units")
-	_check(gs1.log.get_entry(3)["action_type"] == EndTurnScript.ACTION_TYPE, "p1 end_turn")
-	_check((gs1.log.get_entry(4) as Dictionary)["city_id"] == 1, "first delivered city id order")
-	_check((gs1.log.get_entry(5) as Dictionary)["city_id"] == 2, "second delivery")
+	_check(et_b["accepted"] and et_b["index"] == 4, "p1 end_turn index")
+	_check(gs1.log.size() == 7, "end two units")
+	_check(gs1.log.get_entry(4)["action_type"] == EndTurnScript.ACTION_TYPE, "p1 end_turn")
+	_check((gs1.log.get_entry(5) as Dictionary)["city_id"] == 1, "first delivered city id order")
+	_check((gs1.log.get_entry(6) as Dictionary)["city_id"] == 2, "second delivery")
 	_check(gs1.scenario.peek_next_unit_id() == 52, "two new units")
 
 	# _init delivery when scenario starts with ready for current player
@@ -134,7 +142,7 @@ func _init() -> void:
 	var sc2 = ScenarioScript.new(m2, us2, [ca, cb], 11, 22)
 	var gs2 = GameStateScript.new(sc2)
 	var etx = gs2.try_apply(EndTurnScript.make(0))
-	_check(etx["index"] == 2, "two progress one end")
+	_check(etx["index"] == 3, "two progress science end")
 	var g0 = gs2.log.get_entry(0) as Dictionary
 	var g1 = gs2.log.get_entry(1) as Dictionary
 	_check(g0["city_id"] == 1 and g1["city_id"] == 5, "production order by id")
@@ -142,7 +150,7 @@ func _init() -> void:
 	var bad = gs2.try_apply(EndTurnScript.make(0))
 	_check(not bad["accepted"] and bad["reason"] == "not_current_player", "wrong player no tick")
 	var sz = gs2.log.size()
-	_check(sz == 3, "no log on reject")
+	_check(sz == 4, "no log on reject")
 
 	if _any_fail:
 		call_deferred("quit", 1)

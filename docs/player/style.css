@@ -44,6 +44,111 @@ footer {
 	margin-right: auto;
 }
 
+.site-nav {
+	max-width: 70ch;
+	margin: 0 auto 1rem;
+	font-size: 0.95rem;
+	line-height: 1.5;
+	color: var(--muted);
+}
+
+.site-nav a {
+	color: var(--text);
+	font-weight: 600;
+	text-decoration: none;
+	border-bottom: 1px solid transparent;
+}
+
+.site-nav a:hover,
+.site-nav a:focus {
+	border-bottom-color: var(--banner-border);
+}
+
+.site-nav a[aria-current="page"] {
+	color: var(--muted);
+	font-weight: 650;
+	border-bottom-color: var(--section-rule);
+}
+
+.site-nav-sep {
+	margin: 0 0.5rem;
+	color: var(--section-rule);
+	user-select: none;
+}
+
+.page-label {
+	margin: 0 0 0.35rem;
+	font-size: 1.05rem;
+	font-weight: 650;
+	color: var(--text);
+	line-height: 1.35;
+}
+
+.playtest-cta {
+	display: inline-block;
+	margin-top: 0.35rem;
+	padding: 0.55rem 1.1rem;
+	border-radius: 6px;
+	font-weight: 650;
+	text-decoration: none;
+	color: var(--text);
+	background-color: var(--banner-bg);
+	border: 1px solid var(--banner-border);
+}
+
+.playtest-cta:hover,
+.playtest-cta:focus {
+	background-color: var(--section-rule);
+}
+
+.dev-note {
+	font-size: 0.98rem;
+}
+
+.dev-note a {
+	color: var(--text);
+	font-weight: 600;
+	text-decoration: underline;
+	text-decoration-color: var(--banner-border);
+	text-underline-offset: 0.15em;
+}
+
+.dev-note a:hover,
+.dev-note a:focus {
+	text-decoration-color: var(--text);
+}
+
+main ol {
+	margin: 0 0 1rem;
+	padding-left: 1.35rem;
+}
+
+main ol li {
+	margin-bottom: 0.55rem;
+}
+
+main ol li:last-child {
+	margin-bottom: 0;
+}
+
+.footer-meta {
+	margin: 0.65rem 0 0;
+	font-size: 0.92rem;
+	color: var(--muted);
+}
+
+footer a {
+	color: var(--text);
+	font-weight: 600;
+	text-decoration: none;
+	border-bottom: 1px solid var(--banner-border);
+}
+
+footer a:hover,
+footer a:focus {
+	border-bottom-color: var(--text);
+}
+
 header {
 	margin-bottom: 2rem;
 	padding-bottom: 1.5rem;

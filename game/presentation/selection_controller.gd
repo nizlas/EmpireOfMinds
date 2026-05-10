@@ -16,6 +16,7 @@ const CompleteProgressScript = preload("res://domain/actions/complete_progress.g
 const ProgressCandidateFilterScript = preload("res://domain/progress_candidate_filter.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 const MapCameraScript = preload("res://presentation/map_camera.gd")
+const DiscoveryPopupScript = preload("res://presentation/discovery_popup.gd")
 
 var scenario
 var game_state
@@ -28,10 +29,14 @@ var units_view
 var cities_view
 ## Phase 4.6c: optional; **scenario** / **map** / **redraw** when units move (same **GameState.scenario** as other views).
 var terrain_foreground_view
+## Phase 5.1.11: nameplates follow unit positions; redraw with terrain sync / map refresh.
+var unit_nameplate_view
 var turn_label
 var log_view
 var city_production_panel
+var discovery_action_panel
 var discovery_popup
+var science_completed_popup
 @export var marker_hit_radius_ratio: float = 0.35
 
 ## Sentinels for **shared city / own-unit hex** click alternation (see **plan_shared_hex_pick**).
@@ -119,15 +124,34 @@ static func plan_shared_hex_pick(
 func _refresh_city_production_panel() -> void:
 	if city_production_panel != null:
 		city_production_panel.refresh()
+	_refresh_discovery_action_panel()
+
+
+func _refresh_discovery_action_panel() -> void:
+	if discovery_action_panel != null:
+		discovery_action_panel.refresh()
+
+
+func _after_accepted(prev_log_size: int) -> void:
+	DiscoveryPopupScript.run_engine_popups_after_apply(
+		game_state,
+		discovery_popup,
+		science_completed_popup,
+		prev_log_size
+	)
 
 
 func _sync_terrain_foreground_from_game_state() -> void:
-	if terrain_foreground_view == null or game_state == null:
+	if game_state == null:
 		return
 	var scen = game_state.scenario
-	terrain_foreground_view.scenario = scen
-	terrain_foreground_view.map = scen.map
-	terrain_foreground_view.queue_redraw()
+	if terrain_foreground_view != null:
+		terrain_foreground_view.scenario = scen
+		terrain_foreground_view.map = scen.map
+		terrain_foreground_view.queue_redraw()
+	if unit_nameplate_view != null:
+		unit_nameplate_view.scenario = scen
+		unit_nameplate_view.queue_redraw()
 
 func _unhandled_input(event):
 	assert(HexCoordScript != null)
@@ -154,6 +178,7 @@ func _unhandled_input(event):
 				_refresh_city_production_panel()
 				return
 			var fc_action = FoundCityScript.make(u_fc.owner_id, u_fc.id, u_fc.position.q, u_fc.position.r)
+			var prev_log_fc = game_state.log.size()
 			var fc_result = game_state.try_apply(fc_action)
 			if fc_result["accepted"]:
 				scenario = game_state.scenario
@@ -176,6 +201,7 @@ func _unhandled_input(event):
 				if log_view != null:
 					log_view.refresh()
 				_refresh_city_production_panel()
+				_after_accepted(prev_log_fc)
 			else:
 				push_warning("FoundCity rejected: %s" % fc_result["reason"])
 			return
@@ -194,6 +220,7 @@ func _unhandled_input(event):
 				push_warning("SetCityProduction: no eligible city")
 				return
 			var sp_action = SetCityProductionScript.make(pid, pick_id, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
+			var prev_log_sp = game_state.log.size()
 			var sp_result = game_state.try_apply(sp_action)
 			if sp_result["accepted"]:
 				scenario = game_state.scenario
@@ -205,12 +232,14 @@ func _unhandled_input(event):
 				if log_view != null:
 					log_view.refresh()
 				_refresh_city_production_panel()
+				_after_accepted(prev_log_sp)
 			else:
 				push_warning("SetCityProduction rejected: %s" % sp_result["reason"])
 			return
 		if ek.pressed and not ek.echo and ek.keycode == KEY_G:
 			var pid = game_state.turn_state.current_player_id()
 			var action = CompleteProgressScript.make(pid, "foraging_systems")
+			var prev_log_g = game_state.log.size()
 			var result = game_state.try_apply(action)
 			if result["accepted"]:
 				if turn_label != null:
@@ -220,6 +249,7 @@ func _unhandled_input(event):
 				_refresh_city_production_panel()
 				if discovery_popup != null:
 					discovery_popup.maybe_show_for_log_index(int(result["index"]))
+				_after_accepted(prev_log_g)
 			else:
 				push_warning("CompleteProgress rejected: %s" % result["reason"])
 			return
@@ -228,6 +258,7 @@ func _unhandled_input(event):
 			if candidates.is_empty():
 				push_warning("No progress detector candidates for current player")
 				return
+			var prev_log_h = game_state.log.size()
 			var result_h = game_state.try_apply(candidates[0])
 			if result_h["accepted"]:
 				if turn_label != null:
@@ -237,6 +268,7 @@ func _unhandled_input(event):
 				_refresh_city_production_panel()
 				if discovery_popup != null:
 					discovery_popup.maybe_show_for_log_index(int(result_h["index"]))
+				_after_accepted(prev_log_h)
 			else:
 				push_warning("CompleteProgress (detector) rejected: %s" % result_h["reason"])
 			return
@@ -269,6 +301,7 @@ func _unhandled_input(event):
 						dest_hit.q,
 						dest_hit.r
 					)
+					var prev_log_mv = game_state.log.size()
 					var result = game_state.try_apply(action)
 					if result["accepted"]:
 						scenario = game_state.scenario
@@ -284,6 +317,7 @@ func _unhandled_input(event):
 						if log_view != null:
 							log_view.refresh()
 						_refresh_city_production_panel()
+						_after_accepted(prev_log_mv)
 					else:
 						push_warning("MoveUnit rejected: %s" % result["reason"])
 					return

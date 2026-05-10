@@ -10,11 +10,13 @@ const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 const CompleteProgressScript = preload("res://domain/actions/complete_progress.gd")
+const SetCurrentResearchScript = preload("res://domain/actions/set_current_research.gd")
 const ProgressUnlockResolverScript = preload("res://domain/progress_unlock_resolver.gd")
 const TurnStateScript = preload("res://domain/turn_state.gd")
 const ProductionTickScript = preload("res://domain/production_tick.gd")
 const ProductionDeliveryScript = preload("res://domain/production_delivery.gd")
 const ProgressStateScript = preload("res://domain/progress_state.gd")
+const ScienceTickScript = preload("res://domain/science_tick.gd")
 const _GAME_STATE_SCRIPT = preload("res://domain/game_state.gd")
 
 var scenario
@@ -57,6 +59,7 @@ func try_apply(action) -> Dictionary:
 		and at != FoundCityScript.ACTION_TYPE
 		and at != SetCityProductionScript.ACTION_TYPE
 		and at != CompleteProgressScript.ACTION_TYPE
+		and at != SetCurrentResearchScript.ACTION_TYPE
 	):
 		return {"accepted": false, "reason": "unknown_action_type", "index": -1}
 	if not action.has("actor_id") or typeof(action["actor_id"]) != TYPE_INT:
@@ -78,6 +81,18 @@ func try_apply(action) -> Dictionary:
 			"result": "accepted",
 		}
 		var idx = log.append(entry)
+		var obs_pack = ScienceTickScript.add_observation_bonus_if_eligible(
+			progress_state,
+			scenario,
+			int(action["actor_id"]),
+			log
+		)
+		progress_state = obs_pack["progress_state"]
+		var obs_ev = obs_pack["events"] as Array
+		var oi = 0
+		while oi < obs_ev.size():
+			log.append(obs_ev[oi])
+			oi = oi + 1
 		return {"accepted": true, "reason": "", "index": idx}
 	if at == FoundCityScript.ACTION_TYPE:
 		var fr = FoundCityScript.validate(scenario, action)
@@ -122,6 +137,23 @@ func try_apply(action) -> Dictionary:
 		}
 		var sp_idx = log.append(sp_entry)
 		return {"accepted": true, "reason": "", "index": sp_idx}
+	if at == SetCurrentResearchScript.ACTION_TYPE:
+		var srr = SetCurrentResearchScript.validate(progress_state, action)
+		if not srr["ok"]:
+			return {"accepted": false, "reason": srr["reason"], "index": -1}
+		progress_state = progress_state.with_current_research(
+			int(action["actor_id"]),
+			str(action["science_id"])
+		)
+		var sr_entry = {
+			"schema_version": action["schema_version"],
+			"action_type": action["action_type"],
+			"actor_id": action["actor_id"],
+			"science_id": str(action["science_id"]),
+			"result": "accepted",
+		}
+		var sr_idx = log.append(sr_entry)
+		return {"accepted": true, "reason": "", "index": sr_idx}
 	if at == CompleteProgressScript.ACTION_TYPE:
 		var cpr = CompleteProgressScript.validate(progress_state, action)
 		if not cpr["ok"]:
@@ -161,6 +193,13 @@ func try_apply(action) -> Dictionary:
 		while tvi < tick_events.size():
 			log.append(tick_events[tvi])
 			tvi = tvi + 1
+		var sci_pack = ScienceTickScript.apply_for_player(progress_state, scenario, ending_player_id)
+		progress_state = sci_pack["progress_state"]
+		var sci_ev = sci_pack["events"] as Array
+		var svi = 0
+		while svi < sci_ev.size():
+			log.append(sci_ev[svi])
+			svi = svi + 1
 		turn_state = EndTurnScript.apply(turn_state, action)
 		var e_entry = {
 			"schema_version": action["schema_version"],

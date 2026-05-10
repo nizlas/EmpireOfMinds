@@ -58,12 +58,31 @@ func _init() -> void:
 	_check(city_a.position.equals(HexCoordScript.new(0, 0)), "city A at 0,0")
 	_check(gs.scenario.unit_by_id(1) == null, "founder consumed")
 
+	_check(
+		gs.progress_state.has_unlocked_target(0, "city_project", SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER),
+		"settler baseline before controlled_fire"
+	)
+
 	var r_cp = gs.try_apply(CompleteProgressScript.make(0, "controlled_fire"))
 	_check(r_cp["accepted"], "controlled_fire complete")
 	_check(
 		gs.progress_state.has_unlocked_target(0, "city_project", SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER),
-		"settler project unlocked"
+		"settler still unlocked after CF (baseline)"
 	)
+	_check(gs.progress_state.has_unlocked_target(0, "building", "hearth"), "cf adds hearth bundle")
+	var log_cp = gs.log.get_entry(r_cp["index"]) as Dictionary
+	var ut_cp = log_cp["unlocked_targets"] as Array
+	var saw_settler_row = false
+	var ri = 0
+	while ri < ut_cp.size():
+		var row = ut_cp[ri] as Dictionary
+		if (
+			str(row.get("target_type", "")) == "city_project"
+			and str(row.get("target_id", "")) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER
+		):
+			saw_settler_row = true
+		ri = ri + 1
+	_check(not saw_settler_row, "complete_progress log has no settler city_project row")
 
 	var r_sp = gs.try_apply(
 		SetCityProductionScript.make(0, city_id, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER)

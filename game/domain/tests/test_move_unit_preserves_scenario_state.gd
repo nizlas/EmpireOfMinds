@@ -15,7 +15,8 @@ func _init() -> void:
 	var u0 = UnitScript.new(7, 0, HexCoordScript.new(0, 0))
 	var city = CityScript.new(2, 1, HexCoordScript.new(1, 0))
 	var cs = [city]
-	var sc = ScenarioScript.new(m, [u0], cs, 50, 40)
+	var lt = HexCoordScript.new(0, -1)
+	var sc = ScenarioScript.new(m, [u0], cs, 50, 40, lt)
 	var action = MoveUnitScript.make(0, 7, 0, 0, 1, -1)
 	var v = MoveUnitScript.validate(sc, action)
 	_check(v["ok"], "move should be legal for fixture")
@@ -50,6 +51,10 @@ func _init() -> void:
 	_check(
 		sc.city_by_id(2).position.q == 1 and sc.city_by_id(2).position.r == 0,
 		"input scenario city position unchanged"
+	)
+	_check(
+		nu.lightning_tree_hex != null and nu.lightning_tree_hex.equals(lt),
+		"lightning_tree_hex preserved across MoveUnit.apply",
 	)
 	if _any_fail:
 		call_deferred("quit", 1)

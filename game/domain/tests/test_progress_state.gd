@@ -24,8 +24,12 @@ func _init() -> void:
 		"p1 warrior"
 	)
 	_check(
-		not def01.has_unlocked_target(0, "city_project", "produce_unit:settler"),
-		"no settler"
+		def01.has_unlocked_target(0, "city_project", "produce_unit:settler"),
+		"p0 settler baseline"
+	)
+	_check(
+		def01.has_unlocked_target(1, "city_project", "produce_unit:settler"),
+		"p1 settler baseline"
 	)
 	_check(
 		not def01.has_unlocked_target(2, "city_project", "produce_unit:warrior"),
@@ -33,18 +37,20 @@ func _init() -> void:
 	)
 
 	var ut0 = def01.unlocked_targets_for(0)
-	_check(ut0.size() == 1, "one target p0")
+	_check(ut0.size() == 2, "two targets p0")
+	_check(str((ut0[0] as Dictionary)["target_id"]) == "produce_unit:settler", "sorted settler first")
+	_check(str((ut0[1] as Dictionary)["target_id"]) == "produce_unit:warrior", "sorted warrior second")
 	var inner0 = ut0[0] as Dictionary
 	inner0["target_id"] = "mutated"
 	var ut0b = def01.unlocked_targets_for(0)
 	var inner0b = ut0b[0] as Dictionary
 	_check(
-		str(inner0b["target_id"]) == "produce_unit:warrior",
+		str(inner0b["target_id"]) == "produce_unit:settler",
 		"deep dup after outer mutate"
 	)
 	ut0b.append({"target_type": "x", "target_id": "y"})
 	var ut0c = def01.unlocked_targets_for(0)
-	_check(ut0c.size() == 1, "deep dup after array append")
+	_check(ut0c.size() == 2, "deep dup after array append")
 
 	var base = ProgressStateScript.new({})
 	var with1 = base.with_target_unlocked(0, "city_project", "produce_unit:settler")

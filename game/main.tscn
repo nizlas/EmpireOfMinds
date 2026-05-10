@@ -13,6 +13,10 @@
 [ext_resource type="Script" uid="uid://5hpiblsbbmr5" path="res://presentation/terrain_foreground_view.gd" id="11_terrainforeground"]
 [ext_resource type="Script" uid="uid://ca7prodctnpan31" path="res://presentation/city_production_panel.gd" id="12_cityprod"]
 [ext_resource type="Script" path="res://presentation/discovery_popup.gd" id="13_discovery"]
+[ext_resource type="Script" path="res://presentation/lightning_tree_view.gd" id="14_lightning"]
+[ext_resource type="Script" path="res://presentation/discovery_action_panel.gd" id="15_discovery_action"]
+[ext_resource type="Script" path="res://presentation/science_completed_popup.gd" id="16_science_popup"]
+[ext_resource type="Script" path="res://presentation/unit_nameplate_view.gd" id="17_nameplates"]
 
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
@@ -26,6 +30,23 @@ script = ExtResource("6_turnlabel")
 
 [node name="HudCanvas" type="CanvasLayer" parent="." unique_id=928810041]
 layer = 16
+
+[node name="DiscoveryActionPanel" type="PanelContainer" parent="HudCanvas" unique_id=928810042]
+layout_mode = 1
+anchors_preset = 0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+offset_left = 20.0
+offset_top = 110.0
+offset_right = 380.0
+offset_bottom = 260.0
+grow_horizontal = 0
+grow_vertical = 0
+visible = false
+mouse_filter = 2
+script = ExtResource("15_discovery_action")
 
 [node name="CityProductionPanel" type="PanelContainer" parent="HudCanvas" unique_id=3847291051]
 layout_mode = 1
@@ -58,6 +79,22 @@ grow_vertical = 2
 visible = false
 script = ExtResource("13_discovery")
 
+[node name="ScienceCompletedPopup" type="PanelContainer" parent="HudCanvas" unique_id=482910574]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -280.0
+offset_top = -220.0
+offset_right = 280.0
+offset_bottom = 220.0
+grow_horizontal = 2
+grow_vertical = 2
+visible = false
+script = ExtResource("16_science_popup")
+
 [node name="MapView" type="Node2D" parent="." unique_id=1063845021]
 position = Vector2(400, 428)
 script = ExtResource("2_mapview")
@@ -77,6 +114,14 @@ script = ExtResource("4_unitsview")
 [node name="TerrainForegroundView" type="Node2D" parent="." unique_id=555384625]
 position = Vector2(400, 428)
 script = ExtResource("11_terrainforeground")
+
+[node name="LightningTreeView" type="Node2D" parent="." unique_id=1063845022]
+position = Vector2(400, 428)
+script = ExtResource("14_lightning")
+
+[node name="UnitNameplateView" type="Node2D" parent="." unique_id=1063845023]
+position = Vector2(400, 428)
+script = ExtResource("17_nameplates")
 
 [node name="SelectionController" type="Node2D" parent="." unique_id=293165801]
 position = Vector2(400, 428)

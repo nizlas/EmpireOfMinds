@@ -47,6 +47,13 @@ func _init() -> void:
 		sc.units().size() == 3,
 		"mutating a duplicate from units() must not shrink internal list"
 	)
+	_check(sc.lightning_tree_hex == null, "tiny fixture keeps lightning_tree_hex unset")
+	var sc_proto = ScenarioScript.make_prototype_play_scenario()
+	_check(
+		sc_proto.lightning_tree_hex != null and sc_proto.lightning_tree_hex.q == 3 and sc_proto.lightning_tree_hex.r == 0,
+		"prototype play sets deterministic lightning_tree_hex",
+	)
+	_check(sc_proto.map.has(sc_proto.lightning_tree_hex), "prototype tree lies on map")
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

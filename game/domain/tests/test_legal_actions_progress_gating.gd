@@ -79,17 +79,21 @@ func _init() -> void:
 	var gs_default = GameStateScript.new(sc_c)
 	var L_def = LegalActionsScript.for_current_player(gs_default)
 	var saw_sp = false
+	var sp_ids: Array = []
 	var i = 0
 	while i < L_def.size() - 1:
 		var e = L_def[i] as Dictionary
 		if e["action_type"] == SetCityProductionScript.ACTION_TYPE:
 			saw_sp = true
-			_check(
-				e["project_id"] == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
-				"default includes warrior sp"
-			)
+			sp_ids.append(str(e["project_id"]))
 		i = i + 1
 	_check(saw_sp, "default has set_city_production")
+	_check(
+		sp_ids.size() == 2
+			and sp_ids[0] == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR
+			and sp_ids[1] == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER,
+		"default warrior and settler baseline"
+	)
 
 	var gs_empty = GameStateScript.new(sc_c, ProgressStateScript.new({}))
 	var L_lock = LegalActionsScript.for_current_player(gs_empty)

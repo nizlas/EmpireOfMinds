@@ -18,8 +18,16 @@ func _init() -> void:
 		"tiny p0 default warrior"
 	)
 	_check(
+		gs0.progress_state.has_unlocked_target(0, "city_project", "produce_unit:settler"),
+		"tiny p0 default settler"
+	)
+	_check(
 		gs0.progress_state.has_unlocked_target(1, "city_project", "produce_unit:warrior"),
 		"tiny p1 default warrior"
+	)
+	_check(
+		gs0.progress_state.has_unlocked_target(1, "city_project", "produce_unit:settler"),
+		"tiny p1 default settler"
 	)
 
 	var gs_city = GameStateScript.make_tiny_test_state()
@@ -38,6 +46,20 @@ func _init() -> void:
 	)
 	var r_w = gs_city.try_apply(sp_ok)
 	_check(r_w["accepted"], "warrior accepted with default progress")
+
+	var gs_settler = GameStateScript.make_tiny_test_state()
+	var cid_set = gs_settler.scenario.peek_next_city_id()
+	_check(gs_settler.try_apply(FoundCityScript.make(0, 1, 0, 0))["accepted"], "found for settler gate")
+	_check(
+		gs_settler.try_apply(
+			SetCityProductionScript.make(
+				0,
+				cid_set,
+				SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER
+			)
+		)["accepted"],
+		"settler production baseline without controlled_fire"
+	)
 
 	var sc_locked_base = GameStateScript.make_tiny_test_state()
 	var r2 = sc_locked_base.try_apply(FoundCityScript.make(0, 1, 0, 0))

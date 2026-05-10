@@ -62,7 +62,7 @@ On **accepted** **`end_turn`**, **`ProductionTick`** ([production_tick.gd](../ga
 
 - The Ancient mini-game **embryo v0** reuses the **existing** **`produce_unit`** **`progress` / `cost` / `ready`** mechanic and **`ProductionTick`** / **`ProductionDelivery`** engine events as the only **city output** players see for production.
 - A dedicated **`science`**, **`research`**, or **`thought`** **yield** (numeric per turn, separate from **`produce_unit`** rows) is **deferred**; “science progress” in player-facing descriptions for v0 maps to **completing** **`ProgressDefinitions`** sciences via **`CompleteProgress`** and to **production** progress on city projects — not a second parallel yield meter.
-- The **second** project **`produce_unit:settler`** is minted in **`CityProjectDefinitions`**; it is gated by a **`city_project`** unlock from completing **`controlled_fire`** via **`CompleteProgress`** (see **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)**).
+- The **second** project **`produce_unit:settler`** is minted in **`CityProjectDefinitions`**; it is **default-unlocked** from turn **1** in **`ProgressState.with_default_unlocks_for_players`** alongside **`produce_unit:warrior`** (**Phase 5.1.12d**). Completing **`controlled_fire`** no longer adds that **`city_project`** row (see **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)**).
 
 See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1**, [CORE_LOOP.md](CORE_LOOP.md) **Phase 5.1 embryo intent**.
 

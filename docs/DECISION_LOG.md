@@ -1,3 +1,72 @@
+## 2026-05-10 — Phase 5.1.12d — Settler baseline + Controlled Fire reward bundle
+
+- **Decision:** **`ProgressState.with_default_unlocks_for_players`** unlocks **`city_project` / `produce_unit:warrior`** and **`produce_unit:settler`** for every initial player — **Train Settler** is **not** a **Controlled Fire** reward.
+- **Decision:** **`controlled_fire`** **`concrete_unlocks`** / **`systemic_effects`** are the **hearth / camp / survival** metadata **bundle** only (**no** **`produce_unit:settler`** row); mechanics for **`hearth`**, **`camp_clearing`**, and modifiers stay **deferred**.
+- **Decision:** **`ScienceCompletedPopup`** shows **Controlled Fire** curated copy when **`science_completed`** has **no** **`city_project`** **Train** lines (**Phase 5.1.12d**); **`DiscoveryPopup`** for **`complete_progress`** remains **train-line-gated** (real **Controlled Fire** **`complete_progress`** logs may **hide** it when the unlock delta is metadata-only).
+
+## 2026-05-10 — Phase 5.1.12c — current_research_id + SetCurrentResearch + ScienceTick routing
+
+- **Decision:** **Explicit** research target is stored as **`ProgressState.current_research_id`** per owner (**`""`** = **auto-target**); **`ScienceAvailability`** remains the **only** source of **which** sciences are available — **no** cached availability list on state.
+- **Decision:** **`ScienceTick.apply_for_player`** uses **explicit** id when **set** **and** still **available**; otherwise **first** **`ScienceAvailability.available_for`** (alphabetical today); emits **`science_no_target`** when **no** research remains.
+- **Decision:** **Lightning-tree** **`science_bonus`** and associated **`controlled_fire`** **`science_progress`** / completion stay **hard-wired** to **`controlled_fire`**, **independent** of **`current_research_id`** (discovery bonuses may “jump” a different lane than the city-yield target).
+- **Rationale:** Players (or future UI) can **pin** a legal science while **map bonuses** keep **story-consistent** **controlled_fire** feedback.
+- **Caveat:** **Auto-target** order is **not** Civ “left-to-right” tree order — it follows **`available_for`** sort (**alphabetical** in **5.1.12c**).
+
+## 2026-05-10 — Phase 5.1.12b — ProgressDefinitions cost/prerequisites + ScienceAvailability
+
+- **Decision:** **`cost`** and **`prerequisites`** are **canonical** on **`ProgressDefinitions`** science rows; **availability** (**what can be researched / completed next**) is **computed** from **`completed_progress_ids`** via **`ScienceAvailability`**, not duplicated on **`ProgressState`**.
+- **Decision:** **`CompleteProgress`** (explicit player/debug completion) **validates prerequisites** for sciences and returns **`prerequisites_not_met`** when the DAG requires earlier sciences first.
+- **Decision:** **`ScienceTick`** uses **`ProgressDefinitions.cost`** for log **`cost`** fields on **routed** targets (**5.1.12b**); **5.1.12c** replaces the **single hardcoded** tick target with **explicit** / **auto** routing (see **5.1.12c** decision block).
+- **Rationale:** Unlocks the **19-science** Ancient slice in data while keeping the **playable** single-target loop stable through **5.1.12c** targeting work.
+- **Caveat:** **`ProgressUnlockResolver`** does not re-check prerequisites (validation is **`CompleteProgress`** / future **`SetCurrentResearch`**); illegal completion paths must not bypass **`try_apply`**.
+
+## 2026-05-10 — Phase 5.1.12a — Ancient science tree documentation checkpoint
+
+- **Decision:** **Sciences** are **bundles** (`concrete_unlocks` / `systemic_effects`); **Controlled Fire** **stops being a Settler gate** ( **`produce_unit:settler`** drops from **`controlled_fire`** unlocks in **5.1.12d** ).
+- **Decision:** **Settler** is **baseline from turn 1**, implemented in **5.1.12d** via **default `ProgressState` unlocks** (`city_project` / **`produce_unit:settler`**).
+- **Decision:** **`cost`** + **`prerequisites`** extend **`ProgressDefinitions`**; **no** new **`ScienceDefinitions`** registry.
+- **Decision:** **Textile Work** is unlocked by **Foraging Systems** to avoid a **Column 2** science with **no** inbound dependency in the Ancient tree.
+- **Rationale:** Locks a **19-science** DAG, **costs**, targeting contracts, and **Settler** / **survival-tech** split before **5.1.12b–d** code.
+- **Caveat:** **5.1.12a** is **docs-only**; behavior and tests change in **5.1.12b**–**d**.
+
+## 2026-05-10 — Phase 5.1.11 — Code-drawn unit nameplates
+
+- **Decision:** Add **`UnitNameplateView`** — **presentation-only** banners (unit label + muted owner accent) drawn **above** markers in **`_draw`**, **no** new PNGs, **no** **`Control`** / hit-test surface. Serves as **medium-term** unit-type clarity until unique marker art exists for every **`type_id`**.
+- **Rationale:** Readable **Warrior** / **Settler** (and future types) labels reduce reliance on silhouette-only icons during the parchment prototype; **HudCanvas** remains the exclusive modal/panel layer (**`CanvasLayer` 16**).
+- **Caveat:** Nameplate **`z_index` 2** must stay **below** **`HudCanvas`**; dense stacks of units can overlap labels visually.
+
+## 2026-05-10 — Phase 5.1.10 — Discovery vs science-completed popups
+
+- **Decision:** **`ScienceCompletedPopup`** remains the vocabulary for **`science_completed`** (automatic **`controlled_fire`** finish). **`DiscoveryPopup`** also handles **optional** **`science_bonus`** rows (**Phase 5.1.10:** **`bonus_id: lightning_scarred_tree`**) for one-time observation **feedback** — curated narrative + **`practical_line`** from log fields, **no** rule application in presentation. When **`science_bonus`** and **`science_completed`** appear in the **same** post-apply log slice, **show **`DiscoveryPopup`** first**, then **`ScienceCompletedPopup`** after **OK** (no simultaneous modals).
+- **Rationale:** Players need to **see** that the landmark granted bonus progress; **`science_progress`** lines alone are easy to miss. Reusing **`DiscoveryPopup`** keeps “you noticed something” distinct from “science finished.”
+- **Caveat:** Only **`lightning_scarred_tree`** is wired; other future bonuses would add **`compute_view_model`** cases or stay hidden.
+
+## 2026-05-10 — Phase 5.1.8c — Lightning tree placement + stump scale
+
+- **Decision:** **`make_prototype_play_scenario`** **`lightning_tree_hex`** moves from **`(3, -3)`** (**inside** the **prototype forest-cluster** decoration) to **`(3, 0)`** — **GRASSLAND** **FLAT**, **not** in **`PROTOTYPE_FOREST_DECORATION_HEXES`**, **hex distance ≥ 2** from all **starting unit** hexes so observation still requires a short move. **`LightningTreeView.STUMP_HEIGHT_HEX_FRAC`** reduced to **~0.50** (~half prior visual height). **`plains_forest_decoration.gd`** adds **`is_prototype_foreground_forest_hex(q,r)`** as the single predicate for “forest overlay cell” (wraps the existing prototype list — **not** a gameplay feature registry).
+- **Rationale:** Manual play showed the stump **too large** and sitting under **foreground forest** art; design intent is an **open** landmark on **PLAINS/GRASSLAND** as **rendered**, not only by base **HexMap** tag under overlay.
+- **Caveat:** **`is_prototype_foreground_forest_hex`** is **prototype-only** and tied to the hand-maintained cluster list.
+
+## 2026-05-10 — Phase 5.1.8b follow-up — LightningTreeView visibility (layering)
+
+- **Decision:** Move **`LightningTreeView`** **after** **`TerrainForegroundView`** in [main.tscn](../game/main.tscn) and set **`z_index = 1`** (with TFV) so it draws **on top of** the forest overlay. Earlier **`z_index = 0` placement** left the stump **fully covered** by **TFV** in play. **Chroma** narrowed to **bright magenta** only; removed **near-black** global key that could erase **bark/shadow**; optional **unkeyed** fallback when a bad key wipes the art.
+- **Rationale:** Prototype landmark must be **seen** before the player visits the hex; **TFV** is intentionally above **`MapView`**/marker shells.
+- **Caveat:** Stump may draw **above** **TFV-embedded** city/unit markers on that tile (acceptable trade until a single-pass interleave exists).
+
+## 2026-05-09 — Phase 5.1.8b — Lightning tree HUD + `scarred_tree_stump.png` marker
+
+- **Decision:** Add **`LightningTreeView`** (**`Node2D`**) and **`DiscoveryActionPanel`** (**`HudCanvas`**). The stump uses **`res://assets/prototype/terrain/scarred_tree_stump.png`** loaded via **`Image.load`** into an **`ImageTexture`**, with **magenta** and **near-black matte** pixels keyed transparent at runtime (**prototype landmark** only — **not** a resource catalogue, weather sim, or generalized art pipeline). **`DiscoveryActionPanel`** uses **`ProgressCandidateFilter`** and submits the same **`CompleteProgress`** **`try_apply`** as **`KEY_H`**; on accept it triggers **`DiscoveryPopup.maybe_show_for_log_index`** like **`KEY_G`/`KEY_H`**.
+- **Rationale:** **5.1.8a** made **`controlled_fire`** depend on **observing** the optional map cell; players need a **visible landmark** on the prototype map and a **HUD** affordance besides the debug shortcut.
+- **Caveat:** **Chroma** tolerances are tuned for this PNG; replacing the art may require retuning or switching to **true alpha**.
+
+## 2026-05-09 — Phase 5.1.8a — Lightning-Scarred Tree observation (`controlled_fire` detector)
+
+- **Decision:** Add optional **`Scenario.lightning_tree_hex`** (**nullable**, **untyped** ctor parameter) carried through **`MoveUnit`**, **`FoundCity`**, **`SetCityProduction`**, **`ProductionTick`**, and **`ProductionDelivery`** **`Scenario`** rebuilds. **`make_prototype_play_scenario`** sets a deterministic axial cell (**Phase 5.1.8c:** **`(3, 0)`** open **GRASSLAND**; earlier **`(3, -3)`** superseded); **`make_tiny_test_scenario`** keeps **`null`**. **`ProgressDetector`** no longer uses **found_city** for **`controlled_fire`**; it requires **`lightning_tree_hex != null`** and an **accepted `move_unit`** log entry for the player whose **`to`** is **on or adjacent** to the tree. **No** new actions, **no** log shape change, **no** **`try_apply`** contract change, **no** presentation.
+
+- **Rationale:** **Prototype play** should gate **`controlled_fire`** on a **visible map interaction** (observation **via movement**), not on founding alone. This is a **single-cell landmark**, **not** a weather system, wildfire sim, resource catalogue, or random event layer.
+
+- **Caveat:** **HEADLESS** / **tiny** tests keep **`lightning_tree_hex == null`** unless a test **opts in**; **`KEY_H`** only applies **`controlled_fire`** after the new observation rule is satisfied.
+
 ## 2026-05-09 — Phase 5.1.7 — Discovery unlock popup (HudCanvas)
 
 - **Decision:** Add **[discovery_popup.gd](../game/presentation/discovery_popup.gd)** under **`HudCanvas`**: after **accepted** **`CompleteProgress`** from **`SelectionController`** (**`KEY_G`** / **`KEY_H`** only), **`maybe_show_for_log_index(int(try_apply["index"]))`** loads **`game_state.log.get_entry(index)`** and shows a **dismissible** panel when **`compute_view_model`** sees **`complete_progress`** with at least one **5.1.6-equivalent** **`city_project` / `produce_unit:*`** unlock; **`compute_view_model(log_entry)`** takes an **untyped** parameter so **`null`** and non-**`Dictionary`** inputs return **`visible: false`** without coercion errors, and **hidden** view models **do not** mutate existing popup visibility (**no** queue). **`controlled_fire`** uses fixed title (**`Discovery completed`**), heading, body, and **Unlocked:** bullets; other **`progress_id`** values with visible train unlocks use a **generic** body/heading. **No** domain / registry / **`LogView`** / production-panel / turn-controller edits.
@@ -1470,3 +1539,17 @@ Rationale:
 Caveat:
 
 - **Repo** paths are **`assets/prototype/terrain/forest/`** (not **`assets/terrain/forest/`**); **`main.gd`** **does** **not** **sync** **the** **two** **`use_forest_asset_overlays`** **flags** — **inspector** **must** **set** **both** **if** **toggling**.
+
+## 2026-05-10 — Phase 5.1.9: automatic `controlled_fire` science + `ScienceCompletedPopup`
+
+Decision:
+
+- **`ProgressState`** adds **`science_progress`** and **`science_observation_flags`**. **`ScienceTick`** (**`controlled_fire`** only, **cost 6**) awards **+1** per owned city when the **owner ends their turn** (**after** **`ProductionTick`**, **before** **`TurnState` advance**), and a **one-time +4** when the **last log entry** is an **accepted `move_unit`** to a cell **on or adjacent** to **`scenario.lightning_tree_hex`**. At threshold, **`ProgressUnlockResolver.complete_progress`** runs and **`ActionLog`** records **`science_progress`** then **`science_completed`** (**`source: engine`**). **`ScienceCompletedPopup`** is **log-driven** and **presentation-only**; **`DiscoveryActionPanel`** **filters out** **`controlled_fire`**. **`KEY_H`** remains a **manual** **`CompleteProgress`** path when **`ProgressCandidateFilter`** still returns a candidate.
+
+Rationale:
+
+- **Science** completes **automatically** from play; the popup is **informational**, not a gate. **`DiscoveryActionPanel`** stays available for **future** non-science events.
+
+Caveat:
+
+- **Single-target** prototype — **no** **`SelectScience`**, **no** multi-science tree UI.

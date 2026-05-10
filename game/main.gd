@@ -2,7 +2,7 @@
 # See docs/RENDERING.md, docs/SELECTION.md
 extends Node2D
 
-## Initial pixel origin for MapView, CitiesView, SelectionView, UnitsView, TerrainForegroundView, SelectionController (Phase 4.3g). **4.5m:** set **once** on each node in `_ready`; pan uses **MapCamera.camera_world_offset**. **4.5n:** mouse-wheel zoom via **`MapCamera.set_zoom_clamped`** (center-anchored).
+## Initial pixel origin for map-layer **Node2D** children including **UnitNameplateView** (Phase 5.1.11). **4.5m:** set **once** in `_ready`; pan uses **MapCamera.camera_world_offset**. **5.1.11:** **UnitNameplateView** uses **`z_index` 2** so nameplates draw above terrain/unit markers, still below **HudCanvas**.
 const MAP_LAYER_ORIGIN: Vector2 = Vector2(400.0, 428.0)
 
 const ScenarioScript = preload("res://domain/scenario.gd")
@@ -26,6 +26,8 @@ func _redraw_map_layers() -> void:
 	$SelectionView.queue_redraw()
 	$UnitsView.queue_redraw()
 	$TerrainForegroundView.queue_redraw()
+	$LightningTreeView.queue_redraw()
+	$UnitNameplateView.queue_redraw()
 
 func _ready() -> void:
 	_map_projection = MapPlaneProjectionScript.new()
@@ -38,6 +40,8 @@ func _ready() -> void:
 		$SelectionView,
 		$UnitsView,
 		$TerrainForegroundView,
+		$LightningTreeView,
+		$UnitNameplateView,
 		$SelectionController,
 	]:
 		n.position = MAP_LAYER_ORIGIN
@@ -57,6 +61,10 @@ func _ready() -> void:
 	$TerrainForegroundView.scale = Vector2.ONE
 	$TerrainForegroundView.camera = _map_camera
 	$TerrainForegroundView.z_index = 1
+	$LightningTreeView.z_index = 1
+	$UnitNameplateView.scale = Vector2.ONE
+	$UnitNameplateView.camera = _map_camera
+	$UnitNameplateView.z_index = 2
 	$SelectionController.scale = Vector2.ONE
 	$SelectionController.camera = _map_camera
 	var scenario = ScenarioScript.make_prototype_play_scenario()
@@ -69,6 +77,11 @@ func _ready() -> void:
 	var cities_view = $CitiesView
 	cities_view.scenario = scenario
 	cities_view.layout = layout
+	var lightning_tree_view = $LightningTreeView
+	lightning_tree_view.game_state = game_state
+	lightning_tree_view.scenario = scenario
+	lightning_tree_view.layout = layout
+	lightning_tree_view.camera = _map_camera
 	var units_view = $UnitsView
 	units_view.scenario = scenario
 	units_view.layout = layout
@@ -91,6 +104,10 @@ func _ready() -> void:
 	terrain_foreground.cities_view = cities_view
 	cities_view.terrain_foreground_view = terrain_foreground
 	units_view.terrain_foreground_view = terrain_foreground
+	var unit_nameplate_view = $UnitNameplateView
+	unit_nameplate_view.scenario = scenario
+	unit_nameplate_view.layout = layout
+	unit_nameplate_view.units_view = units_view
 	var selection_view = $SelectionView
 	selection_view.scenario = scenario
 	selection_view.layout = layout
@@ -104,6 +121,7 @@ func _ready() -> void:
 	selection_controller.units_view = units_view
 	selection_controller.cities_view = cities_view
 	selection_controller.terrain_foreground_view = terrain_foreground
+	selection_controller.unit_nameplate_view = unit_nameplate_view
 	var turn_label = $TurnLabel
 	turn_label.game_state = game_state
 	turn_label.refresh()
@@ -114,6 +132,7 @@ func _ready() -> void:
 	end_turn_controller.selection_view = selection_view
 	end_turn_controller.units_view = units_view
 	end_turn_controller.terrain_foreground_view = terrain_foreground
+	end_turn_controller.unit_nameplate_view = unit_nameplate_view
 	end_turn_controller.turn_label = turn_label
 	var ai_turn_controller = $AITurnController
 	ai_turn_controller.game_state = game_state
@@ -121,6 +140,7 @@ func _ready() -> void:
 	ai_turn_controller.selection_view = selection_view
 	ai_turn_controller.units_view = units_view
 	ai_turn_controller.terrain_foreground_view = terrain_foreground
+	ai_turn_controller.unit_nameplate_view = unit_nameplate_view
 	ai_turn_controller.turn_label = turn_label
 	var log_view = $LogView
 	log_view.game_state = game_state
@@ -138,9 +158,26 @@ func _ready() -> void:
 	end_turn_controller.city_production_panel = city_production_panel
 	ai_turn_controller.city_production_panel = city_production_panel
 	city_production_panel.refresh()
+	var discovery_action_panel = $HudCanvas/DiscoveryActionPanel
+	discovery_action_panel.game_state = game_state
+	discovery_action_panel.turn_label = turn_label
+	discovery_action_panel.log_view = log_view
+	discovery_action_panel.city_production_panel = city_production_panel
 	var discovery_popup = $HudCanvas/DiscoveryPopup
 	discovery_popup.game_state = game_state
+	discovery_action_panel.discovery_popup = discovery_popup
+	var science_completed_popup = $HudCanvas/ScienceCompletedPopup
+	science_completed_popup.game_state = game_state
+	selection_controller.discovery_action_panel = discovery_action_panel
+	end_turn_controller.discovery_action_panel = discovery_action_panel
+	ai_turn_controller.discovery_action_panel = discovery_action_panel
+	discovery_action_panel.refresh()
 	selection_controller.discovery_popup = discovery_popup
+	selection_controller.science_completed_popup = science_completed_popup
+	end_turn_controller.discovery_popup = discovery_popup
+	end_turn_controller.science_completed_popup = science_completed_popup
+	ai_turn_controller.discovery_popup = discovery_popup
+	ai_turn_controller.science_completed_popup = science_completed_popup
 	_faction_banner_gallery = FactionBannerGalleryScript.new()
 	add_child(_faction_banner_gallery)
 	_redraw_map_layers()

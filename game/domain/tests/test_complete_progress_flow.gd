@@ -80,6 +80,35 @@ func _init() -> void:
 	_check(r_bad["reason"] == "unknown_progress_id", "D reason")
 	_check(gs3.log.size() == 0, "D log empty")
 
+	var gs_pr = GameStateScript.make_tiny_test_state()
+	var r_at = gs_pr.try_apply(CompleteProgressScript.make(0, "animal_tracking"))
+	_check(not r_at["accepted"], "prereq reject animal_tracking")
+	_check(r_at["reason"] == "prerequisites_not_met", "prereq reason")
+	_check(gs_pr.log.size() == 0, "prereq log empty")
+
+	var gs_cf = GameStateScript.make_tiny_test_state()
+	var r_cf_ok = gs_cf.try_apply(CompleteProgressScript.make(0, "controlled_fire"))
+	_check(r_cf_ok["accepted"], "controlled_fire try_apply ok")
+	_check(gs_cf.progress_state.has_completed_progress(0, "controlled_fire"), "cf completed")
+	_check(gs_cf.progress_state.has_unlocked_target(0, "building", "hearth"), "cf unlock hearth")
+	_check(
+		gs_cf.progress_state.has_unlocked_target(0, "city_project", "produce_unit:settler"),
+		"settler baseline unchanged"
+	)
+	var e_cf = gs_cf.log.get_entry(r_cf_ok["index"]) as Dictionary
+	var ut_cf = e_cf["unlocked_targets"] as Array
+	var saw_settler_unlock = false
+	var ci = 0
+	while ci < ut_cf.size():
+		var row = ut_cf[ci] as Dictionary
+		if (
+			str(row.get("target_type", "")) == "city_project"
+			and str(row.get("target_id", "")) == "produce_unit:settler"
+		):
+			saw_settler_unlock = true
+		ci = ci + 1
+	_check(not saw_settler_unlock, "complete_progress log omits settler row")
+
 	var gs4 = GameStateScript.make_tiny_test_state()
 	var city_id = gs4.scenario.peek_next_city_id()
 	var r_fc = gs4.try_apply(FoundCityScript.make(0, 1, 0, 0))

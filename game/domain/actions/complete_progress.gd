@@ -44,4 +44,12 @@ static func validate(progress_state, action) -> Dictionary:
 		return {"ok": false, "reason": "unknown_progress_id"}
 	if progress_state.has_completed_progress(int(action["actor_id"]), pid):
 		return {"ok": false, "reason": "progress_already_completed"}
+	if ProgressDefinitionsScript.is_science(pid):
+		var req = ProgressDefinitionsScript.prerequisites(pid)
+		var ri = 0
+		while ri < req.size():
+			var pre_id = str(req[ri])
+			if not progress_state.has_completed_progress(int(action["actor_id"]), pre_id):
+				return {"ok": false, "reason": "prerequisites_not_met"}
+			ri = ri + 1
 	return {"ok": true, "reason": ""}

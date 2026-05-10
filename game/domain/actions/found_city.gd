@@ -94,5 +94,6 @@ static func apply(a_scenario, action):
 		new_units,
 		new_cities,
 		a_scenario.peek_next_unit_id(),
-		a_scenario.peek_next_city_id() + 1
+		a_scenario.peek_next_city_id() + 1,
+		a_scenario.lightning_tree_hex,
 	)

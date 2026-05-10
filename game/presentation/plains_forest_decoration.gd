@@ -56,5 +56,10 @@ static func prototype_forest_cluster_set() -> Dictionary:
 	return d
 
 
+## True when **(q,r)** is listed in [member PROTOTYPE_FOREST_DECORATION_HEXES] (prototype overlay / TFV forest pass only).
+static func is_prototype_foreground_forest_hex(q: int, r: int) -> bool:
+	return prototype_forest_cluster_set().has(Vector2i(q, r))
+
+
 static func prototype_forest_decoration_hexes() -> Array[Vector2i]:
 	return PROTOTYPE_FOREST_DECORATION_HEXES.duplicate()
