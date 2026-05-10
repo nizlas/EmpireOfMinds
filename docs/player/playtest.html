@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Empire of Minds — Playtest Guide</title>
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<header>
+		<nav class="site-nav" aria-label="Site">
+			<a href="index.html">Overview</a>
+			<span class="site-nav-sep" aria-hidden="true">·</span>
+			<a href="playtest.html" aria-current="page">Playtest Guide</a>
+		</nav>
+		<h1>Empire of Minds</h1>
+		<p class="page-label">Playtest Guide</p>
+		<p class="tagline">Early prototype — not a complete game manual.</p>
+	</header>
+
+	<p class="status-banner" role="status">For playtesters: what you can try in the current build, in plain language. Design archives and technical detail live elsewhere in the project.</p>
+
+	<main>
+		<section id="intro">
+			<p>This page is for <strong>playtesters</strong>. It describes what you can try in the <strong>current prototype</strong> in plain language.</p>
+		</section>
+
+		<section id="what-you-are-testing">
+			<h2>What you are testing</h2>
+			<p>You are trying a <strong>small ancient-era slice</strong>: found a <strong>first city</strong>, use the <strong>city production</strong> panel, complete one early <strong>discovery</strong> (<strong>Controlled Fire</strong>) with a temporary shortcut, see the <strong>discovery</strong> message (<strong>Discovery completed</strong>, with <strong>Controlled Fire</strong> and a short story about hearths, habit, and pioneers—plus an <strong>Unlocked</strong> line that should mention <strong>Train Settler</strong>), then <strong>produce a settler</strong>, move them, and <strong>found a second city</strong>.</p>
+			<p>Empire of Minds is meant to be a turn-based 4X about how civilizations <strong>learn</strong>, with worlds that can emphasize different lessons over time. <strong>Right now</strong> you are not getting a full era or a finished game—only this early <strong>embryo</strong> on the test map.</p>
+		</section>
+
+		<section id="quick-start">
+			<h2>Quick start</h2>
+			<ol>
+				<li><strong>Launch</strong> the prototype (your host will tell you how).</li>
+				<li><strong>Click</strong> the starting <strong>settler</strong> to select them.</li>
+				<li>Press <strong>F</strong> to <strong>found your first city</strong> on the settler’s tile (settler must be selected).</li>
+				<li><strong>Click</strong> the <strong>city</strong> on the map to open the <strong>city production</strong> panel.</li>
+				<li>Choose <strong>Train Warrior</strong> (or another <strong>Train …</strong> option that is offered) to start production.</li>
+				<li>Press <strong>H</strong> once to complete the <strong>Controlled Fire</strong> discovery. <strong>H is temporary prototype input</strong>, not final design—it stands in until a real discovery flow exists. It only fits this early build after you have founded a city.</li>
+				<li>Read the <strong>discovery</strong> panel (<strong>Discovery completed</strong>, <strong>Controlled Fire</strong>, body text, <strong>Unlocked</strong> list) and press <strong>OK</strong>.</li>
+				<li><strong>Click</strong> the city again when it has <strong>no</strong> active project (idle).</li>
+				<li>Choose <strong>Train Settler</strong> (it should appear after <strong>Controlled Fire</strong>).</li>
+				<li>Press <strong>Space</strong> to <strong>end your turn</strong> as needed until the <strong>settler</strong> appears (production finishes across turns).</li>
+				<li><strong>Click</strong> the settler, then <strong>click</strong> a nearby tile the game <strong>allows</strong> for movement.</li>
+				<li>With the settler selected, press <strong>F</strong> again to <strong>found a second city</strong>.</li>
+			</ol>
+			<p>If anything fails, note <strong>where</strong> you were in this list and what you expected to happen.</p>
+		</section>
+
+		<section id="what-to-look-for">
+			<h2>What to look for</h2>
+			<ul>
+				<li>Does the <strong>city</strong> panel feel understandable at a glance?</li>
+				<li>Does the <strong>discovery</strong> panel read clearly? Does <strong>OK</strong> feel like enough to dismiss it?</li>
+				<li>Is it obvious that <strong>Controlled Fire</strong> led to <strong>Train Settler</strong> (words + bullets)?</li>
+				<li>Does <strong>Train Settler</strong> → move → <strong>second city</strong> feel like the <strong>start of a loop</strong> you might want to continue?</li>
+				<li>On a hex that has <strong>both</strong> a city and a unit, do <strong>repeated clicks</strong> between <strong>city</strong> and <strong>unit</strong> make sense, or feel confusing?</li>
+			</ul>
+		</section>
+
+		<section id="controls">
+			<h2>Current controls and prototype shortcuts</h2>
+			<ul>
+				<li><strong>Click</strong> a <strong>unit</strong> to select it.</li>
+				<li><strong>Click</strong> a <strong>city</strong> to open <strong>production</strong> (when the build supports it for that city).</li>
+				<li>If a <strong>unit</strong> stands on the <strong>same tile</strong> as a <strong>city</strong>, <strong>repeated clicks</strong> on that hex <strong>alternate</strong> between selecting the <strong>city</strong> and the <strong>unit</strong>. This is a <strong>prototype</strong> rule, not promised final UX.</li>
+				<li><strong>F</strong> — <strong>Found a city</strong> while a <strong>settler</strong> (or eligible founder) is <strong>selected</strong>, on their current tile.</li>
+				<li><strong>H</strong> — <strong>current prototype shortcut</strong> to complete <strong>Controlled Fire</strong> after you have <strong>founded a city</strong> (temporary until a real discovery interface exists).</li>
+				<li><strong>Space</strong> — <strong>End turn</strong> for the current player; ending turns <strong>advances production</strong> and can <strong>deliver</strong> trained units.</li>
+			</ul>
+			<p>Other keys may exist for hosts or experiments—treat them as <strong>prototype-only</strong> unless your host says otherwise.</p>
+		</section>
+
+		<section id="works-today">
+			<h2>What works today</h2>
+			<ul>
+				<li><strong>Founding</strong> at least one <strong>city</strong> from a <strong>settler</strong>.</li>
+				<li>Opening a <strong>minimal city production</strong> panel from the map; <strong>Train Warrior</strong>-style options when the rules allow.</li>
+				<li>Completing <strong>Controlled Fire</strong> via <strong>H</strong> in this embryo, then seeing the <strong>discovery</strong> panel with <strong>Train Settler</strong> unlocked.</li>
+				<li><strong>Producing</strong> a <strong>settler</strong>, <strong>moving</strong> them, and <strong>founding</strong> another <strong>city</strong>.</li>
+				<li><strong>Cycling</strong> selection between <strong>city</strong> and <strong>unit</strong> on a <strong>shared</strong> hex via <strong>repeated clicks</strong>.</li>
+			</ul>
+		</section>
+
+		<section id="limitations">
+			<h2>What does not work yet / known limitations</h2>
+			<ul>
+				<li>No full <strong>research</strong> or <strong>science</strong> screen yet.</li>
+				<li>No full <strong>ancient era</strong>—only this narrow playable thread.</li>
+				<li>No real <strong>science income</strong> or full <strong>research</strong> loop on the map yet.</li>
+				<li>No full <strong>economy</strong>—<strong>food</strong>, <strong>growth</strong>, <strong>happiness</strong>, <strong>trade</strong>, <strong>diplomacy</strong>, or <strong>combat</strong> as you would expect from a finished 4X.</li>
+				<li><strong>AI</strong> does not play this slice in a <strong>smart</strong>, teachable way yet.</li>
+				<li>The <strong>city production</strong> panel is <strong>minimal</strong> (layout and copy will change).</li>
+				<li><strong>H</strong> is a <strong>stand-in</strong>, not how discoveries will work later.</li>
+				<li><strong>Shared</strong> city/unit selection is a <strong>temporary</strong> cycling rule.</li>
+			</ul>
+		</section>
+
+		<section id="feedback">
+			<h2>What we want feedback on</h2>
+			<p>We care about <strong>clarity</strong>, <strong>surprise</strong> (good or bad), whether <strong>production</strong> options read well, whether <strong>popup</strong> wording helps or hinders, whether <strong>selection</strong> on crowded tiles confuses you, and whether this <strong>tiny loop</strong> makes you <strong>curious</strong> to see more—or where it <strong>stops</strong> feeling worth it.</p>
+			<p>Short notes and screenshots (if your host wants them) are welcome; <strong>exact steps</strong> (like the numbered list above) help us reproduce issues.</p>
+		</section>
+
+		<section id="developers" class="dev-note">
+			<h2>Where to look if you are a developer</h2>
+			<p><strong>Developer note:</strong> Steering and mechanics live in internal docs, for example <a href="../PHASE_PLAN.md">PHASE_PLAN.md</a>, <a href="../CORE_LOOP.md">CORE_LOOP.md</a>, <a href="../CITIES.md">CITIES.md</a>, and <a href="../CONTENT_MODEL.md">CONTENT_MODEL.md</a>. Do not expect playtesters to read those.</p>
+		</section>
+	</main>
+
+	<footer>
+		<p><a href="index.html">Overview</a></p>
+		<p class="footer-meta">Empire of Minds prototype preview. Not a final product.</p>
+	</footer>
+</body>
+</html>
