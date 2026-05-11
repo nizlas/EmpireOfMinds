@@ -163,6 +163,14 @@ func _ready() -> void:
 	discovery_action_panel.turn_label = turn_label
 	discovery_action_panel.log_view = log_view
 	discovery_action_panel.city_production_panel = city_production_panel
+	var science_panel = $HudCanvas/SciencePanel
+	science_panel.game_state = game_state
+	science_panel.turn_label = turn_label
+	science_panel.log_view = log_view
+	discovery_action_panel.science_panel = science_panel
+	selection_controller.science_panel = science_panel
+	end_turn_controller.science_panel = science_panel
+	ai_turn_controller.science_panel = science_panel
 	var discovery_popup = $HudCanvas/DiscoveryPopup
 	discovery_popup.game_state = game_state
 	discovery_action_panel.discovery_popup = discovery_popup
@@ -172,6 +180,7 @@ func _ready() -> void:
 	end_turn_controller.discovery_action_panel = discovery_action_panel
 	ai_turn_controller.discovery_action_panel = discovery_action_panel
 	discovery_action_panel.refresh()
+	science_panel.refresh()
 	selection_controller.discovery_popup = discovery_popup
 	selection_controller.science_completed_popup = science_completed_popup
 	end_turn_controller.discovery_popup = discovery_popup

@@ -35,6 +35,7 @@ var turn_label
 var log_view
 var city_production_panel
 var discovery_action_panel
+var science_panel
 var discovery_popup
 var science_completed_popup
 @export var marker_hit_radius_ratio: float = 0.35
@@ -125,11 +126,17 @@ func _refresh_city_production_panel() -> void:
 	if city_production_panel != null:
 		city_production_panel.refresh()
 	_refresh_discovery_action_panel()
+	_refresh_science_panel()
 
 
 func _refresh_discovery_action_panel() -> void:
 	if discovery_action_panel != null:
 		discovery_action_panel.refresh()
+
+
+func _refresh_science_panel() -> void:
+	if science_panel != null:
+		science_panel.refresh()
 
 
 func _after_accepted(prev_log_size: int) -> void:

@@ -10,6 +10,7 @@ var game_state
 var turn_label
 var log_view
 var city_production_panel
+var science_panel
 var discovery_popup
 
 var _root_vbox: VBoxContainer
@@ -193,6 +194,8 @@ func _on_complete_pressed() -> void:
 			log_view.refresh()
 		if city_production_panel != null:
 			city_production_panel.refresh()
+		if science_panel != null:
+			science_panel.call_deferred("refresh")
 		if discovery_popup != null:
 			discovery_popup.maybe_show_for_log_index(int(result["index"]))
 		call_deferred("refresh")

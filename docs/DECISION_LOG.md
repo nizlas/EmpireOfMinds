@@ -1,3 +1,9 @@
+## 2026-05-10 — Phase 5.1.13 — Minimal science selection HUD (`SciencePanel`)
+
+- **Decision:** The **first** in-run **science UI** is a **compact** **`HudCanvas`** **`SciencePanel`** — **not** a tech-tree canvas. It shows **effective** research (same rules as **`ScienceTick`** for display), **per-science** progress from **`ProgressState`**, and **available** rows from **`ScienceAvailability.available_for`**; buttons call **`SetCurrentResearch`** through **`GameState.try_apply`** only.
+- **Decision:** **`SciencePanel`** may **`preload`** **`ProgressDefinitions`** for **`display_name`** / **`cost`** on this panel only; **Discovery** / **Science completed** popups stay **log-driven** without **`ProgressDefinitions`** imports.
+- **Rationale:** Makes **5.1.12c** research pinning **discoverable** without **`LegalActions`**, **AI**, or **save/load** work.
+
 ## 2026-05-10 — Phase 5.1.12d — Settler baseline + Controlled Fire reward bundle
 
 - **Decision:** **`ProgressState.with_default_unlocks_for_players`** unlocks **`city_project` / `produce_unit:warrior`** and **`produce_unit:settler`** for every initial player — **Train Settler** is **not** a **Controlled Fire** reward.

@@ -18,6 +18,7 @@ var turn_label
 var log_view
 var city_production_panel
 var discovery_action_panel
+var science_panel
 var science_completed_popup
 var discovery_popup
 
@@ -71,5 +72,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					city_production_panel.refresh()
 				if discovery_action_panel != null:
 					discovery_action_panel.refresh()
+				if science_panel != null:
+					science_panel.refresh()
 			else:
 				push_warning("AI action rejected: %s" % result["reason"])

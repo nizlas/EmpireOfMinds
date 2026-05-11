@@ -2079,7 +2079,7 @@ Goal:
 - **`ProgressState`**: **`current_research_id`** per owner (**`""`** = explicit unset / **auto-target**); **`current_research_for`**, **`with_current_research`**; all **`with_*`** mutators preserve it.
 - **`SetCurrentResearch`**: player **`Dictionary`** action; **`GameState.try_apply`** + log **`set_current_research`**; validate **`unknown_science`**, **`not_a_science`**, **`already_completed`**, **`prerequisites_not_met`**; **`science_id` `""`** clears explicit target.
 - **`ScienceTick.apply_for_player`**: resolve target = explicit id if **available**, else **first** **`ScienceAvailability.available_for`** (alphabetical); **`science_no_target`** when **none**; **`add_observation_bonus_if_eligible`** always **`controlled_fire`**.
-- **No** overflow carry-over; **no** **SciencePanel**; **no** **5.1.12d** **Settler** move.
+- **No** overflow carry-over; **`SciencePanel`** (**5.1.13**) is presentation-only — **no** **5.1.12d** **Settler** move in **5.1.12c**.
 
 Shipped:
 
@@ -2109,6 +2109,24 @@ Shipped:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 82 headless tests passed.`**
+
+#### 5.1.13 — Minimal science selection panel
+
+**Status:** **Shipped.**
+
+Goal:
+
+- **`SciencePanel`** (**[science_panel.gd](../game/presentation/science_panel.gd)**): left **`HudCanvas`** panel — **current / effective** research (same resolution as **`ScienceTick`** for display), **progress / cost**, **available** science buttons; submits **`SetCurrentResearch`** only via **`GameState.try_apply`**.
+- **`compute_view_model(game_state)`** for tests; **`ProgressDefinitions`** + **`ScienceAvailability`** read-only for **display** (popups remain log-driven without **`ProgressDefinitions`**).
+
+Shipped:
+
+- **`main.tscn`** / **`main.gd`** — **`HudCanvas/SciencePanel`**; refresh alongside **`CityProductionPanel`** / **`DiscoveryActionPanel`** via **`SelectionController`**, **`EndTurnController`**, **`AITurnController`**; **`DiscoveryActionPanel`** also **`call_deferred("refresh")`** on **`SciencePanel`** after accepted panel **Complete Discovery**.
+- Tests: **`test_science_panel.gd`**, **`test_science_panel_button.gd`**, **`test_main_hud_science_panel.gd`**; runner **85** scripts.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 85 headless tests passed.`**
 
 ## Phase 6 — Empire of Minds worldbuilding and identity
 
