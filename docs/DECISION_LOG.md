@@ -1,3 +1,8 @@
+## 2026-05-10 — Phase 5.1.14 — SciencePanel locked-science prerequisite hints
+
+- **Decision:** Surface **locked** sciences in the **same** **`SciencePanel`** as a **compact** prerequisite hint list (**`Requires:`** with **missing** prereqs only), using **`ScienceAvailability.locked_for`** order and **`ProgressDefinitions.prerequisites`** — **not** a tech-tree canvas, dependency arrows, research queue, or tooltip system.
+- **Rationale:** Players can see **what exists next** and **why** it is blocked without **`LegalActions`** / **AI** changes or a full tree UI.
+
 ## 2026-05-10 — Phase 5.1.13 — Minimal science selection HUD (`SciencePanel`)
 
 - **Decision:** The **first** in-run **science UI** is a **compact** **`HudCanvas`** **`SciencePanel`** — **not** a tech-tree canvas. It shows **effective** research (same rules as **`ScienceTick`** for display), **per-science** progress from **`ProgressState`**, and **available** rows from **`ScienceAvailability.available_for`**; buttons call **`SetCurrentResearch`** through **`GameState.try_apply`** only.

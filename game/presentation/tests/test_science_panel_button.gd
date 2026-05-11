@@ -20,6 +20,11 @@ func _start() -> void:
 	panel.game_state = gs
 	panel.refresh()
 	_check(panel._available_container.get_child_count() >= 4, "buttons built")
+	_check(panel._locked_container.get_child_count() > 0, "locked rows built")
+	var li0 = 0
+	while li0 < panel._locked_container.get_child_count():
+		_check(panel._locked_container.get_child(li0) is Label, "locked row is Label not Button")
+		li0 = li0 + 1
 	var i = 0
 	var stone_btn: Button = null
 	while i < panel._available_container.get_child_count():

@@ -2128,6 +2128,24 @@ Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 85 headless tests passed.`**
 
+#### 5.1.14 — SciencePanel locked-science hints
+
+**Status:** **Shipped.**
+
+Goal:
+
+- **`SciencePanel`** shows **`ScienceAvailability.locked_for`** as a compact **muted** list: each row is **`<Science Name> — Requires: …`** listing **only prerequisites not yet completed**, in **`ProgressDefinitions`** prerequisite order — **no** tech-tree graph, **no** queue, **no** scrolling.
+- **`compute_view_model`** exposes **`locked_rows`** + **`locked_more_count`**; UI shows the first **`LOCKED_ROW_DISPLAY_MAX`** rows and **`+N more locked sciences`** when clipped.
+
+Shipped:
+
+- **[science_panel.gd](../game/presentation/science_panel.gd)** — locked section, view-model fields, label-only locked rows (**no** **`try_apply`**).
+- Tests: **`test_science_panel.gd`**, **`test_science_panel_button.gd`**; runner still **85** scripts.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 85 headless tests passed.`**
+
 ## Phase 6 — Empire of Minds worldbuilding and identity
 
 Goal:

@@ -29,6 +29,14 @@ func _row_by_id(rows: Array, id: String) -> Dictionary:
 	return {}
 
 
+func _check_label_array_eq(a: Array, b: Array, message: String) -> void:
+	_check(a.size() == b.size(), "%s (size)" % message)
+	var k = 0
+	while k < a.size():
+		_check(str(a[k]) == str(b[k]), "%s [%d]" % [message, k])
+		k = k + 1
+
+
 func _init() -> void:
 	var gs = GameStateScript.make_tiny_test_state()
 	var vm0 = SciencePanelScript.compute_view_model(gs)
@@ -45,7 +53,26 @@ func _init() -> void:
 	_check(str(vm0.get("target_heading", "")).begins_with("Auto: "), "auto heading")
 	_check(int(vm0.get("progress", -1)) == 0, "zero progress on effective")
 	_check(int(vm0.get("cost", -1)) == 6, "cf cost")
-
+	var locked0 = vm0.get("locked_rows", []) as Array
+	_check(locked0.size() == 15, "fresh game locked count")
+	_check(int(vm0.get("locked_more_count", -1)) == 9, "locked clip remainder 15-6")
+	_check(str((locked0[0] as Dictionary).get("id", "")) == "agrarian_practice", "locked order alphabetical")
+	var at0 = _row_by_id(locked0, "animal_tracking")
+	_check(not at0.is_empty(), "animal_tracking locked row exists")
+	_check(
+		str(at0.get("display", "")) == "Animal Tracking — Requires: Foraging Systems, Oral Surveying",
+		"animal_tracking display"
+	)
+	_check_label_array_eq(
+		at0.get("missing_prerequisite_labels", []) as Array,
+		["Foraging Systems", "Oral Surveying"] as Array,
+		"animal_tracking missing labels"
+	)
+	var sc0 = _row_by_id(locked0, "seasonal_calendars")
+	_check(
+		str(sc0.get("display", "")) == "Seasonal Calendars — Requires: Foraging Systems, Controlled Fire",
+		"seasonal_calendars display"
+	)
 	var cf_row = _row_by_id(rows0, "controlled_fire")
 	_check(bool(cf_row.get("is_auto_current", false)), "cf marked auto")
 	_check(not bool(cf_row.get("is_explicit_current", true)), "cf not explicit")
@@ -59,6 +86,7 @@ func _init() -> void:
 	var st_row = _row_by_id(rows1, "stone_tools")
 	_check(bool(st_row.get("is_explicit_current", false)), "stone explicit mark")
 	_check(not bool(st_row.get("is_auto_current", true)), "stone not auto when explicit")
+	_check((vm1.get("locked_rows", []) as Array).size() == 15, "pinned research does not change locked count")
 
 	gs.try_apply(CompleteProgressScript.make(0, "foraging_systems"))
 	var vm2 = SciencePanelScript.compute_view_model(gs)
@@ -66,6 +94,28 @@ func _init() -> void:
 	_check(not _has_row(rows2, "foraging_systems"), "completed drops from available")
 	_check(_has_row(rows2, "textile_work"), "textile unlocked by foraging")
 	_check(_has_row(rows2, "stone_tools"), "stone still available")
+	var locked2 = vm2.get("locked_rows", []) as Array
+	_check(locked2.size() == 14, "one fewer locked after one science completed")
+	_check(int(vm2.get("locked_more_count", -1)) == 8, "locked clip 14-6")
+	_check(not _has_row(locked2, "foraging_systems"), "completed not in locked")
+	var at2 = _row_by_id(locked2, "animal_tracking")
+	_check_label_array_eq(
+		at2.get("missing_prerequisite_labels", []) as Array,
+		["Oral Surveying"] as Array,
+		"animal_tracking only oral missing after foraging"
+	)
+	var sc2 = _row_by_id(locked2, "seasonal_calendars")
+	_check(
+		str(sc2.get("display", "")) == "Seasonal Calendars — Requires: Controlled Fire",
+		"seasonal only controlled fire missing after foraging"
+	)
+
+	gs.try_apply(CompleteProgressScript.make(0, "oral_surveying"))
+	var vm3 = SciencePanelScript.compute_view_model(gs)
+	var rows3 = vm3.get("available_rows", []) as Array
+	var locked3 = vm3.get("locked_rows", []) as Array
+	_check(_has_row(rows3, "animal_tracking"), "animal_tracking moves to available")
+	_check(not _has_row(locked3, "animal_tracking"), "animal_tracking leaves locked")
 
 	if _any_fail:
 		call_deferred("quit", 1)

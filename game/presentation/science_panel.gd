@@ -1,5 +1,6 @@
-# Minimal HUD: current / effective research, progress, and SetCurrentResearch buttons.
-# Phase 5.1.13 — not a tech tree; reads ProgressDefinitions + ScienceAvailability for labels only.
+# Minimal HUD: current / effective research, progress, SetCurrentResearch buttons, locked-science hints.
+# Phase 5.1.13 — selection; 5.1.14 — compact locked list (missing prerequisites only).
+# Not a tech tree; reads ProgressDefinitions + ScienceAvailability for labels only.
 # See docs/RENDERING.md
 class_name SciencePanel
 extends PanelContainer
@@ -7,6 +8,9 @@ extends PanelContainer
 const ProgressDefinitionsScript = preload("res://domain/content/progress_definitions.gd")
 const ScienceAvailabilityScript = preload("res://domain/science_availability.gd")
 const SetCurrentResearchScript = preload("res://domain/actions/set_current_research.gd")
+
+## Max locked rows before a "+N more" line (view model still lists all locked ids).
+const LOCKED_ROW_DISPLAY_MAX: int = 6
 
 var game_state
 var turn_label
@@ -28,6 +32,31 @@ static func _humanize_id(raw: String) -> String:
 			out = out + seg.capitalize()
 		pi = pi + 1
 	return out
+
+
+static func _comma_join(parts: Array) -> String:
+	var out: String = ""
+	var ji: int = 0
+	while ji < parts.size():
+		if ji > 0:
+			out = out + ", "
+		out = out + str(parts[ji])
+		ji = ji + 1
+	return out
+
+
+static func _missing_prerequisite_entries(progress_state, owner_id: int, science_id: String) -> Dictionary:
+	var ids: Array = []
+	var labels: Array = []
+	var raw_req = ProgressDefinitionsScript.prerequisites(science_id)
+	var qi: int = 0
+	while qi < raw_req.size():
+		var prid: String = str(raw_req[qi])
+		if not progress_state.has_completed_progress(owner_id, prid):
+			ids.append(prid)
+			labels.append(science_display_name(prid))
+		qi = qi + 1
+	return {"ids": ids, "labels": labels}
 
 
 static func science_display_name(science_id: String) -> String:
@@ -70,6 +99,8 @@ static func compute_view_model(p_game_state) -> Dictionary:
 			"cost": 0,
 			"progress_text": "—",
 			"available_rows": [],
+			"locked_rows": [],
+			"locked_more_count": 0,
 		}
 	var pid: int = p_game_state.turn_state.current_player_id()
 	var ps = p_game_state.progress_state
@@ -113,6 +144,33 @@ static func compute_view_model(p_game_state) -> Dictionary:
 		}
 		rows.append(row)
 		ri = ri + 1
+	var locked_ids: Array = ScienceAvailabilityScript.locked_for(ps, pid)
+	var locked_rows: Array = []
+	var li: int = 0
+	while li < locked_ids.size():
+		var lid: String = str(locked_ids[li])
+		var miss: Dictionary = _missing_prerequisite_entries(ps, pid, lid)
+		var mids: Array = miss["ids"] as Array
+		var mlabs: Array = miss["labels"] as Array
+		var req_text: String = _comma_join(mlabs)
+		var disp: String
+		if req_text.strip_edges() == "":
+			disp = science_display_name(lid)
+		else:
+			disp = "%s — Requires: %s" % [science_display_name(lid), req_text]
+		locked_rows.append(
+			{
+				"id": lid,
+				"label": science_display_name(lid),
+				"missing_prerequisites": mids,
+				"missing_prerequisite_labels": mlabs,
+				"display": disp,
+			}
+		)
+		li = li + 1
+	var locked_more_count: int = 0
+	if locked_rows.size() > LOCKED_ROW_DISPLAY_MAX:
+		locked_more_count = locked_rows.size() - LOCKED_ROW_DISPLAY_MAX
 	return {
 		"visible": true,
 		"current_player_id": pid,
@@ -124,6 +182,8 @@ static func compute_view_model(p_game_state) -> Dictionary:
 		"cost": cost,
 		"progress_text": progress_text,
 		"available_rows": rows,
+		"locked_rows": locked_rows,
+		"locked_more_count": locked_more_count,
 	}
 
 
@@ -133,6 +193,8 @@ var _target_label: Label
 var _progress_label: Label
 var _available_heading: Label
 var _available_container: VBoxContainer
+var _locked_heading: Label
+var _locked_container: VBoxContainer
 
 
 func _ready() -> void:
@@ -158,6 +220,15 @@ func _ready() -> void:
 	_root_vbox.add_child(_progress_label)
 	_root_vbox.add_child(_available_heading)
 	_root_vbox.add_child(_available_container)
+	_locked_heading = Label.new()
+	_locked_container = VBoxContainer.new()
+	_locked_container.add_theme_constant_override("separation", 4)
+	_style_subheading(_locked_heading)
+	_locked_heading.text = "Locked sciences"
+	_root_vbox.add_child(_locked_heading)
+	_root_vbox.add_child(_locked_container)
+	_locked_heading.visible = false
+	_locked_container.visible = false
 
 
 func _apply_panel_style() -> void:
@@ -185,6 +256,18 @@ func _style_subheading(l: Label) -> void:
 func _style_body(l: Label) -> void:
 	l.add_theme_font_size_override("font_size", 14)
 	l.add_theme_color_override("font_color", Color(0.14, 0.13, 0.11, 1.0))
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+
+func _style_locked_row(l: Label) -> void:
+	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_color_override("font_color", Color(0.38, 0.34, 0.3, 1.0))
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+
+func _style_locked_more(l: Label) -> void:
+	l.add_theme_font_size_override("font_size", 12)
+	l.add_theme_color_override("font_color", Color(0.48, 0.44, 0.4, 1.0))
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 
@@ -222,6 +305,40 @@ func refresh() -> void:
 	_target_label.text = str(vm.get("target_heading", ""))
 	_progress_label.text = str(vm.get("progress_text", "—"))
 	_rebuild_buttons(vm.get("available_rows", []) as Array)
+	_rebuild_locked(vm)
+
+
+func _rebuild_locked(vm: Dictionary) -> void:
+	while _locked_container.get_child_count() > 0:
+		_locked_container.get_child(0).free()
+	var all_locked: Array = vm.get("locked_rows", []) as Array
+	if all_locked.is_empty():
+		_locked_heading.visible = false
+		_locked_container.visible = false
+		return
+	_locked_heading.visible = true
+	_locked_container.visible = true
+	var more: int = int(vm.get("locked_more_count", 0))
+	var show_n: int = all_locked.size()
+	if show_n > LOCKED_ROW_DISPLAY_MAX:
+		show_n = LOCKED_ROW_DISPLAY_MAX
+	var ki: int = 0
+	while ki < show_n:
+		var raw_row = all_locked[ki]
+		if typeof(raw_row) != TYPE_DICTIONARY:
+			ki = ki + 1
+			continue
+		var rd: Dictionary = raw_row as Dictionary
+		var lab := Label.new()
+		lab.text = str(rd.get("display", ""))
+		_style_locked_row(lab)
+		_locked_container.add_child(lab)
+		ki = ki + 1
+	if more > 0:
+		var more_lab := Label.new()
+		more_lab.text = "+%d more locked sciences" % more
+		_style_locked_more(more_lab)
+		_locked_container.add_child(more_lab)
 
 
 func _rebuild_buttons(rows: Array) -> void:

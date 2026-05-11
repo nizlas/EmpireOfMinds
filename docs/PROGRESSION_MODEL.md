@@ -592,14 +592,14 @@ Dependency rules for this doc table:
 1. **`ProgressDefinitions`** row extension (science rows): **`cost`**: **`int`** and **`prerequisites`**: **`Array[String]`** — **shipped in 5.1.12b** with **`cost(id)`**, **`prerequisites(id)`**, **`is_science(id)`** (ordered prerequisite lists in data; validators require all completed).
 2. **`ProgressState`** (**5.1.12c** **shipped**): **`current_research_id`**: **`String`** per **`owner_id`** (**`""`** = auto-target); helpers **`current_research_for`**, **`with_current_research`**; **`ScienceTick`** uses explicit id when set **and** **`ScienceAvailability.is_available`**, else **first** **`available_for`**.
 3. **`ScienceAvailability`** (**5.1.12b**): **`available_for`**, **`locked_for`**, **`completed_for`**, **`is_available`** — **pure** domain helper; returned id lists sorted **alphabetically**. **Availability** is **derived** from **`completed_progress_ids`**, not stored separately on **`ProgressState`**.
-4. **`SetCurrentResearch`** (**5.1.12c** **shipped** — **`set_current_research`**): validates registry id, **science** row, **not** completed, **available**; **`science_id` `""`** clears explicit target; **`GameState.try_apply`** logs **`result`:** **`accepted`**. **5.1.13:** **`SciencePanel`** (**presentation**) submits this action; **not** in **`LegalActions`** / **AI**.
+4. **`SetCurrentResearch`** (**5.1.12c** **shipped** — **`set_current_research`**): validates registry id, **science** row, **not** completed, **available**; **`science_id` `""`** clears explicit target; **`GameState.try_apply`** logs **`result`:** **`accepted`**. **5.1.13**–**5.1.14:** **`SciencePanel`** (**presentation**) submits this action and shows **available** + **locked** prerequisite hints; **not** in **`LegalActions`** / **AI**.
 5. **`CompleteProgress.validate`** (**5.1.12b**): rejection **`prerequisites_not_met`** when a **science**’s prerequisites are not all in **`completed_progress_ids`** (**`try_apply`** surfaces this reason).
 6. **`ScienceTick`** (**5.1.12b**–**c** **shipped**): **`apply_for_player`** resolves dynamic **`progress_id`**, reads **`ProgressDefinitions.cost`**, completes via **`ProgressUnlockResolver`** at threshold (**no** overflow); emits **`science_progress`** / **`science_completed`** for that id; **`science_no_target`** when **zero** available sciences; **`add_observation_bonus_if_eligible`** uses **`controlled_fire`** only (**independent** of **`current_research_id`**).
 7. **Settler baseline** (**5.1.12d** **shipped**): **`ProgressState.with_default_unlocks_for_players`** includes **`city_project` / `produce_unit:settler`** from turn **1** (with **`produce_unit:warrior`**). **`controlled_fire`** **`concrete_unlocks`**: **`building` / `hearth`**, **`action` / `camp_clearing`**, **`modifier` / `controlled_fire_practice`**; **`systemic_effects`**: **`modifier` / `cold_terrain_growth_bonus`**, **`modifier` / `small_health_bonus`**. Gameplay effects for those targets remain **metadata-only** until later phases.
 8. **Science bundles:** every science row should declare **at least one** **`concrete_unlock`** **or** **`systemic_effect`**. **Placeholder** targets are acceptable until gameplay systems exist; unknown **`target_type`** rows may remain **metadata-only** in **`ProgressState.unlocked_targets`** without enforcement.
 9. **Discoveries / landmarks:** **bonus progress** toward a **named** science id, **not** mandatory gates on completing that science.
 10. **`ScienceCompletedPopup`:** remains **log-driven**; **no** **`ProgressDefinitions`** import in presentation — copy and bullet lists derive from **log** **`progress_id`**, **`unlocked_targets`**, and related fields only.
-11. **UI:** **no** tech-tree canvas in **5.1.12**; **auto-target** preserves a playable loop; **SciencePanel** / visual tree are **deferred**.
+11. **UI:** **no** tech-tree canvas in **5.1.12**; **auto-target** preserves a playable loop; **Phase 5.1.13**–**5.1.14** ship a **minimal** **`SciencePanel`** (available targets + compact **locked** **Requires:** hints); a **full** tree / queue / graph remains **deferred**.
 
 ## Relationship to existing docs
 
@@ -632,6 +632,7 @@ Dependency rules for this doc table:
 - **5.1.12c** — **`current_research_id`**, **`SetCurrentResearch`**, **`ScienceTick`** target routing + **`science_no_target`** — **shipped**.
 - **5.1.12d** — **Settler baseline** default unlock; **Controlled Fire** reward bundle correction — **shipped**.
 - **5.1.13** — **`SciencePanel`** minimal HUD (**`SetCurrentResearch`** + derived availability display) — **shipped**.
+- **5.1.14** — **`SciencePanel`** adds a compact **locked-science** hint list (missing prerequisites only); still **not** a full tech-tree UI — **shipped**.
 
 ## Explicit non-goals
 
