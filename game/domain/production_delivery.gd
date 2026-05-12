@@ -112,7 +112,17 @@ static func deliver_pending_for_player(a_scenario, owner_id: int) -> Dictionary:
 	while ci < clist.size():
 		var c2 = clist[ci]
 		if delivered.has(c2.id):
-			new_cities.append(CityScript.new(c2.id, c2.owner_id, c2.position, null, c2.city_name))
+			new_cities.append(
+				CityScript.new(
+					c2.id,
+					c2.owner_id,
+					c2.position,
+					null,
+					c2.city_name,
+					c2.is_capital,
+					c2.building_ids
+				)
+			)
 		else:
 			new_cities.append(c2)
 		ci = ci + 1

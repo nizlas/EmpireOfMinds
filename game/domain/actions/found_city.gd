@@ -98,8 +98,22 @@ static func apply(a_scenario, action):
 		new_cities.append(clist[ci])
 		ci = ci + 1
 	var cname: String = default_city_name_for_owner(a_scenario, int(action["actor_id"]))
+	var actor_id: int = int(action["actor_id"])
+	var owned_before: Array = a_scenario.cities_owned_by(actor_id)
+	var cap: bool = owned_before.size() == 0
+	var bld: Array = []
+	if cap:
+		bld.append("palace")
 	new_cities.append(
-		CityScript.new(new_city_id, action["actor_id"], HexCoordScript.new(q, r), null, cname)
+		CityScript.new(
+			new_city_id,
+			actor_id,
+			HexCoordScript.new(q, r),
+			null,
+			cname,
+			cap,
+			bld
+		)
 	)
 	return ScenarioScript.new(
 		a_scenario.map,

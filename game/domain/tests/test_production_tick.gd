@@ -100,7 +100,7 @@ func _init() -> void:
 	_check(ev4.size() == 1, "progress only")
 	var ep0 = ev4[0] as Dictionary
 	_check(ep0["action_type"] == ProductionTickScript.EVENT_TYPE, "first progress")
-	_check(ep0["progress_after"] == 3, "progress_after old+1")
+	_check(ep0["progress_after"] == 3, "progress_after old plus terrain production delta")
 	var ns4 = r4["scenario"]
 	var pr4 = ns4.city_by_id(3).current_project as Dictionary
 	_check(pr4["ready"] == true and pr4["progress"] == 3, "marked ready overflow ok")
@@ -203,6 +203,57 @@ func _init() -> void:
 	_check(str(pr_after["project_id"]) == "produce_unit:warrior", "tick preserves project_id")
 	var ev_pid = (r_pid["events"] as Array)[0] as Dictionary
 	_check(str(ev_pid["project_id"]) == "produce_unit:warrior", "progress event includes project_id")
+
+	# Phase 5.1.16d — production delta from CityYields (founding terrain / woods); palace adds no production.
+	var m_gf = HexMapScript.make_prototype_play_map()
+	var u_gf = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
+	var pos_gf = HexCoordScript.new(1, 0)
+	var c_gf = CityScript.new(30, 0, pos_gf, _proj(0, 5))
+	var sc_gf = ScenarioScript.new(m_gf, u_gf, [c_gf], 300, 301, null)
+	var r_gf = ProductionTickScript.apply_for_player(sc_gf, 0)
+	var ev_gf = (r_gf["events"] as Array)[0] as Dictionary
+	_check(
+		int(ev_gf["progress_before"]) == 0 and int(ev_gf["progress_after"]) == 1,
+		"grassland flat city +1 production"
+	)
+
+	var m_ph = HexMapScript.make_prototype_play_map()
+	var u_ph = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
+	var pos_ph = HexCoordScript.new(7, -7)
+	var c_ph = CityScript.new(31, 0, pos_ph, _proj(0, 5))
+	var sc_ph = ScenarioScript.new(m_ph, u_ph, [c_ph], 310, 311, null)
+	var r_ph = ProductionTickScript.apply_for_player(sc_ph, 0)
+	var ev_ph = (r_ph["events"] as Array)[0] as Dictionary
+	_check(int(ev_ph["progress_after"]) == 2, "plains hills (no woods) +2 production")
+
+	var m_pw = HexMapScript.make_prototype_play_map()
+	var u_pw = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
+	var pos_pw = HexCoordScript.new(1, -1)
+	var c_pw = CityScript.new(32, 0, pos_pw, _proj(0, 5))
+	var sc_pw = ScenarioScript.new(m_pw, u_pw, [c_pw], 320, 321, null)
+	var r_pw = ProductionTickScript.apply_for_player(sc_pw, 0)
+	var ev_pw = (r_pw["events"] as Array)[0] as Dictionary
+	_check(int(ev_pw["progress_after"]) == 2, "plains woods +2 production")
+
+	var m_cap = HexMapScript.make_tiny_test_map()
+	var u_cap = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
+	var d_cap: Dictionary = {}
+	d_cap["project_type"] = "produce_unit"
+	d_cap["progress"] = 0
+	d_cap["cost"] = 2
+	d_cap["ready"] = false
+	var c_cap = CityScript.new(9, 0, HexCoordScript.new(1, -1), d_cap, "Hillford", true, ["palace"])
+	var sc_cap = ScenarioScript.new(m_cap, u_cap, [c_cap], 90, 91, null)
+	var r_cap = ProductionTickScript.apply_for_player(sc_cap, 0)
+	var cy_cap = r_cap["scenario"].city_by_id(9)
+	_check(cy_cap != null and cy_cap.is_capital, "tick preserves is_capital")
+	_check(
+		cy_cap.building_ids.size() == 1 and str(cy_cap.building_ids[0]) == "palace",
+		"tick preserves building_ids"
+	)
+	_check(cy_cap.city_name == "Hillford", "tick preserves city_name")
+	var pr_cap = cy_cap.current_project as Dictionary
+	_check(int(pr_cap["progress"]) == 1, "palace does not add production (still plains flat +1)")
 
 	if _any_fail:
 		call_deferred("quit", 1)

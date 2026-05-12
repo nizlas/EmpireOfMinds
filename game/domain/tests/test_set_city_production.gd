@@ -252,7 +252,7 @@ func _init() -> void:
 		m_nm,
 		us_nm,
 		[
-			CityScript.new(5, 0, HexCoordScript.new(0, -1), null, "Northhold"),
+			CityScript.new(5, 0, HexCoordScript.new(0, -1), null, "Northhold", true, ["palace"]),
 			CityScript.new(6, 0, HexCoordScript.new(1, -1)),
 		],
 		100,
@@ -263,6 +263,9 @@ func _init() -> void:
 		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
 	)
 	_check(sc_nm_ap.city_by_id(5).city_name == "Northhold", "set production preserves city_name")
+	var nm_c5 = sc_nm_ap.city_by_id(5)
+	_check(nm_c5.is_capital, "set production preserves is_capital")
+	_check(nm_c5.building_ids.size() == 1 and str(nm_c5.building_ids[0]) == "palace", "set production preserves palace")
 
 	if _any_fail:
 		call_deferred("quit", 1)

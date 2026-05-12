@@ -17,7 +17,7 @@ var _any_fail = false
 func _init() -> void:
 	var m = HexMapScript.make_tiny_test_map()
 	var u = [UnitScript.new(1, 0, HexCoordScript.new(0, 0), "warrior")]
-	var city = CityScript.new(3, 0, HexCoordScript.new(1, -1), null)
+	var city = CityScript.new(3, 0, HexCoordScript.new(1, -1), null, "", true, ["palace"])
 	var scen = ScenarioScript.new(m, u, [city], 10, 20, null)
 	var gs = GameStateScript.new(scen)
 	var round_i = 0

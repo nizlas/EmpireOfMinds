@@ -38,8 +38,8 @@ func _init() -> void:
 	var m = HexMapScript.make_tiny_test_map()
 	var us = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
 	var c_p0_pos = HexCoordScript.new(1, -1)
-	var c_p0 = CityScript.new(1, 0, c_p0_pos, _proj(0))
-	var c_p1 = CityScript.new(2, 1, HexCoordScript.new(0, -1), _proj(0))
+	var c_p0 = CityScript.new(1, 0, c_p0_pos, _proj(0), "", false, ["palace"])
+	var c_p1 = CityScript.new(2, 1, HexCoordScript.new(0, -1), _proj(0), "", false, ["palace"])
 	var scen = ScenarioScript.new(m, us, [c_p1, c_p0], 30, 40)
 	var gs = GameStateScript.new(scen)
 
@@ -108,8 +108,8 @@ func _init() -> void:
 	# Two completions: deliver after P1 ends with both ready
 	var m1 = HexMapScript.make_tiny_test_map()
 	var us1 = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
-	var ct1 = CityScript.new(1, 0, HexCoordScript.new(0, -1), _proj(1))
-	var ct2 = CityScript.new(2, 0, HexCoordScript.new(1, -1), _proj(1))
+	var ct1 = CityScript.new(1, 0, HexCoordScript.new(0, -1), _proj(1), "", false, ["palace"])
+	var ct2 = CityScript.new(2, 0, HexCoordScript.new(1, -1), _proj(1), "", false, ["palace"])
 	var scen2 = ScenarioScript.new(m1, us1, [ct2, ct1], 50, 60)
 	var gs1 = GameStateScript.new(scen2)
 	var et_a = gs1.try_apply(EndTurnScript.make(0))
@@ -137,8 +137,8 @@ func _init() -> void:
 
 	var m2 = HexMapScript.make_tiny_test_map()
 	var us2 = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
-	var ca = CityScript.new(5, 0, HexCoordScript.new(1, 0), _proj(0))
-	var cb = CityScript.new(1, 0, HexCoordScript.new(1, -1), _proj(0))
+	var ca = CityScript.new(5, 0, HexCoordScript.new(1, 0), _proj(0), "", false, ["palace"])
+	var cb = CityScript.new(1, 0, HexCoordScript.new(1, -1), _proj(0), "", false, ["palace"])
 	var sc2 = ScenarioScript.new(m2, us2, [ca, cb], 11, 22)
 	var gs2 = GameStateScript.new(sc2)
 	var etx = gs2.try_apply(EndTurnScript.make(0))
@@ -151,6 +151,19 @@ func _init() -> void:
 	_check(not bad["accepted"] and bad["reason"] == "not_current_player", "wrong player no tick")
 	var sz = gs2.log.size()
 	_check(sz == 4, "no log on reject")
+
+	# Phase 5.1.16d — prototype plains hills (no woods): 2 production/tick finishes cost-2 in one end_turn.
+	var mh = HexMapScript.make_prototype_play_map()
+	var uh = [UnitScript.new(1, 0, HexCoordScript.new(0, 0), "warrior")]
+	var hill_pos = HexCoordScript.new(7, -7)
+	var c_h = CityScript.new(1, 0, hill_pos, _proj(0), "", false, ["palace"])
+	var sch = ScenarioScript.new(mh, uh, [c_h], 500, 400, null)
+	var gsh = GameStateScript.new(sch)
+	var eth = gsh.try_apply(EndTurnScript.make(0))
+	_check(eth["accepted"], "hill city first end turn")
+	var pr_h = gsh.scenario.city_by_id(1).current_project as Dictionary
+	_check(int(pr_h["progress"]) == 2, "plains hills +2 production in one tick")
+	_check(bool(pr_h.get("ready", false)), "warrior project ready after one tick at hill city")
 
 	if _any_fail:
 		call_deferred("quit", 1)

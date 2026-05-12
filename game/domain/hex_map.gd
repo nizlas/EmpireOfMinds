@@ -7,6 +7,7 @@ extends RefCounted
 const _HexCoordT = preload("res://domain/hex_coord.gd")
 # Same file; avoids self-reference to global class name HexMap in static make_tiny_test_map.
 const _HEX_MAP_SCRIPT = preload("res://domain/hex_map.gd")
+const _PROTOTYPE_TERRAIN_FEATURES = preload("res://domain/prototype_terrain_features.gd")
 
 ## Tag only in Phase 1.2 — no movement cost, visibility, or resources.
 ## Append-only: existing enum values stay stable.
@@ -17,12 +18,15 @@ enum Landform { FLAT, HILLS }
 
 var _cells: Dictionary
 var _landforms: Dictionary
+## Phase 5.1.16c — axial `Vector2i` keys with **woods** overlay (v0 yields); not a Terrain enum value.
+var _woods: Dictionary
 
 
-func _init(cells: Dictionary = {}, landforms: Dictionary = {}) -> void:
+func _init(cells: Dictionary = {}, landforms: Dictionary = {}, woods: Dictionary = {}) -> void:
 	# Shallow copy: caller cannot mutate the map after construction via the same dict reference.
 	_cells = cells.duplicate()
 	_landforms = landforms.duplicate()
+	_woods = woods.duplicate()
 
 func has(coord: _HexCoordT) -> bool:
 	return _cells.has(Vector2i(coord.q, coord.r))
@@ -37,6 +41,12 @@ func landform_at(coord: _HexCoordT) -> int:
 	if not _landforms.has(k):
 		return Landform.FLAT
 	return int(_landforms[k])
+
+
+func has_woods(coord: _HexCoordT) -> bool:
+	assert(has(coord), "has_woods called for missing coordinate")
+	return _woods.has(Vector2i(coord.q, coord.r))
+
 
 func size() -> int:
 	return _cells.size()
@@ -103,4 +113,4 @@ static func make_prototype_play_map():
 					c[Vector2i(q, r)] = Terrain.PLAINS
 			r = r + 1
 		q = q + 1
-	return _HEX_MAP_SCRIPT.new(c, lf)
+	return _HEX_MAP_SCRIPT.new(c, lf, _PROTOTYPE_TERRAIN_FEATURES.prototype_woods_set())

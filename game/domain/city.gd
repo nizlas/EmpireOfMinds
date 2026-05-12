@@ -11,12 +11,32 @@ var position
 var current_project
 ## Phase 5.1.15 — set by **FoundCity** (deterministic placeholders); preserved when scenarios rebuild city rows.
 var city_name: String
+## Phase 5.1.16c — first city per owner is capital (Palace building); preserved on production rebuilds.
+var is_capital: bool
+## Building id strings (v0: **FoundCity** adds **palace** to the capital only).
+var building_ids: Array
 
-func _init(p_id: int, p_owner_id: int, p_position, p_current_project = null, p_city_name: String = "") -> void:
+func _init(
+	p_id: int,
+	p_owner_id: int,
+	p_position,
+	p_current_project = null,
+	p_city_name: String = "",
+	p_is_capital: bool = false,
+	p_building_ids = null,
+) -> void:
 	id = p_id
 	owner_id = p_owner_id
 	position = p_position
+	is_capital = p_is_capital
 	city_name = str(p_city_name)
+	building_ids = []
+	if p_building_ids != null and typeof(p_building_ids) == TYPE_ARRAY:
+		var ba: Array = p_building_ids as Array
+		var bi: int = 0
+		while bi < ba.size():
+			building_ids.append(str(ba[bi]))
+			bi = bi + 1
 	if p_current_project == null:
 		current_project = null
 	elif typeof(p_current_project) == TYPE_DICTIONARY:

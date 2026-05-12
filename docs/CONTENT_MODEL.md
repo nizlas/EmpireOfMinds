@@ -128,7 +128,7 @@ See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1** / **5.1.0** / **5.1.1** / **5.1
 ## Related docs
 
 - [ACTIONS.md](ACTIONS.md) — player vs engine actions, schema versioning.
-- [CITIES.md](CITIES.md) — city and production state (today).
+- [CITIES.md](CITIES.md) — city and production state; **5.1.16c** **`CityYields`** + capital **`Palace`** (see [MAP_MODEL.md](MAP_MODEL.md) woods overlay).
 - [UNITS.md](UNITS.md) — unit state (today).
 - [AI_LAYER.md](AI_LAYER.md) — `LegalActions` and AI contract.
 - [CORE_LOOP.md](CORE_LOOP.md) — frozen Phase 2.x loop; Phase 3 refines **content**, not the action pipeline shape.

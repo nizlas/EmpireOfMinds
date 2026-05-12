@@ -202,6 +202,8 @@ func _init() -> void:
 	_check(nc != null and nc.owner_id == 0, "append city id")
 	_check(nc.position.equals(HexCoordScript.new(0, 0)), "append city position")
 	_check(nc.city_name == "Capital", "default founded name")
+	_check(nc.is_capital, "first city per owner is capital")
+	_check(nc.building_ids.size() == 1 and str(nc.building_ids[0]) == "palace", "capital gets palace")
 	_check(new_sc.peek_next_city_id() == old_next_city + 1, "next_city_id +1")
 	_check(new_sc.peek_next_unit_id() == before_nu, "next_unit_id preserved")
 	_check(
@@ -238,10 +240,13 @@ func _init() -> void:
 	var cap_id = sc3.peek_next_city_id()
 	var cap_ct = sc3a.city_by_id(cap_id)
 	_check(cap_ct != null and cap_ct.city_name == "Capital", "two-settler first Capital")
+	_check(cap_ct.is_capital and cap_ct.building_ids.size() == 1, "first founded gets palace bundle")
 	var sc3b = FoundCityScript.apply(sc3a, FoundCityScript.make(0, 4, 1, -1))
 	var sec_id = sc3b.peek_next_city_id() - 1
 	var sec_ct = sc3b.city_by_id(sec_id)
 	_check(sec_ct != null and sec_ct.city_name == "Settlement 2", "second city numbered")
+	_check(not sec_ct.is_capital, "second city not capital")
+	_check(sec_ct.building_ids.is_empty(), "second city has no default buildings")
 
 	if _any_fail:
 		call_deferred("quit", 1)

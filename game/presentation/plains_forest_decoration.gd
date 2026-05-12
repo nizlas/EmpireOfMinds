@@ -1,30 +1,15 @@
 # Presentation-only: deterministic PLAINS forest *decoration* gate (Phase 4.6b).
-# Not HexMap.Terrain.FOREST; no gameplay semantics. See docs/RENDERING.md.
+# Not HexMap.Terrain.FOREST; prototype woods overlay is **domain** truth via **PrototypeTerrainFeatures**.
+# See docs/RENDERING.md
 extends RefCounted
+
+const _PrototypeTerrainFeatures = preload("res://domain/prototype_terrain_features.gd")
 
 const SALT_FOREST_DENSITY_GATE: int = 402010697
 
-## Prototype / visual-review only: when non-empty, **only** these hexes (axial `Vector2i`) may show
-## MapView back-forest + matching TFV decoration, instead of hash `forest_density_ratio`.
-## This is **not** a gameplay forest biome, not production worldgen, and not authoritative domain state.
-## Keep empty outside `main.gd` wiring for the prototype play map. See `prototype_forest_cluster_set()`.
-const PROTOTYPE_FOREST_DECORATION_HEXES: Array[Vector2i] = [
-	# SW PLAINS flat (12) — stays below r=-1 corridor so (0,-3) singles do not touch this blob.
-	Vector2i(-3, -2), Vector2i(-6, -1), Vector2i(-6, 0), Vector2i(-5, -1), Vector2i(-5, -2),
-	Vector2i(-4, -1), Vector2i(-4, -2), Vector2i(-4, -3), Vector2i(-3, -3), Vector2i(-3, -4),
-	Vector2i(-2, -5), Vector2i(-2, -4), Vector2i(-1, -5),
-	# NW PLAINS flat (6) — r>=2 band; one r gap before the r=5 patch so SW never meets NW.
-	Vector2i(-7, 2), Vector2i(-7, 3), Vector2i(-6, 2), Vector2i(-5, 2), Vector2i(-5, 3), Vector2i(-4, 3),
-	# NW PLAINS flat (3).
-	Vector2i(-7, 5), Vector2i(-6, 5), Vector2i(-6, 4),
-	# PLAINS hills (6 + 3).
-	Vector2i(1, -1), Vector2i(2, -2), Vector2i(3, -3), Vector2i(4, -4), Vector2i(4, -5), Vector2i(3, -5),
-	Vector2i(5, -5), Vector2i(5, -6), Vector2i(6, -6),
-	# PLAINS flat pair (2).
-	Vector2i(0, -4), Vector2i(1, -5),
-	# Singles (2) — PLAINS only; third single is expensive on a hex grid without merging (see test thresholds).
-	Vector2i(0, -3), Vector2i(-3, 1),
-]
+## Prototype / visual-review only: axial `Vector2i` keys that may show MapView back-forest + TFV decoration.
+## Alias of **PrototypeTerrainFeatures.PROTOTYPE_WOODS_HEXES** (same sequence as historical `plains_forest_decoration.gd`).
+const PROTOTYPE_FOREST_DECORATION_HEXES: Array[Vector2i] = _PrototypeTerrainFeatures.PROTOTYPE_WOODS_HEXES
 
 static func cell_mix(q: int, r: int, salt: int) -> int:
 	# Same polynomial family as MapView._terrain_detail_hash — deterministic, no RNG.
@@ -48,18 +33,15 @@ static func is_plains_forest_decorated_with_override(
 	return is_plains_forest_decorated(q, r, density_ratio)
 
 
-## Build a fast lookup dict for prototype-only wiring. Not used for gameplay rules.
+## Build a fast lookup dict for prototype-only wiring; mirrors domain **prototype_woods_set**.
 static func prototype_forest_cluster_set() -> Dictionary:
-	var d: Dictionary = {}
-	for v in PROTOTYPE_FOREST_DECORATION_HEXES:
-		d[v] = true
-	return d
+	return _PrototypeTerrainFeatures.prototype_woods_set()
 
 
-## True when **(q,r)** is listed in [member PROTOTYPE_FOREST_DECORATION_HEXES] (prototype overlay / TFV forest pass only).
+## True when **(q,r)** is listed in [member PROTOTYPE_FOREST_DECORATION_HEXES].
 static func is_prototype_foreground_forest_hex(q: int, r: int) -> bool:
 	return prototype_forest_cluster_set().has(Vector2i(q, r))
 
 
 static func prototype_forest_decoration_hexes() -> Array[Vector2i]:
-	return PROTOTYPE_FOREST_DECORATION_HEXES.duplicate()
+	return _PrototypeTerrainFeatures.PROTOTYPE_WOODS_HEXES.duplicate()

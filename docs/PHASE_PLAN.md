@@ -1958,7 +1958,7 @@ Goal:
 Shipped:
 
 - **[progress_state.gd](../game/domain/progress_state.gd)** — **`science_progress`**, **`science_observation_flags`** on owner rows; **`science_progress_for`**, **`with_science_progress_added`**, **`has_observation_bonus_granted`**, **`with_observation_bonus_granted`**; preserved across **`with_progress_id_completed`** / **`with_target_unlocked`**.
-- **[science_tick.gd](../game/domain/science_tick.gd)** — **`ScienceTick`**: **`TARGET_PROGRESS_ID`**, **`PER_CITY_YIELD` = 1**, **`COST` = 6**, **`OBSERVATION_BONUS` = 4**; idempotent when **`has_completed_progress`**; **`apply_for_player`**, **`add_observation_bonus_if_eligible`**.
+- **[science_tick.gd](../game/domain/science_tick.gd)** — **`ScienceTick`**: per-turn science from **`CityYields.science_for_player`** (**5.1.16c**); **`OBSERVATION_BONUS` = 4**; idempotent when **`has_completed_progress`**; **`apply_for_player`**, **`add_observation_bonus_if_eligible`**.
 - **[game_state.gd](../game/domain/game_state.gd)** — after **MoveUnit** log append, observation bonus events; after **ProductionTick** on **EndTurn** and **before** **`turn_state.advance`**, science yield events.
 - **[science_completed_popup.gd](../game/presentation/science_completed_popup.gd)** + **[main.tscn](../game/main.tscn)** / **[main.gd](../game/main.gd)** — **`ScienceCompletedPopup`** under **`HudCanvas`**; curated copy for **`controlled_fire`** only (**no** **`ProgressDefinitions`** import).
 - **[discovery_action_panel.gd](../game/presentation/discovery_action_panel.gd)** — skips **`progress_id == controlled_fire`** candidates.
@@ -2228,6 +2228,40 @@ Shipped:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 88 headless tests passed.`**
+
+#### 5.1.16c — City economy foundation (domain): woods overlay, **CityYields**, capital **Palace**
+
+**Status:** **Shipped.**
+
+Goal:
+
+- Move prototype **woods** hex keys into **domain** (**`PrototypeTerrainFeatures`**, **`HexMap.has_woods`**, **`make_prototype_play_map`**); presentation forest decoration **re-exports** the same list.
+- Introduce **`CityYields`** (domain-only): terrain / city-center / **Palace** vectors; summed **science** per player for **`ScienceTick`** (replaces flat **`PER_CITY_YIELD`**).
+- **`City`**: **`is_capital`**, **`building_ids`**; **`FoundCity`** gives first city per owner **capital** + **`["palace"]`**; **`ProductionTick`**, **`ProductionDelivery`**, **`SetCityProduction`** preserve these fields on rebuilds.
+
+Shipped:
+
+- **[prototype_terrain_features.gd](../game/domain/prototype_terrain_features.gd)**, **[city_yields.gd](../game/domain/city_yields.gd)**; **[hex_map.gd](../game/domain/hex_map.gd)**, **[city.gd](../game/domain/city.gd)**, **[found_city.gd](../game/domain/actions/found_city.gd)**, **[science_tick.gd](../game/domain/science_tick.gd)**, **[production_tick.gd](../game/domain/production_tick.gd)**, **[production_delivery.gd](../game/domain/production_delivery.gd)**, **[set_city_production.gd](../game/domain/actions/set_city_production.gd)**; **[plains_forest_decoration.gd](../game/presentation/plains_forest_decoration.gd)** — domain alias; tests **`test_hex_map_woods.gd`**, **`test_city_yields.gd`**, **`test_prototype_woods_presentation_domain_agreement.gd`** + updates; docs **[CITIES.md](CITIES.md)**, **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)**, **[DECISION_LOG.md](DECISION_LOG.md)**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 91 headless tests passed.`** (prior baseline **88** + **3** new scripts.)
+
+#### 5.1.16d — **ProductionTick** reads **`CityYields`** **production**
+
+**Status:** **Shipped.**
+
+Goal:
+
+- Replace the fixed **+1** **`produce_unit`** **`progress`** step with **`CityYields.city_total_yield(scenario, city)["production"]`** (**Palace** still **no** **production**). **Founding** terrain / **woods** / **center** rules affect **production** pacing; **zero** **production** skips advancement without error.
+
+Shipped:
+
+- **[production_tick.gd](../game/domain/production_tick.gd)** — **`_production_per_turn`**; **`CityYields`** preload; **`PRODUCTION_PER_TURN`** removed (deprecated comment only). Tests **`test_production_tick`**, **`test_production_delivery`**, **`test_end_turn_production_flow`**, **`test_city_yields`** updates; docs **[CITIES.md](CITIES.md)**, **[PHASE_PLAN.md](PHASE_PLAN.md)**, **[DECISION_LOG.md](DECISION_LOG.md)**, **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 91 headless tests passed.`**
 
 #### 5.1.16a — Player guide: Early City Economy tutorial (docs/player)
 

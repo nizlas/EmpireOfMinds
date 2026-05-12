@@ -20,6 +20,8 @@ func _init() -> void:
 		m.terrain_at(HexCoordScript.new(-1, 0)) == HexMapScript.Terrain.WATER,
 		"terrain (-1,0) should be WATER"
 	)
+	_check(not m.has_woods(HexCoordScript.new(0, 0)), "tiny map has no woods overlay")
+	_check(not m.has_woods(HexCoordScript.new(1, -1)), "tiny map neighbor no woods")
 	for d in range(6):
 		_check(
 			m.has(HexCoordScript.new(0, 0).neighbor(d)),

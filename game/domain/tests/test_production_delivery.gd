@@ -7,6 +7,7 @@ const HexMapScript = preload("res://domain/hex_map.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const UnitScript = preload("res://domain/unit.gd")
 const CityScript = preload("res://domain/city.gd")
+const ProductionTickScript = preload("res://domain/production_tick.gd")
 
 var _total = 0
 var _any_fail = false
@@ -108,6 +109,36 @@ func _init() -> void:
 	var r_unk = ProductionDeliveryScript.deliver_pending_for_player(sc_unk, 0)
 	var ns_unk = r_unk["scenario"]
 	_check(ns_unk.unit_by_id(310).type_id == "warrior", "unknown project_id falls back warrior")
+
+	# Phase 5.1.16d — high production tile reaches cost in one tick, then delivery succeeds unchanged.
+	var m_hill = HexMapScript.make_prototype_play_map()
+	var u_hill = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
+	var d_hill: Dictionary = {}
+	d_hill["project_type"] = "produce_unit"
+	d_hill["progress"] = 0
+	d_hill["cost"] = 2
+	d_hill["ready"] = false
+	var c_hill = CityScript.new(40, 0, HexCoordScript.new(7, -7), d_hill)
+	var sc_hill = ScenarioScript.new(m_hill, u_hill, [c_hill], 400, 401)
+	var r_tick_h = ProductionTickScript.apply_for_player(sc_hill, 0)
+	var ns_h = r_tick_h["scenario"]
+	_check(bool((ns_h.city_by_id(40).current_project as Dictionary).get("ready", false)), "hill tick marks ready")
+	var r_del_h = ProductionDeliveryScript.deliver_pending_for_player(ns_h, 0)
+	_check((r_del_h["events"] as Array).size() == 1, "delivery after single high-yield tick")
+
+	var m_dcap = HexMapScript.make_tiny_test_map()
+	var u_dcap = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
+	var d_dcap: Dictionary = {}
+	d_dcap["project_type"] = "produce_unit"
+	d_dcap["progress"] = 2
+	d_dcap["cost"] = 2
+	d_dcap["ready"] = true
+	var c_dcap = CityScript.new(11, 0, HexCoordScript.new(1, -1), d_dcap, "", true, ["palace"])
+	var sc_dcap = ScenarioScript.new(m_dcap, u_dcap, [c_dcap], 320, 321)
+	var r_dcap = ProductionDeliveryScript.deliver_pending_for_player(sc_dcap, 0)
+	var cy_d = r_dcap["scenario"].city_by_id(11)
+	_check(cy_d != null and cy_d.is_capital, "delivery rebuild preserves is_capital")
+	_check(cy_d.building_ids.size() == 1 and str(cy_d.building_ids[0]) == "palace", "delivery preserves palace")
 
 	if _any_fail:
 		call_deferred("quit", 1)

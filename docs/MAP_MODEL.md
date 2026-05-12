@@ -8,6 +8,7 @@ Hex cell addressing uses axial coordinates; see [HEX_COORDINATES.md](HEX_COORDIN
 - **API boundary:** queries use [HexCoord](HEX_COORDINATES.md) (`q`, `r`).
 - **Storage:** internal dictionary keys are `Vector2i(q, r)` (value-typed) → terrain enum value. This avoids identity-based lookup bugs with `RefCounted` keys.
 - **Landforms:** a parallel optional dictionary `_landforms` maps the same keys to `HexMap.Landform`. Omitted keys default to **`FLAT`**.
+- **Woods overlay (Phase 5.1.16c):** optional parallel dictionary **`_woods`** (same **`Vector2i`** keys → **`true`**). **`HexMap.has_woods(HexCoord)`** is **only** valid when **`has`** is true. The **prototype play map** copies keys from **`PrototypeTerrainFeatures.prototype_woods_set()`** — the same list **`plains_forest_decoration.gd`** re-exports for the forest **decoration** pass; **woods** affects **`CityYields`** (v0) but is **not** a **`Terrain`** enum variant.
 
 ## Terrain (tag-only in Phase 1.2)
 
@@ -29,7 +30,7 @@ Presentation-only: modulation and overlay draws are **not** stored in **`HexMap`
 
 When **`debug_map_presentation_audit`** is on, **`MapView`** prints a single **`[EOM_MAP_PRESENTATION_AUDIT]`** line per frame (prototype instrumentation; default off) including **`hills_overlay_scale`**, **`plains_hills_overlay_opacity`**, **`grassland_hills_overlay_opacity`**, **`hills_overlay_uv_zoom`**, shared **`effective_scale`** / **`effective_uv_zoom`**, per-terrain **`effective_opacity_plains`** / **`effective_opacity_grassland`**, **`debug_force_hills_overlay_extreme`**, **`plains_hills_overlay_variants_loaded`**, **`grassland_hills_overlay_variants_loaded`**, **`hills_overlay_draws`**, and forest/back-layer counters. **`debug_mapview_forest_pipeline_log`** gates MapView **`[EOM_DEBUG_FOREST_PIPELINE]`** / **`[EOM_DEBUG_FOREST_GRID]`** console lines (default off) so the editor is not slowed by per-frame logging.
 
-**Prototype play map only:** **[main.gd](../game/main.gd)** may pass a **`forest_decoration_override`** hex set into **[MapView](../game/presentation/map_view.gd)** and **[TerrainForegroundView](../game/presentation/terrain_foreground_view.gd)** so forest decoration appears in hand-placed clusters for visual review; this is **not** gameplay forest, not a production biome rule, and does not change the forest symbol grid or lattice ([**`plains_forest_decoration.gd`**](../game/presentation/plains_forest_decoration.gd)).
+**Prototype play map only:** **[main.gd](../game/main.gd)** may pass a **`forest_decoration_override`** hex set into **[MapView](../game/presentation/map_view.gd)** and **[TerrainForegroundView](../game/presentation/terrain_foreground_view.gd)** so forest decoration appears in hand-placed clusters for visual review; keys match **domain** **`HexMap.has_woods`** on **`make_prototype_play_map()`** (see [**`prototype_terrain_features.gd`**](../game/domain/prototype_terrain_features.gd), [**`plains_forest_decoration.gd`**](../game/presentation/plains_forest_decoration.gd)). This overlay is **not** a production biome rule and does not change the forest symbol grid or lattice.
 
 ## Fixed tiny test map
 
@@ -52,6 +53,7 @@ Direction names in the table are **labels** for axial neighbors; see [HEX_COORDI
 - `has(HexCoord)` — whether the coordinate is on the map.
 - `terrain_at(HexCoord)` — terrain tag; **only valid** when `has` is true (asserts otherwise).
 - `landform_at(HexCoord)` — landform tag; **only valid** when `has` is true (asserts otherwise). Missing storage entry ⇒ **`FLAT`**.
+- `has_woods(HexCoord)` — **Phase 5.1.16c**; **only valid** when `has` is true. **Tiny test map:** always **false**.
 - `size()` — number of cells.
 - `coords()` — read-only list of all cells as `HexCoord` instances. Does not expose `Vector2i` keys. **Order is unspecified** in Phase 1.2; a future phase may document deterministic ordering if required (e.g. for replay or UI).
 - `make_tiny_test_map()` — static factory for the table above.

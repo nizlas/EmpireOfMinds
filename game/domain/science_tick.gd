@@ -8,7 +8,6 @@ extends RefCounted
 const SCHEMA_VERSION: int = 1
 ## Lightning-tree observation bonus always applies to this id (independent of current research target).
 const LIGHTNING_BONUS_PROGRESS_ID: String = "controlled_fire"
-const PER_CITY_YIELD: int = 1
 const OBSERVATION_BONUS: int = 4
 const BONUS_ID_LIGHTNING_SCARRED_TREE: String = "lightning_scarred_tree"
 
@@ -17,6 +16,7 @@ const ProgressUnlockResolverScript = preload("res://domain/progress_unlock_resol
 const ScienceAvailabilityScript = preload("res://domain/science_availability.gd")
 const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
+const CityYieldsScript = preload("res://domain/city_yields.gd")
 
 
 static func _resolve_tick_target(progress_state, owner_id: int) -> String:
@@ -43,14 +43,7 @@ static func apply_for_player(progress_state, scenario, owner_id: int) -> Diction
 		no_ev["result"] = "accepted"
 		no_ev["actor_id"] = owner_id
 		return {"progress_state": progress_state, "events": [no_ev]}
-	var cities = scenario.cities()
-	var n = 0
-	var i = 0
-	while i < cities.size():
-		if int(cities[i].owner_id) == owner_id:
-			n = n + 1
-		i = i + 1
-	var delta = PER_CITY_YIELD * n
+	var delta = CityYieldsScript.science_for_player(scenario, owner_id)
 	if delta == 0:
 		return {"progress_state": progress_state, "events": []}
 	return _add_progress_and_maybe_complete(progress_state, owner_id, delta, target_id)

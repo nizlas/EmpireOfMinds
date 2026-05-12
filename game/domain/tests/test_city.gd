@@ -10,6 +10,8 @@ func _init() -> void:
 	var c = CityScript.new(10, 0, HexCoordScript.new(1, -2))
 	_check(c.id == 10 and c.owner_id == 0, "construction sets id and owner")
 	_check(c.city_name == "", "default city_name empty")
+	_check(not c.is_capital, "default not capital")
+	_check(c.building_ids.is_empty(), "default no buildings")
 	_check(
 		c.position != null and c.position.q == 1 and c.position.r == -2,
 		"construction sets position"
