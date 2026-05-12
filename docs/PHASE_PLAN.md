@@ -2146,6 +2146,89 @@ Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 85 headless tests passed.`**
 
+#### 5.1.15 — City name banners
+
+**Status:** **Shipped.**
+
+Goal:
+
+- **`City.city_name`** domain field set by **`FoundCity`** (**`Capital`** first per owner, then **`Settlement <n>`**); preserved across **`SetCityProduction`**, **`ProductionTick`**, **`ProductionDelivery`** rebuilds.
+- **`CityNameplateView`** — parchment banner + **`UnitNameplateView`** owner strip palette; **`5.1.15b`** reorders [main.tscn](../game/main.tscn) so **unit** nameplates stack above city banners on shared hexes; **`CityProductionPanel`** title uses name when set.
+
+Shipped:
+
+- **[city.gd](../game/domain/city.gd)**, **[found_city.gd](../game/domain/actions/found_city.gd)**, **[set_city_production.gd](../game/domain/actions/set_city_production.gd)**, **[production_tick.gd](../game/domain/production_tick.gd)**, **[production_delivery.gd](../game/domain/production_delivery.gd)** — name threading.
+- **[city_nameplate_view.gd](../game/presentation/city_nameplate_view.gd)**, **[main.tscn](../game/main.tscn)** / **[main.gd](../game/main.gd)** — wiring + redraw; **[city_production_panel.gd](../game/presentation/city_production_panel.gd)** — header; controllers sync **`city_nameplate_view`**.
+- Tests: **`test_city.gd`**, **`test_found_city.gd`**, **`test_set_city_production.gd`**, **`test_city_production_panel.gd`**, **`test_city_nameplate_view.gd`**, **`test_main_tscn_map_layer_sibling_order.gd`**; runner **86** scripts.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 86 headless tests passed.`**
+
+#### 5.1.15b — City/banner overlap polish
+
+**Status:** **Shipped.**
+
+Goal:
+
+- City banners **closer** to markers, **larger** type; **unit** nameplates **above** city banners on shared hexes via **scene-tree order** (**`CityNameplateView`** before **`UnitNameplateView`**, same **`z_index`**).
+
+Shipped:
+
+- **[city_nameplate_view.gd](../game/presentation/city_nameplate_view.gd)** — gap + font; **[main.tscn](../game/main.tscn)** / **[main.gd](../game/main.gd)** — sibling order + redraw order; tests **`test_city_nameplate_view.gd`**, **`test_main_tscn_map_layer_sibling_order.gd`**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 86 headless tests passed.`**
+
+#### 5.1.15c — Shared city/unit hex readability (markers + banner)
+
+**Status:** **Shipped.**
+
+Goal:
+
+- **Unit** markers paint **in front of** **city** markers on the **same** hex (depth-merge / marker pass). City banners **offset** when a **unit** occupies the city tile so the parchment does not cross the **unit** sprite; **unit** nameplates remain **top** among code-drawn banners (**`main.tscn`** order unchanged).
+
+Shipped:
+
+- **[terrain_foreground_view.gd](../game/presentation/terrain_foreground_view.gd)** — **`_fg_depth_merge_item_lt`** same-hex **city→unit** merge rule; **[city_nameplate_view.gd](../game/presentation/city_nameplate_view.gd)** — **`city_hex_has_units`**; **5.1.15e** — **`draw_city_banner_on_canvas_item`** in **TFV** for shared hex; tests **`test_tfv_depth_merge_city_unit_sort_keys.gd`** (microfloat case), **`test_city_nameplate_shared_hex_banner.gd`**; docs **`RENDERING.md`**, **`DECISION_LOG.md`**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 87 headless tests passed.`**
+
+#### 5.1.15d — Shared city/unit hex banner below marker (**superseded by 5.1.15e**)
+
+**Status:** **Superseded** (layering fix replaces below-marker geometry).
+
+Goal:
+
+- When a **unit** shares the city hex, place the **city name banner below** the **city marker** (not a small **x/y** nudge) so it **clears** the **unit** PNG; **marker** order remains **city** then **unit** in **`TerrainForegroundView`**.
+
+Shipped:
+
+- **[city_nameplate_view.gd](../game/presentation/city_nameplate_view.gd)** — **`_marker_bottom_presentation_y`**, **`CITY_BANNER_SHARED_UNIT_BELOW_GAP_PX`**, **`compute_city_banner_rect(..., marker_bottom_y)`**, default-off **`debug_log_shared_hex_banner`**; **[terrain_foreground_view.gd](../game/presentation/terrain_foreground_view.gd)** — **`debug_log_shared_hex_marker_order`**; tests **`test_city_nameplate_shared_hex_banner.gd`**, **`test_city_nameplate_shared_hex_runtime_clearance.gd`**; docs.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 88 headless tests passed.`**
+
+#### 5.1.15e — Shared city/unit hex: normal banner position + TFV layering
+
+**Status:** **Shipped.**
+
+Goal:
+
+- Keep the city banner **near** the **normal above-marker** position when a **unit** shares the hex (**no** large downward offset). **Draw order:** terrain foreground context → **city marker** → **city banner** → **unit** marker → **`UnitNameplateView`** on top.
+
+Shipped:
+
+- **[city_nameplate_view.gd](../game/presentation/city_nameplate_view.gd)** — unified **`compute_city_banner_rect`**, **`terrain_foreground_view`**, **`draw_city_banner_on_canvas_item`**, **`compute_all_city_banner_rects(..., omit_cities_with_units_on_hex)`**; **[terrain_foreground_view.gd](../game/presentation/terrain_foreground_view.gd)** — shared-hex banner in depth-merge + pass 2; **`debug_log_shared_hex_layer_order`**; **[main.gd](../game/main.gd)** — wires **`CityNameplateView.terrain_foreground_view`**; tests **`test_city_nameplate_shared_hex_banner.gd`**, **`test_city_nameplate_shared_hex_runtime_clearance.gd`**; docs **`RENDERING.md`**, **`DECISION_LOG.md`**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 88 headless tests passed.`**
+
 ## Phase 6 — Empire of Minds worldbuilding and identity
 
 Goal:

@@ -14,6 +14,7 @@ var selection_view
 var units_view
 var terrain_foreground_view
 var unit_nameplate_view
+var city_nameplate_view
 var turn_label
 var log_view
 var city_production_panel
@@ -65,6 +66,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				if unit_nameplate_view != null:
 					unit_nameplate_view.scenario = game_state.scenario
 					unit_nameplate_view.queue_redraw()
+				if city_nameplate_view != null:
+					city_nameplate_view.scenario = game_state.scenario
+					city_nameplate_view.queue_redraw()
 				turn_label.refresh()
 				if log_view != null:
 					log_view.refresh()

@@ -36,6 +36,7 @@ func _init() -> void:
 	sel.select_city(city_id)
 	var vm_idle = CityProductionPanelScript.compute_view_model(gs2, sel)
 	_check(bool(vm_idle.get("visible", false)), "idle city shows panel")
+	_check(str(vm_idle.get("header_title", "")) == "Capital", "header uses founded city name")
 	var opts_idle = vm_idle.get("options", []) as Array
 	_check(opts_idle.size() == 2, "warrior and settler baseline empty city")
 	var a0i = (opts_idle[0] as Dictionary)["action"] as Dictionary

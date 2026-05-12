@@ -67,6 +67,15 @@ static func validate(a_scenario, action) -> Dictionary:
 		return {"ok": false, "reason": "tile_already_has_city"}
 	return {"ok": true, "reason": ""}
 
+
+static func default_city_name_for_owner(a_scenario, owner_id: int) -> String:
+	var owned = a_scenario.cities_owned_by(owner_id)
+	var n = owned.size()
+	if n == 0:
+		return "Capital"
+	return "Settlement %d" % (n + 1)
+
+
 static func apply(a_scenario, action):
 	var vr = validate(a_scenario, action)
 	assert(vr["ok"], "FoundCity.apply called with invalid action")
@@ -88,7 +97,10 @@ static func apply(a_scenario, action):
 	while ci < clist.size():
 		new_cities.append(clist[ci])
 		ci = ci + 1
-	new_cities.append(CityScript.new(new_city_id, action["actor_id"], HexCoordScript.new(q, r)))
+	var cname: String = default_city_name_for_owner(a_scenario, int(action["actor_id"]))
+	new_cities.append(
+		CityScript.new(new_city_id, action["actor_id"], HexCoordScript.new(q, r), null, cname)
+	)
 	return ScenarioScript.new(
 		a_scenario.map,
 		new_units,

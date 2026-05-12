@@ -90,7 +90,7 @@ static func apply_for_player(a_scenario, owner_id: int) -> Dictionary:
 		var c2 = clist[ci]
 		if new_project_by_id.has(c2.id):
 			var pr = new_project_by_id[c2.id] as Dictionary
-			new_cities.append(CityScript.new(c2.id, c2.owner_id, c2.position, pr))
+			new_cities.append(CityScript.new(c2.id, c2.owner_id, c2.position, pr, c2.city_name))
 		else:
 			new_cities.append(c2)
 		ci = ci + 1

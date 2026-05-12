@@ -1,5 +1,5 @@
-# Headless: **main.tscn** — map **Node2D** draw siblings stay **MapView → CitiesView → SelectionView → UnitsView → TerrainForegroundView → LightningTreeView → UnitNameplateView** (then **SelectionController**; **HudCanvas** is separate **CanvasLayer**).
-# **LightningTreeView** is **after** **TerrainForegroundView** so it paints **above** the forest overlay at the same **z_index**. **UnitNameplateView** is **after** **LightningTreeView**; **main.gd** sets **`z_index` 2** so nameplates render above markers.
+# Headless: **main.tscn** — map **Node2D** draw siblings stay **MapView → CitiesView → SelectionView → UnitsView → TerrainForegroundView → LightningTreeView → CityNameplateView → UnitNameplateView** (then **SelectionController**; **HudCanvas** is separate **CanvasLayer**).
+# Phase **5.1.15b:** **CityNameplateView** is **before** **UnitNameplateView** (same **`z_index` 2**) so **unit** nameplates paint **above** city banners on shared hexes.
 # Usage: godot --headless --path game -s res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd
 extends SceneTree
 
@@ -18,7 +18,8 @@ func _init() -> void:
 	var key_units = '[node name="UnitsView"'
 	var key_tfv = '[node name="TerrainForegroundView"'
 	var key_lightning = '[node name="LightningTreeView"'
-	var key_nameplates = '[node name="UnitNameplateView"'
+	var key_cn = '[node name="CityNameplateView"'
+	var key_un = '[node name="UnitNameplateView"'
 	var key_selctl = '[node name="SelectionController"'
 	var i_map = text.find(key_map)
 	var i_cities = text.find(key_cities)
@@ -26,7 +27,8 @@ func _init() -> void:
 	var i_units = text.find(key_units)
 	var i_tfv = text.find(key_tfv)
 	var i_lightning = text.find(key_lightning)
-	var i_nameplates = text.find(key_nameplates)
+	var i_cn = text.find(key_cn)
+	var i_un = text.find(key_un)
 	var i_selctl = text.find(key_selctl)
 	if (
 		i_map < 0
@@ -35,7 +37,8 @@ func _init() -> void:
 		or i_units < 0
 		or i_tfv < 0
 		or i_lightning < 0
-		or i_nameplates < 0
+		or i_cn < 0
+		or i_un < 0
 		or i_selctl < 0
 	):
 		push_error("FAIL: missing expected Main child node declaration in main.tscn")
@@ -47,13 +50,14 @@ func _init() -> void:
 		and i_sel < i_units
 		and i_units < i_tfv
 		and i_tfv < i_lightning
-		and i_lightning < i_nameplates
-		and i_nameplates < i_selctl
+		and i_lightning < i_cn
+		and i_cn < i_un
+		and i_un < i_selctl
 	):
 		push_error(
 			(
-				"FAIL: map layer sibling order in main.tscn expected MapView < CitiesView < SelectionView < UnitsView < TerrainForegroundView < LightningTreeView < UnitNameplateView < SelectionController; got indices %s"
-				% [str([i_map, i_cities, i_sel, i_units, i_tfv, i_lightning, i_nameplates, i_selctl])]
+				"FAIL: map layer sibling order in main.tscn expected MapView < CitiesView < SelectionView < UnitsView < TerrainForegroundView < LightningTreeView < CityNameplateView < UnitNameplateView < SelectionController; got indices %s"
+				% [str([i_map, i_cities, i_sel, i_units, i_tfv, i_lightning, i_cn, i_un, i_selctl])]
 			)
 		)
 		call_deferred("quit", 1)

@@ -243,6 +243,27 @@ func _init() -> void:
 	var cpiso = ciso.current_project as Dictionary
 	_check(cpiso["progress"] == 0, "city stores deep copy")
 
+	var m_nm = HexMapScript.make_tiny_test_map()
+	var us_nm = [
+		UnitScript.new(1, 0, HexCoordScript.new(0, 0)),
+		UnitScript.new(2, 0, HexCoordScript.new(1, 0)),
+	]
+	var sc_nm = ScenarioScript.new(
+		m_nm,
+		us_nm,
+		[
+			CityScript.new(5, 0, HexCoordScript.new(0, -1), null, "Northhold"),
+			CityScript.new(6, 0, HexCoordScript.new(1, -1)),
+		],
+		100,
+		200
+	)
+	var sc_nm_ap = SetCityProductionScript.apply(
+		sc_nm,
+		SetCityProductionScript.make(0, 5, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR)
+	)
+	_check(sc_nm_ap.city_by_id(5).city_name == "Northhold", "set production preserves city_name")
+
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

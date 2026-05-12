@@ -64,6 +64,10 @@ const ForestDebugClustersScript = preload("res://presentation/forest_debug_clust
 @export var debug_draw_unit_png_bottom_center: bool = false
 ## **Debug:** draw raw (**cyan**) + **effective** depth ticks for trees/units (**effective** matches **production** anchors when alpha metrics apply).
 @export var debug_draw_effective_depth_points: bool = false
+## **5.1.15d:** log **ty** 1 / 2 draw sequence per hex in depth-merge (**off** default; also **`EOM_DEBUG_SHARED_HEX_MARKER_ORDER=1`**).
+@export var debug_log_shared_hex_marker_order: bool = false
+## **5.1.15e:** log **city_marker → city_banner → unit_sprite** steps for shared city/unit hexes (**off** default; **`EOM_DEBUG_SHARED_HEX_LAYER_ORDER=1`**).
+@export var debug_log_shared_hex_layer_order: bool = false
 ## **Debug:** zero jitter, full **20** front-grid slots (see **`_GRID_SLOT_COUNT`**); set or **`EOM_DEBUG_FOREST_GRID_PERFECT=1`**. Implies **no_jitter** only. **Root markers** require **`forest_grid_debug_draw_roots`**; **perfect does not** imply markers.
 @export var forest_grid_debug_perfect: bool = false
 ## **Debug:** log resolved perfect/jitter state and per-slot **base / jitter / root_local** when set or **`EOM_DEBUG_FOREST_GRID=1`**. One banner per redraw; prefix **`[EOM_DEBUG_FOREST_GRID]`**. Also: clear stuck env — Windows CMD: `set EOM_DEBUG_FOREST_GRID_PERFECT=` then restart editor; PowerShell: `Remove-Item Env:EOM_DEBUG_FOREST_GRID_PERFECT`; bash: `unset EOM_DEBUG_FOREST_GRID_PERFECT`.
@@ -1558,7 +1562,29 @@ func _fg_run_unit_forest_occluder_pass_for_map(coord_list, cam) -> void:
 		oi += 1
 
 
+func _fg_merge_item_axial_hex(item: Dictionary, ty: int) -> Vector2i:
+	if ty == 1:
+		var c = item["c"]
+		return Vector2i(int(c.position.q), int(c.position.r))
+	if ty == 2:
+		var u = item["u"]
+		return Vector2i(int(u.position.q), int(u.position.r))
+	return Vector2i(999999, 999999)
+
+
 func _fg_depth_merge_item_lt(a: Dictionary, b: Dictionary) -> bool:
+	# Phase **5.1.15c:** **City** marker must paint **before** **unit** marker on the **same** hex.
+	# **`to_layout`** can yield **micro-different** **sy/sx** for otherwise-identical anchors; the raw
+	# sort would draw the **unit** first (**behind**) and bury the sprite under the city art.
+	var ta0: int = int(a["ty"])
+	var tb0: int = int(b["ty"])
+	if (ta0 == 1 and tb0 == 2) or (ta0 == 2 and tb0 == 1):
+		var ha: Vector2i = _fg_merge_item_axial_hex(a, ta0)
+		var hb: Vector2i = _fg_merge_item_axial_hex(b, tb0)
+		if ha == hb:
+			if ta0 == 1 and tb0 == 2:
+				return true
+			return false
 	if a["sy"] < b["sy"]:
 		return true
 	if a["sy"] > b["sy"]:
@@ -1581,6 +1607,64 @@ func _fg_depth_merge_item_lt(a: Dictionary, b: Dictionary) -> bool:
 	if ta == 1:
 		return int(a["c"].id) < int(b["c"].id)
 	return int(a["ui"]) < int(b["ui"])
+
+
+func _fg_debug_log_shared_hex_marker_order_from_items(items: Array) -> void:
+	if not (
+		debug_log_shared_hex_marker_order
+		or OS.get_environment("EOM_DEBUG_SHARED_HEX_MARKER_ORDER") == "1"
+	):
+		return
+	if scenario == null:
+		return
+	var hex_to_seq: Dictionary = {}
+	var mi: int = 0
+	while mi < items.size():
+		var it: Dictionary = items[mi]
+		var ty: int = int(it.get("ty", -1))
+		var key: String = ""
+		if ty == 1:
+			key = "%d,%d" % [int(it["c"].position.q), int(it["c"].position.r)]
+		elif ty == 2:
+			key = "%d,%d" % [int(it["u"].position.q), int(it["u"].position.r)]
+		else:
+			mi += 1
+			continue
+		if not hex_to_seq.has(key):
+			hex_to_seq[key] = []
+		(hex_to_seq[key] as Array).append({"ty": ty, "sort_i": mi})
+		mi += 1
+	for k in hex_to_seq.keys():
+		var seq: Array = hex_to_seq[k] as Array
+		var has_c: bool = false
+		var has_u: bool = false
+		var si: int = 0
+		while si < seq.size():
+			var e: Dictionary = seq[si]
+			if int(e["ty"]) == 1:
+				has_c = true
+			if int(e["ty"]) == 2:
+				has_u = true
+			si += 1
+		if not (has_c and has_u):
+			continue
+		var parts: PackedStringArray = PackedStringArray()
+		var sj: int = 0
+		while sj < seq.size():
+			var e2: Dictionary = seq[sj]
+			parts.append("ty%d@%d" % [int(e2["ty"]), int(e2["sort_i"])])
+			sj += 1
+		print("[EOM_DEBUG_SHARED_HEX_MARKER] hex=%s order=%s" % [k, ",".join(parts)])
+
+
+func _fg_env_debug_shared_hex_layer_order() -> bool:
+	return OS.get_environment("EOM_DEBUG_SHARED_HEX_LAYER_ORDER") == "1"
+
+
+func _fg_debug_log_shared_hex_layer_order(msg: String) -> void:
+	if not debug_log_shared_hex_layer_order and not _fg_env_debug_shared_hex_layer_order():
+		return
+	print(msg)
 
 
 func _fg_draw_depth_merged_forest_symbol_grid_and_units(
@@ -1642,10 +1726,11 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 		var c_world2: Vector2 = layout.hex_to_world(c2.position.q, c2.position.r)
 		var c_anchor2: Vector2 = cam.to_presentation(c_world2)
 		var c_ps2: float = cam.perspective_scale_at(c_world2)
-		# Depth-merge sort uses projected **hex center** only — not city/unit effective-depth
-		# markers (`city_effective_depth_presentation` / `unit_effective_depth_presentation`).
-		# Those differ on the same tile, so using them here let cities win the painter order and
-		# buried unit markers. Draw calls still use anchors + per-sprite depth helpers.
+		# Depth-merge sort buckets markers with forest symbols using **`MapCamera.to_layout`** at the
+		# projected **hex center**. **City/unit effective-depth** helpers are **not** used here (they
+		# split on one tile and are for other probes). Phase **5.1.15c:** **`_fg_depth_merge_item_lt`**
+		# forces **city-before-unit** when both markers share a hex so **microfloat** layout noise
+		# cannot draw the unit **behind** the city art.
 		var clayer: Vector2 = cam.to_layout(c_anchor2)
 		items.append(
 			{
@@ -1680,6 +1765,7 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 		)
 		ui2 += 1
 	items.sort_custom(_fg_depth_merge_item_lt)
+	_fg_debug_log_shared_hex_marker_order_from_items(items)
 	var mi: int = 0
 	while mi < items.size():
 		var it: Dictionary = items[mi]
@@ -1708,8 +1794,35 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 				it["c_pscale"],
 				int(it["c"].owner_id)
 			)
+			var cty_m = it["c"]
+			if scenario != null and CityNameplateView.city_hex_has_units(scenario, cty_m):
+				_fg_debug_log_shared_hex_layer_order(
+					(
+						"[EOM_DEBUG_SHARED_HEX_LAYER] city_marker city_id=%d hex=(%d,%d)"
+						% [int(cty_m.id), int(cty_m.position.q), int(cty_m.position.r)]
+					)
+				)
+				CityNameplateView.draw_city_banner_on_canvas_item(
+					self, layout, cam, cities_view, cty_m
+				)
+				_fg_debug_log_shared_hex_layer_order(
+					(
+						"[EOM_DEBUG_SHARED_HEX_LAYER] city_banner city_id=%d hex=(%d,%d)"
+						% [int(cty_m.id), int(cty_m.position.q), int(cty_m.position.r)]
+					)
+				)
 		else:
 			var umi = it["u"]
+			if scenario != null:
+				var ch_u = scenario.cities_at(umi.position)
+				if ch_u.size() > 0 and scenario.units_at(umi.position).size() > 0:
+					var c0 = ch_u[0]
+					_fg_debug_log_shared_hex_layer_order(
+						(
+							"[EOM_DEBUG_SHARED_HEX_LAYER] unit_sprite unit_id=%d city_id=%d hex=(%d,%d)"
+							% [int(umi.id), int(c0.id), int(umi.position.q), int(umi.position.r)]
+						)
+					)
 			units_view.draw_unit_marker_at(
 				self,
 				it["u_anchor"],
@@ -2293,6 +2406,10 @@ func _draw() -> void:
 			cities_view.draw_city_marker_at(
 				self, c_world_p2, c_anchor_p2, c_pscale_p2, int(cp.owner_id)
 			)
+			if CityNameplateView.city_hex_has_units(scenario, cp):
+				CityNameplateView.draw_city_banner_on_canvas_item(
+					self, layout, camera, cities_view, cp
+				)
 			ci_p2 += 1
 	if units_view != null and scenario != null and not do_forest_unit_depth_merge:
 		var ulist = scenario.units()

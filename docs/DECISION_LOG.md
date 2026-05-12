@@ -1,3 +1,27 @@
+## 2026-05-12 — Phase 5.1.15e — Shared city/unit hex: banner placement vs layering correction
+
+- **Decision:** Revert **5.1.15d**’s **below-marker** city banner offset; keep the banner in the **normal above-marker** band so it stays visually **attached** to the city. **Layering:** **`CityNameplateView`** (**`z_index` 2**) cannot sit **under** unit markers drawn inside **`TerrainForegroundView`** (**1**), so when a **unit** shares the city hex, **`TerrainForegroundView`** draws **`CityNameplateView.draw_city_banner_on_canvas_item`** **after** **`draw_city_marker_at`** and **before** **`draw_unit_marker_at`** (depth-merge + pass 2). **`CityNameplateView`** skips that city’s banner when **`terrain_foreground_view`** is wired (**[main.gd](../game/main.gd)**). **`UnitNameplateView`** remains topmost (**`main.tscn`** sibling order unchanged). Default-off: **`TerrainForegroundView.debug_log_shared_hex_layer_order`** / **`EOM_DEBUG_SHARED_HEX_LAYER_ORDER`**.
+- **Rationale:** Matches Civ-like **unit-over-label** overlap on the same tile without a detached banner; presentation-only.
+
+## 2026-05-12 — Phase 5.1.15d — Shared city/unit hex: city banner below marker (**superseded by 5.1.15e**)
+
+- **Decision:** **Diagnose-first:** **city-before-unit** marker order in **`TerrainForegroundView`** was already sufficient for readable unit PNGs in play. The visible bug was **`CityNameplateView`** shared-hex banner geometry: a small **x/y** offset still overlapped the **warrior** raster. **5.1.15d** places the city **banner below** the **city marker quad** when **`units_at(city.position)`** is non-empty (**`marker_bottom` + `CITY_BANNER_SHARED_UNIT_BELOW_GAP_PX`**, centered on **anchor** **x**). Default-off diagnostics: **`CityNameplateView.debug_log_shared_hex_banner`**, **`TerrainForegroundView.debug_log_shared_hex_marker_order`** (plus env **`EOM_DEBUG_*`** aliases).
+- **Rationale:** Deterministic, presentation-only readability without moving units, changing selection, or reordering **`main.tscn`**.
+
+## 2026-05-10 — Phase 5.1.15c — Shared city/unit hex marker and banner readability
+
+- **Decision:** In **`TerrainForegroundView`** depth-merge, **`_fg_depth_merge_item_lt`** treats **same-hex** **city+unit** marker pairs **before** **sy/sx** comparisons so **microfloat** **`to_layout`** noise cannot paint **units** **behind** **city** art (defensive). Shared-hex **banner** readability is handled by **5.1.15e** (**TFV**-hosted banner under **unit** marker, normal above-marker geometry).
+
+## 2026-05-10 — Phase 5.1.15b — City banner placement + unit-over-city nameplate layering
+
+- **Decision:** Tighten city-banner **vertical gap** and raise **`CITY_BANNER_FONT_SIZE`** (presentation only). Reorder [main.tscn](../game/main.tscn) so **`CityNameplateView`** is **before** **`UnitNameplateView`** at the same **`z_index`**, so **unit** nameplates draw **on top** on **shared** city/unit hexes—**no** domain or selection changes.
+- **Rationale:** Matches Civ-like expectation that the **active unit** remains readable; avoids per-hex special cases.
+
+## 2026-05-10 — Phase 5.1.15 — City names (domain) + map banners (presentation)
+
+- **Decision:** **`City.city_name`** is **domain state**, set deterministically by **`FoundCity`** (**`Capital`** for a player’s first city, then **`Settlement 2`**, **`Settlement 3`**, …); engine/production paths that rebuild **`City`** copy **`city_name`** forward. **Map banners** are **presentation-only** (**`CityNameplateView`**), reuse **`UnitNameplateView`** owner-accent logic, and fall back to **`City <id>`** only when **`city_name`** is empty (tests / legacy fixtures).
+- **Rationale:** Readable capitals on the prototype map without economy/save work; names are available for future **HUD**, **save**, and **capital** features.
+
 ## 2026-05-10 — Phase 5.1.14 — SciencePanel locked-science prerequisite hints
 
 - **Decision:** Surface **locked** sciences in the **same** **`SciencePanel`** as a **compact** prerequisite hint list (**`Requires:`** with **missing** prereqs only), using **`ScienceAvailability.locked_for`** order and **`ProgressDefinitions.prerequisites`** — **not** a tech-tree canvas, dependency arrows, research queue, or tooltip system.

@@ -201,6 +201,7 @@ func _init() -> void:
 	var nc = new_sc.city_by_id(old_next_city)
 	_check(nc != null and nc.owner_id == 0, "append city id")
 	_check(nc.position.equals(HexCoordScript.new(0, 0)), "append city position")
+	_check(nc.city_name == "Capital", "default founded name")
 	_check(new_sc.peek_next_city_id() == old_next_city + 1, "next_city_id +1")
 	_check(new_sc.peek_next_unit_id() == before_nu, "next_unit_id preserved")
 	_check(
@@ -226,6 +227,21 @@ func _init() -> void:
 	_check(applied2.city_by_id(200) != null, "pre-existing city preserved")
 	_check(applied2.city_by_id(old_c2) != null, "new city uses peek id")
 	_check(applied2.peek_next_unit_id() == 500, "counters no spill to units")
+
+	var m3 = HexMapScript.make_tiny_test_map()
+	var u3 = [
+		UnitScript.new(1, 0, HexCoordScript.new(0, 0), "settler"),
+		UnitScript.new(4, 0, HexCoordScript.new(1, -1), "settler"),
+	]
+	var sc3 = ScenarioScript.new(m3, u3, [], 500, 300)
+	var sc3a = FoundCityScript.apply(sc3, FoundCityScript.make(0, 1, 0, 0))
+	var cap_id = sc3.peek_next_city_id()
+	var cap_ct = sc3a.city_by_id(cap_id)
+	_check(cap_ct != null and cap_ct.city_name == "Capital", "two-settler first Capital")
+	var sc3b = FoundCityScript.apply(sc3a, FoundCityScript.make(0, 4, 1, -1))
+	var sec_id = sc3b.peek_next_city_id() - 1
+	var sec_ct = sc3b.city_by_id(sec_id)
+	_check(sec_ct != null and sec_ct.city_name == "Settlement 2", "second city numbered")
 
 	if _any_fail:
 		call_deferred("quit", 1)

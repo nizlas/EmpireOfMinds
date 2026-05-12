@@ -17,6 +17,7 @@
 [ext_resource type="Script" path="res://presentation/discovery_action_panel.gd" id="15_discovery_action"]
 [ext_resource type="Script" path="res://presentation/science_completed_popup.gd" id="16_science_popup"]
 [ext_resource type="Script" path="res://presentation/unit_nameplate_view.gd" id="17_nameplates"]
+[ext_resource type="Script" path="res://presentation/city_nameplate_view.gd" id="19_city_nameplates"]
 [ext_resource type="Script" path="res://presentation/science_panel.gd" id="18_science_panel"]
 
 [node name="Main" type="Node2D" unique_id=347530863]
@@ -135,6 +136,10 @@ script = ExtResource("11_terrainforeground")
 [node name="LightningTreeView" type="Node2D" parent="." unique_id=1063845022]
 position = Vector2(400, 428)
 script = ExtResource("14_lightning")
+
+[node name="CityNameplateView" type="Node2D" parent="." unique_id=1063845024]
+position = Vector2(400, 428)
+script = ExtResource("19_city_nameplates")
 
 [node name="UnitNameplateView" type="Node2D" parent="." unique_id=1063845023]
 position = Vector2(400, 428)

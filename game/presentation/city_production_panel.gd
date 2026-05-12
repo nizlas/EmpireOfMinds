@@ -12,6 +12,7 @@ var selection
 var cities_view
 var turn_label
 var log_view
+var city_nameplate_view
 
 var _root_vbox: VBoxContainer
 var _title_label: Label
@@ -150,8 +151,10 @@ static func compute_view_model(game_state, selection) -> Dictionary:
 		return vm
 	var cp = game_state.turn_state.current_player_id()
 	vm["visible"] = true
-	vm["header_title"] = "City"
-	vm["header"] = "City"
+	var cname: String = str(city.city_name).strip_edges()
+	var title: String = cname if cname != "" else "City"
+	vm["header_title"] = title
+	vm["header"] = title
 	vm["subheader"] = "#%d · Owner %d" % [cid, city.owner_id]
 	if city.owner_id != cp:
 		vm["status"] = "Not your city (owner is player %d)." % city.owner_id
@@ -275,6 +278,9 @@ func _on_production_button_pressed(action: Dictionary) -> void:
 		if cities_view != null:
 			cities_view.scenario = game_state.scenario
 			cities_view.queue_redraw()
+		if city_nameplate_view != null:
+			city_nameplate_view.scenario = game_state.scenario
+			city_nameplate_view.queue_redraw()
 		if turn_label != null:
 			turn_label.refresh()
 		if log_view != null:

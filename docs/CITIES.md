@@ -6,6 +6,7 @@
 
 - **`id`**: `int` — unique among cities **within** a **`Scenario`** (enforced at construction).
 - **`owner_id`**: `int` — same convention as **`Unit.owner_id`** (see [UNITS.md](UNITS.md)).
+- **`city_name`**: **`String`** — **Phase 5.1.15:** display name for the city. **`FoundCity`** assigns the first founded city per owner **`Capital`**, then **`Settlement 2`**, **`Settlement 3`**, … (counting existing cities **of that owner** before append). Tests and tooling may construct **`City`** with an explicit fifth argument; **`""`** means “unnamed” until set. **`SetCityProduction`**, **`ProductionTick`**, and **`ProductionDelivery`** preserve **`city_name`** when rebuilding **`City`** rows.
 - **`position`**: **`HexCoord`** — city tile; must be on the map and **not** **`HexMap.Terrain.WATER`**.
 - **`current_project`**: **`null`** **or** a **primitive** **`Dictionary`** — **Phase 2.3+** current build / production state. **`null`** means **no** project. For **`produce_unit`**, the shape includes **`progress`**, **`cost`**, and **`ready`** (**`bool`**, **`false`** until **`progress` >= `cost`** on an **accepted** **`end_turn`** tick, **Phase 2.4c**). When a **`Dictionary`** is passed to **`City._init`**, the constructor stores **`duplicate(true)`** so later mutation of the caller’s **`Dictionary`** does **not** affect the **`City`**.
 
@@ -34,7 +35,7 @@ The canonical **`make_tiny_test_scenario()`** fixture has **no cities** in Phase
 
 **Phase 2.2a:** **`MoveUnit.apply`** ([move_unit.gd](../game/domain/actions/move_unit.gd)) passes **`cities()`** and **`peek_next_unit_id()` / `peek_next_city_id()`** forward into the returned **`Scenario`** so moves do not drop cities or replay counters (see [test_move_unit_preserves_scenario_state.gd](../game/domain/tests/test_move_unit_preserves_scenario_state.gd)). **Future** actions that rebuild **`Scenario`** must use the same explicit pass-forward pattern.
 
-**Phase 2.2b:** **`FoundCity`** ([found_city.gd](../game/domain/actions/found_city.gd)) creates a **`City`** at the founder **unit’s hex**, assigns **`city_id = peek_next_city_id()`**, increments **`peek_next_city_id()` by 1** in the returned **`Scenario`**, and **removes** that **unit** from the unit list. **`GameState.try_apply`** dispatches **`FoundCity`** like other versioned actions; **`FoundCity.validate`** does **not** check **`current_player_id`** (**`not_current_player`** is only the common **`try_apply`** gate).
+**Phase 2.2b:** **`FoundCity`** ([found_city.gd](../game/domain/actions/found_city.gd)) creates a **`City`** at the founder **unit’s hex**, assigns **`city_id = peek_next_city_id()`**, sets **`city_name`** via **`FoundCity.default_city_name_for_owner`** (**`Capital`** / **`Settlement <n>`**), increments **`peek_next_city_id()` by 1** in the returned **`Scenario`**, and **removes** that **unit** from the unit list. **`GameState.try_apply`** dispatches **`FoundCity`** like other versioned actions; **`FoundCity.validate`** does **not** check **`current_player_id`** (**`not_current_player`** is only the common **`try_apply`** gate).
 
 **Phase 3.1:** **founding** is gated by **`UnitDefinitions.can_found_city(unit.type_id)`** (see [UNITS.md](UNITS.md), [ACTIONS.md](ACTIONS.md)). The **F-key** path in **`SelectionController`** remains a manual presentation entry. **Phase 2.5:** **`LegalActions`** and **`RuleBasedAIPlayer`** may choose **`FoundCity`** and **`SetCityProduction`** from the legal list (see [AI_LAYER.md](AI_LAYER.md)); **no** new action schemas.
 
@@ -71,6 +72,7 @@ See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1**, [CORE_LOOP.md](CORE_LOOP.md) *
 ## Explicitly deferred
 
 - **`ProduceUnit`** **player** action, economy/yields beyond this minimal completion rule.
-- City **names**, **population**, **tiles worked**, **garrison**, **zone of control**.
+- City **population**, **tiles worked**, **garrison**, **zone of control**.
+- Procedural / culture-driven **renaming** and **nation name lists** (**5.1.15** ships deterministic placeholders only).
 - **Combat**, **conquest**, **fog**, **save/load**.
 - **Final** economy numbers and **Phase 4** visual identity.

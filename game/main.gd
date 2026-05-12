@@ -2,7 +2,7 @@
 # See docs/RENDERING.md, docs/SELECTION.md
 extends Node2D
 
-## Initial pixel origin for map-layer **Node2D** children including **UnitNameplateView** (Phase 5.1.11). **4.5m:** set **once** in `_ready`; pan uses **MapCamera.camera_world_offset**. **5.1.11:** **UnitNameplateView** uses **`z_index` 2** so nameplates draw above terrain/unit markers, still below **HudCanvas**.
+## Initial pixel origin for map-layer **Node2D** children including **UnitNameplateView** / **CityNameplateView** (Phase **5.1.11** / **5.1.15**). **4.5m:** set **once** in `_ready`; pan uses **MapCamera.camera_world_offset**. Nameplate layers use **`z_index` 2** above **TerrainForegroundView** (**1**); **5.1.15b** orders **`CityNameplateView`** before **`UnitNameplateView`** in the tree so **unit** nameplates paint **on top**. **5.1.15e:** shared-hex **city** banners draw inside **TerrainForegroundView** after the city marker so **unit** markers paint over parchment; **UnitNameplateView** stays topmost. Still below **HudCanvas**.
 const MAP_LAYER_ORIGIN: Vector2 = Vector2(400.0, 428.0)
 
 const ScenarioScript = preload("res://domain/scenario.gd")
@@ -27,6 +27,7 @@ func _redraw_map_layers() -> void:
 	$UnitsView.queue_redraw()
 	$TerrainForegroundView.queue_redraw()
 	$LightningTreeView.queue_redraw()
+	$CityNameplateView.queue_redraw()
 	$UnitNameplateView.queue_redraw()
 
 func _ready() -> void:
@@ -41,6 +42,7 @@ func _ready() -> void:
 		$UnitsView,
 		$TerrainForegroundView,
 		$LightningTreeView,
+		$CityNameplateView,
 		$UnitNameplateView,
 		$SelectionController,
 	]:
@@ -65,6 +67,9 @@ func _ready() -> void:
 	$UnitNameplateView.scale = Vector2.ONE
 	$UnitNameplateView.camera = _map_camera
 	$UnitNameplateView.z_index = 2
+	$CityNameplateView.scale = Vector2.ONE
+	$CityNameplateView.camera = _map_camera
+	$CityNameplateView.z_index = 2
 	$SelectionController.scale = Vector2.ONE
 	$SelectionController.camera = _map_camera
 	var scenario = ScenarioScript.make_prototype_play_scenario()
@@ -108,6 +113,11 @@ func _ready() -> void:
 	unit_nameplate_view.scenario = scenario
 	unit_nameplate_view.layout = layout
 	unit_nameplate_view.units_view = units_view
+	var city_nameplate_view = $CityNameplateView
+	city_nameplate_view.scenario = scenario
+	city_nameplate_view.layout = layout
+	city_nameplate_view.cities_view = cities_view
+	city_nameplate_view.terrain_foreground_view = terrain_foreground
 	var selection_view = $SelectionView
 	selection_view.scenario = scenario
 	selection_view.layout = layout
@@ -122,6 +132,7 @@ func _ready() -> void:
 	selection_controller.cities_view = cities_view
 	selection_controller.terrain_foreground_view = terrain_foreground
 	selection_controller.unit_nameplate_view = unit_nameplate_view
+	selection_controller.city_nameplate_view = city_nameplate_view
 	var turn_label = $TurnLabel
 	turn_label.game_state = game_state
 	turn_label.refresh()
@@ -141,6 +152,7 @@ func _ready() -> void:
 	ai_turn_controller.units_view = units_view
 	ai_turn_controller.terrain_foreground_view = terrain_foreground
 	ai_turn_controller.unit_nameplate_view = unit_nameplate_view
+	ai_turn_controller.city_nameplate_view = city_nameplate_view
 	ai_turn_controller.turn_label = turn_label
 	var log_view = $LogView
 	log_view.game_state = game_state
@@ -154,6 +166,7 @@ func _ready() -> void:
 	city_production_panel.cities_view = cities_view
 	city_production_panel.turn_label = turn_label
 	city_production_panel.log_view = log_view
+	city_production_panel.city_nameplate_view = city_nameplate_view
 	selection_controller.city_production_panel = city_production_panel
 	end_turn_controller.city_production_panel = city_production_panel
 	ai_turn_controller.city_production_panel = city_production_panel

@@ -98,7 +98,7 @@ static func apply(a_scenario, action):
 	while ci < clist.size():
 		var c = clist[ci]
 		if c.id == target_id:
-			new_cities.append(CityScript.new(c.id, c.owner_id, c.position, new_project))
+			new_cities.append(CityScript.new(c.id, c.owner_id, c.position, new_project, c.city_name))
 		else:
 			new_cities.append(c)
 		ci = ci + 1

@@ -31,6 +31,8 @@ var cities_view
 var terrain_foreground_view
 ## Phase 5.1.11: nameplates follow unit positions; redraw with terrain sync / map refresh.
 var unit_nameplate_view
+## Phase 5.1.15: city name banners follow **Scenario.cities()**.
+var city_nameplate_view
 var turn_label
 var log_view
 var city_production_panel
@@ -159,6 +161,9 @@ func _sync_terrain_foreground_from_game_state() -> void:
 	if unit_nameplate_view != null:
 		unit_nameplate_view.scenario = scen
 		unit_nameplate_view.queue_redraw()
+	if city_nameplate_view != null:
+		city_nameplate_view.scenario = scen
+		city_nameplate_view.queue_redraw()
 
 func _unhandled_input(event):
 	assert(HexCoordScript != null)
@@ -234,6 +239,7 @@ func _unhandled_input(event):
 				if cities_view != null:
 					cities_view.scenario = game_state.scenario
 					cities_view.queue_redraw()
+				_sync_terrain_foreground_from_game_state()
 				if turn_label != null:
 					turn_label.refresh()
 				if log_view != null:

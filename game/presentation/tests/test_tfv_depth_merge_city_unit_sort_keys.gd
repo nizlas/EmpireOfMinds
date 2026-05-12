@@ -1,4 +1,5 @@
-# Headless: **TerrainForegroundView** depth-merge — same merge **sy/sx** for city+unit on one hex → **ty** orders city before unit (units paint on top).
+# Headless: **TerrainForegroundView** depth-merge — same-hex **city+unit** orders **city** before **unit**
+# (including **microfloat** **sy/sx** splits — **5.1.15c**) so units paint **on top** of city markers.
 # Usage: godot --headless --path game -s res://presentation/tests/test_tfv_depth_merge_city_unit_sort_keys.gd
 extends SceneTree
 
@@ -43,6 +44,20 @@ func _init() -> void:
 	)
 	if int(items[0]["ty"]) != 1 or int(items[1]["ty"]) != 2:
 		push_error("FAIL: sort should be stable for city-first input too")
+		tfv.free()
+		call_deferred("quit", 1)
+		return
+	# **5.1.15c:** without same-hex override, a **tiny** `sy` split would put the **unit** first (**behind**).
+	items = [
+		{"ty": 2, "sy": sy - 0.0004, "sx": sx, "ui": 0, "u": unit},
+		{"ty": 1, "sy": sy + 0.0001, "sx": sx + 0.0002, "c": city},
+	]
+	items.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			return tfv._fg_depth_merge_item_lt(a, b)
+	)
+	if int(items[0]["ty"]) != 1 or int(items[1]["ty"]) != 2:
+		push_error("FAIL: same-hex city+unit must sort city before unit despite microfloat sy/sx split")
 		tfv.free()
 		call_deferred("quit", 1)
 		return
