@@ -181,6 +181,130 @@ header h1 {
 	line-height: 1.55;
 }
 
+.prototype-callout {
+	max-width: 70ch;
+	margin: 0 auto 2.25rem;
+	padding: 0.95rem 1rem 0.95rem 1.1rem;
+	border-left: 3px solid var(--banner-border);
+	background-color: var(--banner-bg);
+	border-radius: 0 6px 6px 0;
+	font-size: 0.96rem;
+	line-height: 1.58;
+	color: var(--text);
+}
+
+.guide-cards-section .guide-cards {
+	display: flex;
+	flex-direction: column;
+	gap: 0.85rem;
+}
+
+@media (min-width: 36rem) {
+	.guide-cards-section .guide-cards {
+		flex-direction: row;
+		flex-wrap: wrap;
+	}
+}
+
+.guide-card {
+	display: block;
+	flex: 1 1 16rem;
+	max-width: 42ch;
+	padding: 1rem 1.1rem;
+	border-radius: 8px;
+	text-decoration: none;
+	color: inherit;
+	background-color: var(--banner-bg);
+	border: 1px solid var(--banner-border);
+	box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+	transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.guide-card:hover,
+.guide-card:focus {
+	background-color: var(--section-rule);
+	border-color: var(--text);
+	outline: none;
+}
+
+.guide-card-title {
+	display: block;
+	font-weight: 650;
+	font-size: 1.05rem;
+	margin-bottom: 0.35rem;
+	line-height: 1.35;
+	color: var(--text);
+}
+
+.guide-card-desc {
+	display: block;
+	font-size: 0.96rem;
+	line-height: 1.55;
+	color: var(--muted);
+}
+
+.muted-aside {
+	margin: 0.75rem 0 0;
+	font-size: 0.95rem;
+	line-height: 1.55;
+	color: var(--muted);
+}
+
+.economy-table {
+	width: 100%;
+	max-width: 100%;
+	margin: 0 0 1rem;
+	border-collapse: collapse;
+	font-size: 0.96rem;
+	line-height: 1.45;
+}
+
+.economy-table th,
+.economy-table td {
+	padding: 0.45rem 0.55rem;
+	text-align: left;
+	vertical-align: top;
+	border-bottom: 1px solid var(--section-rule);
+}
+
+.economy-table thead th {
+	font-weight: 650;
+	color: var(--text);
+	border-bottom-color: var(--banner-border);
+}
+
+.economy-table tbody th[scope="row"] {
+	font-weight: 600;
+	color: var(--text);
+	white-space: nowrap;
+}
+
+.economy-table tbody td,
+.economy-table tbody th {
+	font-variant-numeric: tabular-nums;
+}
+
+.economy-table.yields-key tbody td {
+	font-variant-numeric: normal;
+	white-space: normal;
+}
+
+.compact-list,
+.rule-list {
+	margin: 0.75rem 0 0;
+	padding-left: 1.35rem;
+}
+
+.compact-list li,
+.rule-list li {
+	margin-bottom: 0.45rem;
+}
+
+.compact-list li:last-child,
+.rule-list li:last-child {
+	margin-bottom: 0;
+}
+
 main section {
 	margin-bottom: 2.25rem;
 }

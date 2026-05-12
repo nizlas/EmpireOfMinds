@@ -67,6 +67,8 @@ On **accepted** **`end_turn`**, **`ProductionTick`** ([production_tick.gd](../ga
 
 See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1**, [CORE_LOOP.md](CORE_LOOP.md) **Phase 5.1 embryo intent**.
 
+**Player-facing tutorial:** The **intended** early city economy (worked-tile v0 yields, city-center normalization, capital **Palace** baseline **Science**/**Coin**, era-flexible **Coin** flavor, science-from-institutions principle) is summarized for testers in **[player/city-economy.html](player/city-economy.html)**. That page is **design intent**, not a guarantee of current build behavior.
+
 **Phase 5.1.4:** **[CityProductionPanel](../game/presentation/city_production_panel.gd)** is **presentation-only**: it **never** reads **`CityProjectDefinitions`** or **`EffectiveRules`**; production buttons and gating come **only** from filtering **`LegalActions.for_current_player(game_state)`** for **`set_city_production`** rows matching the selected **`city_id`**. Labels derive from **`project_id`** substrings (no registry display names).
 
 ## Explicitly deferred

@@ -2229,6 +2229,22 @@ Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 88 headless tests passed.`**
 
+#### 5.1.16a — Player guide: Early City Economy tutorial (docs/player)
+
+**Status:** **Shipped (documentation).**
+
+Goal:
+
+- Player-facing **HTML** tutorial under **`docs/player/`** describing the **intended** early city economy: worked-tile yields (v0 table), city-center normalization, capital **Palace** baseline (**Science** + **Coin**), **Coin** as era-flexible economic yield, and the principle that **science** is not automatically duplicated from every new city on turn one.
+
+Shipped:
+
+- **[player/city-economy.html](player/city-economy.html)** — **Early City Economy** page; **[player/index.html](player/index.html)** — tutorial card + nav; **[player/playtest.html](player/playtest.html)** — nav link; **[player/style.css](player/style.css)** — tables + cards; **[DECISION_LOG.md](DECISION_LOG.md)** — decision entry; optional cross-ref **[CITIES.md](CITIES.md)**.
+
+Validation:
+
+- Manual: open **`docs/player/index.html`** in a browser; follow **Early City Economy**; no JavaScript required.
+
 ## Phase 6 — Empire of Minds worldbuilding and identity
 
 Goal:

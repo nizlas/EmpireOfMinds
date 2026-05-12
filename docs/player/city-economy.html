@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Empire of Minds — Early City Economy</title>
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<header>
+		<nav class="site-nav" aria-label="Site">
+			<a href="index.html">Overview</a>
+			<span class="site-nav-sep" aria-hidden="true">·</span>
+			<a href="playtest.html">Playtest Guide</a>
+			<span class="site-nav-sep" aria-hidden="true">·</span>
+			<a href="city-economy.html" aria-current="page">Early City Economy</a>
+		</nav>
+		<h1>Empire of Minds</h1>
+		<p class="page-label">Early City Economy</p>
+		<p class="tagline">How terrain, city centers, and your capital shape the first age of a settlement.</p>
+	</header>
+
+	<p class="prototype-callout" role="note"><strong>Prototype note:</strong> this page documents the <strong>intended</strong> early city economy model. Pieces will arrive in the playable build as the prototype grows—use it as a compass, not a checklist of what is on screen today.</p>
+
+	<main>
+		<section id="core-idea">
+			<h2>Core idea</h2>
+			<p>Cities do not simply produce abstract progress because they exist. A city draws value from the tile it is founded on, the land its people work, special buildings or institutions, and—when fate smiles—<strong>capital</strong> status and the seat that represents it.</p>
+		</section>
+
+		<section id="yields">
+			<h2>Yields in the early prototype</h2>
+			<p>Four basic yields describe what a place contributes:</p>
+			<table class="economy-table yields-key" aria-label="Yield meanings">
+				<thead>
+					<tr>
+						<th scope="col">Yield</th>
+						<th scope="col">Role</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<th scope="row">Food</th>
+						<td>Supports growth and survival.</td>
+					</tr>
+					<tr>
+						<th scope="row">Production</th>
+						<td>Builds units, buildings, and projects.</td>
+					</tr>
+					<tr>
+						<th scope="row">Science</th>
+						<td>Advances what your people are learning and researching now.</td>
+					</tr>
+					<tr>
+						<th scope="row">Coin</th>
+						<td>An early, flexible economic yield. In the ancient era it may stand for tribute, stored valuables, prestige exchanged between kin-groups, or surplus gathered and guarded. Later ages may read the same underlying yield as coinage, tax, currency, finance, or something stranger—without changing the spine of the rules.</td>
+					</tr>
+				</tbody>
+			</table>
+			<p class="muted-aside">Behind the scenes the game can keep a stable internal name for this yield while the <strong>words</strong> you hear in later eras shift to match the world’s story.</p>
+		</section>
+
+		<section id="worked-tiles">
+			<h2>Worked land (intended v0)</h2>
+			<p>When people work a tile directly, these are the baseline yields the land is meant to offer in the earliest slice. (Science does not normally come from raw terrain here.)</p>
+			<table class="economy-table" aria-label="Terrain yields v0">
+				<thead>
+					<tr>
+						<th scope="col">Terrain</th>
+						<th scope="col">Food</th>
+						<th scope="col">Production</th>
+						<th scope="col">Coin</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<th scope="row">Grassland (flat)</th>
+						<td>2</td>
+						<td>0</td>
+						<td>0</td>
+					</tr>
+					<tr>
+						<th scope="row">Plains (flat)</th>
+						<td>1</td>
+						<td>1</td>
+						<td>0</td>
+					</tr>
+					<tr>
+						<th scope="row">Grassland hills</th>
+						<td>1</td>
+						<td>1</td>
+						<td>0</td>
+					</tr>
+					<tr>
+						<th scope="row">Plains hills</th>
+						<td>0</td>
+						<td>2</td>
+						<td>0</td>
+					</tr>
+					<tr>
+						<th scope="row">Grassland woods</th>
+						<td>1</td>
+						<td>1</td>
+						<td>0</td>
+					</tr>
+					<tr>
+						<th scope="row">Plains woods</th>
+						<td>1</td>
+						<td>2</td>
+						<td>0</td>
+					</tr>
+				</tbody>
+			</table>
+			<ul class="compact-list">
+				<li><strong>Grassland</strong> tilts toward feeding many mouths.</li>
+				<li><strong>Plains</strong> balance field and workshop.</li>
+				<li><strong>Hills</strong> ask more effort from the soil but reward sweat with <strong>production</strong>.</li>
+				<li><strong>Woods</strong> offer timber, forage, and craft—another bump to practical output.</li>
+				<li><strong>Coin</strong> is not expected from untouched ground in this first table.</li>
+			</ul>
+		</section>
+
+		<section id="city-center">
+			<h2>City center: a settled home tile</h2>
+			<p>A founded city is <strong>not</strong> merely the same numbers as an empty field someone walked across yesterday. The first circled hearths, granaries, paths, and shared labor make the <strong>city center</strong> more reliable than ordinary worked land.</p>
+			<p><strong>Intended normalization</strong> (applied to the home tile when it becomes a city):</p>
+			<ul class="rule-list">
+				<li><strong>Food</strong> = the greater of the tile’s Food or <strong>2</strong></li>
+				<li><strong>Production</strong> = the greater of the tile’s Production or <strong>1</strong></li>
+				<li><strong>Coin</strong> = <strong>0</strong> from this rule alone</li>
+				<li><strong>Science</strong> = <strong>0</strong> from this rule alone</li>
+			</ul>
+			<p><strong>Examples</strong> (city center only, before other buildings):</p>
+			<table class="economy-table" aria-label="City center examples">
+				<thead>
+					<tr>
+						<th scope="col">Founding tile</th>
+						<th scope="col">Raw tile</th>
+						<th scope="col">City center</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<th scope="row">Grassland flat</th>
+						<td>2 Food / 0 Production</td>
+						<td>2 Food / 1 Production</td>
+					</tr>
+					<tr>
+						<th scope="row">Plains flat</th>
+						<td>1 Food / 1 Production</td>
+						<td>2 Food / 1 Production</td>
+					</tr>
+					<tr>
+						<th scope="row">Grassland hills</th>
+						<td>1 Food / 1 Production</td>
+						<td>2 Food / 1 Production</td>
+					</tr>
+					<tr>
+						<th scope="row">Plains hills</th>
+						<td>0 Food / 2 Production</td>
+						<td>2 Food / 2 Production</td>
+					</tr>
+					<tr>
+						<th scope="row">Plains woods</th>
+						<td>1 Food / 2 Production</td>
+						<td>2 Food / 2 Production</td>
+					</tr>
+				</tbody>
+			</table>
+			<p>A clever founding site still matters: a production-rich heartland tile keeps its higher <strong>production</strong> after the walls go up—you are not punished for choosing strong ground.</p>
+		</section>
+
+		<section id="capital-palace">
+			<h2>Capital and Palace</h2>
+			<p>The <strong>first city</strong> you raise for your people is your <strong>capital</strong>. It begins with a <strong>Palace</strong>—not only a hall of rulers, but the early <strong>hearth of authority</strong>: memory kept in song and tally, messengers on the trail, storehouses under watch, ritual that binds kin to season, and the slow negotiation of who owes what to whom.</p>
+			<p>That institution is why the youngest empire can already <strong>organize research and administration</strong> before scattered towns sprout their own laboratories.</p>
+			<p><strong>Palace</strong> (intended v0 bonus on top of the city center):</p>
+			<ul class="rule-list">
+				<li><strong>+1 Science</strong></li>
+				<li><strong>+1 Coin</strong></li>
+			</ul>
+			<p>Production still rises first from <strong>terrain</strong> and the <strong>settled center</strong>; the Palace leans toward learning, record, and the first pooled surplus—not the saw and the forge by themselves.</p>
+			<p><strong>Capital examples</strong> (city center + Palace):</p>
+			<ul class="compact-list">
+				<li><strong>Grassland capital:</strong> center 2 Food / 1 Production; Palace +1 Science / +1 Coin.</li>
+				<li><strong>Plains hills capital:</strong> center 2 Food / 2 Production; Palace +1 Science / +1 Coin.</li>
+			</ul>
+		</section>
+
+		<section id="science-principle">
+			<h2>How science begins</h2>
+			<p>Early <strong>science</strong> should feel earned from <strong>institutions</strong> and <strong>learned order</strong>, not as an automatic echo from every new dot on the map. At the start, the <strong>Palace</strong> gives the baseline pulse of inquiry and record. Later, science may flow from buildings, specialists, hard-won discoveries, rare worked grounds, dedicated research efforts, and systems yet to be named.</p>
+			<p>New cities should strengthen your realm through <strong>food</strong>, <strong>production</strong>, <strong>territory</strong>, and the <strong>promise</strong> of what they will become—not, on turn one, as a second full <strong>research engine</strong> duplicating the capital’s role.</p>
+		</section>
+
+		<section id="future">
+			<h2>Why this matters later</h2>
+			<p>This foundation is the quiet root under many branches to come:</p>
+			<ul>
+				<li>Population working the land around a city</li>
+				<li>City territory and the ring of tiles you may claim</li>
+				<li>Workers who reshape the countryside</li>
+				<li>Farms, mines, quarries, lumber camps, and other improvements</li>
+				<li>Improvements that rewrite what a tile gives</li>
+				<li>Paths such as <strong>Stone Tools</strong> unlocking workers and mine or quarry craft</li>
+				<li>Deeper capital bonuses and ordinary buildings</li>
+				<li>Specialists and focused roles within the city</li>
+			</ul>
+			<p>Empire of Minds is not only about climbing a fixed technology tree. Each world can shape what knowledge matters—but <strong>where</strong> and <strong>how</strong> you settle still whispers the first lesson.</p>
+		</section>
+	</main>
+
+	<footer>
+		<p><a href="index.html">Overview</a> · <a href="playtest.html">Playtest Guide</a></p>
+		<p class="footer-meta">Empire of Minds prototype preview. Not a final product.</p>
+	</footer>
+</body>
+</html>
