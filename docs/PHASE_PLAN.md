@@ -2263,6 +2263,38 @@ Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 91 headless tests passed.`**
 
+#### 5.1.16e — **CityProductionPanel** shows **CityYields** summary
+
+**Status:** **Shipped.**
+
+Goal:
+
+- Surface domain **`CityYields.city_total_yield`** in **`CityProductionPanel`** (**Food**, **Production**, **Science**, **Coin**) so **5.1.16c–d** economy is visible; **no** terrain duplication in the panel; **no** domain edits.
+
+Shipped:
+
+- **[city_production_panel.gd](../game/presentation/city_production_panel.gd)** — **`compute_view_model`** keys **`show_yields`**, **`yields`**, **`yields_line`**; yields **`Label`** in **`refresh()`**; tests **`test_city_production_panel.gd`**; docs **[RENDERING.md](RENDERING.md)**, **[CITIES.md](CITIES.md)**, **[DECISION_LOG.md](DECISION_LOG.md)**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 91 headless tests passed.`**
+
+#### 5.1.16f — **TileYieldOverlayView**: map-anchored **CityYields** icons + **Yields** HUD toggle
+
+**Status:** **Shipped.**
+
+Goal:
+
+- **Prototype** map overlay: stable-order **food** / **production** / **science** / **coin** icons per hex, **map-anchored** (**`MapCamera`** / **`HexLayout`**) so pan/zoom track the grid; **city** hexes use **`CityYields.city_total_yield`**; **non-city** land uses **`CityYields.raw_terrain_yield`**; **no** domain edits; **no** new resource system. **Readability polish:** **`YIELD_ICON_*`** constants (~**2×** first-pass icon size; **`compute_icon_metrics` only**). **Scaling polish:** same **`CanvasItem`** filter + **mipmapped** imports as **unit/city** markers.
+
+Shipped:
+
+- **[tile_yield_overlay_view.gd](../game/presentation/tile_yield_overlay_view.gd)** (polish: **`YIELD_ICON_*`** size + **`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`** / mipmapped **`yield_icons`** like **`map_markers/`**), **[yield_overlay_toggle.gd](../game/presentation/yield_overlay_toggle.gd)**; **[main.tscn](../game/main.tscn)** (**`TileYieldOverlayView`** sibling **`z_index` 1** between **`LightningTreeView`** and **`CityNameplateView`**); **`HudCanvas`** **`YieldsToggle`** **CheckButton**; **`KEY_Y`** + button stay synced via **`YieldOverlayToggle`**; **`SelectionController`** / **`EndTurnController`** / **`AITurnController`** redraw + **`scenario`** refresh; tests **`test_tile_yield_overlay_view.gd`**, **`test_main_hud_yields_toggle.gd`**, **`test_main_tscn_map_layer_sibling_order`** update; docs **[RENDERING.md](RENDERING.md)**, **[CITIES.md](CITIES.md)**, **[DECISION_LOG.md](DECISION_LOG.md)**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 93 headless tests passed.`** (overlay icon sizing assertions live in **`test_tile_yield_overlay_view`**.)
+
 #### 5.1.16a — Player guide: Early City Economy tutorial (docs/player)
 
 **Status:** **Shipped (documentation).**

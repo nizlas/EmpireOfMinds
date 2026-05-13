@@ -132,7 +132,9 @@ $Tests = @(
 	"res://domain/tests/test_scenario_cities.gd",
 	"res://presentation/tests/test_cities_view_draw.gd",
 	"res://presentation/tests/test_tfv_depth_merge_city_unit_sort_keys.gd",
-	"res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd"
+	"res://presentation/tests/test_main_hud_yields_toggle.gd",
+	"res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd",
+	"res://presentation/tests/test_tile_yield_overlay_view.gd"
 )
 
 if (-not (Test-Path -LiteralPath $GamePath)) {

@@ -1,3 +1,15 @@
+## 2026-05-12 — Phase 5.1.16f — Map-anchored **TileYieldOverlayView** + **Yields** toggle
+
+- **Decision:** **`TileYieldOverlayView`** (**`Node2D`**, **`z_index` 1**) draws prototype yield icons from **`CityYields`** only (**`city_total_yield`** on city hexes, **`raw_terrain_yield`** elsewhere); icon size scales with **`MapCamera.perspective_scale_at`**. **Default OFF**; **`HudCanvas`** **`Yields`** **`CheckButton`** and **`KEY_Y`** stay in sync via **`YieldOverlayToggle`** (keyboard updates **`CheckButton`** with **`set_pressed_no_signal`**). **No** HUD-fixed overlay; **no** domain / **ProductionTick** / **ScienceTick** changes; letter fallback when icon PNGs are missing.
+- **Rationale:** Visually inspect **v0** yields on the map before population / worked tiles; complements **5.1.16e** panel summary.
+- **Follow-up (same phase, presentation polish):** Enlarged overlay icons (**~2×** prior nominal size, named **`YIELD_ICON_*`** constants in **`tile_yield_overlay_view.gd`**; **`compute_icon_metrics`** only) — still **map-anchored**, no rule changes.
+- **Follow-up (filtering):** **`TileYieldOverlayView`** aligns with marker rendering: **`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`** plus **`yield_icons`** **`.import`** **`mipmaps/generate=true`** (same as **`map_markers/`**) — fixes pixelated minification without per-frame outlines or shaders.
+
+## 2026-05-12 — Phase 5.1.16e — **CityProductionPanel** **CityYields** visibility
+
+- **Decision:** **`CityProductionPanel.compute_view_model`** adds **`yields`** / **`yields_line`** from **`CityYields.city_total_yield(scenario, city)`** (read-only); **`refresh()`** shows a single **Yields:** summary line. **No** terrain logic in the panel; **no** **`ProductionTick`** / **`ScienceTick`** from UI. Opponent city selection still shows yields for transparency.
+- **Rationale:** **5.1.16c–d** economy affects play; players need an in-game read of **Food** / **Production** / **Science** / **Coin** before population / worked tiles.
+
 ## 2026-05-12 — Phase 5.1.16d — **ProductionTick** uses **`CityYields`** **production**
 
 - **Decision:** **`ProductionTick.apply_for_player`** advances **`produce_unit`** **`progress`** by **`CityYields.city_total_yield(scenario, city)["production"]`** each eligible **end_turn** (no duplicated terrain tables in **`production_tick.gd`**). **`Palace`** contributes **science**/**coin** only — **not** **production**. If **production** ≤ **0**, the city is **not** ticked that turn. **`ProductionDelivery`** unchanged aside from consuming the new **progress** curve.

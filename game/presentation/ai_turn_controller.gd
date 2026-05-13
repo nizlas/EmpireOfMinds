@@ -18,6 +18,7 @@ var city_nameplate_view
 var turn_label
 var log_view
 var city_production_panel
+var yield_overlay_view
 var discovery_action_panel
 var science_panel
 var science_completed_popup
@@ -69,6 +70,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				if city_nameplate_view != null:
 					city_nameplate_view.scenario = game_state.scenario
 					city_nameplate_view.queue_redraw()
+				if yield_overlay_view != null:
+					yield_overlay_view.scenario = game_state.scenario
+					yield_overlay_view.queue_redraw()
 				turn_label.refresh()
 				if log_view != null:
 					log_view.refresh()

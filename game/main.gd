@@ -2,7 +2,7 @@
 # See docs/RENDERING.md, docs/SELECTION.md
 extends Node2D
 
-## Initial pixel origin for map-layer **Node2D** children including **UnitNameplateView** / **CityNameplateView** (Phase **5.1.11** / **5.1.15**). **4.5m:** set **once** in `_ready`; pan uses **MapCamera.camera_world_offset**. Nameplate layers use **`z_index` 2** above **TerrainForegroundView** (**1**); **5.1.15b** orders **`CityNameplateView`** before **`UnitNameplateView`** in the tree so **unit** nameplates paint **on top**. **5.1.15e:** shared-hex **city** banners draw inside **TerrainForegroundView** after the city marker so **unit** markers paint over parchment; **UnitNameplateView** stays topmost. Still below **HudCanvas**.
+## Initial pixel origin for map-layer **Node2D** children including **`TileYieldOverlayView`** (Phase **5.1.16f**), **UnitNameplateView** / **CityNameplateView** (Phase **5.1.11** / **5.1.15**). **4.5m:** set **once** in `_ready`; pan uses **MapCamera.camera_world_offset**. **`TileYieldOverlayView`** shares **`z_index` 1** with **TerrainForegroundView** / **LightningTreeView**; nameplates use **`z_index` 2**; **5.1.15b** orders **`CityNameplateView`** before **`UnitNameplateView`** so **unit** nameplates paint **on top**. **5.1.15e:** shared-hex **city** banners draw inside **TerrainForegroundView** after the city marker so **unit** markers paint over parchment; **UnitNameplateView** stays topmost. Still below **HudCanvas**.
 const MAP_LAYER_ORIGIN: Vector2 = Vector2(400.0, 428.0)
 
 const ScenarioScript = preload("res://domain/scenario.gd")
@@ -13,6 +13,7 @@ const SelectionStateScript = preload("res://presentation/selection_state.gd")
 const GameStateScript = preload("res://domain/game_state.gd")
 const FactionBannerGalleryScript = preload("res://presentation/faction_banner_gallery.gd")
 const PlainsForestScript = preload("res://presentation/plains_forest_decoration.gd")
+const YieldOverlayToggleScript = preload("res://presentation/yield_overlay_toggle.gd")
 ## Phase 4.5n: mouse-wheel zoom multiplier (center-anchored in layer-local space; not cursor-anchored).
 const ZOOM_STEP: float = 1.10
 
@@ -27,6 +28,7 @@ func _redraw_map_layers() -> void:
 	$UnitsView.queue_redraw()
 	$TerrainForegroundView.queue_redraw()
 	$LightningTreeView.queue_redraw()
+	$TileYieldOverlayView.queue_redraw()
 	$CityNameplateView.queue_redraw()
 	$UnitNameplateView.queue_redraw()
 
@@ -64,6 +66,10 @@ func _ready() -> void:
 	$TerrainForegroundView.camera = _map_camera
 	$TerrainForegroundView.z_index = 1
 	$LightningTreeView.z_index = 1
+	$TileYieldOverlayView.scale = Vector2.ONE
+	$TileYieldOverlayView.camera = _map_camera
+	$TileYieldOverlayView.z_index = 1
+	$TileYieldOverlayView.visible = false
 	$UnitNameplateView.scale = Vector2.ONE
 	$UnitNameplateView.camera = _map_camera
 	$UnitNameplateView.z_index = 2
@@ -87,6 +93,10 @@ func _ready() -> void:
 	lightning_tree_view.scenario = scenario
 	lightning_tree_view.layout = layout
 	lightning_tree_view.camera = _map_camera
+	var tile_yield_overlay = $TileYieldOverlayView
+	tile_yield_overlay.scenario = scenario
+	tile_yield_overlay.layout = layout
+	tile_yield_overlay.camera = _map_camera
 	var units_view = $UnitsView
 	units_view.scenario = scenario
 	units_view.layout = layout
@@ -133,6 +143,7 @@ func _ready() -> void:
 	selection_controller.terrain_foreground_view = terrain_foreground
 	selection_controller.unit_nameplate_view = unit_nameplate_view
 	selection_controller.city_nameplate_view = city_nameplate_view
+	selection_controller.yield_overlay_view = tile_yield_overlay
 	var turn_label = $TurnLabel
 	turn_label.game_state = game_state
 	turn_label.refresh()
@@ -170,6 +181,8 @@ func _ready() -> void:
 	selection_controller.city_production_panel = city_production_panel
 	end_turn_controller.city_production_panel = city_production_panel
 	ai_turn_controller.city_production_panel = city_production_panel
+	end_turn_controller.yield_overlay_view = tile_yield_overlay
+	ai_turn_controller.yield_overlay_view = tile_yield_overlay
 	city_production_panel.refresh()
 	var discovery_action_panel = $HudCanvas/DiscoveryActionPanel
 	discovery_action_panel.game_state = game_state
@@ -200,6 +213,9 @@ func _ready() -> void:
 	end_turn_controller.science_completed_popup = science_completed_popup
 	ai_turn_controller.discovery_popup = discovery_popup
 	ai_turn_controller.science_completed_popup = science_completed_popup
+	var yields_toggle = $HudCanvas/YieldsToggle as CheckButton
+	if yields_toggle != null:
+		yields_toggle.toggled.connect(_on_yields_toggle_toggled)
 	_faction_banner_gallery = FactionBannerGalleryScript.new()
 	add_child(_faction_banner_gallery)
 	_redraw_map_layers()
@@ -245,9 +261,18 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
+func _on_yields_toggle_toggled(pressed: bool) -> void:
+	YieldOverlayToggleScript.apply_from_button($TileYieldOverlayView, pressed)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		var ek := event as InputEventKey
+		if ek.pressed and not ek.echo and ek.keycode == KEY_Y:
+			YieldOverlayToggleScript.toggle_from_keyboard(
+				$TileYieldOverlayView, $HudCanvas/YieldsToggle as CheckButton
+			)
+			return
 		if ek.pressed and not ek.echo and ek.keycode == KEY_F1:
 			if _faction_banner_gallery != null:
 				_faction_banner_gallery.toggle_visible()

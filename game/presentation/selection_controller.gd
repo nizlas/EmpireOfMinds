@@ -33,6 +33,8 @@ var terrain_foreground_view
 var unit_nameplate_view
 ## Phase 5.1.15: city name banners follow **Scenario.cities()**.
 var city_nameplate_view
+## Phase 5.1.16f: map-anchored yield overlay reads **Scenario** only.
+var yield_overlay_view
 var turn_label
 var log_view
 var city_production_panel
@@ -164,6 +166,9 @@ func _sync_terrain_foreground_from_game_state() -> void:
 	if city_nameplate_view != null:
 		city_nameplate_view.scenario = scen
 		city_nameplate_view.queue_redraw()
+	if yield_overlay_view != null:
+		yield_overlay_view.scenario = scen
+		yield_overlay_view.queue_redraw()
 
 func _unhandled_input(event):
 	assert(HexCoordScript != null)

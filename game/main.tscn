@@ -19,6 +19,7 @@
 [ext_resource type="Script" path="res://presentation/unit_nameplate_view.gd" id="17_nameplates"]
 [ext_resource type="Script" path="res://presentation/city_nameplate_view.gd" id="19_city_nameplates"]
 [ext_resource type="Script" path="res://presentation/science_panel.gd" id="18_science_panel"]
+[ext_resource type="Script" path="res://presentation/tile_yield_overlay_view.gd" id="20_tileyield"]
 
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
@@ -113,6 +114,22 @@ grow_vertical = 2
 visible = false
 script = ExtResource("16_science_popup")
 
+[node name="YieldsToggle" type="CheckButton" parent="HudCanvas" unique_id=928810045]
+layout_mode = 1
+anchors_preset = 0
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 0.0
+offset_left = 20.0
+offset_top = 548.0
+offset_right = 220.0
+offset_bottom = 580.0
+grow_horizontal = 0
+grow_vertical = 0
+button_pressed = false
+text = "Yields"
+
 [node name="MapView" type="Node2D" parent="." unique_id=1063845021]
 position = Vector2(400, 428)
 script = ExtResource("2_mapview")
@@ -136,6 +153,12 @@ script = ExtResource("11_terrainforeground")
 [node name="LightningTreeView" type="Node2D" parent="." unique_id=1063845022]
 position = Vector2(400, 428)
 script = ExtResource("14_lightning")
+
+[node name="TileYieldOverlayView" type="Node2D" parent="." unique_id=1063845025]
+position = Vector2(400, 428)
+visible = false
+z_index = 1
+script = ExtResource("20_tileyield")
 
 [node name="CityNameplateView" type="Node2D" parent="." unique_id=1063845024]
 position = Vector2(400, 428)

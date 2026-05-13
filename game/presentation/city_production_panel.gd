@@ -1,11 +1,13 @@
 # Minimal HUD: city production options derived from LegalActions only (no content registries).
 # Phase 5.1.5: restrained parchment-style presentation; behavior unchanged.
+# Phase 5.1.16e: read-only **CityYields** summary for the selected city (no terrain rules in this file).
 # See docs/CITIES.md, docs/RENDERING.md
 class_name CityProductionPanel
 extends PanelContainer
 
 const LegalActionsScript = preload("res://domain/legal_actions.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
+const CityYieldsScript = preload("res://domain/city_yields.gd")
 
 var game_state
 var selection
@@ -17,6 +19,7 @@ var city_nameplate_view
 var _root_vbox: VBoxContainer
 var _title_label: Label
 var _subheader_label: Label
+var _yields_label: Label
 var _status_label: Label
 var _actions_block: VBoxContainer
 var _actions_heading_label: Label
@@ -50,6 +53,10 @@ func _ready() -> void:
 
 	_root_vbox.add_child(_title_label)
 	_root_vbox.add_child(_subheader_label)
+	_yields_label = Label.new()
+	_style_body_label(_yields_label)
+	_yields_label.visible = false
+	_root_vbox.add_child(_yields_label)
 	_root_vbox.add_child(HSeparator.new())
 	_root_vbox.add_child(_status_label)
 	_root_vbox.add_child(HSeparator.new())
@@ -135,6 +142,9 @@ static func compute_view_model(game_state, selection) -> Dictionary:
 		"header": "",
 		"header_title": "",
 		"subheader": "",
+		"show_yields": false,
+		"yields": {},
+		"yields_line": "",
 		"status": "",
 		"show_production_section": false,
 		"actions_heading": "",
@@ -149,6 +159,15 @@ static func compute_view_model(game_state, selection) -> Dictionary:
 	var city = game_state.scenario.city_by_id(cid)
 	if city == null:
 		return vm
+	if game_state.scenario != null:
+		var yt: Dictionary = CityYieldsScript.city_total_yield(game_state.scenario, city)
+		var fd: int = CityYieldsScript.get_yield(yt, "food")
+		var pd: int = CityYieldsScript.get_yield(yt, "production")
+		var sd: int = CityYieldsScript.get_yield(yt, "science")
+		var cd: int = CityYieldsScript.get_yield(yt, "coin")
+		vm["show_yields"] = true
+		vm["yields"] = {"food": fd, "production": pd, "science": sd, "coin": cd}
+		vm["yields_line"] = "Yields: %d Food · %d Production · %d Science · %d Coin" % [fd, pd, sd, cd]
 	var cp = game_state.turn_state.current_player_id()
 	vm["visible"] = true
 	var cname: String = str(city.city_name).strip_edges()
@@ -169,11 +188,11 @@ static func compute_view_model(game_state, selection) -> Dictionary:
 		if typeof(city.current_project) != TYPE_DICTIONARY:
 			vm["status"] = "Production in progress."
 		else:
-			var pd = city.current_project as Dictionary
-			var pid = str(pd.get("project_id", ""))
-			var prog = int(pd.get("progress", 0))
-			var cost = int(pd.get("cost", 0))
-			var ready = bool(pd.get("ready", false))
+			var cproj = city.current_project as Dictionary
+			var pid = str(cproj.get("project_id", ""))
+			var prog = int(cproj.get("progress", 0))
+			var cost = int(cproj.get("cost", 0))
+			var ready = bool(cproj.get("ready", false))
 			var hn = _human_project_suffix(pid)
 			if ready:
 				vm["status"] = "Ready: %s — awaiting delivery tick." % hn
@@ -224,6 +243,9 @@ func refresh() -> void:
 	if not show_panel:
 		_title_label.text = ""
 		_subheader_label.text = ""
+		if _yields_label != null:
+			_yields_label.text = ""
+			_yields_label.visible = false
 		_status_label.text = ""
 		_actions_heading_label.text = ""
 		_actions_empty_label.text = ""
@@ -234,6 +256,14 @@ func refresh() -> void:
 		return
 	_title_label.text = str(vm.get("header_title", ""))
 	_subheader_label.text = str(vm.get("subheader", ""))
+	if _yields_label != null:
+		var show_y: bool = bool(vm.get("show_yields", false))
+		if show_y:
+			_yields_label.text = str(vm.get("yields_line", ""))
+			_yields_label.visible = _yields_label.text.length() > 0
+		else:
+			_yields_label.text = ""
+			_yields_label.visible = false
 	_status_label.text = str(vm.get("status", ""))
 	var show_prod = bool(vm.get("show_production_section", false))
 	_actions_block.visible = show_prod
