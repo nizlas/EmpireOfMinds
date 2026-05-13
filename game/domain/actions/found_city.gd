@@ -12,6 +12,24 @@ const ScenarioScript = preload("res://domain/scenario.gd")
 const CityScript = preload("res://domain/city.gd")
 const UnitDefinitionsScript = preload("res://domain/content/unit_definitions.gd")
 
+static func _initial_owned_tiles_for_city(a_scenario, center) -> Array:
+	var out: Array = []
+	var seen: Dictionary = {}
+	var ck := Vector2i(center.q, center.r)
+	seen[ck] = true
+	out.append(HexCoordScript.new(center.q, center.r))
+	for nb in center.neighbors():
+		if not a_scenario.map.has(nb):
+			continue
+		var nk := Vector2i(nb.q, nb.r)
+		if seen.has(nk):
+			continue
+		if a_scenario.tile_is_owned(HexCoordScript.new(nb.q, nb.r)):
+			continue
+		seen[nk] = true
+		out.append(HexCoordScript.new(nb.q, nb.r))
+	return out
+
 static func make(actor_id: int, unit_id: int, q: int, r: int) -> Dictionary:
 	return {
 		"schema_version": SCHEMA_VERSION,
@@ -65,6 +83,8 @@ static func validate(a_scenario, action) -> Dictionary:
 		return {"ok": false, "reason": "tile_is_water"}
 	if a_scenario.cities_at(pos_c).size() > 0:
 		return {"ok": false, "reason": "tile_already_has_city"}
+	if a_scenario.tile_is_owned(pos_c):
+		return {"ok": false, "reason": "tile_already_owned"}
 	return {"ok": true, "reason": ""}
 
 
@@ -104,15 +124,18 @@ static func apply(a_scenario, action):
 	var bld: Array = []
 	if cap:
 		bld.append("palace")
+	var center_coord = HexCoordScript.new(q, r)
+	var initial_owned: Array = _initial_owned_tiles_for_city(a_scenario, center_coord)
 	new_cities.append(
 		CityScript.new(
 			new_city_id,
 			actor_id,
-			HexCoordScript.new(q, r),
+			center_coord,
 			null,
 			cname,
 			cap,
-			bld
+			bld,
+			initial_owned
 		)
 	)
 	return ScenarioScript.new(

@@ -9,6 +9,7 @@
 - **`city_name`**: **`String`** — **Phase 5.1.15:** display name for the city. **`FoundCity`** assigns the first founded city per owner **`Capital`**, then **`Settlement 2`**, **`Settlement 3`**, … (counting existing cities **of that owner** before append). Tests and tooling may construct **`City`** with an explicit fifth argument; **`""`** means “unnamed” until set. **`SetCityProduction`**, **`ProductionTick`**, and **`ProductionDelivery`** preserve **`city_name`** when rebuilding **`City`** rows.
 - **`is_capital`**: **`bool`** — **Phase 5.1.16c:** **`true`** only for a player’s **first** city created by **`FoundCity`** in a save run (tests may set explicitly). **`ProductionTick`**, **`ProductionDelivery`**, and **`SetCityProduction`** preserve it on rebuilds.
 - **`building_ids`**: **`Array[String]`** — **Phase 5.1.16c:** v0 **`FoundCity`** appends **`palace`** to the **capital** only; other cities default **empty**. Same rebuild preservation as **`city_name`**.
+- **`owned_tiles`**: **`Array[HexCoord]`** — **Phase 5.1.16g:** territory footprint; **center hex first**, then other owned cells. Default construction is **`[position]`** only. **`FoundCity`** assigns **center +** valid **radius-1** map hexes (including **WATER**); no overlap between cities; ring tiles already owned are skipped. **Not** culture/border growth — minimal ownership for later **worked tiles** (**5.1.16h**). **`Scenario`** construction asserts every city owns its center, owned tiles lie on the map, and no tile is owned twice.
 - **`position`**: **`HexCoord`** — city tile; must be on the map and **not** **`HexMap.Terrain.WATER`**.
 - **`current_project`**: **`null`** **or** a **primitive** **`Dictionary`** — **Phase 2.3+** current build / production state. **`null`** means **no** project. For **`produce_unit`**, the shape includes **`progress`**, **`cost`**, and **`ready`** (**`bool`**, **`false`** until **`progress` >= `cost`** on an **accepted** **`end_turn`** tick, **Phase 2.4c**). When a **`Dictionary`** is passed to **`City._init`**, the constructor stores **`duplicate(true)`** so later mutation of the caller’s **`Dictionary`** does **not** affect the **`City`**.
 
@@ -41,7 +42,11 @@ The canonical **`make_tiny_test_scenario()`** fixture has **no cities** in Phase
 
 **Phase 3.1:** **founding** is gated by **`UnitDefinitions.can_found_city(unit.type_id)`** (see [UNITS.md](UNITS.md), [ACTIONS.md](ACTIONS.md)). The **F-key** path in **`SelectionController`** remains a manual presentation entry. **Phase 2.5:** **`LegalActions`** and **`RuleBasedAIPlayer`** may choose **`FoundCity`** and **`SetCityProduction`** from the legal list (see [AI_LAYER.md](AI_LAYER.md)); **no** new action schemas.
 
-**Domain validation (structural only):** founder must **own** the **`actor_id`**, have a **`type_id`** that **can found** (**`UnitDefinitions.can_found_city`**), sit at **`position`**, on **land** (**not** **WATER**), on the **map**, on a hex **without** an existing **city**.
+**Domain validation (structural only):** founder must **own** the **`actor_id`**, have a **`type_id`** that **can found** (**`UnitDefinitions.can_found_city`**), sit at **`position`**, on **land** (**not** **WATER**), on the **map**, on a hex **without** an existing **city**, and on a hex **not** already in another city’s **`owned_tiles`** (**`tile_already_owned`**, **Phase 5.1.16g**).
+
+## Phase 5.1.16g — City territory foundation (domain)
+
+**Phase 5.1.16g (shipped):** **`City.owned_tiles`** lists **`HexCoord`** cells the city controls (**center first**). **`FoundCity`** claims the **center** plus every **on-map** neighbor at hex distance **1** (including **WATER**); tiles already owned by another city are **skipped** on the ring, and founding on **any** owned tile is **`tile_already_owned`**. **`Scenario`** asserts **no** duplicate ownership, **all** owned tiles exist on the map, and each city **owns its center**. Read-only queries: **`tile_owner_city_id`**, **`city_owning_tile`**, **`tile_is_owned`**, **`tiles_owned_by_city`**. **`ProductionTick`**, **`ProductionDelivery`**, and **`SetCityProduction`** preserve **`owned_tiles`**. **`CityYields.city_total_yield`** still uses **only** center + buildings — **not** **`owned_tiles`** (**5.1.16h** adds worked-tile yield).
 
 ## Phase 2.3 — `current_project` and SetCityProduction (Phase 3.3 registry)
 
@@ -78,7 +83,7 @@ See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1**, [CORE_LOOP.md](CORE_LOOP.md) *
 ## Explicitly deferred
 
 - **`ProduceUnit`** **player** action, economy/yields beyond this minimal completion rule.
-- City **population**, **tiles worked**, **garrison**, **zone of control**.
+- City **population**, **tiles worked** (beyond **`owned_tiles`** substrate; **5.1.16h**), **garrison**, **zone of control** (culture / dynamic borders).
 - Procedural / culture-driven **renaming** and **nation name lists** (**5.1.15** ships deterministic placeholders only).
 - **Combat**, **conquest**, **fog**, **save/load**.
 - **Final** economy numbers and **Phase 4** visual identity.

@@ -2295,6 +2295,31 @@ Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 93 headless tests passed.`** (overlay icon sizing assertions live in **`test_tile_yield_overlay_view`**.)
 
+#### 5.1.16g — City territory foundation (`City.owned_tiles`)
+
+**Status:** **Shipped.**
+
+Goal:
+
+- Domain-only **city territory**: **`City.owned_tiles`** (**center +** valid **radius-1** map hexes on **`FoundCity`**, including **water**); **no** duplicate tile ownership; **`FoundCity`** rejects **`tile_already_owned`**; **`Scenario`** query helpers + construction asserts; preserve **`owned_tiles`** on **`ProductionTick`** / **`ProductionDelivery`** / **`SetCityProduction`** rebuilds.
+- **No** change to **`CityYields.city_total_yield`**, **`ProductionTick`** yield math, **`ScienceTick`**, **`TileYieldOverlayView`**, or **`CityProductionPanel`** yield display (**owned** ring hexes do **not** add yields until **5.1.16h**).
+
+Shipped:
+
+- **[city.gd](../game/domain/city.gd)** — **`owned_tiles`**, constructor semantics; **[scenario.gd](../game/domain/scenario.gd)** — **`tile_owner_city_id`**, **`city_owning_tile`**, **`tile_is_owned`**, **`tiles_owned_by_city`**, ownership invariants; **[found_city.gd](../game/domain/actions/found_city.gd)** — initial claim + validation; **[production_tick.gd](../game/domain/production_tick.gd)**, **[production_delivery.gd](../game/domain/production_delivery.gd)**, **[set_city_production.gd](../game/domain/actions/set_city_production.gd)** — pass-through; tests **`test_city`**, **`test_scenario_city_territory`**, **`test_found_city`**, **`test_city_yields`** (regression), rebuild tests; docs **[CITIES.md](CITIES.md)**, **[DECISION_LOG.md](DECISION_LOG.md)**, **[PHASE_PLAN.md](PHASE_PLAN.md)** (this section), **[PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)**, **[CONTENT_MODEL.md](CONTENT_MODEL.md)**.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 94 headless tests passed.`**
+
+#### 5.1.16h — Population auto-works owned tiles (planned)
+
+**Status:** Planned.
+
+Goal:
+
+- **`City.population`**, deterministic auto-assignment of **worked** tiles drawn from **`owned_tiles`** (non-center); **`CityYields.city_total_yield`** includes worked-tile contribution; production / science / overlay reflect the expanded totals.
+
 #### 5.1.16a — Player guide: Early City Economy tutorial (docs/player)
 
 **Status:** **Shipped (documentation).**

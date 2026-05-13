@@ -15,6 +15,8 @@ var city_name: String
 var is_capital: bool
 ## Building id strings (v0: **FoundCity** adds **palace** to the capital only).
 var building_ids: Array
+## Phase 5.1.16g — territory: hexes this city owns (center first). Not culture/border growth.
+var owned_tiles: Array
 
 func _init(
 	p_id: int,
@@ -24,6 +26,7 @@ func _init(
 	p_city_name: String = "",
 	p_is_capital: bool = false,
 	p_building_ids = null,
+	p_owned_tiles = null,
 ) -> void:
 	id = p_id
 	owner_id = p_owner_id
@@ -43,6 +46,27 @@ func _init(
 		current_project = (p_current_project as Dictionary).duplicate(true)
 	else:
 		current_project = null
+
+	owned_tiles = []
+	if p_owned_tiles == null or typeof(p_owned_tiles) != TYPE_ARRAY or (p_owned_tiles as Array).is_empty():
+		owned_tiles.append(HexCoordScript.new(position.q, position.r))
+	else:
+		var seen: Dictionary = {}
+		var center_k := Vector2i(position.q, position.r)
+		seen[center_k] = true
+		owned_tiles.append(HexCoordScript.new(position.q, position.r))
+		var ot_a: Array = p_owned_tiles as Array
+		var oi: int = 0
+		while oi < ot_a.size():
+			var oc = ot_a[oi]
+			oi = oi + 1
+			if oc == null or typeof(oc) != TYPE_OBJECT or not (oc is HexCoord):
+				continue
+			var ok := Vector2i(oc.q, oc.r)
+			if seen.has(ok):
+				continue
+			seen[ok] = true
+			owned_tiles.append(HexCoordScript.new(oc.q, oc.r))
 
 func equals(other) -> bool:
 	if other == null:

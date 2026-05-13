@@ -600,6 +600,7 @@ Dependency rules for this doc table:
 9. **Discoveries / landmarks:** **bonus progress** toward a **named** science id, **not** mandatory gates on completing that science.
 10. **`ScienceCompletedPopup`:** remains **log-driven**; **no** **`ProgressDefinitions`** import in presentation — copy and bullet lists derive from **log** **`progress_id`**, **`unlocked_targets`**, and related fields only.
 11. **UI:** **no** tech-tree canvas in **5.1.12**; **auto-target** preserves a playable loop; **Phase 5.1.13**–**5.1.14** ship a **minimal** **`SciencePanel`** (available targets + compact **locked** **Requires:** hints); a **full** tree / queue / graph remains **deferred**.
+12. **City territory (**5.1.16g** shipped):** **`City.owned_tiles`** records which map hexes a city controls (**`FoundCity`** → center + valid radius **1**, including water; no cross-city overlap). **`CityYields.city_total_yield`** does **not** read **`owned_tiles`** in **5.1.16g**; **5.1.16h** (**population** / **auto-worked** tiles) will attach ring production to yields.
 
 ## Relationship to existing docs
 

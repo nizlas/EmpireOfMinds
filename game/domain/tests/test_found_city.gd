@@ -204,6 +204,32 @@ func _init() -> void:
 	_check(nc.city_name == "Capital", "default founded name")
 	_check(nc.is_capital, "first city per owner is capital")
 	_check(nc.building_ids.size() == 1 and str(nc.building_ids[0]) == "palace", "capital gets palace")
+	var exp_owned: Array = [
+		HexCoordScript.new(0, 0),
+		HexCoordScript.new(1, 0),
+		HexCoordScript.new(1, -1),
+		HexCoordScript.new(0, -1),
+		HexCoordScript.new(-1, 0),
+		HexCoordScript.new(-1, 1),
+		HexCoordScript.new(0, 1),
+	]
+	_check(nc.owned_tiles.size() == exp_owned.size(), "founded city claims center plus radius-1 on tiny map")
+	var oi: int = 0
+	while oi < exp_owned.size():
+		_check(nc.owned_tiles[oi].equals(exp_owned[oi]), "territory axial order idx " + str(oi))
+		oi = oi + 1
+	var m_ow = HexMapScript.make_tiny_test_map()
+	var u_ow = [
+		UnitScript.new(101, 0, HexCoordScript.new(0, 0), "settler"),
+		UnitScript.new(102, 0, HexCoordScript.new(1, -1), "settler"),
+	]
+	var sc_ow0 = ScenarioScript.new(m_ow, u_ow, [], 200, 210)
+	var sc_ow1 = FoundCityScript.apply(sc_ow0, FoundCityScript.make(0, 101, 0, 0))
+	var r_ow = FoundCityScript.validate(sc_ow1, FoundCityScript.make(0, 102, 1, -1))
+	_check(
+		not r_ow["ok"] and r_ow["reason"] == "tile_already_owned",
+		"cannot found on hex in another city territory"
+	)
 	_check(new_sc.peek_next_city_id() == old_next_city + 1, "next_city_id +1")
 	_check(new_sc.peek_next_unit_id() == before_nu, "next_unit_id preserved")
 	_check(
@@ -227,26 +253,60 @@ func _init() -> void:
 		FoundCityScript.make(0, 1, 0, 0)
 	)
 	_check(applied2.city_by_id(200) != null, "pre-existing city preserved")
-	_check(applied2.city_by_id(old_c2) != null, "new city uses peek id")
+	var new_cap2 = applied2.city_by_id(old_c2)
+	_check(new_cap2 != null, "new city uses peek id")
+	var skips_neighbor_10: bool = true
+	var ti: int = 0
+	while ti < new_cap2.owned_tiles.size():
+		var ot = new_cap2.owned_tiles[ti]
+		if ot.q == 1 and ot.r == 0:
+			skips_neighbor_10 = false
+		ti = ti + 1
+	_check(skips_neighbor_10, "new city skips ring tile already owned by older city")
+	_check(new_cap2.owned_tiles.size() == 6, "center plus five unowned neighbors on tiny map")
 	_check(applied2.peek_next_unit_id() == 500, "counters no spill to units")
 
-	var m3 = HexMapScript.make_tiny_test_map()
+	var edge_cells := {Vector2i(0, 0): HexMapScript.Terrain.PLAINS}
+	var edge_m = HexMapScript.new(edge_cells)
+	var sc_edge = ScenarioScript.new(
+		edge_m,
+		[UnitScript.new(51, 0, HexCoordScript.new(0, 0), "settler")],
+		[],
+		60,
+		70
+	)
+	var sc_edge2 = FoundCityScript.apply(sc_edge, FoundCityScript.make(0, 51, 0, 0))
+	var cy_edge = sc_edge2.city_by_id(70)
+	_check(cy_edge != null and cy_edge.owned_tiles.size() == 1, "single-hex map owns center only")
+
+	var m3 = HexMapScript.make_prototype_play_map()
 	var u3 = [
 		UnitScript.new(1, 0, HexCoordScript.new(0, 0), "settler"),
-		UnitScript.new(4, 0, HexCoordScript.new(1, -1), "settler"),
+		UnitScript.new(4, 0, HexCoordScript.new(3, -2), "settler"),
 	]
 	var sc3 = ScenarioScript.new(m3, u3, [], 500, 300)
 	var sc3a = FoundCityScript.apply(sc3, FoundCityScript.make(0, 1, 0, 0))
 	var cap_id = sc3.peek_next_city_id()
 	var cap_ct = sc3a.city_by_id(cap_id)
-	_check(cap_ct != null and cap_ct.city_name == "Capital", "two-settler first Capital")
+	_check(cap_ct != null and cap_ct.city_name == "Capital", "prototype two-settler first Capital")
 	_check(cap_ct.is_capital and cap_ct.building_ids.size() == 1, "first founded gets palace bundle")
-	var sc3b = FoundCityScript.apply(sc3a, FoundCityScript.make(0, 4, 1, -1))
+	var sc3b = FoundCityScript.apply(sc3a, FoundCityScript.make(0, 4, 3, -2))
 	var sec_id = sc3b.peek_next_city_id() - 1
 	var sec_ct = sc3b.city_by_id(sec_id)
 	_check(sec_ct != null and sec_ct.city_name == "Settlement 2", "second city numbered")
 	_check(not sec_ct.is_capital, "second city not capital")
 	_check(sec_ct.building_ids.is_empty(), "second city has no default buildings")
+	var overlaps_cap_territory: bool = false
+	var si: int = 0
+	while si < sec_ct.owned_tiles.size():
+		var st = sec_ct.owned_tiles[si]
+		var ci2: int = 0
+		while ci2 < cap_ct.owned_tiles.size():
+			if st.equals(cap_ct.owned_tiles[ci2]):
+				overlaps_cap_territory = true
+			ci2 = ci2 + 1
+		si = si + 1
+	_check(not overlaps_cap_territory, "second city territory does not duplicate first city's tiles")
 
 	if _any_fail:
 		call_deferred("quit", 1)

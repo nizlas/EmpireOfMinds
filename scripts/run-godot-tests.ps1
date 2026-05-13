@@ -130,6 +130,7 @@ $Tests = @(
 	"res://presentation/tests/test_log_view.gd",
 	"res://domain/tests/test_city.gd",
 	"res://domain/tests/test_scenario_cities.gd",
+	"res://domain/tests/test_scenario_city_territory.gd",
 	"res://presentation/tests/test_cities_view_draw.gd",
 	"res://presentation/tests/test_tfv_depth_merge_city_unit_sort_keys.gd",
 	"res://presentation/tests/test_main_hud_yields_toggle.gd",

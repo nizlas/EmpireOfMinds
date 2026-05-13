@@ -55,6 +55,7 @@ Cross-links: [UNITS.md](UNITS.md), [CITIES.md](CITIES.md), [MAP_MODEL.md](MAP_MO
 - **`City.current_project["project_id"]`** (String) — **planned for Phase 3.3**, alongside existing `project_type` / progress fields. Today projects use the Phase 2.3 shape only.
 - **Terrain semantics** move toward **content-defined terrain rules** in **Phase 3.2**; **`HexMap`** stays **tag-like** today per [MAP_MODEL.md](MAP_MODEL.md).
 - **`Scenario` does not embed definitions** or registries; it only holds map, units, cities, and id counters.
+- **`City.owned_tiles`** (**`Array[HexCoord]`**, **Phase 5.1.16g**) — **state** on each **`City`** row (territory footprint), not a content definition or resource registry.
 - **Actions** may later carry content IDs (`unit_type_id`, `project_id`, etc.). Any change to required fields **must bump `schema_version`** and follow the versioning discipline in [ACTIONS.md](ACTIONS.md). **Phase 3.0 changes no action schemas.**
 
 ## Registry access strategy

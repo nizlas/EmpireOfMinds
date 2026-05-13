@@ -120,7 +120,8 @@ static func deliver_pending_for_player(a_scenario, owner_id: int) -> Dictionary:
 					null,
 					c2.city_name,
 					c2.is_capital,
-					c2.building_ids
+					c2.building_ids,
+					c2.owned_tiles
 				)
 			)
 		else:

@@ -11,6 +11,9 @@ const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const ProductionTickScript = preload("res://domain/production_tick.gd")
 const ProductionDeliveryScript = preload("res://domain/production_delivery.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
+const HexMapScript = preload("res://domain/hex_map.gd")
+const ScenarioScript = preload("res://domain/scenario.gd")
+const UnitScript = preload("res://domain/unit.gd")
 
 var _total = 0
 var _any_fail = false
@@ -46,7 +49,13 @@ func _init() -> void:
 	_check(SetCityProductionScript.SCHEMA_VERSION == 2, "set_city_production schema unchanged")
 	_check(CompleteProgressScript.SCHEMA_VERSION == 1, "complete_progress schema unchanged")
 
-	var gs = GameStateScript.make_tiny_test_state()
+	var pm = HexMapScript.make_prototype_play_map()
+	var us = [
+		UnitScript.new(1, 0, HexCoordScript.new(0, 0), "settler"),
+		UnitScript.new(2, 0, HexCoordScript.new(1, 0), "warrior"),
+		UnitScript.new(3, 1, HexCoordScript.new(0, -1), "settler"),
+	]
+	var gs = GameStateScript.new(ScenarioScript.new(pm, us))
 	var city_id = gs.scenario.peek_next_city_id()
 	var expected_settler_unit_id = gs.scenario.peek_next_unit_id()
 	_check(city_id == 1 and expected_settler_unit_id == 4, "canonical tiny_test next ids")
@@ -132,11 +141,15 @@ func _init() -> void:
 	_check(u_new.position.equals(HexCoordScript.new(0, 0)), "delivered at city A hex")
 
 	var r_mv = gs.try_apply(MoveUnitScript.make(0, expected_settler_unit_id, 0, 0, 1, -1))
-	_check(r_mv["accepted"], "move settler to 1,-1")
+	_check(r_mv["accepted"], "move settler toward second city site")
+	var r_mv2 = gs.try_apply(
+		MoveUnitScript.make(0, expected_settler_unit_id, 1, -1, 2, -1)
+	)
+	_check(r_mv2["accepted"], "move settler to hex outside first city territory")
 	var u_m = gs.scenario.unit_by_id(expected_settler_unit_id)
-	_check(u_m != null and u_m.position.equals(HexCoordScript.new(1, -1)), "settler moved")
+	_check(u_m != null and u_m.position.equals(HexCoordScript.new(2, -1)), "settler at founding site")
 
-	var r_fc2 = gs.try_apply(FoundCityScript.make(0, expected_settler_unit_id, 1, -1))
+	var r_fc2 = gs.try_apply(FoundCityScript.make(0, expected_settler_unit_id, 2, -1))
 	_check(r_fc2["accepted"], "found second city")
 	_check(gs.scenario.cities_owned_by(0).size() == 2, "P0 owns two cities")
 	_check(gs.scenario.unit_by_id(expected_settler_unit_id) == null, "settler consumed founding")

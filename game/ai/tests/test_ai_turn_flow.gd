@@ -74,7 +74,7 @@ func _init() -> void:
 			end_order.append(int(ent.get("actor_id", -1)))
 		log_i = log_i + 1
 	_check(n_move0 == 1, "exactly one move_unit for actor 0")
-	_check(n_move1 == 0, "p1 may have no units left to move after founding")
+	_check(n_move1 >= 1, "p1 moves settler off peers capital territory before founding")
 	_check(end_order.size() >= 2, "at least two end_turn entries in log slice checked")
 	_check(end_order[0] == 0 and end_order[1] == 1, "end_turn order 0 then 1")
 

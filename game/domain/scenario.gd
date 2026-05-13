@@ -76,6 +76,24 @@ func _init(
 		assert(not seen_city_hex.has(hk), "At most one city per hex")
 		seen_city_hex[hk] = true
 		ci = ci + 1
+	var all_owned: Dictionary = {}
+	var cix: int = 0
+	while cix < p_cities.size():
+		var c_own = p_cities[cix]
+		var owns_center: bool = false
+		var oi: int = 0
+		while oi < c_own.owned_tiles.size():
+			var oc = c_own.owned_tiles[oi]
+			assert(oc != null, "City owned tile must not be null")
+			assert(p_map.has(oc), "City owns a tile not on the map")
+			var ok := Vector2i(oc.q, oc.r)
+			assert(not all_owned.has(ok), "Duplicate tile ownership across cities")
+			all_owned[ok] = c_own.id
+			if oc.equals(c_own.position):
+				owns_center = true
+			oi = oi + 1
+		assert(owns_center, "City must own its center tile")
+		cix = cix + 1
 	map = p_map
 	_units = p_units.duplicate()
 	_cities = p_cities.duplicate()
@@ -170,6 +188,55 @@ func cities_owned_by(owner_id: int) -> Array:
 		if _cities[k].owner_id == owner_id:
 			out.append(_cities[k])
 		k = k + 1
+	return out
+
+
+func tile_owner_city_id(coord) -> int:
+	if coord == null:
+		return -1
+	var ci: int = 0
+	while ci < _cities.size():
+		var cty = _cities[ci]
+		var oi: int = 0
+		while oi < cty.owned_tiles.size():
+			var oc = cty.owned_tiles[oi]
+			if oc.equals(coord):
+				return cty.id
+			oi = oi + 1
+		ci = ci + 1
+	return -1
+
+
+func city_owning_tile(coord):
+	if coord == null:
+		return null
+	var ci: int = 0
+	while ci < _cities.size():
+		var cty = _cities[ci]
+		var oi: int = 0
+		while oi < cty.owned_tiles.size():
+			var oc = cty.owned_tiles[oi]
+			if oc.equals(coord):
+				return cty
+			oi = oi + 1
+		ci = ci + 1
+	return null
+
+
+func tile_is_owned(coord) -> bool:
+	return tile_owner_city_id(coord) != -1
+
+
+func tiles_owned_by_city(city_id: int) -> Array:
+	var cty = city_by_id(city_id)
+	if cty == null:
+		return []
+	var out: Array = []
+	var oi: int = 0
+	while oi < cty.owned_tiles.size():
+		var oc = cty.owned_tiles[oi]
+		out.append(HexCoordScript.new(oc.q, oc.r))
+		oi = oi + 1
 	return out
 
 

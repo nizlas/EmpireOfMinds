@@ -255,6 +255,14 @@ func _init() -> void:
 	var pr_cap = cy_cap.current_project as Dictionary
 	_check(int(pr_cap["progress"]) == 1, "palace does not add production (still plains flat +1)")
 
+	var own91: Array = [HexCoordScript.new(1, -1), HexCoordScript.new(0, -1)]
+	var c_ter = CityScript.new(91, 0, HexCoordScript.new(1, -1), d_cap, "Terr", true, ["palace"], own91)
+	var sc_ter = ScenarioScript.new(m_cap, u_cap, [c_ter], 92, 93, null)
+	var r_ter = ProductionTickScript.apply_for_player(sc_ter, 0)
+	var cy_ter = r_ter["scenario"].city_by_id(91)
+	_check(cy_ter.owned_tiles.size() == 2, "tick preserves owned_tiles count")
+	_check(cy_ter.owned_tiles[1].equals(HexCoordScript.new(0, -1)), "tick preserves ring hex")
+
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

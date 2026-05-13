@@ -248,11 +248,12 @@ func _init() -> void:
 		UnitScript.new(1, 0, HexCoordScript.new(0, 0)),
 		UnitScript.new(2, 0, HexCoordScript.new(1, 0)),
 	]
+	var own5: Array = [HexCoordScript.new(0, -1), HexCoordScript.new(0, 0)]
 	var sc_nm = ScenarioScript.new(
 		m_nm,
 		us_nm,
 		[
-			CityScript.new(5, 0, HexCoordScript.new(0, -1), null, "Northhold", true, ["palace"]),
+			CityScript.new(5, 0, HexCoordScript.new(0, -1), null, "Northhold", true, ["palace"], own5),
 			CityScript.new(6, 0, HexCoordScript.new(1, -1)),
 		],
 		100,
@@ -266,6 +267,8 @@ func _init() -> void:
 	var nm_c5 = sc_nm_ap.city_by_id(5)
 	_check(nm_c5.is_capital, "set production preserves is_capital")
 	_check(nm_c5.building_ids.size() == 1 and str(nm_c5.building_ids[0]) == "palace", "set production preserves palace")
+	_check(nm_c5.owned_tiles.size() == 2, "set production preserves owned_tiles")
+	_check(nm_c5.owned_tiles[1].equals(HexCoordScript.new(0, 0)), "set production preserves neighbor territory")
 
 	if _any_fail:
 		call_deferred("quit", 1)

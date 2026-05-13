@@ -41,6 +41,22 @@ func _init() -> void:
 	var y_pprod = CityYieldsScript.city_total_yield(sc_pprod, c_pal_prod)
 	_check(int(y_pprod["production"]) == 1, "palace does not add production to city total")
 
+	# Phase 5.1.16g — territory must not change city_total_yield (worked tiles deferred to 5.1.16h).
+	var center_reg = HexCoordScript.new(1, -1)
+	var ring_reg = HexCoordScript.new(0, -1)
+	var owned_extra: Array = [center_reg, ring_reg]
+	var c_reg = CityScript.new(12, 0, center_reg, null, "", false, [], owned_extra)
+	var sc_reg = ScenarioScript.new(m_tiny, u, [c_reg], 10, 25, null)
+	var y_reg = CityYieldsScript.city_total_yield(sc_reg, c_reg)
+	_check(
+		int(y_reg["food"]) == 2 and int(y_reg["production"]) == 1,
+		"regression: productive owned ring tiles do not add to food/production total"
+	)
+	_check(
+		int(y_reg["science"]) == 0 and int(y_reg["coin"]) == 0,
+		"regression: owned ring does not add science/coin"
+	)
+
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

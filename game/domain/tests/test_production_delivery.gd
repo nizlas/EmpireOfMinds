@@ -133,12 +133,15 @@ func _init() -> void:
 	d_dcap["progress"] = 2
 	d_dcap["cost"] = 2
 	d_dcap["ready"] = true
-	var c_dcap = CityScript.new(11, 0, HexCoordScript.new(1, -1), d_dcap, "", true, ["palace"])
+	var own_d: Array = [HexCoordScript.new(1, -1), HexCoordScript.new(1, 0)]
+	var c_dcap = CityScript.new(11, 0, HexCoordScript.new(1, -1), d_dcap, "", true, ["palace"], own_d)
 	var sc_dcap = ScenarioScript.new(m_dcap, u_dcap, [c_dcap], 320, 321)
 	var r_dcap = ProductionDeliveryScript.deliver_pending_for_player(sc_dcap, 0)
 	var cy_d = r_dcap["scenario"].city_by_id(11)
 	_check(cy_d != null and cy_d.is_capital, "delivery rebuild preserves is_capital")
 	_check(cy_d.building_ids.size() == 1 and str(cy_d.building_ids[0]) == "palace", "delivery preserves palace")
+	_check(cy_d.owned_tiles.size() == 2, "delivery preserves owned_tiles")
+	_check(cy_d.owned_tiles[1].equals(HexCoordScript.new(1, 0)), "delivery preserves neighbor territory")
 
 	if _any_fail:
 		call_deferred("quit", 1)
