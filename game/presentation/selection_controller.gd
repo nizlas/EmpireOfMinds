@@ -17,6 +17,7 @@ const ProgressCandidateFilterScript = preload("res://domain/progress_candidate_f
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const DiscoveryPopupScript = preload("res://presentation/discovery_popup.gd")
+const TurnViewSyncScript = preload("res://presentation/turn_view_sync.gd")
 
 var scenario
 var game_state
@@ -163,24 +164,14 @@ func _after_accepted(prev_log_size: int) -> void:
 func _sync_terrain_foreground_from_game_state() -> void:
 	if game_state == null:
 		return
-	var scen = game_state.scenario
-	if terrain_foreground_view != null:
-		terrain_foreground_view.scenario = scen
-		terrain_foreground_view.map = scen.map
-		terrain_foreground_view.queue_redraw()
-	if unit_nameplate_view != null:
-		unit_nameplate_view.scenario = scen
-		unit_nameplate_view.queue_redraw()
-	if city_nameplate_view != null:
-		city_nameplate_view.scenario = scen
-		city_nameplate_view.queue_redraw()
-	if yield_overlay_view != null:
-		yield_overlay_view.scenario = scen
-		yield_overlay_view.queue_redraw()
-	if city_territory_view != null:
-		city_territory_view.scenario = scen
-		## Keep **selection** unchanged — same **RefCounted** instance as **SelectionController**.
-		_refresh_city_territory_view()
+	TurnViewSyncScript.sync_terrain_related_views(
+		game_state.scenario,
+		terrain_foreground_view,
+		unit_nameplate_view,
+		city_nameplate_view,
+		yield_overlay_view,
+		city_territory_view,
+	)
 
 func _unhandled_input(event):
 	assert(HexCoordScript != null)

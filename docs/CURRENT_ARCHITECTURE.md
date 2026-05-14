@@ -18,7 +18,7 @@ Concise map of **what exists in code today**. For phased history and decisions u
 3. **Validation + apply:** `try_apply` dispatches by `action_type` to modules under **`game/domain/actions/`** ([MoveUnit](../game/domain/actions/move_unit.gd), [FoundCity](../game/domain/actions/found_city.gd), [SetCityProduction](../game/domain/actions/set_city_production.gd), [EndTurn](../game/domain/actions/end_turn.gd), [CompleteProgress](../game/domain/actions/complete_progress.gd), [SetCurrentResearch](../game/domain/actions/set_current_research.gd), …).
 4. **Domain transition pattern:** validated actions rebuild an immutable **[Scenario](../game/domain/scenario.gd)** snapshot (units, cities, **`HexMap`, id counters**, **`lightning_tree_hex`**). **[ActionLog](../game/domain/action_log.gd)** gains an accepted entry where applicable.
 5. **Ticks on [`EndTurn`](../game/domain/actions/end_turn.gd)** (inside **`GameState.try_apply`**): [ProductionTick](../game/domain/production_tick.gd) appends **`production_progress`** entries; [ScienceTick](../game/domain/science_tick.gd) may append Ancient-era accumulation lines **before** the **`end_turn`** record advances **`TurnState`**; **`end_turn`** is logged (the returned **`try_apply`** index targets this row); then [ProductionDelivery](../game/domain/production_delivery.gd) runs for the **new** actor (**`unit_produced`**). Canonical ordering: **[TURNS.md](TURNS.md)**, **[ACTIONS.md](ACTIONS.md)**.
-6. **Presentation refresh:** controllers assign **`scenario` / `game_state`** handles into **`Node2D`** views (`queue_redraw`, HUD `refresh`). **Overlap:** after a successful `try_apply`, [EndTurnController](../game/presentation/end_turn_controller.gd) and [AITurnController](../game/presentation/ai_turn_controller.gd) duplicate nearly identical “sync scenario + redraw + refresh HUD” sequences — a likely **behavior-preserving extraction** candidate (no change started here).
+6. **Presentation refresh:** controllers assign **`scenario` / `game_state`** handles into **`Node2D`** views (`queue_redraw`, HUD `refresh`). **[TurnViewSync](../game/presentation/turn_view_sync.gd)** is a small **`RefCounted`** helper (**not** a bus, registry, or pub/sub): **`refresh_map_views_and_hud_after_try_apply_turn_controllers`** centralizes terrain/map-layer redraws (`selection_view`, **`units_view`**, **`TerrainForegroundView`**, nameplates, yield overlay, territory) plus turn label **`refresh`** and the HUD **`refresh`** calls invoked from **EndTurn** / **AI** paths after an accepted **`try_apply`**; **`sync_terrain_related_views`** handles the terrain-related map-layer/sync path delegated from **[SelectionController](../game/presentation/selection_controller.gd)**. Controllers still own accepted-action handling, **`DiscoveryPopup`** sequencing, **`selection.clear_unit()`**, and any view/HUD updates not covered by those helpers.
 
 ---
 
@@ -70,7 +70,7 @@ Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative 
 
 ## Test architecture
 
-- **Runner:** from repo root, [scripts/run-godot-tests.ps1](../scripts/run-godot-tests.ps1) runs a **fixed list (~96)** of Godot headless scripts (**`-s res://…`**).
+- **Runner:** from repo root, [scripts/run-godot-tests.ps1](../scripts/run-godot-tests.ps1) runs a **fixed list (~97)** of Godot headless scripts (**`-s res://…`**).
 - **Layout:** **`game/domain/tests/`**, **`game/presentation/tests/`**, **`game/ai/tests/`** — mix of invariant tests and tighter draw/UI harnesses.
 
 ---
@@ -79,7 +79,7 @@ Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative 
 
 - **[TerrainForegroundView](../game/presentation/terrain_foreground_view.gd)** — central visual hub; regressions ripple through layering, merges, diagnostics.
 - **Layer sibling order / `z_index`** in **`main.tscn` / **`main.gd`** — must stay consistent with **`CityTerritoryView`**, overlays, HUD (see also [RENDERING.md](RENDERING.md)).
-- **Duplicated post-`try_apply` refresh** — **`EndTurnController`**, **`AITurnController`**, and parts of **`SelectionController`** re-sync **`scenario`** into many views (**consolidate later**, preserve behavior).
+- **Post-`try_apply` refresh** — shared terrain/map-layer/HUD redraw and **`refresh`** calls for **EndTurn** / **AI** live in **`TurnViewSync.refresh_map_views_and_hud_after_try_apply_turn_controllers`**; **`SelectionController`** uses **`TurnViewSync.sync_terrain_related_views`** for terrain-related sync. Accepted-action wiring, **`DiscoveryPopup`** timing, **`selection.clear_unit()`**, and other controller-owned view/HUD updates remain explicit where they sit outside those helpers.
 
 ---
 

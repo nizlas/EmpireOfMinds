@@ -120,6 +120,7 @@ $Tests = @(
 	"res://presentation/tests/test_science_panel_button.gd",
 	"res://presentation/tests/test_selection_view_draw.gd",
 	"res://presentation/tests/test_turn_label.gd",
+	"res://presentation/tests/test_turn_view_sync.gd",
 	"res://presentation/tests/test_faction_asset_paths.gd",
 	"res://presentation/tests/test_faction_banner_gallery.gd",
 	"res://domain/tests/test_legal_actions.gd",
