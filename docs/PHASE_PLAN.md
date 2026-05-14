@@ -2404,9 +2404,9 @@ Validation:
 
 **Status:** **Shipped.**
 
-- **`CityProductionPanel`** — lower-right **`HudCanvas`** anchor in **`main.tscn`**; visible header **City Hub** + **identity** (**name · Pop** **`City.population`**) + **`#id · Owner`**; **Manage Citizens (planned)** (**disabled**); **Close** (**`selection.clear_city()`** + territory / worked-tile / panel refresh); **`main.gd`** wires **`selection_view`**, **`city_territory_view`**, **`city_worked_tiles_view`** for redraw only.
-- **`compute_view_model`** — **`hub_brand`**, **`identity_line`**, **`manage_citizens_*`**, **`close_button_text`** ( **`header_title`** unchanged for city name).
-- Tests: **`test_city_production_panel.gd`**, **`test_main_hud_city_panel.gd`**; **`scripts/run-godot-tests.ps1`**.
+- **`CityProductionPanel`** — lower-right **`HudCanvas`** anchor in **`main.tscn`**; visible header **City Hub** + **identity** (**name · Pop** **`City.population`**) + **`#id · Owner`** + yields / breakdown / **`LegalActions`** production; **Manage Citizens** (**enters** **`CityViewState`** **PLANNING** for **current-player** cities), **Done** (**exits PLANNING**, keeps city selected), **Close** (**`CityViewState.reset_to_normal()`** + **`selection.clear_city()`** + territory / worked-tile / panel refresh); **`main.gd`** wires **`city_view_state`**, **`selection_view`**, **`city_territory_view`**, **`city_worked_tiles_view`**. (**Hub skeleton:** **5.1.17g**; **planning toggle:** **5.1.17i**.)
+- **`compute_view_model`** — **`hub_brand`**, **`identity_line`**, **`manage_citizens_*`**, **`planning_*`**, **`done_planning_*`**, **`close_button_text`** ( **`header_title`** unchanged for city name).
+- Tests: **`test_city_production_panel.gd`**, **`test_city_view_state.gd`**, **`test_main_hud_city_panel.gd`**; **`scripts/run-godot-tests.ps1`**.
 
 Validation:
 
@@ -2421,6 +2421,23 @@ Validation:
 - **`main.tscn` / `main.gd`** — sibling **after** **`MapView`**, **`z_index` 0**, **before** **`CityTerritoryView`** (slot above empire for future planning-only emphasis).
 - **`TurnViewSync`** + **`SelectionController`** / **`EndTurnController`** / **`AITurnController`** — **`empire_border_view`** redraw alongside terrain when **`Scenario`** updates.
 - Tests: **`test_empire_border_view.gd`**, **`test_main_tscn_map_layer_sibling_order.gd`**, **`test_turn_view_sync.gd`**, **`test_city_territory_main_wiring.gd`**; **`scripts/run-godot-tests.ps1`**.
+
+Validation:
+
+- **`scripts/run-godot-tests.ps1`** green.
+
+#### 5.1.17i — **`CityViewState`** (**NORMAL** / **PLANNING**) + hub toggle shell
+
+**Status:** **Shipped.**
+
+- **`game/presentation/city_view_state.gd`** — presentation **`RefCounted`**; **`enter_planning`**, **`exit_planning`**, **`reset_to_normal`**, **`is_planning`**; **no** domain / **`try_apply`** / log.
+- **`game/main.gd`** — one **`CityViewState`** beside **`SelectionState`**; wired to **`CityProductionPanel`**, **`CityWorkedTilesView`**, **`SelectionController`**.
+- **`city_production_panel.gd`** — **Manage Citizens** enables for **current-player** selected city; enters **PLANNING**; **Done** exits planning (**city** stays selected); **Close** **`reset_to_normal`** + **`selection.clear_city()`**; planning banner line on hub.
+- **`city_worked_tiles_view.gd`** — worked hex markers **only** in **`CityViewState`** **PLANNING** (**Manage Citizens**); **`compute_draw_marker_items`** mirrors **`_draw`** gating; **`compute_worked_marker_items`** + **`yield_breakdown_for_city`** unchanged for tests/helpers.
+- **`selection_controller.gd`** — **ESC** exits planning (**normal** behavior unchanged otherwise); clears planning when selection changes (**different city**, **unit**, **clear**).
+- **`CityTerritoryView`** untouched (**dormant**).
+- Tests: **`test_city_view_state.gd`**, updates **`test_city_production_panel.gd`**, **`test_city_worked_tiles_view.gd`**; **`scripts/run-godot-tests.ps1`**.
+- **5.1.17i.1 correction:** **`CityWorkedTilesView`** draws **nothing** in **NORMAL** (city-selected hub **without** worked-tile overlay); markers appear **only** after **Manage Citizens**.
 
 Validation:
 

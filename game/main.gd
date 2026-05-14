@@ -10,6 +10,7 @@ const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
+const CityViewStateScript = preload("res://presentation/city_view_state.gd")
 const GameStateScript = preload("res://domain/game_state.gd")
 const FactionBannerGalleryScript = preload("res://presentation/faction_banner_gallery.gd")
 const PlainsForestScript = preload("res://presentation/plains_forest_decoration.gd")
@@ -98,6 +99,7 @@ func _ready() -> void:
 	var game_state = GameStateScript.new(scenario)
 	var layout = HexLayoutScript.new()
 	var selection = SelectionStateScript.new()
+	var city_view_state = CityViewStateScript.new()
 	var map_view = $MapView
 	map_view.map = scenario.map
 	map_view.layout = layout
@@ -123,6 +125,7 @@ func _ready() -> void:
 	city_worked_tiles_view.layout = layout
 	city_worked_tiles_view.camera = _map_camera
 	city_worked_tiles_view.selection = selection
+	city_worked_tiles_view.city_view_state = city_view_state
 	var tile_yield_overlay = $TileYieldOverlayView
 	tile_yield_overlay.scenario = scenario
 	tile_yield_overlay.layout = layout
@@ -176,6 +179,7 @@ func _ready() -> void:
 	selection_controller.city_territory_view = city_territory_view
 	selection_controller.empire_border_view = empire_border_view
 	selection_controller.city_worked_tiles_view = city_worked_tiles_view
+	selection_controller.city_view_state = city_view_state
 	selection_controller.yield_overlay_view = tile_yield_overlay
 	var turn_label = $TurnLabel
 	turn_label.game_state = game_state
@@ -210,6 +214,7 @@ func _ready() -> void:
 	city_production_panel.selection_view = selection_view
 	city_production_panel.city_territory_view = city_territory_view
 	city_production_panel.city_worked_tiles_view = city_worked_tiles_view
+	city_production_panel.city_view_state = city_view_state
 	city_production_panel.cities_view = cities_view
 	city_production_panel.turn_label = turn_label
 	city_production_panel.log_view = log_view

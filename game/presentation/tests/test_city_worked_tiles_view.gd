@@ -2,6 +2,7 @@
 extends SceneTree
 
 const CityWorkedTilesViewScript = preload("res://presentation/city_worked_tiles_view.gd")
+const CityViewStateScript = preload("res://presentation/city_view_state.gd")
 const HexMapScript = preload("res://domain/hex_map.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const ScenarioScript = preload("res://domain/scenario.gd")
@@ -67,6 +68,11 @@ func _forbidden_scan_source() -> void:
 func _init() -> void:
 	_forbidden_scan_source()
 
+	var pst = CityWorkedTilesViewScript.planning_marker_draw_style()
+	_check(float(pst.get("outer_width", 0.0)) > 4.0, "planning outer_width sane")
+	_check(float(pst.get("inner_width", 0.0)) > 2.0, "planning inner_width sane")
+	_check(float(pst.get("fill_alpha", 0.0)) > 0.5, "planning fill_alpha sane")
+
 	var sel_none = SelectionStateScript.new()
 	var tiny = _tiny_pop1_capital_scenario()
 	var scen: Variant = tiny["scenario"]
@@ -87,6 +93,20 @@ func _init() -> void:
 	sel_cap.select_city(77)
 	var items: Array = CityWorkedTilesViewScript.compute_worked_marker_items(scen, sel_cap)
 	_check(items.size() == 1, "tiny pop1 yields one marker")
+
+	var cvs_off = CityViewStateScript.new()
+	_check(
+		CityWorkedTilesViewScript.compute_draw_marker_items(scen, sel_cap, null).is_empty(),
+		"draw items empty when city_view_state null"
+	)
+	_check(
+		CityWorkedTilesViewScript.compute_draw_marker_items(scen, sel_cap, cvs_off).is_empty(),
+		"draw items empty in NORMAL"
+	)
+	cvs_off.enter_planning()
+	var drawn: Array = CityWorkedTilesViewScript.compute_draw_marker_items(scen, sel_cap, cvs_off)
+	_check(drawn.size() == items.size(), "draw items match worked items in PLANNING")
+	_check(_markers_equal_lists(drawn, items), "PLANNING draw list equals compute_worked_marker_items")
 
 	var wt: Array = (CityYieldsScript.yield_breakdown_for_city(scen, c_cap) as Dictionary).get(
 		"worked_tiles", []

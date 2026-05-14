@@ -49,6 +49,7 @@ var discovery_action_panel
 var science_panel
 var discovery_popup
 var science_completed_popup
+var city_view_state = null
 @export var marker_hit_radius_ratio: float = 0.35
 
 ## Sentinels for **shared city / own-unit hex** click alternation (see **plan_shared_hex_pick**).
@@ -153,6 +154,16 @@ func _refresh_discovery_action_panel() -> void:
 		discovery_action_panel.refresh()
 
 
+func _sync_city_view_state_after_selection_change(previous_city_id: int) -> void:
+	if city_view_state == null or not city_view_state.is_planning():
+		return
+	if not selection.has_city():
+		city_view_state.reset_to_normal()
+		return
+	if previous_city_id >= 0 and previous_city_id != selection.city_id:
+		city_view_state.reset_to_normal()
+
+
 func _refresh_science_panel() -> void:
 	if science_panel != null:
 		science_panel.refresh()
@@ -193,16 +204,26 @@ func _unhandled_input(event):
 		return
 	if event is InputEventKey:
 		var ek = event as InputEventKey
+		if ek.pressed and not ek.echo and ek.keycode == KEY_ESCAPE:
+			if city_view_state != null and city_view_state.is_planning():
+				city_view_state.exit_planning()
+				_refresh_city_territory_view()
+				if city_production_panel != null:
+					city_production_panel.refresh()
+				get_viewport().set_input_as_handled()
+				return
 		if ek.pressed and not ek.echo and ek.keycode == KEY_F:
 			if selection.is_empty():
 				return
 			var u_fc = game_state.scenario.unit_by_id(selection.unit_id)
 			if u_fc == null:
+				var prev_c_nf = selection.city_id
 				selection.clear()
 				if selection_view != null:
 					selection_view.queue_redraw()
 				if units_view != null:
 					units_view.queue_redraw()
+				_sync_city_view_state_after_selection_change(prev_c_nf)
 				_refresh_city_production_panel()
 				return
 			var fc_action = FoundCityScript.make(u_fc.owner_id, u_fc.id, u_fc.position.q, u_fc.position.r)
@@ -217,6 +238,7 @@ func _unhandled_input(event):
 				if cities_view != null:
 					cities_view.scenario = game_state.scenario
 				_sync_terrain_foreground_from_game_state()
+				var prev_c_fc = selection.city_id
 				selection.clear()
 				if selection_view != null:
 					selection_view.queue_redraw()
@@ -224,6 +246,7 @@ func _unhandled_input(event):
 					units_view.queue_redraw()
 				if cities_view != null:
 					cities_view.queue_redraw()
+				_sync_city_view_state_after_selection_change(prev_c_fc)
 				if turn_label != null:
 					turn_label.refresh()
 				if log_view != null:
@@ -338,9 +361,11 @@ func _unhandled_input(event):
 						units_view.scenario = game_state.scenario
 						_sync_terrain_foreground_from_game_state()
 						_reset_shared_hex_cycle()
+						var prev_c_mv = selection.city_id
 						selection.clear()
 						selection_view.queue_redraw()
 						units_view.queue_redraw()
+						_sync_city_view_state_after_selection_change(prev_c_mv)
 						if turn_label != null:
 							turn_label.refresh()
 						if log_view != null:
@@ -393,17 +418,21 @@ func _unhandled_input(event):
 					_shared_track_q = int(plan["next_track_q"])
 					_shared_track_r = int(plan["next_track_r"])
 					_shared_phase = int(plan["next_phase"])
+					var prev_c_sh = selection.city_id
 					if str(plan["pick"]) == "city":
 						selection.select_city(int(plan["city_id"]))
 					else:
 						selection.select(int(plan["unit_id"]))
+					_sync_city_view_state_after_selection_change(prev_c_sh)
 					selection_view.queue_redraw()
 					if units_view != null:
 						units_view.queue_redraw()
 					_refresh_city_production_panel()
 					return
 				_reset_shared_hex_cycle()
+				var prev_c_pb = selection.city_id
 				selection.select_city(primary_cid)
+				_sync_city_view_state_after_selection_change(prev_c_pb)
 				selection_view.queue_redraw()
 				if units_view != null:
 					units_view.queue_redraw()
@@ -417,7 +446,9 @@ func _unhandled_input(event):
 				var u2 = ulist[i]
 				if SelectionController.projected_hex_contains(layout, camera, u2.position.q, u2.position.r, local_point):
 					_reset_shared_hex_cycle()
+					var prev_c_us = selection.city_id
 					selection.select(u2.id)
+					_sync_city_view_state_after_selection_change(prev_c_us)
 					found = true
 					break
 				i = i + 1
@@ -427,8 +458,10 @@ func _unhandled_input(event):
 					units_view.queue_redraw()
 				_refresh_city_production_panel()
 				return
+			var prev_c_bg = selection.city_id
 			selection.clear()
 			_reset_shared_hex_cycle()
+			_sync_city_view_state_after_selection_change(prev_c_bg)
 			selection_view.queue_redraw()
 			if units_view != null:
 				units_view.queue_redraw()

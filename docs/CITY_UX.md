@@ -30,16 +30,16 @@ Align city interaction around:
 ## End-state interaction flow
 
 1. **Map play** — **`EmpireBorderView`** always-on (**union** perimeter per **`owner_id`**); map overlays otherwise match **[RENDERING.md](RENDERING.md)**. No **City Hub** until a city is selected.
-2. **Select city** — **City Hub** (**shipped** skeleton in **`city_production_panel.gd`** / **`CityProductionPanel`**, lower-right **`HudCanvas`**) shows yields + production + **Manage Citizens (planned)** + **Close**; **`CityWorkedTilesView`** shows worked tiles (**shipped**, selection-driven).
+2. **Select city** — **City Hub** (**`city_production_panel.gd`** / **`CityProductionPanel`**, lower-right **`HudCanvas`**) shows yields + production + **Manage Citizens** + **Done** (when planning) + **Close**; **no** worked-tile map overlay until **Manage Citizens**.
 3. **Hub actions** — production unchanged in intent; **Manage Citizens** enters **CityPlanningMode** (**presentation-only** until mechanics ship).
-4. **CityPlanningMode** — stronger city-centric tile reads (owned vs worked vs future swap preview); exit via **Done** / **Escape** / selecting another entity clears planning sub-state as specified in implementation slices.
+4. **CityPlanningMode** — **`CityWorkedTilesView`** highlights **worked** tiles (**read-only**); stronger city-centric reads (owned tint / swap preview) remain **future**; exit via **Done** / **Escape** / selection changes per **[RENDERING.md](RENDERING.md)**.
 5. **No automatic jump** into planning on city click — hub remains the gate.
 
 ---
 
 ## Lower-right CityHubPanel concept
 
-**Shipped (5.1.17g):** skeleton as **`CityProductionPanel`** (**`city_production_panel.gd`**) — **City Hub** header, **Manage Citizens (planned)** (**disabled**), **Close** (**clears city selection**). Further hub polish / rename may follow.
+**Shipped (5.1.17g / 5.1.17i):** **`CityProductionPanel`** (**`city_production_panel.gd`**) — **City Hub** header, **Manage Citizens** (**enters presentation PLANNING** for **current-player** cities), **Done** (**exits PLANNING**, keeps city selected), **Close** (**`reset_to_normal`** + **`selection.clear_city()`**). Further hub polish / rename may follow.
 
 Evolve toward full hub:
 
@@ -71,12 +71,12 @@ Hub is **HUD** (`HudCanvas`), not a separate scene tree root.
 | **Empire border** (always-on `EmpireBorderView`) | yes | yes | yes |
 | Selected-city territory ring (`CityTerritoryView`) | no | no | yes (planned) |
 | Owned-but-not-worked tint | no | optional later | yes (slice) |
-| Worked-tile markers | no | yes | stronger |
+| Worked-tile markers (`CityWorkedTilesView`) | no | no | yes |
 | Swap-candidate outline | no | no | preview only (later) |
 | Yield overlay (`TileYieldOverlay`) | toggle | toggle | toggle |
 | Nameplates | yes | yes | yes |
 
-**Always-on empire border** = union perimeter per **`owner_id`** over **all** that owner’s **`City.owned_tiles`** at **full** rim strength. **Normal selection overlays** = worked markers (+ hub); **city-owned territory rim** defers to **CityPlanningMode**.
+**Always-on empire border** = union perimeter per **`owner_id`** over **all** that owner’s **`City.owned_tiles`** at **full** rim strength. **City-selected NORMAL** = hub + map reads **without** worked markers; **PLANNING** = hub + worked-tile overlay (**Manage Citizens**). **City-owned territory rim** remains **future**.
 
 ---
 
@@ -87,7 +87,7 @@ Hub is **HUD** (`HudCanvas`), not a separate scene tree root.
 | **`CityHubPanel`** | Lower-right hub; gates entry to planning mode; stays **`LegalActions`**-clean for production buttons. |
 | **`EmpireBorderView`** | Always-on faction **realm** envelope (**union** **`owned_tiles`**); **dual** **`Line2D`** rim (**5.1.17h** / **5.1.17h.1**). |
 | **`CityTerritoryView`** | **Dormant** draw in normal play; **static** perimeter helpers + **`Line2D`** pool for **`EmpireBorderView`** / future planning emphasis. |
-| **`CityWorkedTilesView`** | Worked tiles from **`yield_breakdown_for_city`** **`.worked_tiles`** only. |
+| **`CityWorkedTilesView`** | **`yield_breakdown_for_city`** **`.worked_tiles`** markers **only** when **`CityViewState`** is **PLANNING**. |
 | **Planning-only views** (future slices) | Owned ring tint, swap preview outlines — pure reads + presentation flags. |
 
 ---
@@ -95,7 +95,7 @@ Hub is **HUD** (`HudCanvas`), not a separate scene tree root.
 ## Mode/state model
 
 - **`SelectionState`** — unchanged contract (**unit** vs **city** id).
-- **`CityViewState`** (presentation **`RefCounted`**, future slice) — e.g. **`NORMAL`** vs **`PLANNING`**; toggled by hub button / ESC / selection changes.
+- **`CityViewState`** (**`city_view_state.gd`**, presentation **`RefCounted`**) — **`NORMAL`** vs **`PLANNING`**; toggled from hub (**Manage Citizens** / **Done**) or **ESC** (exit planning); **`SelectionController`** resets planning when selection changes (**no** domain / **`try_apply`**).
 - **No** `try_apply`, **no** log rows for mode toggles until product asks.
 
 ---
@@ -104,9 +104,9 @@ Hub is **HUD** (`HudCanvas`), not a separate scene tree root.
 
 Planning-only doc (**this file**) ships under **5.1.17f**. Recommended **implementation** order (IDs illustrative — adjust in **[PHASE_PLAN.md](PHASE_PLAN.md)**):
 
-1. ~~Hub reposition/rename + **Manage Citizens** / **Close** buttons (presentation).~~ **Shipped:** **5.1.17g** skeleton (**Close** + disabled **Manage Citizens (planned)**); **CityViewState** / real planning mode **not** in this slice.
-2. ~~**`EmpireBorderView`** always-on union borders.~~ **Shipped:** **5.1.17h** + **5.1.17h.1** correction — **strong** dual rim (**parity** with legacy territory stroke); **`CityTerritoryView`** **dormant** until planning mode.
-3. **`CityViewState`** + planning toggle wiring.
+1. ~~Hub reposition/rename + **Manage Citizens** / **Close** buttons (presentation).~~ **Shipped:** **5.1.17g** hub skeleton + **5.1.17i** **Manage Citizens** / **Done** / **`CityViewState`** toggle (**presentation-only**).
+2. ~~**`EmpireBorderView`** always-on union borders.~~ **Shipped:** **5.1.17h** + **5.1.17h.1** correction — **strong** dual rim (**parity** with legacy territory stroke); **`CityTerritoryView`** **dormant** until planning overlay slice.
+3. ~~**`CityViewState`** + planning toggle wiring.~~ **Shipped:** **5.1.17i** shell (**NORMAL** / **PLANNING**); owned-tile overlays / swap preview still **future**.
 4. Planning-specific owned / swap-preview overlays (read-only helpers).
 
 Polish/asset packs follow once interaction skeleton is stable.

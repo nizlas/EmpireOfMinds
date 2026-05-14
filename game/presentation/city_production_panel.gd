@@ -1,7 +1,8 @@
 # Selected-city HUD hub: yields + breakdown + **LegalActions** production only (no content registries).
 # Phase 5.1.5: restrained parchment-style presentation; behavior unchanged.
 # Phase 5.1.16e: read-only **CityYields** summary + **5.1.17d** breakdown line (no terrain rules in this file).
-# Phase 5.1.17g: **City Hub** header (name, pop), lower-right anchoring in **main.tscn**; **Manage Citizens (planned)** + **Close** (clears city selection).
+# Phase 5.1.17g: **City Hub** header (name, pop), lower-right anchoring in **main.tscn**; **Manage Citizens** + **Close** (clears city selection).
+# Phase **5.1.17i**: **CityViewState** **PLANNING** from **Manage Citizens**; **Done** exits planning; **Close** resets submode + clears city.
 # File remains **city_production_panel.gd** / **CityProductionPanel** — see **[CITY_UX.md](../../docs/CITY_UX.md)**.
 # See docs/CITIES.md, docs/RENDERING.md
 class_name CityProductionPanel
@@ -12,11 +13,14 @@ const SetCityProductionScript = preload("res://domain/actions/set_city_productio
 const CityYieldsScript = preload("res://domain/city_yields.gd")
 
 const HUB_BRAND: String = "City Hub"
-const MANAGE_CITIZENS_LABEL: String = "Manage Citizens (planned)"
+const MANAGE_CITIZENS_LABEL: String = "Manage Citizens"
+const DONE_PLANNING_LABEL: String = "Done"
+const PLANNING_BANNER: String = "Planning mode — worked tiles highlighted (read-only)."
 const CLOSE_LABEL: String = "Close"
 
 var game_state
 var selection
+var city_view_state = null
 var cities_view
 var turn_label
 var log_view
@@ -32,8 +36,10 @@ var _identity_label: Label
 var _subheader_label: Label
 var _yields_label: Label
 var _breakdown_label: Label
+var _planning_banner_label: Label
 var _hub_actions_row: HBoxContainer
 var _manage_citizens_btn: Button
+var _done_planning_btn: Button
 var _close_btn: Button
 var _status_label: Label
 var _actions_block: VBoxContainer
@@ -54,10 +60,19 @@ func _ready() -> void:
 	_identity_label = Label.new()
 	_subheader_label = Label.new()
 	_status_label = Label.new()
+	_planning_banner_label = Label.new()
+	_style_muted_label(_planning_banner_label)
+	_planning_banner_label.visible = false
+
 	_hub_actions_row = HBoxContainer.new()
 	_hub_actions_row.add_theme_constant_override("separation", 10)
 	_manage_citizens_btn = Button.new()
 	_manage_citizens_btn.focus_mode = Control.FOCUS_NONE
+	_manage_citizens_btn.pressed.connect(_on_manage_citizens_pressed)
+	_done_planning_btn = Button.new()
+	_done_planning_btn.focus_mode = Control.FOCUS_NONE
+	_done_planning_btn.pressed.connect(_on_done_planning_pressed)
+	_style_production_button(_done_planning_btn)
 	_close_btn = Button.new()
 	_close_btn.focus_mode = Control.FOCUS_NONE
 	_close_btn.pressed.connect(_on_hub_close_pressed)
@@ -78,6 +93,7 @@ func _ready() -> void:
 	_style_production_button(_close_btn)
 
 	_root_vbox.add_child(_title_label)
+	_root_vbox.add_child(_planning_banner_label)
 	_root_vbox.add_child(_identity_label)
 	_root_vbox.add_child(_subheader_label)
 	_yields_label = Label.new()
@@ -90,6 +106,7 @@ func _ready() -> void:
 	_root_vbox.add_child(_breakdown_label)
 	_root_vbox.add_child(HSeparator.new())
 	_hub_actions_row.add_child(_manage_citizens_btn)
+	_hub_actions_row.add_child(_done_planning_btn)
 	_hub_actions_row.add_child(_close_btn)
 	_root_vbox.add_child(_hub_actions_row)
 	_root_vbox.add_child(HSeparator.new())
@@ -195,7 +212,7 @@ static func _breakdown_line_from_breakdown(brk: Dictionary) -> String:
 	]
 
 
-static func compute_view_model(game_state, selection) -> Dictionary:
+static func compute_view_model(game_state, selection, city_view_state = null) -> Dictionary:
 	var vm = {
 		"visible": false,
 		"header": "",
@@ -205,6 +222,10 @@ static func compute_view_model(game_state, selection) -> Dictionary:
 		"subheader": "",
 		"manage_citizens_button_text": MANAGE_CITIZENS_LABEL,
 		"manage_citizens_disabled": true,
+		"done_planning_visible": false,
+		"done_planning_button_text": DONE_PLANNING_LABEL,
+		"planning_banner_text": "",
+		"planning_active": false,
 		"close_button_text": CLOSE_LABEL,
 		"show_yields": false,
 		"yields": {},
@@ -237,6 +258,9 @@ static func compute_view_model(game_state, selection) -> Dictionary:
 		vm["breakdown_line"] = _breakdown_line_from_breakdown(brk)
 	var cp = game_state.turn_state.current_player_id()
 	vm["visible"] = true
+	var planning_now: bool = city_view_state != null and city_view_state.is_planning()
+	vm["planning_active"] = planning_now
+	vm["planning_banner_text"] = PLANNING_BANNER if planning_now else ""
 	var cname: String = str(city.city_name).strip_edges()
 	var title: String = cname if cname != "" else "City"
 	vm["header_title"] = title
@@ -248,7 +272,11 @@ static func compute_view_model(game_state, selection) -> Dictionary:
 		vm["status"] = "Not your city (owner is player %d)." % city.owner_id
 		vm["show_production_section"] = false
 		vm["options"] = []
+		vm["manage_citizens_disabled"] = true
+		vm["done_planning_visible"] = false
 		return vm
+	vm["manage_citizens_disabled"] = planning_now
+	vm["done_planning_visible"] = planning_now
 	vm["show_production_section"] = true
 	vm["actions_heading"] = "Available production"
 	if city.current_project == null:
@@ -305,12 +333,15 @@ static func compute_view_model(game_state, selection) -> Dictionary:
 func refresh() -> void:
 	if _title_label == null:
 		return
-	var vm = compute_view_model(game_state, selection)
+	var vm = compute_view_model(game_state, selection, city_view_state)
 	var show_panel = bool(vm.get("visible", false))
 	visible = show_panel
 	mouse_filter = Control.MOUSE_FILTER_STOP if show_panel else Control.MOUSE_FILTER_IGNORE
 	if not show_panel:
 		_title_label.text = ""
+		if _planning_banner_label != null:
+			_planning_banner_label.text = ""
+			_planning_banner_label.visible = false
 		if _identity_label != null:
 			_identity_label.text = ""
 		_subheader_label.text = ""
@@ -331,6 +362,10 @@ func refresh() -> void:
 		_clear_buttons()
 		return
 	_title_label.text = str(vm.get("hub_brand", HUB_BRAND))
+	if _planning_banner_label != null:
+		var pb: String = str(vm.get("planning_banner_text", ""))
+		_planning_banner_label.text = pb
+		_planning_banner_label.visible = pb.length() > 0
 	if _identity_label != null:
 		_identity_label.text = str(vm.get("identity_line", ""))
 	_subheader_label.text = str(vm.get("subheader", ""))
@@ -339,6 +374,11 @@ func refresh() -> void:
 	if _manage_citizens_btn != null:
 		_manage_citizens_btn.text = str(vm.get("manage_citizens_button_text", MANAGE_CITIZENS_LABEL))
 		_manage_citizens_btn.disabled = bool(vm.get("manage_citizens_disabled", true))
+	if _done_planning_btn != null:
+		var dv: bool = bool(vm.get("done_planning_visible", false))
+		_done_planning_btn.visible = dv
+		_done_planning_btn.disabled = not dv
+		_done_planning_btn.text = str(vm.get("done_planning_button_text", DONE_PLANNING_LABEL))
 	if _close_btn != null:
 		_close_btn.text = str(vm.get("close_button_text", CLOSE_LABEL))
 		_close_btn.disabled = false
@@ -415,9 +455,36 @@ func _on_production_button_pressed(action: Dictionary) -> void:
 		push_warning("SetCityProduction rejected: %s" % result["reason"])
 
 
+func _refresh_hub_overlay_views() -> void:
+	if selection_view != null:
+		selection_view.queue_redraw()
+	if city_territory_view != null:
+		city_territory_view.queue_redraw()
+	if city_worked_tiles_view != null:
+		city_worked_tiles_view.queue_redraw()
+
+
+func _on_manage_citizens_pressed() -> void:
+	if city_view_state == null or selection == null or not selection.has_city():
+		return
+	city_view_state.enter_planning()
+	_refresh_hub_overlay_views()
+	refresh()
+
+
+func _on_done_planning_pressed() -> void:
+	if city_view_state == null:
+		return
+	city_view_state.exit_planning()
+	_refresh_hub_overlay_views()
+	refresh()
+
+
 func _on_hub_close_pressed() -> void:
 	if selection == null:
 		return
+	if city_view_state != null:
+		city_view_state.reset_to_normal()
 	selection.clear_city()
 	if selection_view != null:
 		selection_view.queue_redraw()

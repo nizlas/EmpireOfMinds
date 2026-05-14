@@ -7,6 +7,7 @@ const SetCityProductionScript = preload("res://domain/actions/set_city_productio
 const CompleteProgressScript = preload("res://domain/actions/complete_progress.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const CityProductionPanelScript = preload("res://presentation/city_production_panel.gd")
+const CityViewStateScript = preload("res://presentation/city_view_state.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
 const ScenarioScript = preload("res://domain/scenario.gd")
 const HexMapScript = preload("res://domain/hex_map.gd")
@@ -53,7 +54,7 @@ func _run() -> void:
 	_check(str(vm_idle.get("identity_line", "")).find("Capital") >= 0, "identity shows city name")
 	_check(str(vm_idle.get("identity_line", "")).find("Pop ") >= 0, "identity shows Pop")
 	_check(str(vm_idle.get("manage_citizens_button_text", "")).find("Manage Citizens") >= 0, "vm manage citizens label")
-	_check(bool(vm_idle.get("manage_citizens_disabled", false)), "vm manage citizens disabled")
+	_check(not bool(vm_idle.get("manage_citizens_disabled", true)), "vm manage citizens enabled own city")
 	_check(str(vm_idle.get("close_button_text", "")) == "Close", "vm close label")
 	_check(bool(vm_idle.get("show_yields", false)), "yields visible for founded capital")
 	var y_idle = vm_idle.get("yields", {}) as Dictionary
@@ -76,6 +77,14 @@ func _run() -> void:
 	var a1i = (opts_idle[1] as Dictionary)["action"] as Dictionary
 	_check(str(a0i.get("project_id", "")) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR, "first warrior")
 	_check(str(a1i.get("project_id", "")) == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER, "second settler")
+
+	var cvs_plan_vm = CityViewStateScript.new()
+	cvs_plan_vm.enter_planning()
+	var vm_plan_own = CityProductionPanelScript.compute_view_model(gs2, sel, cvs_plan_vm)
+	_check(bool(vm_plan_own.get("planning_active", false)), "vm planning_active when CityViewState planning")
+	_check(str(vm_plan_own.get("planning_banner_text", "")).find("Planning") >= 0, "vm planning_banner_text")
+	_check(bool(vm_plan_own.get("done_planning_visible", false)), "vm done_planning_visible")
+	_check(bool(vm_plan_own.get("manage_citizens_disabled", false)), "vm manage disabled while planning")
 
 	_check(
 		gs2.try_apply(CompleteProgressScript.make(0, "controlled_fire"))["accepted"],
@@ -191,30 +200,51 @@ func _run() -> void:
 		"palace adds science not production bump"
 	)
 
-	# 5.1.17g — hub skeleton: rendered labels + Close clears city selection only.
+	# 5.1.17g / **5.1.17i** — hub labels + **Manage Citizens** / **Done** / **Close** + **CityViewState**.
 	var gs_hub = GameStateScript.make_tiny_test_state()
 	_check(gs_hub.try_apply(FoundCityScript.make(0, 1, 0, 0))["accepted"], "hub skeleton: found city")
 	var sel_hub = SelectionStateScript.new()
 	sel_hub.select_city(1)
+	var scen_hub = gs_hub.scenario
+	var n_hub_cities = gs_hub.scenario.cities().size()
+	var hub_cvs = CityViewStateScript.new()
 	var panel = CityProductionPanelScript.new()
 	get_root().add_child(panel)
 	panel.game_state = gs_hub
 	panel.selection = sel_hub
+	panel.city_view_state = hub_cvs
 	panel.refresh()
 	_check(panel.visible, "hub panel visible with city selection")
 	_check(panel._title_label.text == "City Hub", "panel shows City Hub title")
 	_check(panel._identity_label.text.find("Pop ") >= 0, "panel identity shows population")
-	_check(panel._manage_citizens_btn.disabled, "Manage Citizens disabled")
+	_check(not panel._manage_citizens_btn.disabled, "Manage Citizens enabled own city")
 	_check(panel._manage_citizens_btn.text.find("Manage Citizens") >= 0, "Manage Citizens label")
+	_check(not panel._done_planning_btn.visible, "Done hidden in NORMAL")
 	_check(panel._close_btn.text == "Close", "Close button text")
-	var scen_before = gs_hub.scenario
-	var n_cities = gs_hub.scenario.cities().size()
+	panel._on_manage_citizens_pressed()
+	_check(hub_cvs.is_planning(), "Manage Citizens enters PLANNING")
+	panel.refresh()
+	_check(panel._planning_banner_label.visible, "planning banner visible")
+	_check(str(panel._planning_banner_label.text).find("Planning") >= 0, "planning banner mentions Planning")
+	_check(panel._manage_citizens_btn.disabled, "Manage Citizens disabled while planning")
+	_check(panel._done_planning_btn.visible, "Done visible in PLANNING")
+	panel._on_done_planning_pressed()
+	_check(not hub_cvs.is_planning(), "Done exits PLANNING")
+	_check(sel_hub.has_city(), "Done keeps city selected")
+	panel.refresh()
+	_check(not panel._planning_banner_label.visible, "banner hides after Done")
+	panel._on_manage_citizens_pressed()
+	_check(hub_cvs.is_planning(), "re-enter PLANNING for Close test")
 	panel._on_hub_close_pressed()
 	_check(not sel_hub.has_city(), "Close clears city selection")
-	_check(gs_hub.scenario == scen_before, "Close does not replace scenario")
-	_check(gs_hub.scenario.cities().size() == n_cities, "Close does not add/remove cities")
+	_check(not hub_cvs.is_planning(), "Close resets planning")
+	_check(gs_hub.scenario == scen_hub, "Close does not replace scenario")
+	_check(gs_hub.scenario.cities().size() == n_hub_cities, "Close does not add/remove cities")
 	_check(not panel.visible, "panel hides after Close")
 	panel.queue_free()
+
+	var vm_plan = CityProductionPanelScript.compute_view_model(gs_hub, sel_hub, hub_cvs)
+	_check(not bool(vm_plan.get("visible", true)), "no city selection hides even if cvs exists")
 
 	if _any_fail:
 		call_deferred("quit", 1)
