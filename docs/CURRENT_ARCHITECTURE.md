@@ -40,9 +40,9 @@ Concise map of **what exists in code today**. For phased history and decisions u
 | **[EffectiveRules](../game/domain/effective_rules.gd)** | **Thin façade** today (e.g. supported city projects via **`CityProjectDefinitions`**) |
 | **`RuleSet`** | **Architecture direction only** — **no** matching GDScript **`class_name`** yet; persistence / compilation story lives in **[CONTENT_MODEL.md](CONTENT_MODEL.md)**, **[CLOUD_PLAY.md](CLOUD_PLAY.md)** |
 | **`game/domain/content/`** | **`UnitDefinitions`**, **`CityProjectDefinitions`**, **`ProgressDefinitions`**, **`TerrainRuleDefinitions`**, **`FactionDefinitions`**, … |
-| Helpers | **`ProgressUnlockResolver`**, **`ProgressDetector`**, **`ScienceAvailability`**, … |
+| Helpers | **`ProgressUnlockResolver`**, **`ProgressDetector`**, **`ScienceAvailability`**, **`PrototypePlainsClusters`** (**[prototype_plains_clusters.gd](../game/domain/prototype_plains_clusters.gd)** — prototype play-map curated forest-debug cluster axial coords), … |
 
-**Leak:** **`HexMap`** prototype painting **preload**s **`res://presentation/forest_debug_clusters.gd`** ([forest_debug_clusters.gd](../game/presentation/forest_debug_clusters.gd)) — **domain must not normally depend on presentation**; removing this is deferred cleanup.
+**Prototype clusters (boundary):** Curated axial cluster coords for **`HexMap.make_prototype_play_map()`** plains/forest-debug alignment live in **`PrototypePlainsClusters`** (**[prototype_plains_clusters.gd](../game/domain/prototype_plains_clusters.gd)**). **[HexMap](../game/domain/hex_map.gd)** reads that domain source only—not presentation **[forest_debug_clusters.gd](../game/presentation/forest_debug_clusters.gd)** (**`preload`**/`import` stays **out** of production domain code for this data). **`ForestDebugClusters`** remains the presentation façade and diagnostic helper over the **same** domain-authored lists (**`TerrainForegroundView`**, headless cluster geometry tests). *Caveat:* some **`game/domain/tests/`** harness scripts **may still** **`preload`** presentation modules for layered smoke wiring; **`HexMap`** and other core **`game/domain/`** production scripts (**excluding** **`tests/`**) **do not** depend on **`res://presentation/`** for prototype cluster coordinates.
 
 ---
 

@@ -8,7 +8,7 @@ const _HexCoordT = preload("res://domain/hex_coord.gd")
 # Same file; avoids self-reference at static scope for `make_tiny_test_map`.
 const _HEX_MAP_SCRIPT = preload("res://domain/hex_map.gd")
 const _PROTOTYPE_TERRAIN_FEATURES = preload("res://domain/prototype_terrain_features.gd")
-const _ForestDebugClusters = preload("res://presentation/forest_debug_clusters.gd")
+const _PrototypePlainsClusters = preload("res://domain/prototype_plains_clusters.gd")
 
 const _PROTO_AX_NEI: Array[Vector2i] = [
 	Vector2i(1, 0),
@@ -466,7 +466,7 @@ static func _proto_paint_land_terrain(land: Dictionary, c: Dictionary, lf: Dicti
 	_paint_grass_flat(land, c, lf, [Vector2i(-1, 3), Vector2i(-2, 4)])
 
 	# Forest-debug review patches must remain **PLAINS** flats (presentation headless tests).
-	var dbg: Array[Vector2i] = _ForestDebugClusters.all_cluster_hexes_sorted()
+	var dbg: Array[Vector2i] = _PrototypePlainsClusters.all_cluster_hexes_sorted()
 	var di: int = 0
 	while di < dbg.size():
 		var dv: Vector2i = dbg[di]
