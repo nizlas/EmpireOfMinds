@@ -1,75 +1,108 @@
-# Headless: **main** + **SelectionController** wire **CityTerritoryView** for manual play. Usage: godot --headless --path game -s res://presentation/tests/test_city_territory_main_wiring.gd
+# Headless: **main.tscn** exposes **CityTerritoryView** in the intended map-stack position; runtime **Main** wires it to selection + **SelectionController**.
+# Loads **PackedScene** + instantiates **Main** under tree so **`_ready`** runs (matches manual play wiring).
+# Usage: godot --headless --path game -s res://presentation/tests/test_city_territory_main_wiring.gd
 extends SceneTree
 
 
+const MAIN_SCENE_PATH: String = "res://main.tscn"
+const CITY_TERRITORY_SCRIPT_END: String = "city_territory_view.gd"
+
+
 func _init() -> void:
-	var fm = FileAccess.open("res://main.gd", FileAccess.READ)
-	var ft = FileAccess.open("res://main.tscn", FileAccess.READ)
-	if fm == null or ft == null:
-		push_error("FAIL: could not open main.gd / main.tscn")
-		call_deferred("quit", 1)
+	call_deferred("_run_load_scene")
+
+
+func _fail(message: String) -> void:
+	push_error(message)
+	call_deferred("quit", 1)
+
+
+func _run_load_scene() -> void:
+	var packed: PackedScene = load(MAIN_SCENE_PATH) as PackedScene
+	if packed == null:
+		_fail("FAIL: could not load %s as PackedScene" % MAIN_SCENE_PATH)
 		return
-	var g: String = fm.get_as_text()
-	var t: String = ft.get_as_text()
-	fm.close()
-	ft.close()
-	if g.find("city_territory_view.selection = selection") < 0:
-		push_error("FAIL: main.gd must assign city_territory_view.selection = selection (same instance as controller)")
-		call_deferred("quit", 1)
+	var main_root: Node = packed.instantiate()
+	var map_idx: int = -1
+	var ct_idx: int = -1
+	var cities_idx: int = -1
+	var yield_idx: int = -1
+	if main_root.has_node(NodePath("MapView")):
+		map_idx = main_root.get_node(NodePath("MapView")).get_index()
+	if main_root.has_node(NodePath("CityTerritoryView")):
+		ct_idx = main_root.get_node(NodePath("CityTerritoryView")).get_index()
+	if main_root.has_node(NodePath("CitiesView")):
+		cities_idx = main_root.get_node(NodePath("CitiesView")).get_index()
+	if main_root.has_node(NodePath("TileYieldOverlayView")):
+		yield_idx = main_root.get_node(NodePath("TileYieldOverlayView")).get_index()
+	if ct_idx < 0:
+		main_root.free()
+		_fail("FAIL: CityTerritoryView missing under Main")
 		return
-	if g.find("$CityTerritoryView") < 0 or g.find("queue_redraw()") < 0:
-		push_error("FAIL: main.gd should reference $CityTerritoryView and queue_redraw")
-		call_deferred("quit", 1)
+	if map_idx < 0 or not (map_idx < ct_idx and ct_idx < cities_idx):
+		main_root.free()
+		_fail(
+			"FAIL: sibling order MapView (%d) < CityTerritoryView (%d) < CitiesView (%d)" % [map_idx, ct_idx, cities_idx]
+		)
 		return
-	if g.find("$CityTerritoryView.queue_redraw()") < 0:
-		push_error("FAIL: _redraw_map_layers must include $CityTerritoryView.queue_redraw()")
-		call_deferred("quit", 1)
+	if not (ct_idx < yield_idx):
+		main_root.free()
+		_fail(
+			"FAIL: sibling order CityTerritoryView (%d) < TileYieldOverlayView (%d)" % [ct_idx, yield_idx]
+		)
 		return
-	var i_loop: int = g.find("for n in [")
-	if i_loop < 0 or g.find("$CityTerritoryView", i_loop) < 0:
-		push_error("FAIL: main.gd MAP_LAYER_ORIGIN loop should include $CityTerritoryView")
-		call_deferred("quit", 1)
+
+	var ctv_packed: CanvasItem = main_root.get_node(NodePath("CityTerritoryView")) as CanvasItem
+	if int(ctv_packed.z_index) != 0:
+		main_root.free()
+		_fail("FAIL: CityTerritoryView z_index expected 0 in scene packed state")
 		return
-	var i_ct: int = t.find('[node name="CityTerritoryView"')
-	if i_ct < 0:
-		push_error("FAIL: main.tscn missing CityTerritoryView node")
-		call_deferred("quit", 1)
+	var ct_script = ctv_packed.get_script()
+	if ct_script == null:
+		main_root.free()
+		_fail("FAIL: CityTerritoryView has no script on packed instance")
 		return
-	var slice_len: int = min(420, t.length() - i_ct)
-	var chunk: String = t.substr(i_ct, slice_len)
-	if chunk.find("z_index = 0") < 0:
-		push_error("FAIL: CityTerritoryView should have z_index = 0 in main.tscn (map surface under foreground)")
-		call_deferred("quit", 1)
+	var sp: String = (ct_script as Script).resource_path
+	if not String(sp).ends_with(CITY_TERRITORY_SCRIPT_END):
+		main_root.free()
+		_fail("FAIL: CityTerritoryView script path expected *%s, got %s" % [CITY_TERRITORY_SCRIPT_END, sp])
 		return
-	if chunk.find("city_territory_view.gd") < 0 and chunk.find("21_cityterritory") < 0:
-		push_error("FAIL: CityTerritoryView script resource missing in node block")
-		call_deferred("quit", 1)
+
+	get_root().add_child(main_root)
+	call_deferred("_run_after_ready", main_root)
+
+
+func _run_after_ready(main_root: Node) -> void:
+	var ctv: Node = main_root.get_node(NodePath("CityTerritoryView"))
+	var selCtl: Node = main_root.get_node(NodePath("SelectionController"))
+	var city_tv_field = selCtl.get("city_territory_view")
+	if city_tv_field != ctv:
+		main_root.queue_free()
+		_fail(
+			"FAIL: SelectionController.city_territory_view must be the scene CityTerritoryView node instance"
+		)
 		return
-	var fc = FileAccess.open("res://presentation/selection_controller.gd", FileAccess.READ)
-	if fc == null:
-		push_error("FAIL: selection_controller.gd")
-		call_deferred("quit", 1)
+	var selCtl_sel = selCtl.get("selection")
+	var ctv_sel = ctv.get("selection")
+	if selCtl_sel == null or ctv_sel == null or selCtl_sel != ctv_sel:
+		main_root.queue_free()
+		_fail("FAIL: CityTerritoryView.selection must match SelectionController.selection (same instance)")
 		return
-	var sc: String = fc.get_as_text()
-	fc.close()
-	if sc.find("var city_territory_view") < 0:
-		push_error("FAIL: SelectionController needs city_territory_view field")
-		call_deferred("quit", 1)
+	if not selCtl.has_method(&"_refresh_city_territory_view"):
+		main_root.queue_free()
+		_fail("FAIL: SelectionController must define _refresh_city_territory_view")
 		return
-	if sc.find("func _refresh_city_territory_view()") < 0:
-		push_error("FAIL: SelectionController needs _refresh_city_territory_view()")
-		call_deferred("quit", 1)
+
+	if int((ctv as CanvasItem).z_index) != 0:
+		main_root.queue_free()
+		_fail("FAIL: CityTerritoryView z_index expected 0 after Main._ready")
 		return
-	var i_map: int = t.find('[node name="MapView"')
-	var i_cities: int = t.find('[node name="CitiesView"')
-	if i_map < 0 or not (i_map < i_ct and i_ct < i_cities):
-		push_error("FAIL: sibling order MapView < CityTerritoryView < CitiesView in tscn text")
-		call_deferred("quit", 1)
+	var overlay = main_root.get_node(NodePath("TileYieldOverlayView")) as CanvasItem
+	if int(overlay.z_index) <= int((ctv as CanvasItem).z_index):
+		main_root.queue_free()
+		_fail("FAIL: TileYieldOverlayView z_index expected above CityTerritoryView after Main._ready")
 		return
-	var i_y: int = t.find('[node name="TileYieldOverlayView"')
-	if not (i_ct < i_y):
-		push_error("FAIL: sibling order CityTerritoryView < TileYieldOverlayView in tscn text")
-		call_deferred("quit", 1)
-		return
+
+	main_root.queue_free()
 	print("PASS city_territory_main_wiring")
 	call_deferred("quit", 0)
