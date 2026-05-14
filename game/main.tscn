@@ -22,6 +22,7 @@
 [ext_resource type="Script" path="res://presentation/tile_yield_overlay_view.gd" id="20_tileyield"]
 [ext_resource type="Script" path="res://presentation/city_territory_view.gd" id="21_cityterritory"]
 [ext_resource type="Script" path="res://presentation/city_worked_tiles_view.gd" id="22_city_worked"]
+[ext_resource type="Script" path="res://presentation/empire_border_view.gd" id="23_empire_border"]
 
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
@@ -135,6 +136,11 @@ text = "Yields"
 [node name="MapView" type="Node2D" parent="." unique_id=1063845021]
 position = Vector2(400, 428)
 script = ExtResource("2_mapview")
+
+[node name="EmpireBorderView" type="Node2D" parent="." unique_id=1063845028]
+position = Vector2(400, 428)
+z_index = 0
+script = ExtResource("23_empire_border")
 
 [node name="CityTerritoryView" type="Node2D" parent="." unique_id=1063845026]
 position = Vector2(400, 428)

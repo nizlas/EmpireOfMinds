@@ -1,4 +1,4 @@
-# Headless: **main.tscn** exposes **CityTerritoryView** in the intended map-stack position; runtime **Main** wires it to selection + **SelectionController**.
+# Headless: **main.tscn** keeps **CityTerritoryView** in the map stack for wiring parity (**selection** shared with **SelectionController**); draw path is **dormant** — **`EmpireBorderView`** is the visible realm border (**5.1.17h** correction).
 # Loads **PackedScene** + instantiates **Main** under tree so **`_ready`** runs (matches manual play wiring).
 # Usage: godot --headless --path game -s res://presentation/tests/test_city_territory_main_wiring.gd
 extends SceneTree
@@ -24,25 +24,35 @@ func _run_load_scene() -> void:
 		return
 	var main_root: Node = packed.instantiate()
 	var map_idx: int = -1
+	var em_idx: int = -1
 	var ct_idx: int = -1
 	var cities_idx: int = -1
 	var yield_idx: int = -1
 	if main_root.has_node(NodePath("MapView")):
 		map_idx = main_root.get_node(NodePath("MapView")).get_index()
+	if main_root.has_node(NodePath("EmpireBorderView")):
+		em_idx = main_root.get_node(NodePath("EmpireBorderView")).get_index()
 	if main_root.has_node(NodePath("CityTerritoryView")):
 		ct_idx = main_root.get_node(NodePath("CityTerritoryView")).get_index()
 	if main_root.has_node(NodePath("CitiesView")):
 		cities_idx = main_root.get_node(NodePath("CitiesView")).get_index()
 	if main_root.has_node(NodePath("TileYieldOverlayView")):
 		yield_idx = main_root.get_node(NodePath("TileYieldOverlayView")).get_index()
+	if em_idx < 0:
+		main_root.free()
+		_fail("FAIL: EmpireBorderView missing under Main")
+		return
 	if ct_idx < 0:
 		main_root.free()
 		_fail("FAIL: CityTerritoryView missing under Main")
 		return
-	if map_idx < 0 or not (map_idx < ct_idx and ct_idx < cities_idx):
+	if map_idx < 0 or not (map_idx < em_idx and em_idx < ct_idx and ct_idx < cities_idx):
 		main_root.free()
 		_fail(
-			"FAIL: sibling order MapView (%d) < CityTerritoryView (%d) < CitiesView (%d)" % [map_idx, ct_idx, cities_idx]
+			(
+				"FAIL: sibling order MapView (%d) < EmpireBorderView (%d) < CityTerritoryView (%d) < CitiesView (%d)"
+				% [map_idx, em_idx, ct_idx, cities_idx]
+			)
 		)
 		return
 	if not (ct_idx < yield_idx):

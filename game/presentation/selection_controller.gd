@@ -38,6 +38,8 @@ var city_nameplate_view
 var yield_overlay_view
 ## Phase 5.1.16i: selected-city territory outline (**tiles_owned_by_city**); redraw with selection / sync.
 var city_territory_view
+## Phase **5.1.17h**: always-on owner-union perimeter (**EmpireBorderView**); redraw with terrain sync / scenario assigns.
+var empire_border_view
 ## Phase 5.1.17e: selected-city **auto-worked** hex markers (**yield_breakdown_for_city**.worked_tiles); redraw with territory.
 var city_worked_tiles_view
 var turn_label
@@ -176,6 +178,7 @@ func _sync_terrain_foreground_from_game_state() -> void:
 		yield_overlay_view,
 		city_territory_view,
 		city_worked_tiles_view,
+		empire_border_view,
 	)
 
 func _unhandled_input(event):

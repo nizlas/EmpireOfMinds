@@ -53,10 +53,11 @@ func _init() -> void:
 	var cn = ScenarioViewStub.new()
 	var yo = ScenarioViewStub.new()
 	var ct = ScenarioViewStub.new()
-	TurnViewSyncScript.sync_terrain_related_views(scen, tf, un, cn, yo, ct)
+	var eb = ScenarioViewStub.new()
+	TurnViewSyncScript.sync_terrain_related_views(scen, tf, un, cn, yo, ct, null, eb)
 	_check(tf.map_writes == 1, "terrain map assignment once")
 	_check(tf.redraws == 1 and un.redraws == 1 and cn.redraws == 1, "terrain+name redraws once each")
-	_check(yo.redraws == 1 and ct.redraws == 1, "yield+territory redraw once")
+	_check(yo.redraws == 1 and ct.redraws == 1 and eb.redraws == 1, "yield+territory+empire redraw once")
 
 	## refresh_map_views_and_hud_after_try_apply_turn_controllers
 	var sel = ScenarioViewStub.new()
@@ -72,6 +73,7 @@ func _init() -> void:
 	var cnp2 = ScenarioViewStub.new()
 	var yov2 = ScenarioViewStub.new()
 	var ctv2 = ScenarioViewStub.new()
+	var eb2 = ScenarioViewStub.new()
 
 	TurnViewSyncScript.refresh_map_views_and_hud_after_try_apply_turn_controllers(
 		gs,
@@ -87,11 +89,16 @@ func _init() -> void:
 		cpp,
 		dap,
 		sp,
+		null,
+		eb2,
 	)
 	_check(sel.scenario == scen and uv.scenario == scen, "selection/units wired to scenario")
 	_check(sel.redraws == 1 and uv.redraws == 1, "selection/units redraw once")
 	_check(tf2.map_writes == 1 and tf2.redraws == 1, "turn-style terrain assign+redraw")
-	_check(unp2.redraws == 1 and cnp2.redraws == 1 and yov2.redraws == 1 and ctv2.redraws == 1, "each overlay-style view redraw once")
+	_check(
+		unp2.redraws == 1 and cnp2.redraws == 1 and yov2.redraws == 1 and ctv2.redraws == 1 and eb2.redraws == 1,
+		"each overlay-style view redraw once (incl empire)"
+	)
 	_check(tl.refreshes == 1 and lv.refreshes == 1, "turn label + log refresh once")
 	_check(cpp.refreshes == 1 and dap.refreshes == 1 and sp.refreshes == 1, "HUD panels refreshed once")
 
@@ -103,6 +110,7 @@ func _init() -> void:
 		+ cnp2.redraws
 		+ yov2.redraws
 		+ ctv2.redraws
+		+ eb2.redraws
 	)
 	TurnViewSyncScript.refresh_map_views_and_hud_after_try_apply_turn_controllers(
 		null,
@@ -118,6 +126,8 @@ func _init() -> void:
 		cpp,
 		dap,
 		sp,
+		null,
+		eb2,
 	)
 	var redraw_after: int = (
 		sel.redraws
@@ -127,10 +137,11 @@ func _init() -> void:
 			+ cnp2.redraws
 			+ yov2.redraws
 			+ ctv2.redraws
+			+ eb2.redraws
 	)
 	_check(redraw_after == redraw_tot, "null GameState skips all view redraws")
 
-	for n in [tf, un, cn, yo, ct, sel, uv, tl, lv, cpp, dap, sp, tf2, unp2, cnp2, yov2, ctv2]:
+	for n in [tf, un, cn, yo, ct, eb, sel, uv, tl, lv, cpp, dap, sp, tf2, unp2, cnp2, yov2, ctv2, eb2]:
 		if is_instance_valid(n) and n is Node:
 			n.free()
 

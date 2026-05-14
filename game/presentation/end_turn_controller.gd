@@ -21,6 +21,7 @@ var log_view
 var city_production_panel
 var yield_overlay_view
 var city_territory_view
+var empire_border_view
 var city_worked_tiles_view
 var discovery_action_panel
 var science_panel
@@ -68,6 +69,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					discovery_action_panel,
 					science_panel,
 					city_worked_tiles_view,
+					empire_border_view,
 				)
 			else:
 				push_warning("EndTurn rejected: %s" % result["reason"])

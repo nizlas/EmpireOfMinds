@@ -1,6 +1,6 @@
 # Selected-city territory outline (Phase 5.1.16i). **read-only** domain; **MapCamera** / **HexLayout** anchored.
-# Perimeter **topology** is built only from axial **`owned_tiles`** adjacency (half-edges). **Closed boundary loops**
-# are **traced** via **logical corner adjacency** (layout **world** keys — camera-independent). **No** screen-space
+# **5.1.17h correction:** normal selection **does not** draw a second rim — **`EmpireBorderView`** owns the visible realm outline at full strength. This node stays **dormant** until **CityPlanningMode** / future emphasis reuses the same **`Line2D`** plumbing.
+# Perimeter **topology** static API remains for tests and **`EmpireBorderView`** reuse; closed loops **are** **traced** via **logical corner adjacency** (layout **world** keys — camera-independent). **No** screen-space
 # sorting, **no** centroid angle order, **no** global polygon triangulation. **Line2D** continuous stroked paths with
 # **round joints** (no default **joint dots** / rivets). **Debug** endpoint caps remain **opt-in** only.
 # See docs/RENDERING.md
@@ -643,10 +643,9 @@ func _ready() -> void:
 
 func _draw() -> void:
 	var dbg_log: bool = _want_debug_log()
-	var dbg_vis: bool = _want_debug_visible()
+	_hide_territory_lines_from(0)
 
 	if scenario == null or layout == null:
-		_hide_territory_lines_from(0)
 		if dbg_log:
 			print(
 				"[EOM_CITY_TERRITORY] visible=%s scenario=%s layout=%s camera=%s selection=%s has_city=%s city_id=%s … (early)" % [
@@ -660,141 +659,14 @@ func _draw() -> void:
 				]
 			)
 		return
-	if selection == null or not selection.has_city():
-		_hide_territory_lines_from(0)
-		if dbg_log:
-			print(
-				"[EOM_CITY_TERRITORY] visible=%s scenario=yes layout=yes camera=%s selection=%s has_city=%s city_id=%s … (no city selection)" % [
-					str(visible),
-					str(camera != null),
-					str(selection != null),
-					str(selection.has_city() if selection != null else false),
-					str(selection.city_id if selection != null else -999),
-				]
-			)
-		return
-	if camera == null:
-		var cam = MapCameraScript.new()
-		cam.projection = MapPlaneProjectionScript.new()
-		camera = cam
-	var city_id: int = int(selection.city_id)
-	var tiles: Array = scenario.tiles_owned_by_city(city_id)
-	if tiles.is_empty():
-		_hide_territory_lines_from(0)
-		if dbg_log:
-			print(
-				"[EOM_CITY_TERRITORY] city_id=%s city_found=%s owned_tile_count=0 … (no tiles)" % [
-					str(city_id),
-					str(scenario.city_by_id(city_id) != null),
-				]
-			)
-		return
-
-	var outer_rgb: Color = territory_outer_color_for_city(scenario, city_id)
-	var inner_base: Color = territory_inner_stroke_color()
-	var inner_col: Color = Color(inner_base.r, inner_base.g, inner_base.b, _INNER_ALPHA)
-	var edge_tab: PackedByteArray = edge_index_table_for_layout(layout)
-	var cty = scenario.city_by_id(city_id)
-
-	var inner_frac: float = _INNER_WIDTH_FRAC
-	if dbg_vis:
-		inner_frac = _DBG_INNER_FRAC
-
-	var world_centroid: Vector2 = Vector2.ZERO
-	var ncent: int = 0
-	var tci: int = 0
-	while tci < tiles.size():
-		var axc = try_axial_from_owned_tile_entry(tiles[tci])
-		if axc == null:
-			tci += 1
-			continue
-		var vc: Vector2i = axc as Vector2i
-		world_centroid += _hex_world_center(layout, vc.x, vc.y)
-		ncent += 1
-		tci += 1
-	if ncent > 0:
-		world_centroid /= float(ncent)
-
-	var outer_w: float
-	if dbg_vis:
-		outer_w = clampf(lerpf(_DBG_OUTER_W_MIN, _DBG_OUTER_W_MAX, 0.55), _DBG_OUTER_W_MIN, _DBG_OUTER_W_MAX)
-	else:
-		var psc0: float = camera.perspective_scale_at(world_centroid)
-		outer_w = clampf(TERRITORY_OUTER_W_MUL * psc0, TERRITORY_OUTER_W_MIN, TERRITORY_OUTER_W_MAX)
-	var inner_w: float = maxf(outer_w * inner_frac, 4.0)
-	var inset_px: float = clampf(
-		TERRITORY_INNER_INSET_FRAC * outer_w, TERRITORY_INNER_INSET_MIN, TERRITORY_INNER_INSET_MAX
-	)
-
-	var edges: Array = territory_perimeter_world_segments_detailed(layout, tiles, edge_tab)
-	var loops: Array = trace_territory_perimeter_loops_edge_indices(edges)
-
-	var collect_caps: bool = _want_debug_territory_caps()
-	var cap_outer: Dictionary = {}
-	var cap_inner: Dictionary = {}
-	var r_o: float = outer_w * TERRITORY_DEBUG_CAP_RADIUS_FRAC_OUTER
-	var r_i: float = inner_w * TERRITORY_DEBUG_CAP_RADIUS_FRAC_INNER
-
-	_ensure_territory_line_pairs_needed(loops.size())
-
-	var lix: int = 0
-	while lix < loops.size():
-		var loop_one: Array = loops[lix] as Array
-		var outer_pts: PackedVector2Array = _presentation_outer_points_for_loop(edges, loop_one)
-		var inner_pts: PackedVector2Array = _presentation_inner_points_for_loop(edges, loop_one, inset_px)
-		var lo: Line2D = _perim_line_outer[lix] as Line2D
-		var li_ln: Line2D = _perim_line_inner[lix] as Line2D
-		lo.points = outer_pts
-		lo.width = outer_w
-		lo.default_color = outer_rgb
-		lo.visible = true
-		li_ln.points = inner_pts
-		li_ln.width = inner_w
-		li_ln.default_color = inner_col
-		li_ln.visible = true
-		if collect_caps:
-			var cj: int = 0
-			while cj < loop_one.size():
-				var ed: Dictionary = edges[int(loop_one[cj])] as Dictionary
-				var waa: Vector2 = ed["wa"] as Vector2
-				var wbb: Vector2 = ed["wb"] as Vector2
-				var kaa: String = str(ed["ka"])
-				var kbb: String = str(ed["kb"])
-				var pa_d: Vector2 = camera.to_presentation(waa)
-				var pb_d: Vector2 = camera.to_presentation(wbb)
-				cap_outer[kaa] = pa_d
-				cap_outer[kbb] = pb_d
-				var inward_d: Vector2 = territory_inward_unit_presentation(
-					camera, layout, int(ed["q"]), int(ed["r"]), waa, wbb
-				)
-				cap_inner[kaa] = pa_d + inward_d * inset_px
-				cap_inner[kbb] = pb_d + inward_d * inset_px
-				cj += 1
-		lix += 1
-
-	_hide_territory_lines_from(loops.size())
-
-	_debug_draw_territory_endpoint_caps_if_enabled(cap_outer, cap_inner, r_o, r_i, outer_rgb, inner_col)
 
 	if dbg_log:
+		var hc: bool = selection.has_city() if selection != null else false
+		var cid: int = int(selection.city_id) if hc else -999
 		print(
 			(
-				"[EOM_CITY_TERRITORY] visible=%s scenario=yes layout=yes camera=yes selection=yes has_city=%s "
-				+ "city_id=%s city_found=%s owned_tile_count=%d loops=%d half_edges=%d debug_caps=%s border_count=%d "
-				+ "signature_len=%d z_index=%d debug_vis=%s"
+				"[EOM_CITY_TERRITORY] dormant=true (realm outline is EmpireBorderView); "
+				+ "selection_has_city=%s city_id=%s — planning emphasis deferred"
 			)
-			% [
-				str(visible),
-				str(selection.has_city()),
-				str(city_id),
-				str(cty != null),
-				tiles.size(),
-				loops.size(),
-				edges.size(),
-				str(_want_debug_territory_caps()),
-				territory_border_edge_count(tiles),
-				territory_perimeter_axial_signature(tiles).length(),
-				z_index,
-				str(dbg_vis),
-			]
+			% [str(hc), str(cid)]
 		)

@@ -2412,6 +2412,20 @@ Validation:
 
 - **`scripts/run-godot-tests.ps1`** green.
 
+#### 5.1.17h — **`EmpireBorderView`** (always-on owner **union** border)
+
+**Status:** **Shipped** (**5.1.17h** prototype + **5.1.17h.1** strength / layering correction).
+
+- **`game/presentation/empire_border_view.gd`** — **`Node2D`**, **`scenario` / `layout` / `MapCamera`** only (**no** **`SelectionState`**); unions **`City.owned_tiles`** per **`owner_id`**; outer perimeter (**`CityTerritoryView`** topology helpers). **Dual** **`Line2D`** rim — **owner-colored** outer + **indigo** inner (**same alpha / width fractions** as legacy **`CityTerritoryView`** territory emphasis); selection-independent appearance.
+- **`CityTerritoryView`** — **`_draw`** **dormant** in normal play (**no** second rim); node + **`SelectionController`** wiring retained for future **CityPlanningMode**.
+- **`main.tscn` / `main.gd`** — sibling **after** **`MapView`**, **`z_index` 0**, **before** **`CityTerritoryView`** (slot above empire for future planning-only emphasis).
+- **`TurnViewSync`** + **`SelectionController`** / **`EndTurnController`** / **`AITurnController`** — **`empire_border_view`** redraw alongside terrain when **`Scenario`** updates.
+- Tests: **`test_empire_border_view.gd`**, **`test_main_tscn_map_layer_sibling_order.gd`**, **`test_turn_view_sync.gd`**, **`test_city_territory_main_wiring.gd`**; **`scripts/run-godot-tests.ps1`**.
+
+Validation:
+
+- **`scripts/run-godot-tests.ps1`** green.
+
 #### 5.1.16h — Population auto-works owned tiles (planned)
 
 **Status:** Planned (forward umbrella). **Embryo:** **5.1.17a**.

@@ -118,6 +118,7 @@ $Tests = @(
 	"res://presentation/tests/test_main_hud_discovery_action_panel.gd",
 	"res://presentation/tests/test_discovery_popup.gd",
 	"res://presentation/tests/test_discovery_popup_run_engine_popups.gd",
+	"res://presentation/tests/test_empire_border_view.gd",
 	"res://presentation/tests/test_science_completed_popup.gd",
 	"res://presentation/tests/test_science_panel.gd",
 	"res://presentation/tests/test_science_panel_button.gd",

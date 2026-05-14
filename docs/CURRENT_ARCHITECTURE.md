@@ -58,12 +58,12 @@ Concise map of **what exists in code today**. For phased history and decisions u
 
 | Concern | Main nodes / scripts |
 |--------|-----------------------|
-| **Map stack** | [MapView](../game/presentation/map_view.gd), [CityTerritoryView](../game/presentation/city_territory_view.gd), [CitiesView](../game/presentation/cities_view.gd), [SelectionView](../game/presentation/selection_view.gd), [UnitsView](../game/presentation/units_view.gd) |
+| **Map stack** | [MapView](../game/presentation/map_view.gd), [EmpireBorderView](../game/presentation/empire_border_view.gd) (**visible owner-union realm border**, dual rim), [CityTerritoryView](../game/presentation/city_territory_view.gd) (**dormant** rim in normal play — helpers + wiring for future planning), [CitiesView](../game/presentation/cities_view.gd), [SelectionView](../game/presentation/selection_view.gd), [UnitsView](../game/presentation/units_view.gd) |
 | **Foreground hub** | [TerrainForegroundView](../game/presentation/terrain_foreground_view.gd) — **large (~2k+ lines), multi-pass forest + delegated unit/city markers, depth-merge, many debug knobs** → **fragile hotspot**; **do not split blindly** pending a deliberate slice |
 | **Overlays / landmark** | [TileYieldOverlayView](../game/presentation/tile_yield_overlay_view.gd), [LightningTreeView](../game/presentation/lightning_tree_view.gd), nameplate views |
 | **Camera / space** | [MapCamera](../game/presentation/map_camera.gd), [MapPlaneProjection](../game/presentation/map_plane_projection.gd), [HexLayout](../game/presentation/hex_layout.gd) |
 | **Input / actions submission** | [SelectionController](../game/presentation/selection_controller.gd) (mouse + **`F`/`P`/`G`/`H`**, shared-hex semantics), **`EndTurn`/`AITurn`** controllers (**`SPACE`/`A`**) |
-| **HUD** | **`HudCanvas`** in **`main.tscn`** — **selected-city hub** (**`city_production_panel.gd`**, class **`CityProductionPanel`**, visible title **City Hub**) + discovery/science panels, popups, yields toggle; **`main.gd`** connects signals (**e.g.** **`YieldsToggle`**) and hub **Close** redraw refs (**`selection_view`**, **`city_territory_view`**, **`city_worked_tiles_view`**). |
+| **HUD** | **`HudCanvas`** in **`main.tscn`** — **selected-city hub** (**`city_production_panel.gd`**, class **`CityProductionPanel`**, visible title **City Hub**) + discovery/science panels, popups, yields toggle; **`main.gd`** connects signals (**e.g.** **`YieldsToggle`**) and hub **Close** redraw refs (**`selection_view`**, **`city_territory_view`**, **`city_worked_tiles_view`**). Map stack includes **always-on** **`EmpireBorderView`** (**owner union** perimeter, **`main.tscn`** sibling **after** **`MapView`**). |
 
 Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative rules stay **`try_apply`**.
 
@@ -79,7 +79,7 @@ Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative 
 ## Known fragile areas
 
 - **[TerrainForegroundView](../game/presentation/terrain_foreground_view.gd)** — central visual hub; regressions ripple through layering, merges, diagnostics.
-- **Layer sibling order / `z_index`** in **`main.tscn` / **`main.gd`** — must stay consistent with **`CityTerritoryView`**, overlays, HUD (see also [RENDERING.md](RENDERING.md)).
+- **Layer sibling order / `z_index`** in **`main.tscn` / **`main.gd`** — must stay consistent with **`EmpireBorderView`** vs dormant **`CityTerritoryView`** slot, overlays, HUD (see also [RENDERING.md](RENDERING.md)).
 - **Post-`try_apply` refresh** — shared terrain/map-layer/HUD redraw and **`refresh`** calls for **EndTurn** / **AI** live in **`TurnViewSync.refresh_map_views_and_hud_after_try_apply_turn_controllers`**; **`SelectionController`** uses **`TurnViewSync.sync_terrain_related_views`** for terrain-related sync. Accepted-action wiring, **`DiscoveryPopup`** timing, **`selection.clear_unit()`**, and other controller-owned view/HUD updates remain explicit where they sit outside those helpers.
 
 ---

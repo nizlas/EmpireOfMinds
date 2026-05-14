@@ -1,9 +1,10 @@
 # Headless: **main.tscn** map **Node2D** siblings under **Main** preserve **Main** subtree order contract:
-# MapView → CityTerritoryView → CitiesView → SelectionView → UnitsView → TerrainForegroundView →
+# MapView → EmpireBorderView → CityTerritoryView → CitiesView → SelectionView → UnitsView → TerrainForegroundView →
 # LightningTreeView → CityWorkedTilesView → TileYieldOverlayView → CityNameplateView → UnitNameplateView → SelectionController,
 # ignoring other **Main** children (HudCanvas, labels, controllers after SelectionController).
+# **EmpireBorderView** (**5.1.17h**, strength **5.1.17h.1**): **`z_index` 0**, sibling **after** **`MapView`**, **before** **`CityTerritoryView`** — always-on owner **union** realm outline (**dual** **`Line2D`** rim matching legacy territory weight). **`CityTerritoryView`** stays **later** sibling but **dormant** (no normal rim; future **CityPlanningMode**).
 # **CityWorkedTilesView** (**5.1.17e**): **`z_index` 1**, **after** **`LightningTreeView`**, **before** **`TileYieldOverlayView`** — selected-city overlay **above** terrain/forest/unit+city markers (**0**), **below** yield icons (**later** sibling **1**) and nameplates (**2**). Layering set in **[main.gd](../game/main.gd)** **`_ready`**.
-# **CityTerritoryView** (**`z_index` 0** in scene state) stays on the map stack under yields/nameplates.
+# **CityTerritoryView** (**`z_index` 0**): slot retained **above** **EmpireBorderView** for future planning emphasis; **does not** add a second visible rim in normal play.
 # Phase **5.1.15b:** **CityNameplateView** sibling **before** **UnitNameplateView** (**`z_index` 2**) so units paint above city banners.
 # Usage: godot --headless --path game -s res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd
 extends SceneTree
@@ -14,6 +15,7 @@ const MAIN_SCENE_PATH: String = "res://main.tscn"
 ## Order must match **Main** direct children in **main.tscn** (map stack through **SelectionController**).
 var _map_layer_names: Array[String] = [
 	"MapView",
+	"EmpireBorderView",
 	"CityTerritoryView",
 	"CitiesView",
 	"SelectionView",
@@ -75,6 +77,11 @@ func _run() -> void:
 	if int(ctv.z_index) != 0:
 		main_root.free()
 		_fail("FAIL: CityTerritoryView z_index expected 0 in scene (PackedScene.instantiate)")
+		return
+	var ebv = main_root.get_node(NodePath("EmpireBorderView")) as CanvasItem
+	if int(ebv.z_index) != 0:
+		main_root.free()
+		_fail("FAIL: EmpireBorderView z_index expected 0 in scene (PackedScene.instantiate)")
 		return
 	var cwv = main_root.get_node(NodePath("CityWorkedTilesView")) as CanvasItem
 	if int(cwv.z_index) != 1:
