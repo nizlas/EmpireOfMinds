@@ -4,11 +4,12 @@
 
 Phase **2.x** core loop is **feature-frozen** as a baseline. **Phase 3** extends the **content foundation** (definitions, unit types, terrain rules, project data); this document describes what already works today—not the full Phase 3 roadmap. Phase **3** replaces placeholders such as **fixed `produce_unit` cost** through **content definitions** per [CONTENT_MODEL.md](CONTENT_MODEL.md) **without changing the loop’s shape** (same actions, `try_apply`, and AI pipeline). **Phase 3.1** already gates **`FoundCity`** by **`Unit.type_id`** / **`UnitDefinitions`** (see [UNITS.md](UNITS.md)).
 
-**Phase 3.4a:** [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) documents **future** sciences / breakthroughs / unlocks only — the **current** Phase **2** / **3** playable loop (moves, founding, production, **end_turn**, delivery) is **unchanged** by that checkpoint.
+**Phase 3.4a:** [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) records **Phase 3.4a** as the preliminary documentation checkpoint before progression code landed; subsequent **Phase 3.4b–h** and **5.1.x** slices shipped progression/science work there—not “future sciences only”.  
+The movement / founding / production / **`end_turn`** / **`ProductionDelivery`** spine is unchanged **in spirit**; **Phase 5.1** overlays **science accumulation**, **`controlled_fire`** completion on the prototype map, and **`produce_unit:settler`** on the same **`try_apply`** path.
 
 **Phase 3.4b:** **`ProgressDefinitions`** ([progress_definitions.gd](../game/domain/content/progress_definitions.gd)) adds **metadata-only** seed sciences — the **playable loop** is **unchanged**; no gating or new player-facing rules.
 
-**Phase 3.4c:** **`GameState`** seeds **`ProgressState`** so **initial players** have **`city_project` / `produce_unit:warrior`** unlocked — the **same** playable loop (moves, founding, production, **end_turn**, delivery) stays intact without changing **`RuleBasedAIPlayer`**.
+**Phase 3.4c:** **`GameState`** seeds **`ProgressState`** so **initial players** have **`city_project` / `produce_unit:warrior`** and **`city_project` / `produce_unit:settler`** unlocked (**Phase 5.1.12d** aligns defaults)—the core movement / founding / production / **`end_turn`** / **`ProductionDelivery`** loop stays recognizable without rewriting **`RuleBasedAIPlayer`**.
 
 **Phase 3.4e:** **`complete_progress`** is a **domain** action (**`GameState.try_apply`**) with **no** **`LegalActions`** enumeration and **no** **AI** use.
 
@@ -16,7 +17,7 @@ Phase **2.x** core loop is **feature-frozen** as a baseline. **Phase 3** extends
 
 **Phase 3.4g:** **`ProgressDetector`** ([progress_detector.gd](../game/domain/progress_detector.gd)) is a **domain** **read-only** helper that can **propose** **`CompleteProgress`** candidates from the **log**; **by itself** it does **not** change runtime; **Phase 3.4h** **`KEY_H`** is the **manual** path that consumes those suggestions for the **current player**.
 
-**Phase 3.4h:** **`ProgressCandidateFilter`** + **`KEY_H`** in **`SelectionController`** **manually** apply the **first** detector candidate **for the current player** via **`try_apply`**; **no** auto-apply on turn boundaries.
+**Phase 3.4h:** **`ProgressCandidateFilter`** + **`KEY_H`** in **`SelectionController`** manually apply the **first** **`ProgressDetector`** candidate **for the current player** via **`try_apply`**. This is **orthogonal** to automatic **`controlled_fire`** progress from **`ScienceTick`** during **`EndTurn`** (see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)).
 
 - **Mouse**: click a unit to select; click a **legal destination** (tinted hex) to move via `MoveUnit` through `GameState.try_apply`.
 - **F**: `FoundCity` for the **selected unit** on its current tile (presentation path in `SelectionController`). **Only settler-type units** (`UnitDefinitions.can_found_city`) succeed; others are rejected. Rejected actions surface as warnings; only accepted actions append to the log.
@@ -54,10 +55,10 @@ From [AI_LAYER.md](AI_LAYER.md):
 
 - **No** combat stats, **no** movement cost by **`type_id`**, **no** distinct **unit** **silhouettes** in presentation (markers unchanged).
 - **Water** hexes remain **blocked** for **one-step** moves via **`TerrainRuleDefinitions`**; **no** movement points, **no** multi-hex pathfinding, **no** application of **`movement_cost`** to range yet.
-- **`produce_unit`** training uses **`cost`** **2** from **`CityProjectDefinitions`** for **`produce_unit:warrior`**; **`ProductionDelivery`** spawns **`warrior`** units through that **`project_id`** (still **one** trainable project — **no** settler production yet).
+- **`produce_unit:warrior`** and **`produce_unit:settler`** carry **`cost` 2** in **`CityProjectDefinitions`** (**Phase 5.1.2** onward); **`ProductionDelivery`** spawns **`warrior`** / **`settler`** units from **`project_id`** (**AI** prefers warrior first via **`LegalActions`** ordering unless steering changes policy).
 - **City** and **unit** markers are **placeholder** geometry and palettes (not final art).
 - **Stacking** on the city hex is **allowed** when a produced unit spawns.
-- **No** combat resolution, **no** save/load, **no** fog of war, **no** tech tree, **no** faction **trait** layer beyond **`UnitDefinitions`** **IDs** and **`Unit.type_id`**.
+- **No** combat resolution, **no** save/load, **no** fog of war, **no** workbook-scale branching **tech catalog** (**Ancient v0 embryo** exposes a **small gated science slice** instead), **no** faction **trait** layer beyond **`UnitDefinitions`** IDs and **`Unit.type_id`**.
 
 Presentation: [RENDERING.md](RENDERING.md), [SELECTION.md](SELECTION.md) (editor wiring for keys and views).
 
@@ -83,22 +84,21 @@ Do **not** invoke `godot` directly for CI-style checks; the script resolves the 
 
 End-to-end loop guard: **`game/ai/tests/test_core_loop_ai_smoke.gd`** (AI drives the loop through at least one **`unit_produced`** delivery in bounded steps).
 
-## Phase 5.1 embryo intent (planned)
+## Phase 5.1 Ancient embryo (shipped + what stays out-of-scope)
 
-Everything **above** this subsection remains the **shipped** Phase **2.x** / **3.x** core loop summary. **Phase 5.1** describes the **next** curated Ancient mini-game embryo; it is **not** implemented until **5.1.x** code slices land.
+The **baseline** **`try_apply`** / **`LegalActions`** / **`EndTurn`** / **`ProductionTick`** pipeline **above** stays current. **Phase 5.1** delivered a **curated Ancient embryo** on top—not a roadmap-only placeholder.
 
-**Intended player-visible v0 loop** (plain language):
+**Player-visible embryo (mostly implemented):**
 
-1. Found a city with a **settler** (existing).
-2. Practical knowledge becomes available after **founding** (today: debug paths and detectors toward **`controlled_fire`**; see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)).
-3. The player **completes** that knowledge step (**`CompleteProgress`**, manual **`KEY_H`** or a future deterministic auto-apply slice).
-4. An **unlock** opens a **new city production option** beyond today’s lone **`produce_unit:warrior`** path. Steering labels this planned v0 target as **`produce_unit:settler`** (settler-class production); **5.1.0** documents the **plan** only — the **actual** **`CityProjectDefinitions`** row and **`ProgressDefinitions`** unlock wiring are **minted in a later code slice** ([CONTENT_MODEL.md](CONTENT_MODEL.md), [CITIES.md](CITIES.md)).
-5. **Set city production** to that project; **existing** **`ProductionTick`** / **`ProductionDelivery`** advance and deliver the new unit (same engine shape as warriors).
-6. Expansion repeats: the new unit can **found** another city.
+1. Found with a **settler** (**`found_city`**; unchanged path).
+2. **Science accumulation** toward **`controlled_fire`** on the prototype map (**`ScienceTick`** on **`EndTurn`**, lightning-tree observation bonus, **`controlled_fire`** completion + **`ScienceCompletedPopup`**) plus **`DiscoveryPopup`** / HUD panels (see [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md)). Manual **`CompleteProgress`** via **`KEY_H`** (**`ProgressDetector`** / **`ProgressCandidateFilter`**) remains a **parallel** tooling path.
+3. **`SetCurrentResearch`** and **`SciencePanel`** for choosing **next** curated science (**not** enumerated in **`LegalActions`** / **AI**).
+4. **`produce_unit:settler`** trains through **`ProductionTick`** / **`ProductionDelivery`** like warriors (**`CityProjectDefinitions`** row; **`CityYields`** / capital overlay per **[CITIES.md](CITIES.md)**).
+5. Delivered settlers **expand** with another **`found_city`** (cycle repeats).
 
-**Explicitly not promised in docs-only 5.1.0:** generated worlds, a second science row, a dedicated **`science` / `thought` yield** stat per city (v0 reuses **`produce_unit`** progress only; see [CITIES.md](CITIES.md)), or AI policy updates. Umbrella tracking: [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1**.
+**Still explicitly out-of-scope for this narrative:** generated worlds; alternate **`RuleSet`** snapshots beyond architecture direction in **[CONTENT_MODEL.md](CONTENT_MODEL.md)**; a full workbook-scale science graph; richer **spatial** detectors; **AI** proposing **`CompleteProgress`** without an explicit future phase; **LLM-produced rules** — tracked in **[PHASE_PLAN.md](PHASE_PLAN.md)** and **[CONTENT_MODEL.md](CONTENT_MODEL.md)**.
 
-**Phase 5.1.3 (implemented):** headless **`test_settler_production_flow.gd`** proves **`produce_unit:settler`** runs through the existing **`EndTurn`** → **`ProductionTick`** → **`ProductionDelivery`** chain and that the delivered **`settler`** can **`MoveUnit`** then **`FoundCity`** again (second city, founder consumed), with **no** production game code changes in that slice.
+**Regression guard:** **`test_settler_production_flow.gd`** proves **`produce_unit:settler`** runs through **`EndTurn`** → **`ProductionTick`** → **`ProductionDelivery`** and the delivered **`settler`** may **`MoveUnit`** then **`FoundCity`** again.
 
 ## Cross-references
 

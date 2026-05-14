@@ -76,5 +76,5 @@ Code under `game/domain/` must not depend on Godot scene nodes, rendering, UI, i
 - A dedicated **cell** or **terrain** type with gameplay fields (owner, resources, move cost, etc.)
 - **Fog of war** and **visibility**
 - **Distance / range / line / path** queries on the map
-- **World / screen / pixel** layout (Phase 1.3+)
+- **Pixel coordinates, viewport placement, projection, pan/zoom, and draw layering** belong to **presentation** (**`HexLayout`**, **`MapCamera`**, views under **`game/presentation/`**; see **[RENDERING.md](RENDERING.md)**). **`HexMap`** stays **presentation-free** hex addressing + terrain/landform/woods **tags**. It intentionally does **not** store screen offsets, texture UV policy, or `z_index`.
 - **Serialization** of maps and terrain for save / replay (with schema versioning, per architecture)

@@ -2,12 +2,12 @@
 
 ## Status and purpose
 
-- **Phase 3.4a** is **documentation-only** — no code, registries, or gameplay changes in this checkpoint.
-- This document defines the **systematic model** for future **progression** and **unlock** work (sciences, breakthroughs, targets, modifiers, detection).
-- It is **not** a registry and **not** a balance pass.
-- It does **not** canonicalize the full workbook lists (~200 breakthroughs, ~140 sciences).
-- **Empire_of_Minds_Content_Workbook** and **[CONTENT_BACKLOG.md](CONTENT_BACKLOG.md)** are **non-canonical design raw material**, not implementation truth.
-- **[CONTENT_MODEL.md](CONTENT_MODEL.md)** remains the **general content contract** (IDs, registries, state vs definitions).
+- This document defines the **systematic progression model** (sciences, breakthroughs, unlock targets, modifiers, detection) **and** records **implemented** progression/science slices (**Phase 3.4b–h**, **Phase 5.1.x**) alongside **future** design (capability/material roles, workbook-scale catalogs).
+- **Phase 3.4a** was the **documentation checkpoint** that preceded registry work it names; **later 3.4 subphases shipped code** summarized in § Phase 3.4b–h below.
+- It is **not** a substitute for **`ProgressDefinitions` / domain code** where those are authoritative—this is explanatory + forward design.
+- It is **not** a **balance** exercise and does **not** canonicalize full workbook breadth (~200 breakthroughs, ~140 sciences).
+- **Empire_of_Minds_Content_Workbook** and **[CONTENT_BACKLOG.md](CONTENT_BACKLOG.md)** are **non-canonical design raw material**, not runtime truth.
+- **[CONTENT_MODEL.md](CONTENT_MODEL.md)** remains the **general content envelope** (IDs, registries, **`EffectiveRules`** / **`RuleSet` direction**, state vs definitions).
 
 ### Phase 3.4b status (implemented)
 
@@ -48,7 +48,7 @@
 
 ## Capability and material roles (Phase 5.0a)
 
-**Documentation-only.** No registries, JSON, `.tres`, detectors, implementation details, or schema tables in this subphase.
+**Forward-looking design.** This subsection does **not** define `ProgressDefinitions` rows or tooling; rather it constrains future worlds so generators and RuleSets avoid hardwired historical-material assumptions.
 
 - The engine must **not** assume fixed historical materials such as **iron**, **bronze**, or **steel** always exist in every world.
 - The engine must **not** assume those materials always sit on **one fixed dependency chain**.
@@ -58,24 +58,20 @@
 - **Generated** worlds may bind roles differently, alter **rarity**, change **costs**, or provide **alternate dependencies**.
 - This supports worlds where e.g. **iron** is absent or unimportant while other material systems become strategically central.
 
-## Phase 5.1 v0 ancient curated seed (planned)
+## Phase 5.1 Ancient-era embryo — shipped vs remaining
 
-**Phase 5.1.0 is documentation only.** **5.1.0** documents the **planned** future v0 Ancient mini-game embryo seed; the **actual** registry IDs, **`ProgressDefinitions`** unlock rows, **`CityProjectDefinitions`** row, validators, and **`LegalActions`** wiring are **minted / implemented in later code slices** — not in **5.1.0**.
+**Shipped:** a **curated Ancient v0 embryo** exists in running code: **`ProgressDefinitions`**, **`ProgressState`** (including unlocks + science accumulation + **`current_research_id`**), **`CompleteProgress`** / **`ProgressDetector`** (lightning tree), **`ScienceTick`**, **`SetCurrentResearch`**, HUD popups (**`DiscoveryPopup`**, **`ScienceCompletedPopup`**, science panel wiring), **`controlled_fire`** completion on the **prototype play** map ( **`lightning_tree_hex`**, observation bonus, **`science_completed`** / **`science_bonus`** logs), **`CityProjectDefinitions`** **`produce_unit:settler`** with **default-unlock alongside warrior**, and **`LegalActions`** / **`EffectiveRules`** gating aligned with **[CONTENT_MODEL.md](CONTENT_MODEL.md)**. Operational detail and slice numbering remain in **[PHASE_PLAN.md](PHASE_PLAN.md)** and domain tests.
 
-**Planned v0 trigger (Phase 5.1.8a implementation):**
+**Not shipped / deliberately later:** **`RuleSet`** as a persisted match snapshot type, **generated** worlds with divergent EffectiveRules graphs, workbook-scale breakthrough coverage, richer **spatial** detectors beyond this seed, **AI** proposing **`CompleteProgress`**, eliminating manual **`KEY_G`/`KEY_H`** tooling without an explicit UX phase, **LLM** packaging of rules, and systemic **alternate material** binds beyond the **[Phase 5.0a](#capability-and-material-roles-phase-50a)** design notes.
 
-- On the **prototype play** scenario, an optional **`Scenario.lightning_tree_hex`** marks a **Lightning-Scarred Tree** cell (**prototype map feature only** — **no** weather simulation, **no** random events, **no** resource system). **Phase 5.1.8c:** the axial cell is chosen so **base terrain** is **PLAINS** or **GRASSLAND** and the tile is **not** part of the hand-maintained **prototype forest-cluster / foreground decoration** list (visually **open** land, not forest-painted). **`ProgressDetector`** still proposes **`CompleteProgress`** for **`controlled_fire`** after the same **observation** predicate (for **`ProgressCandidateFilter`** / **`KEY_H`** debug only) — a **hint**, not a hard gate on the science loop. **Phase 5.1.9:** **normal** **`controlled_fire`** completion is **automatic** — **`ProgressState`** stores **`science_progress`** and per-science **observation** flags; each **owned city** adds **1** progress on the owner’s **EndTurn**; the tree grants a **one-time bonus** after an **accepted `move_unit`** whose **destination** is on/adjacent to **`lightning_tree_hex`** (not required to finish); at **cost 6**, **`ProgressUnlockResolver.complete_progress`** runs and the log records **`science_completed`**. **Phase 5.1.10:** that bonus also records **`science_bonus`** in the **`ActionLog`** so **`DiscoveryPopup`** can acknowledge the observation (**flavor + progress line**); completion feedback stays **`ScienceCompletedPopup`** via **`science_completed`**. **`DiscoveryActionPanel`** **hides** **`controlled_fire`** (UI reserved for future breakthroughs). Manual **`KEY_H`** can still apply an explicit detector **`CompleteProgress`** when a candidate exists and science is not yet complete.
+The following bullets remain **behavioral reference** for **prototype-play** **`controlled_fire`** (they describe what the shipped slice aims to do—not a docs-only backlog):
 
-**Planned v0 unlock target (documentation label only in 5.1.0):**
+**Prototype lightning tree + `controlled_fire` (reference):**
 
-- Completing **`controlled_fire`** applies a **thematic bundle** (**`building` / `hearth`**, **`action` / `camp_clearing`**, **`modifier` / `controlled_fire_practice`**, plus **`systemic_effects`** modifiers **`cold_terrain_growth_bonus`**, **`small_health_bonus`**) via **`ProgressDefinitions`** → **`ProgressUnlockResolver`** → **`ProgressState`** (**Phase 5.1.12d**). **`produce_unit:settler`** is **not** part of that reward; **Train Settler** is **default-unlocked** from turn **1** alongside **`produce_unit:warrior`** (**`with_default_unlocks_for_players`**). The registry row **`produce_unit:settler`** lives in **`CityProjectDefinitions`**; **`LegalActions`** enumerates it when the project is supported and unlocked. Manual **`KEY_H`** / **`CompleteProgress`** remains a path for **`controlled_fire`**; **no** auto-apply in **5.1.2**.
+- On the **prototype play** scenario, optional **`Scenario.lightning_tree_hex`** marks a **Lightning-Scarred Tree** cell (**fixture only** — not weather/random resource simulation). Terrain/placement polish was tuned so the landmark reads as **open** land relative to authored forest decoration (see **[PHASE_PLAN.md](PHASE_PLAN.md)** / **[MAP_MODEL.md](MAP_MODEL.md)**). **`ProgressDetector`** may still surface a **`controlled_fire`** **`CompleteProgress`** candidate for **`ProgressCandidateFilter`** / **`KEY_H`**. Accumulation toward **`controlled_fire`** is **automatic** via **`ScienceTick`**—per owned city toward cost on **EndTurn**, plus a **one-time observation bonus** after an accepted **`move_unit`** onto/adjacent to **`lightning_tree_hex`**. **`DiscoveryActionPanel`** hides **`controlled_fire`** (reserved for richer breakthrough UX). Manual **`CompleteProgress`** remains available via **`KEY_H`** when filtered candidates exist.
+- **`controlled_fire`** completion applies **`ProgressDefinitions`** reward rows through **`ProgressUnlockResolver`** (**buildings/modifiers/action hooks** bundle per registry). **`produce_unit:settler`** is **not** that reward—it is **default-unlocked from turn one** beside **`produce_unit:warrior`**.
 
-**Scope discipline for v0:**
-
-- **One** science completion path and **one** new production unlock in the **first** gameplay slice after docs — not a full ancient tech tree.
-- **Generated worlds**, extra sciences, spatial breakthrough detectors, and **LLM** / generator pipelines stay **future** per **[Phase 5.0a](CONTENT_MODEL.md)**; **5.1.0** does **not** expand those designs.
-
-See [PHASE_PLAN.md](PHASE_PLAN.md) **Phase 5.1** / **5.1.0**, [CORE_LOOP.md](CORE_LOOP.md) **Phase 5.1 embryo intent**.
+See [CORE_LOOP.md](CORE_LOOP.md) **Phase 5.1 Ancient embryo**, [ACTIONS.md](ACTIONS.md) for **`try_apply`** detail.
 
 ## Core separation
 
