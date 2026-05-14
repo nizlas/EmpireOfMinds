@@ -5,9 +5,19 @@ extends RefCounted
 
 # Parse-time: do not rely on Godot class_name global cache (headless -s may load in any order).
 const _HexCoordT = preload("res://domain/hex_coord.gd")
-# Same file; avoids self-reference to global class name HexMap in static make_tiny_test_map.
+# Same file; avoids self-reference at static scope for `make_tiny_test_map`.
 const _HEX_MAP_SCRIPT = preload("res://domain/hex_map.gd")
 const _PROTOTYPE_TERRAIN_FEATURES = preload("res://domain/prototype_terrain_features.gd")
+const _ForestDebugClusters = preload("res://presentation/forest_debug_clusters.gd")
+
+const _PROTO_AX_NEI: Array[Vector2i] = [
+	Vector2i(1, 0),
+	Vector2i(1, -1),
+	Vector2i(0, -1),
+	Vector2i(-1, 0),
+	Vector2i(-1, 1),
+	Vector2i(0, 1),
+]
 
 ## Tag only in Phase 1.2 — no movement cost, visibility, or resources.
 ## Append-only: existing enum values stay stable.
@@ -70,47 +80,422 @@ static func make_tiny_test_map():
 		Vector2i(-1, 1): Terrain.PLAINS, # SW
 		Vector2i(0, 1): Terrain.PLAINS, # SE
 	}
-	# new(c) is not available from static in GDScript; self-preload avoids global "HexMap" at compile time.
 	return _HEX_MAP_SCRIPT.new(c)
 
-## Phase 4.5l — larger axial disk for editor pan / perspective testing. Tests keep `make_tiny_test_map` (7 cells).
-## R = 7 → 169 cells. Hand-authored sectors; (-1,0) and a small lake are WATER; (0,0) PLAINS + FLAT.
-static func make_prototype_play_map():
-	var R: int = 7
-	var lake: Array[Vector2i] = [
+static func _proto_axial_dist(q: int, r: int, aq: int, ar: int) -> int:
+	return int(abs(q - aq) + abs(r - ar) + abs(q + r - aq - ar)) / 2
+
+
+## Phase 5.1.16g.1 lineage: west strait + bay bites (see MAP_MODEL). Keys are **removed** from dry land before the NE/S extensions stitch on.
+static func _proto_lake_strait_dict() -> Dictionary:
+	var d: Dictionary = {}
+	for v in [
 		Vector2i(-1, 0),
 		Vector2i(-2, 0),
 		Vector2i(-2, 1),
 		Vector2i(-1, -1),
 		Vector2i(-3, 0),
+	]:
+		d[v] = true
+	return d
+
+
+static func _proto_nw_bay_dict() -> Dictionary:
+	var d: Dictionary = {}
+	for v in [
+		Vector2i(-4, 3),
+		Vector2i(-3, 3),
+		Vector2i(-2, 3),
+		Vector2i(-4, 2),
+		Vector2i(-5, 4),
+		Vector2i(-4, 4),
+		Vector2i(-6, 4),
+		Vector2i(-4, 5),
+		Vector2i(-5, 3),
+		# Extra inlet: keeps NW coast interesting without disconnecting the g.1 core.
+		Vector2i(-3, 4),
+		Vector2i(-5, 2),
+	]:
+		d[v] = true
+	return d
+
+
+## Optional shallow chops — **keep empty** unless every key is validated on the flooded island (easy to disconnect extensions).
+static func _proto_coastal_chop_dict() -> Dictionary:
+	return {}
+
+
+## Curated **additions** to the axial disk(g.1): NE tongue, E ridge hill chain, SE warmer shelf — explicit coords (no macro blobs).
+static func _proto_island_extension_hexes() -> Array[Vector2i]:
+	return [
+		# E — production ridge / 2nd city seam (connects from core edge (5,0)/(4,-1)…)
+		Vector2i(5, -2),
+		Vector2i(5, -1),
+		Vector2i(6, -2),
+		Vector2i(6, -1),
+		Vector2i(7, -2),
+		Vector2i(7, -1),
+		Vector2i(8, -2),
+		Vector2i(8, -1),
+		Vector2i(4, -2),
+		Vector2i(5, -3),
+		Vector2i(6, -3),
+		Vector2i(7, -3),
+		# NE bridge + waist
+		Vector2i(5, 1),
+		Vector2i(5, 2),
+		Vector2i(6, 0),
+		Vector2i(6, 1),
+		Vector2i(6, 2),
+		Vector2i(7, 0),
+		Vector2i(7, 1),
+		Vector2i(7, 2),
+		Vector2i(7, 3),
+		Vector2i(8, 1),
+		Vector2i(8, 0),
+		Vector2i(9, 0),
+		Vector2i(9, 1),
+		Vector2i(10, 1),
+		Vector2i(10, 2),
+		Vector2i(11, 2),
+		Vector2i(11, 3),
+		Vector2i(8, 2),
+		Vector2i(8, 3),
+		Vector2i(8, 4),
+		Vector2i(8, 5),
+		Vector2i(8, 6),
+		Vector2i(9, 2),
+		Vector2i(9, 3),
+		Vector2i(9, 4),
+		Vector2i(9, 5),
+		Vector2i(9, 6),
+		Vector2i(9, 7),
+		Vector2i(10, 3),
+		Vector2i(10, 4),
+		Vector2i(10, 5),
+		Vector2i(10, 6),
+		Vector2i(10, 7),
+		Vector2i(11, 4),
+		Vector2i(11, 5),
+		Vector2i(11, 6),
+		Vector2i(11, 7),
+		Vector2i(11, 8),
+		Vector2i(12, 5),
+		Vector2i(12, 6),
+		Vector2i(12, 7),
+		Vector2i(12, 8),
+		Vector2i(13, 6),
+		Vector2i(13, 7),
+		# Inland NE bowl + tongue shoulder (avoid accidental WATER-only ring coords like **(7,7)**)
+		Vector2i(6, 5),
+		Vector2i(6, 6),
+		Vector2i(6, 7),
+		Vector2i(7, 5),
+		Vector2i(7, 6),
+		Vector2i(7, 7),
+		Vector2i(8, 7),
+		Vector2i(10, 8),
+		Vector2i(9, 8),
+		# SE / south agricultural shelf
+		Vector2i(4, 2),
+		Vector2i(4, 3),
+		Vector2i(3, 3),
+		Vector2i(3, 4),
+		Vector2i(2, 4),
+		Vector2i(2, 5),
+		Vector2i(1, 4),
+		Vector2i(0, 4),
+		Vector2i(5, 3),
+		Vector2i(5, 4),
+		Vector2i(6, 3),
+		Vector2i(6, 4),
 	]
-	var lake_set: Dictionary = {}
-	for h in lake:
-		lake_set[h] = true
+
+
+static func _proto_g1_core_candidates(lake: Dictionary, bay: Dictionary, chop: Dictionary) -> Dictionary:
+	var cand: Dictionary = {}
+	var q: int = -6
+	while q <= 6:
+		var r: int = -6
+		while r <= 6:
+			var k := Vector2i(q, r)
+			if _proto_axial_dist(q, r, 0, 0) <= 6:
+				# Soft clip: still reads as **g.1 disk lineage**, not a clean R=6 circle.
+				if q <= -5 and r >= 5:
+					r += 1
+					continue
+				if q >= 7 and r <= -5:
+					r += 1
+					continue
+				if not lake.has(k) and not bay.has(k) and not chop.has(k):
+					cand[k] = true
+			r += 1
+		q += 1
+	return cand
+
+
+static func _proto_merge_candidates(
+	core: Dictionary, ext: Array[Vector2i], chop: Dictionary
+) -> Dictionary:
+	var cand: Dictionary = core.duplicate()
+	var i: int = 0
+	while i < ext.size():
+		var k: Vector2i = ext[i]
+		if not chop.has(k):
+			cand[k] = true
+		i += 1
+	return cand
+
+
+static func _proto_flood_component(candidates: Dictionary) -> Dictionary:
+	var land: Dictionary = {}
+	var stack: Array[Vector2i] = [Vector2i(0, 0)]
+	if not candidates.has(Vector2i(0, 0)):
+		return land
+	while stack.size() > 0:
+		var cur: Vector2i = stack.pop_back()
+		if land.has(cur):
+			continue
+		if not candidates.has(cur):
+			continue
+		land[cur] = true
+		var ni: int = 0
+		while ni < 6:
+			stack.append(Vector2i(cur.x + _PROTO_AX_NEI[ni].x, cur.y + _PROTO_AX_NEI[ni].y))
+			ni += 1
+	return land
+
+
+## Phase 5.1.16g.2 **corrected:** extend the **5.1.16g.1** curated disk + explicit NE/SE anchors; mixed terrain; **full** perimeter **WATER** (no distance-trimmed “open” coast).
+static func _proto_collect_land_keys() -> Dictionary:
+	var lake: Dictionary = _proto_lake_strait_dict()
+	var bay: Dictionary = _proto_nw_bay_dict()
+	var chop: Dictionary = _proto_coastal_chop_dict()
+	var core: Dictionary = _proto_g1_core_candidates(lake, bay, chop)
+	var ext: Array[Vector2i] = _proto_island_extension_hexes()
+	var cand: Dictionary = _proto_merge_candidates(core, ext, chop)
+	return _proto_flood_component(cand)
+
+
+static func _paint_grass_flat(land: Dictionary, c: Dictionary, lf: Dictionary, cells: Array[Vector2i]) -> void:
+	for v in cells:
+		if land.has(v):
+			c[v] = Terrain.GRASSLAND
+			lf.erase(v)
+
+
+static func _paint_grass_hill(land: Dictionary, c: Dictionary, lf: Dictionary, cells: Array[Vector2i]) -> void:
+	for v in cells:
+		if land.has(v):
+			c[v] = Terrain.GRASSLAND
+			lf[v] = Landform.HILLS
+
+
+static func _paint_plains_flat(land: Dictionary, c: Dictionary, lf: Dictionary, cells: Array[Vector2i]) -> void:
+	for v in cells:
+		if land.has(v):
+			c[v] = Terrain.PLAINS
+			lf.erase(v)
+
+
+static func _paint_plains_hill(land: Dictionary, c: Dictionary, lf: Dictionary, cells: Array[Vector2i]) -> void:
+	for v in cells:
+		if land.has(v):
+			c[v] = Terrain.PLAINS
+			lf[v] = Landform.HILLS
+
+
+static func _proto_paint_land_terrain(land: Dictionary, c: Dictionary, lf: Dictionary) -> void:
+	# Baseline: **grass-forward** heartland (avoids giant plains carpets).
+	for k in land.keys():
+		c[k] = Terrain.GRASSLAND
+		lf.erase(k)
+
+	# NW / N food-leaning grass **hills** (patchy, not a sector sweep).
+	_paint_grass_hill(
+		land,
+		c,
+		lf,
+		[
+			Vector2i(-4, -1),
+			Vector2i(-4, 0),
+			Vector2i(-3, -1),
+			Vector2i(-3, 0),
+			Vector2i(-2, -1),
+			Vector2i(-2, 0),
+			Vector2i(-1, 1),
+			Vector2i(0, 2),
+			Vector2i(-1, 2),
+			Vector2i(-2, 2),
+			Vector2i(-3, 2),
+			Vector2i(1, 1),
+			Vector2i(1, 2),
+			Vector2i(0, 3),
+		]
+	)
+
+	# **Plains flats** — woods (prototype list, flat cells) + dry pockets + speckle (no sector carpet).
+	_paint_plains_flat(
+		land,
+		c,
+		lf,
+		[
+			Vector2i(-6, 0),
+			Vector2i(-5, -1),
+			Vector2i(-4, -2),
+			Vector2i(-4, 0),
+			Vector2i(-5, 1),
+			Vector2i(-4, 1),
+			Vector2i(-3, -1),
+			Vector2i(-3, 1),
+			Vector2i(-2, 2),
+			Vector2i(0, -3),
+			Vector2i(1, -1),
+			Vector2i(1, -3),
+			Vector2i(1, -2),
+			Vector2i(2, -3),
+			Vector2i(2, 0),
+			Vector2i(3, -1),
+			Vector2i(2, 3),
+			Vector2i(3, -3),
+			Vector2i(3, 2),
+			Vector2i(4, -3),
+			Vector2i(4, -1),
+			Vector2i(2, -2),
+			Vector2i(4, -4),
+			Vector2i(5, -3),
+			Vector2i(5, 3),
+			Vector2i(5, 4),
+			Vector2i(6, 5),
+			Vector2i(0, 4),
+			Vector2i(6, 4),
+			Vector2i(7, 0),
+			Vector2i(7, 1),
+			Vector2i(7, 5),
+			Vector2i(8, 0),
+			Vector2i(8, 1),
+			Vector2i(8, 4),
+			Vector2i(9, 4),
+			Vector2i(4, 1),
+			Vector2i(10, 2),
+			Vector2i(10, 5),
+			Vector2i(10, 6),
+			Vector2i(11, 2),
+			Vector2i(11, 4),
+			Vector2i(11, 5),
+			Vector2i(11, 6),
+			Vector2i(12, 6),
+			Vector2i(12, 8),
+			Vector2i(13, 6),
+			Vector2i(13, 7),
+			Vector2i(0, 5),
+			Vector2i(1, 4),
+		]
+	)
+
+	# **Plains hills** — production-forward **fragments** + woods on **PLAINS·HILLS** (explicit lists only).
+	_paint_plains_hill(
+		land,
+		c,
+		lf,
+		[
+			Vector2i(-4, -1),
+			Vector2i(4, -2),
+			Vector2i(5, -2),
+			Vector2i(6, -2),
+			Vector2i(6, -3),
+			Vector2i(7, -3),
+			Vector2i(7, -2),
+			Vector2i(5, -1),
+			Vector2i(6, -1),
+			Vector2i(7, -1),
+			Vector2i(8, -1),
+			Vector2i(8, -2),
+			Vector2i(10, 3),
+			Vector2i(11, 3),
+			Vector2i(9, 6),
+			Vector2i(9, 7),
+			Vector2i(10, 4),
+		]
+	)
+
+	# SE / tongue grass hills (rolling coastal hinterland; **(7,5)** left **PLAINS** for woods).
+	_paint_grass_hill(
+		land,
+		c,
+		lf,
+		[
+			Vector2i(4, 2),
+			Vector2i(4, 3),
+			Vector2i(3, 4),
+			Vector2i(2, 5),
+			Vector2i(5, 3),
+			Vector2i(5, 2),
+			Vector2i(6, 3),
+			Vector2i(7, 3),
+			Vector2i(7, 4),
+			Vector2i(8, 5),
+			Vector2i(8, 6),
+			Vector2i(9, 7),
+			Vector2i(10, 7),
+			Vector2i(11, 7),
+			Vector2i(11, 8),
+			Vector2i(1, 3),
+			Vector2i(2, 2),
+			Vector2i(3, 5),
+			Vector2i(8, 3),
+			Vector2i(9, 3),
+			Vector2i(-1, -3),
+			Vector2i(2, 1),
+			Vector2i(1, 5),
+			Vector2i(-1, -2),
+		]
+	)
+
+	# Anchor specials (capital pocket + tree + P1 arrival bowl).
+	var center := Vector2i(0, 0)
+	_paint_plains_flat(land, c, lf, [center])
+	var cap_e := Vector2i(1, 0)
+	_paint_grass_flat(land, c, lf, [cap_e])
+	var tree := Vector2i(3, 0)
+	_paint_grass_flat(land, c, lf, [tree])
+	var p1 := Vector2i(9, 5)
+	_paint_grass_flat(land, c, lf, [p1])
+
+	# Coastal **founding** candidate — mostly grass flat near water+bays.
+	_paint_grass_flat(land, c, lf, [Vector2i(-1, 3), Vector2i(-2, 4)])
+
+	# Forest-debug review patches must remain **PLAINS** flats (presentation headless tests).
+	var dbg: Array[Vector2i] = _ForestDebugClusters.all_cluster_hexes_sorted()
+	var di: int = 0
+	while di < dbg.size():
+		var dv: Vector2i = dbg[di]
+		if land.has(dv):
+			_paint_plains_flat(land, c, lf, [dv])
+		di += 1
+
+
+static func _proto_add_full_water_ring(land: Dictionary, c: Dictionary) -> void:
+	## Every land edge faces **WATER** on the map — reads as a true island / enclosing sea shell.
+	for k in land.keys():
+		var q: int = k.x
+		var r: int = k.y
+		var ni: int = 0
+		while ni < 6:
+			var wq: int = q + _PROTO_AX_NEI[ni].x
+			var wr: int = r + _PROTO_AX_NEI[ni].y
+			var wk := Vector2i(wq, wr)
+			if land.has(wk):
+				ni += 1
+				continue
+			c[wk] = Terrain.WATER
+			ni += 1
+
+
+static func make_prototype_play_map():
+	var land: Dictionary = _proto_collect_land_keys()
 	var c: Dictionary = {}
 	var lf: Dictionary = {}
-	var q: int = -R
-	while q <= R:
-		var r: int = -R
-		while r <= R:
-			var dist: int = (abs(q) + abs(r) + abs(q + r)) / 2
-			if dist <= R:
-				if q == 0 and r == 0:
-					c[Vector2i(q, r)] = Terrain.PLAINS
-				elif lake_set.has(Vector2i(q, r)):
-					c[Vector2i(q, r)] = Terrain.WATER
-				elif q + r > 0 and q >= 0:
-					c[Vector2i(q, r)] = Terrain.GRASSLAND
-				elif q + r < 0 and q <= 0:
-					c[Vector2i(q, r)] = Terrain.PLAINS
-				elif q > 0 and q + r <= 0:
-					c[Vector2i(q, r)] = Terrain.PLAINS
-					lf[Vector2i(q, r)] = Landform.HILLS
-				elif q < 0 and q + r >= 0:
-					c[Vector2i(q, r)] = Terrain.GRASSLAND
-					lf[Vector2i(q, r)] = Landform.HILLS
-				else:
-					c[Vector2i(q, r)] = Terrain.PLAINS
-			r = r + 1
-		q = q + 1
+	_proto_paint_land_terrain(land, c, lf)
+	_proto_add_full_water_ring(land, c)
 	return _HEX_MAP_SCRIPT.new(c, lf, _PROTOTYPE_TERRAIN_FEATURES.prototype_woods_set())

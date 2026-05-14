@@ -7,24 +7,30 @@ const CANONICAL_WATER_Q: int = -1
 const CANONICAL_WATER_R: int = 0
 
 ## Clusters of sizes **1, 2, 3, 5, 10** — each internally contiguous; mutually disjoint;
-## min pairwise hex distance between clusters **≥ 2**; all in **`HexMap.make_prototype_play_map()`** (R=5).
+## min pairwise hex distance between clusters **≥ 2**; all on **`HexMap.make_prototype_play_map()`** (5.1.16g.2 **corrected**: **g.1** curated core + explicit extensions).
 static func cluster_groups() -> Array:
 	return [
-		[Vector2i(0, -4)],
-		[Vector2i(3, -4), Vector2i(4, -4)],
-		[Vector2i(-3, -2), Vector2i(-2, -2), Vector2i(-3, -1)],
-		[Vector2i(3, 0), Vector2i(4, 0), Vector2i(2, 0), Vector2i(4, -1), Vector2i(3, 1)],
+		[Vector2i(0, -1)],
+		[Vector2i(2, -2), Vector2i(3, -2)],
+		[Vector2i(5, 0), Vector2i(6, 0), Vector2i(5, 1)],
 		[
+			Vector2i(-1, 2),
+			Vector2i(0, 2),
+			Vector2i(1, 2),
 			Vector2i(0, 3),
 			Vector2i(1, 3),
-			Vector2i(-1, 3),
-			Vector2i(1, 2),
-			Vector2i(-1, 4),
-			Vector2i(0, 2),
-			Vector2i(0, 4),
-			Vector2i(-1, 2),
-			Vector2i(-2, 4),
-			Vector2i(1, 4),
+		],
+		[
+			Vector2i(6, 2),
+			Vector2i(6, 3),
+			Vector2i(7, 3),
+			Vector2i(8, 2),
+			Vector2i(8, 3),
+			Vector2i(9, 2),
+			Vector2i(9, 3),
+			Vector2i(9, 4),
+			Vector2i(10, 3),
+			Vector2i(10, 4),
 		],
 	]
 

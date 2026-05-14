@@ -15,7 +15,7 @@ func _init() -> void:
 	var pm = HexMapScript.make_prototype_play_map()
 	_check(
 		pm.has_woods(HexCoordScript.new(1, -1)),
-		"prototype woods includes PLAINS hill wedge cell (1,-1)"
+		"prototype woods includes canonical smoke cell (1,-1)"
 	)
 	_check(not pm.has_woods(HexCoordScript.new(0, 0)), "start hex not woods")
 	var woods_n: int = 0

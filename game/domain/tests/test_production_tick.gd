@@ -219,7 +219,7 @@ func _init() -> void:
 
 	var m_ph = HexMapScript.make_prototype_play_map()
 	var u_ph = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
-	var pos_ph = HexCoordScript.new(7, -7)
+	var pos_ph = HexCoordScript.new(8, -2)
 	var c_ph = CityScript.new(31, 0, pos_ph, _proj(0, 5))
 	var sc_ph = ScenarioScript.new(m_ph, u_ph, [c_ph], 310, 311, null)
 	var r_ph = ProductionTickScript.apply_for_player(sc_ph, 0)

@@ -118,7 +118,7 @@ func _init() -> void:
 	d_hill["progress"] = 0
 	d_hill["cost"] = 2
 	d_hill["ready"] = false
-	var c_hill = CityScript.new(40, 0, HexCoordScript.new(7, -7), d_hill)
+	var c_hill = CityScript.new(40, 0, HexCoordScript.new(8, -2), d_hill)
 	var sc_hill = ScenarioScript.new(m_hill, u_hill, [c_hill], 400, 401)
 	var r_tick_h = ProductionTickScript.apply_for_player(sc_hill, 0)
 	var ns_h = r_tick_h["scenario"]

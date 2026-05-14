@@ -155,7 +155,7 @@ func _init() -> void:
 	# Phase 5.1.16d — prototype plains hills (no woods): 2 production/tick finishes cost-2 in one end_turn.
 	var mh = HexMapScript.make_prototype_play_map()
 	var uh = [UnitScript.new(1, 0, HexCoordScript.new(0, 0), "warrior")]
-	var hill_pos = HexCoordScript.new(7, -7)
+	var hill_pos = HexCoordScript.new(8, -2)
 	var c_h = CityScript.new(1, 0, hill_pos, _proj(0), "", false, ["palace"])
 	var sch = ScenarioScript.new(mh, uh, [c_h], 500, 400, null)
 	var gsh = GameStateScript.new(sch)

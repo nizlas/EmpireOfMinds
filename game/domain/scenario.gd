@@ -255,7 +255,8 @@ static func make_prototype_play_scenario():
 	var us = [
 		UnitScript.new(1, 0, HexCoordScript.new(0, 0), "settler"),
 		UnitScript.new(2, 0, HexCoordScript.new(1, 0), "warrior"),
-		UnitScript.new(3, 1, HexCoordScript.new(0, -1), "settler"),
+		# Deliberately inland / away from P0 radius-1 territory so **5.1.16g** fixtures do not start blocked.
+		UnitScript.new(3, 1, HexCoordScript.new(9, 5), "settler"),
 	]
-	# Open GRASSLAND (no prototype forest-cluster overlay). Phase 5.1.8c placement + 5.1.8a observation gate.
+	# Open GRASSLAND (no prototype woods). Phase 5.1.8c placement + 5.1.8a observation gate.
 	return _SCENARIO_SCRIPT.new(m, us, [], -1, -1, HexCoordScript.new(3, 0))

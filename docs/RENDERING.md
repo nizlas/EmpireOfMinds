@@ -176,7 +176,7 @@
 
 ## Phase 4.5l — Larger prototype map + right-drag pan (implemented; screen-space pan superseded by **4.5m**)
 
-- **`[hex_map.gd](../game/domain/hex_map.gd)`** — **`make_prototype_play_map()`**: axial disk **R** = **5**, **91** cells, **(-1,0)** **WATER**; **`make_tiny_test_map()`** unchanged (**7** cells, tests).
+- **`[hex_map.gd](../game/domain/hex_map.gd)`** — **`make_prototype_play_map()`**: **Phase 5.1.16g.2 (corrected + polish)** extends the **5.1.16g.1** **curated island** with explicit **NE / E** land, a **light curved** overall read, **grass-forward** mixed terrain **plus** **small-scale** **plains / hill** accents, **fragmented** prototype **woods** on **PLAINS** (**no** giant single decoration mass), and a **full perimeter WATER ring** on the finite map (**hand-authored** — see **[MAP_MODEL.md](MAP_MODEL.md)**); typical **`HexMap.size()`** **~220–330** (**land + halo**). Canonical **`(-1,0)`** **WATER** beside **`(0,0)`** preserved for tiny-map parity tests. **`make_tiny_test_map()`** unchanged (**7** cells).
 - **`[scenario.gd](../game/domain/scenario.gd)`** — **`make_prototype_play_scenario()`** for **editor** play; headless tests keep **`make_tiny_test_scenario()`**.
 - **Historical (pre-4.5m):** **`[main.gd](../game/main.gd)`** used **`_map_layer_pos`** and **`mm.relative`** so layers **slid** in **viewport** space; **`vanishing_pres`** tracked **`viewport_center - _map_layer_pos`**.
 
@@ -200,7 +200,7 @@
 
 ## Phase 4.6b — Visual-only prototype forest overlays on PLAINS (implemented)
 
-- **Scope:** **Presentation-only** — **decoration** on existing **`HexMap.Terrain.PLAINS`** cells only; **not** **`Terrain.FOREST`**, **not** movement / combat / vision rules, **no** domain / content / scenario semantics, **no** new assets or **PNG** imports. **MapPlaneProjection** constants and **formulas**, **right-drag** **panning** (**4.5m** **plane** **offset**), **mouse-wheel** **zoom** (**4.5n** **center**-**anchored**), **projected** **polygon** **picking**, and **marker** placement / pivots / scaling follow **4.5c** / **4.5m** / **4.5n** / **4.5x**.
+- **Scope:** **Presentation-only** — **decoration** on existing **`HexMap.Terrain.PLAINS`** cells only; **not** **`Terrain.FOREST`**, **not** movement / combat / vision rules, **no** domain / content / scenario semantics, **no** new assets or **PNG** imports. **Domain woods** keys mirror **`PrototypeTerrainFeatures.PROTOTYPE_WOODS_HEXES`** on the **curated Ancient prototype map** (see **5.1.16g.2** / **[MAP_MODEL.md](MAP_MODEL.md)** — **not** the historical formula disk; **woods** **clusters** **re**-**curated** with **fixture** **geometry**). **MapPlaneProjection** constants and **formulas**, **right-drag** **panning** (**4.5m** **plane** **offset**), **mouse-wheel** **zoom** (**4.5n** **center**-**anchored**), **projected** **polygon** **picking**, and **marker** placement / pivots / scaling follow **4.5c** / **4.5m** / **4.5n** / **4.5x**.
 - **Draw / input order** (**[main.tscn](../game/main.tscn)** under **`Main`**, map layers at **`MAP_LAYER_ORIGIN`**; pan = **`MapCamera.camera_world_offset`**; zoom = **`MapCamera.zoom`**):
   1. **[MapView](../game/presentation/map_view.gd)** — terrain hex polygons (unchanged **4.1d** UVs), **4.1e** procedural detail, then **4.6g** **raster** **back** forest clumps (**default**) or **4.6b** procedural **back** when **`use_forest_asset_overlays`** is **false** — on **deterministically selected** PLAINS (**after** detail, **below** cities/units).
   2. **[CitiesView](../game/presentation/cities_view.gd)**

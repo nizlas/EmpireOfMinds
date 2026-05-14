@@ -2312,6 +2312,46 @@ Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 94 headless tests passed.`**
 
+#### 5.1.16g.2 — Ancient prototype map **correction** (g.1 lineage + extensions + full island read)
+
+**Status:** **Shipped (rework).**
+
+Goal:
+
+- **Redo** the rejected **macro-banana / sector-paint** pass: preserve **5.1.16g.1** **identity** (strait + bays + curated feel), **~1.5–2×** **playable** land, clear **NE / up-right** **tongue**, **full** **WATER** **halo** (no “open” **perimeter** gaps), **grass-forward** **mix** with **small** **plains** / **hill** **pockets**, **distributed** **woods** clusters — **still** **no** **worldgen** / **no** **CityYields** or economy pacing edits; **`make_tiny_test_map()`** unchanged.
+
+Shipped:
+
+- **[hex_map.gd](../game/domain/hex_map.gd)** — **`_proto_g1_core_candidates`** (R=**6** shell + thinning) **+** **`_proto_island_extension_hexes()`** **+** layered **terrain** paints **+** **`_proto_add_full_water_ring`**; **`prototype_terrain_features.gd`** **woods** retuned; **[forest_debug_clusters.gd](../game/presentation/forest_debug_clusters.gd)** coords aligned with **PLAINS** **debug** strips; **`test_prototype_play_map_distribution.gd`** **island-closure**, **grass-vs-plains**, **woods** **anti-blob** checks; **`test_city_production_panel.gd`** non-capital grass fixture moved to **`(-1,4)`** (avoids **PLAINS** **(2,0)** pocket).
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 94 headless tests passed.`**
+
+**Follow-up polish (same phase, shipped):** second pass on **`PROTOTYPE_WOODS_HEXES`** + **`_proto_paint_land_terrain()`** only — **fragment** forest decoration into **smaller** connected components (cap **~9** hexes / component in tests), add **grass-break** **plains** / **hill** **speckles**; **`test_prototype_forest_clusters.gd`** now asserts **structural** mix (**no** mandatory **10+** hex **carpet**). **Island** silhouette, **scenario** starts, rules **unchanged**.
+
+#### 5.1.16g.1 — Curated **Ancient** prototype play map (hand-authored island fixture)
+
+**Status:** **Shipped.**
+
+**Note:** **Island footprint** / **scenario** **starts** here were **superseded** by **5.1.16g.2** (**corrected** **g.1+extensions** island; **P1** **`(9,5)`**). Kept as **history** for the first curated replacement of the **formula** disk.
+
+Goal:
+
+- Replace the legacy **visual-review** axial disk with a **deterministic**, **playtest-dense** **island / micro-continent** map: **irregular** **water** halo, **grass / plains / hills / prototype woods** placement, **4–6** plausible **city** anchors, **P0 / P1** starts that avoid **immediate** **territory** blocking, **without** changing **CityYields**, **ProductionTick**, **ScienceTick**, **TileYieldOverlayView**, **CityProductionPanel**, **movement**, **AI**, **`make_tiny_test_map()`**, or **terrain** enum scope.
+
+Shipped:
+
+- **[hex_map.gd](../game/domain/hex_map.gd)** — **`make_prototype_play_map()`** curated land mask + paints + water ring (see **[MAP_MODEL.md](MAP_MODEL.md)**).
+- **[prototype_terrain_features.gd](../game/domain/prototype_terrain_features.gd)** — **`PROTOTYPE_WOODS_HEXES`** re-listed for **on-map PLAINS** cells only (incl. **peninsula** isolates for cluster-shape tests).
+- **[scenario.gd](../game/domain/scenario.gd)** — **`make_prototype_play_scenario()`** **P1** **settler** at **`(-3,4)`**; **`lightning_tree_hex`** **`(3,0)`** (open **GRASSLAND**, no woods).
+- **[forest_debug_clusters.gd](../game/presentation/forest_debug_clusters.gd)** — debug cluster coords on the new fixture.
+- Tests: **[test_prototype_play_map_distribution.gd](../game/domain/tests/test_prototype_play_map_distribution.gd)** (structural coast / woods / founding / overlay / tree assertions), hill-city / forest-cluster / lightning / production panel anchors; docs **MAP_MODEL**, **RENDERING**, **DECISION_LOG**, optional **CITIES** note.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 94 headless tests passed.`**
+
 #### 5.1.16h — Population auto-works owned tiles (planned)
 
 **Status:** Planned.

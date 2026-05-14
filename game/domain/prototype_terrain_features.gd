@@ -4,24 +4,49 @@
 class_name PrototypeTerrainFeatures
 extends RefCounted
 
-## Prototype / visual-review only: axial `Vector2i` keys that carry **woods** for **v0 city yields** on the prototype play map.
-## Textually identical to the former **`plains_forest_decoration.gd`** list.
+## Phase 5.1.16g.2 **polish:** **PLAINS** terrain only (flat + hills); **broken-up** woods — isolates, thin belts, W/NW **groves** on dry land (**never** lake-strait / bay keys), no mega-blob.
+## Skips **(0,0)**, **(1,0)**, **(3,0)**, **(9,5)**, **(8,-2)** hill-city fixture, **forest-debug** overlay hexes, **(-1,0)** strait.
 const PROTOTYPE_WOODS_HEXES: Array[Vector2i] = [
-	# SW PLAINS flat (12) — stays below r=-1 corridor so (0,-3) singles do not touch this blob.
-	Vector2i(-3, -2), Vector2i(-6, -1), Vector2i(-6, 0), Vector2i(-5, -1), Vector2i(-5, -2),
-	Vector2i(-4, -1), Vector2i(-4, -2), Vector2i(-4, -3), Vector2i(-3, -3), Vector2i(-3, -4),
-	Vector2i(-2, -5), Vector2i(-2, -4), Vector2i(-1, -5),
-	# NW PLAINS flat (6) — r>=2 band; one r gap before the r=5 patch so SW never meets NW.
-	Vector2i(-7, 2), Vector2i(-7, 3), Vector2i(-6, 2), Vector2i(-5, 2), Vector2i(-5, 3), Vector2i(-4, 3),
-	# NW PLAINS flat (3).
-	Vector2i(-7, 5), Vector2i(-6, 5), Vector2i(-6, 4),
-	# PLAINS hills (6 + 3).
-	Vector2i(1, -1), Vector2i(2, -2), Vector2i(3, -3), Vector2i(4, -4), Vector2i(4, -5), Vector2i(3, -5),
-	Vector2i(5, -5), Vector2i(5, -6), Vector2i(6, -6),
-	# PLAINS flat pair (2).
-	Vector2i(0, -4), Vector2i(1, -5),
-	# Singles (2) — PLAINS only; third single is expensive on a hex grid without merging (see test thresholds).
-	Vector2i(0, -3), Vector2i(-3, 1),
+	Vector2i(-6, 0),
+	Vector2i(-5, -1),
+	Vector2i(-5, 1),
+	Vector2i(-4, -2),
+	Vector2i(-4, 0),
+	Vector2i(-4, 1),
+	Vector2i(-3, 1),
+	Vector2i(-2, 2),
+	Vector2i(0, -3),
+	Vector2i(1, -1),
+	Vector2i(1, -2),
+	Vector2i(1, -3),
+	Vector2i(2, -3),
+	Vector2i(2, 3),
+	Vector2i(3, -3),
+	Vector2i(3, 2),
+	Vector2i(4, -3),
+	Vector2i(2, -2),
+	Vector2i(5, -3),
+	Vector2i(5, 4),
+	Vector2i(0, 4),
+	Vector2i(6, 4),
+	Vector2i(7, -2),
+	Vector2i(7, 0),
+	Vector2i(7, 1),
+	Vector2i(7, 5),
+	Vector2i(8, -1),
+	Vector2i(8, 1),
+	Vector2i(8, 4),
+	Vector2i(4, 1),
+	Vector2i(10, 2),
+	Vector2i(10, 5),
+	Vector2i(10, 6),
+	Vector2i(11, 2),
+	Vector2i(11, 4),
+	Vector2i(11, 6),
+	Vector2i(12, 6),
+	Vector2i(12, 8),
+	Vector2i(13, 6),
+	Vector2i(13, 7),
 ]
 
 

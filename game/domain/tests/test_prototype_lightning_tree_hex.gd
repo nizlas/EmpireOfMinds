@@ -19,7 +19,7 @@ func _axial_dist(q1: int, r1: int, q2: int, r2: int) -> int:
 
 
 func _starts() -> Array:
-	return [[0, 0], [1, 0], [0, -1]]
+	return [[0, 0], [1, 0], [9, 5]]
 
 
 func _init() -> void:

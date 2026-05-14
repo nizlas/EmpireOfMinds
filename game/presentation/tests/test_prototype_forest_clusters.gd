@@ -1,7 +1,7 @@
 # Headless: godot --headless --path game -s res://presentation/tests/test_prototype_forest_clusters.gd
 # Authoritative acceptance for `PlainsForestScript.PROTOTYPE_FOREST_DECORATION_HEXES`:
 # every entry must be Terrain.PLAINS on `HexMap.make_prototype_play_map()`, not (0,0), and connected-component
-# sizes must include the prototype/visual-review mix (isolated singles, small patches, medium, large).
+# sizes show deliberate fragmentation (many components, max size capped — no single 10+ hex decoration carpet).
 extends SceneTree
 const HexMapScript = preload("res://domain/hex_map.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
@@ -54,26 +54,25 @@ func _init() -> void:
 			"forest hex %s must be PLAINS (if wrong terrain, change coord in plains_forest_decoration.gd, not terrain rules)" % v
 		)
 	var sizes: Array = _forest_component_sizes(as_set)
-	# Typical shape after hand placement on R=7: one bulk region plus NW plateau + hill wedge; pure 1-hex
-	# isolates are sparse without merging into pairs/patches.
+	sizes.sort()
+	var max_sz: int = int(sizes[sizes.size() - 1])
+	# **5.1.16g.2 polish:** intentionally fragmented woods (no single decoration carpet); structural mix only.
 	var n1: int = 0
 	var n_small: int = 0
 	var n_med: int = 0
-	var n_large: int = 0
 	for s in sizes:
 		var sz: int = int(s)
 		if sz == 1:
 			n1 += 1
 		elif sz >= 2 and sz <= 3:
 			n_small += 1
-		elif sz >= 5 and sz <= 9:
+		elif sz >= 4 and sz <= 9:
 			n_med += 1
-		elif sz >= 10:
-			n_large += 1
-	_check(n1 >= 1, "at least one isolated single-hex forest component")
-	_check(n_small >= 1, "at least one 2–3 hex patch")
-	_check(n_med >= 2, "at least two 5–9 hex clusters (includes NW plateau + hill mass bands)")
-	_check(n_large >= 1, "at least one 10+ hex region")
+	_check(max_sz <= 9, "largest forest patch stays ≤9 hexes (anti–mega-blob)")
+	_check(sizes.size() >= 8, "many separable forest components")
+	_check(n1 >= 2, "at least two single-hex groves")
+	_check(n_small >= 2, "at least two 2–3 hex patches")
+	_check(n_med >= 2, "at least two medium patches (4–9 hex)")
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

@@ -124,7 +124,7 @@ func _init() -> void:
 	_check(int(yg.get("science", -1)) == 1, "capital palace science 1")
 	_check(int(yg.get("coin", -1)) == 1, "capital palace coin 1")
 
-	var c_plain_nc = CityScript.new(2, 0, HexCoordScript.new(2, 0), null, "B", false, [])
+	var c_plain_nc = CityScript.new(2, 0, HexCoordScript.new(-1, 4), null, "B", false, [])
 	var sc_nc = ScenarioScript.new(m_pr, u_pr, [c_cap_g, c_plain_nc], 80, 91, null)
 	var gs_nc = GameStateScript.new(sc_nc)
 	sel_y.clear()
@@ -139,7 +139,7 @@ func _init() -> void:
 	var c_hill_cap = CityScript.new(
 		1,
 		0,
-		HexCoordScript.new(7, -7),
+		HexCoordScript.new(8, -2),
 		null,
 		"HillCap",
 		true,
