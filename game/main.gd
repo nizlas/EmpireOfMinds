@@ -2,7 +2,7 @@
 # See docs/RENDERING.md, docs/SELECTION.md
 extends Node2D
 
-## Initial pixel origin for map-layer **Node2D** children including **`TileYieldOverlayView`** (Phase **5.1.16f**), **UnitNameplateView** / **CityNameplateView** (Phase **5.1.11** / **5.1.15**). **4.5m:** set **once** in `_ready`; pan uses **MapCamera.camera_world_offset**. **`TileYieldOverlayView`** shares **`z_index` 1** with **TerrainForegroundView** / **LightningTreeView**; nameplates use **`z_index` 2**; **5.1.15b** orders **`CityNameplateView`** before **`UnitNameplateView`** so **unit** nameplates paint **on top**. **5.1.15e:** shared-hex **city** banners draw inside **TerrainForegroundView** after the city marker so **unit** markers paint over parchment; **UnitNameplateView** stays topmost. Still below **HudCanvas**.
+## Initial pixel origin for map-layer **Node2D** children including **`CityTerritoryView`** (Phase **5.1.16i**), **`TileYieldOverlayView`** (Phase **5.1.16f**), **UnitNameplateView** / **CityNameplateView** (Phase **5.1.11** / **5.1.15**). **4.5m:** set **once** in `_ready`; pan uses **MapCamera.camera_world_offset**. **`CityTerritoryView`** uses **`z_index` 0** immediately **after** **`MapView`** so the **union border** sits **on** the **base terrain** but **under** cities, units, **TerrainForegroundView** / **LightningTreeView**, **`TileYieldOverlayView`**, and nameplates (**`z_index` 2**). **5.1.15b** orders **`CityNameplateView`** before **`UnitNameplateView`** so **unit** nameplates paint **on top**. Still below **HudCanvas**.
 const MAP_LAYER_ORIGIN: Vector2 = Vector2(400.0, 428.0)
 
 const ScenarioScript = preload("res://domain/scenario.gd")
@@ -23,6 +23,7 @@ var _map_camera
 
 func _redraw_map_layers() -> void:
 	$MapView.queue_redraw()
+	$CityTerritoryView.queue_redraw()
 	$CitiesView.queue_redraw()
 	$SelectionView.queue_redraw()
 	$UnitsView.queue_redraw()
@@ -39,11 +40,13 @@ func _ready() -> void:
 	_map_camera.projection = _map_projection
 	for n in [
 		$MapView,
+		$CityTerritoryView,
 		$CitiesView,
 		$SelectionView,
 		$UnitsView,
 		$TerrainForegroundView,
 		$LightningTreeView,
+		$TileYieldOverlayView,
 		$CityNameplateView,
 		$UnitNameplateView,
 		$SelectionController,
@@ -66,6 +69,9 @@ func _ready() -> void:
 	$TerrainForegroundView.camera = _map_camera
 	$TerrainForegroundView.z_index = 1
 	$LightningTreeView.z_index = 1
+	$CityTerritoryView.scale = Vector2.ONE
+	$CityTerritoryView.camera = _map_camera
+	$CityTerritoryView.z_index = 0
 	$TileYieldOverlayView.scale = Vector2.ONE
 	$TileYieldOverlayView.camera = _map_camera
 	$TileYieldOverlayView.z_index = 1
@@ -93,6 +99,11 @@ func _ready() -> void:
 	lightning_tree_view.scenario = scenario
 	lightning_tree_view.layout = layout
 	lightning_tree_view.camera = _map_camera
+	var city_territory_view = $CityTerritoryView
+	city_territory_view.scenario = scenario
+	city_territory_view.layout = layout
+	city_territory_view.camera = _map_camera
+	city_territory_view.selection = selection
 	var tile_yield_overlay = $TileYieldOverlayView
 	tile_yield_overlay.scenario = scenario
 	tile_yield_overlay.layout = layout
@@ -143,6 +154,7 @@ func _ready() -> void:
 	selection_controller.terrain_foreground_view = terrain_foreground
 	selection_controller.unit_nameplate_view = unit_nameplate_view
 	selection_controller.city_nameplate_view = city_nameplate_view
+	selection_controller.city_territory_view = city_territory_view
 	selection_controller.yield_overlay_view = tile_yield_overlay
 	var turn_label = $TurnLabel
 	turn_label.game_state = game_state
@@ -182,7 +194,9 @@ func _ready() -> void:
 	end_turn_controller.city_production_panel = city_production_panel
 	ai_turn_controller.city_production_panel = city_production_panel
 	end_turn_controller.yield_overlay_view = tile_yield_overlay
+	end_turn_controller.city_territory_view = city_territory_view
 	ai_turn_controller.yield_overlay_view = tile_yield_overlay
+	ai_turn_controller.city_territory_view = city_territory_view
 	city_production_panel.refresh()
 	var discovery_action_panel = $HudCanvas/DiscoveryActionPanel
 	discovery_action_panel.game_state = game_state

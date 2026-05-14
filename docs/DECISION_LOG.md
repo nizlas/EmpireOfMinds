@@ -1,3 +1,49 @@
+## 2026-05-14 — Phase **5.1.16i** — **hex-traced** **Line2D** **loops** (**continuous** border)
+
+- **Decision:** Replace **per-segment** **`draw_line`** + **vertex** **`draw_circle`** **join** **dots** with **one** **closed** **`Line2D`** per **perimeter** **component** (**outer** owner stroke + **inner** indigo stroke). **Half-edges** are listed from **axial** **topology**; **loops** are **walked** by **graph** **adjacency** on **`world_corner_key`** (**layout**-fixed keys — **not** **MapCamera**). **Projection** and **stroke** **width** use **`MapCamera`** only **after** **loop** **order** is known. **Inner** corners use **averaged** **edge** **inward** directions in **presentation** space (same **intent** as prior **inset**).
+- **Rationale:** **Tangent** **extend** + **small** **disks** still **read** as **rivets**; **true** **stroke** **joints** need a **continuous** path. This **loop** **trace** is **not** **screen-space** **sorting** — it is **deterministic** **half-edge** **chaining** in **hex** **space**, then **project**.
+
+## 2026-05-14 — Phase **5.1.16i** — **local** **vertex** **join** disks (**round** **patches**)
+
+- **Status:** **Superseded** by **hex-traced** **`Line2D`** **loops** entry above — historical note only.
+
+## 2026-05-14 — Phase **5.1.16i** — **corner** **closure** (**tangent** **overdraw** tune)
+
+- **Decision:** Increase **deterministic** **segment** **extension** (separate **outer** / **inner** **fractions**, **inner** **floor** vs **`outer_w`**) so **flat** **`draw_line`** **caps** meet at **~120°** hex **joints** without **dots** or **loop** **assembly**. **Axial** **perimeter** **identity** unchanged.
+- **Rationale:** Prior **0.20×** **stroke** **extend** left **visible** **wedges**; **fix** is **local** **draw** **overdraw** only.
+
+## 2026-05-14 — Phase **5.1.16i** visual polish — **inward** indigo + **no** round joints (**stable** segments unchanged)
+
+- **Decision:** Keep **axial-only** perimeter **segment** topology and **two** **`draw_line`** passes per edge. **Remove** default **`draw_circle`** **joint** dots. **Inner** **indigo** line is **offset inward** in **presentation** space: **`normalize(to_presentation(hex_center) − midpoint(outer_segment))`**, clamp-scaled from **`outer_w`**. **Slightly** **extend** both strokes along edge tangent to hide **micro-gaps** (acceptable **overlap**). **Round** **debug** caps remain **opt-in** (`debug_draw_territory_endpoint_caps` / **`EOM_DEBUG_CITY_TERRITORY_CAPS`**).
+- **Rationale:** Caps read as **rivets**; centered inner stroke read as **double-track**. **Per-edge** inward from the **local** **owner** hex center stays **deterministic** and does not rebuild **presentation-space** **loops** (no **pan**/**zoom** **topology** **risk**).
+
+## 2026-05-14 — Phase **5.1.16i** bugfix — **stable segment** territory border (**no** presentation-space loops)
+
+- **Correction:** Removed **fragile** **loop** / **polyline** / **presentation-snap** assembly that caused **zoom**- and **pan**-dependent **diagonal spokes** and **triangulation-like** artifacts. **Topology** is derived **only** in **axial** space from **`tiles_owned_by_city`**; **`MapCamera`** affects **projected** endpoints and **thickness** only.
+- **Replacement:** Perimeter = **only** **per-hex-edge** **`draw_line`** segments (**later:** **inward-offset** inner stroke + **tangent** **extend**; **no** default round caps — see **5.1.16i visual polish** entry). **No** interior fill; **no** cached segment arrays across draws.
+- **Layering unchanged:** **`CityTerritoryView`** remains **`z_index` 0** immediately **after** **`MapView`**, **below** cities / units / **TerrainForegroundView** / yields / nameplates.
+
+## 2026-05-14 — Phase **5.1.16i** follow-up — **continuous** territory border (**loop assembly** + **2×** stroke)
+
+- **Status:** **Superseded** by the **2026-05-14 5.1.16i bugfix** entry above — loop assembly caused **map-camera**-dependent artifacts and was **removed**.
+
+## 2026-05-14 — Phase **5.1.16i** polish — **CityTerritoryView** layering + **Civ**-style border (**no fill**)
+
+- **Decision:** **`CityTerritoryView`** (**`z_index` 0**, sibling **after** **`MapView`**) draws **only** a **union** **perimeter** — **no** translucent **tile** **fill**. **Two** **strokes**: **thick** **outer** **owner** **accent** + **thinner** **inner** **indigo** line **inset** toward the **owned** **hex** **center**. **`TileYieldOverlayView`**, **`TerrainForegroundView`**, **markers**, **nameplates** stay **above** the border so territory does not **occlude** **trees** / **units** / **yields**.
+- **Rationale:** Fill **dims** large **empires**; prior **`z_index` 1** placement **read** **floating** **over** **sprites**. **Map-surface** ordering matches **Civ**-style **read**.
+
+## 2026-05-14 — Phase 5.1.16i follow-up — **CityTerritoryView** visible in editor play
+
+- **Decision:** Treat **`tiles_owned_by_city`** rows with **duck-typed** **`q` / `r`** only — remove **`is HexCoord`** guards that skipped **all** tiles in some **editor** runs (nothing drawn). Slightly **stronger** default **outline** / **fill**; optional **`@export`** + **`EOM_DEBUG_*`** env **log** / **high-contrast** **smoke**; **`SelectionController._refresh_city_territory_view()`**; **`TileYieldOverlayView`** included in **`MAP_LAYER_ORIGIN`** loop.
+- **Rationale:** Headless tests constructed **`HexCoord`** literals; **runtime** **`Scenario`** copies still expose **`q` / `r`** but failed **global class** **`is`** checks, producing an **empty** overlay.
+
+## 2026-05-14 — Phase 5.1.16i — **Selected** city territory visualization (presentation)
+
+- **Decision:** Add **`CityTerritoryView`** (**`Node2D`**, **`MapCamera`**-anchored) that draws **only** when **`SelectionState`** has a **city**: **outer perimeter** of **`Scenario.tiles_owned_by_city`**, **owner** accent from **`UnitNameplateView.owner_nameplate_accent_color`**, **faint** **fill** + **slightly stronger** **center** treatment; **sibling order** **above** **`LightningTreeView`**, **below** **`TileYieldOverlayView`** so **yield** icons stay readable; **nameplates** unchanged above. **No** all-cities mode, **no** domain / **`FoundCity`** / yield / production / science changes.
+- **Update (2026-05-14 polish):** **No** **fill**; **`z_index` 0** **after** **`MapView`** (under cities / units / **TerrainForegroundView** / **LightningTreeView** / yields); **two-stroke** **Civ**-style **border** — see **DECISION_LOG** entry **“5.1.16i polish”**.
+- **Rationale:** **5.1.16g** territory is otherwise invisible; **Civ VI**-style **inspiration** — **readable** border, **not** a **HUD**-fixed overlay.
+- **Follow-up:** Optional debug **all** **cities**; **population** / **worked** tiles (**5.1.16h**) remain **separate**.
+
 ## 2026-05-13 — Phase 5.1.16g.2 — **Fixture polish** (forest fragmentation + grass speckle; same island silhouette)
 
 - **Decision:** **`PROTOTYPE_WOODS_HEXES`** / **`HexMap._proto_paint_land_terrain()`** **only**: **re-list** prototype **woods** so **no** decoration component **exceeds ~9** connected **PLAINS** hexes, with **more** isolates / thin patches; add **small** extra **plains** and **grassland·hills** accents on former **flat-grass** stretches. **Landmass** keys (**g.1** + extension list + **full** water ring), **scenario** starts, **CityYields** / **production** / **science** / **territory** rules **unchanged**.

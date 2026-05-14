@@ -35,6 +35,8 @@ var unit_nameplate_view
 var city_nameplate_view
 ## Phase 5.1.16f: map-anchored yield overlay reads **Scenario** only.
 var yield_overlay_view
+## Phase 5.1.16i: selected-city territory outline (**tiles_owned_by_city**); redraw with selection / sync.
+var city_territory_view
 var turn_label
 var log_view
 var city_production_panel
@@ -126,7 +128,13 @@ static func plan_shared_hex_pick(
 	}
 
 
+func _refresh_city_territory_view() -> void:
+	if city_territory_view != null:
+		city_territory_view.queue_redraw()
+
+
 func _refresh_city_production_panel() -> void:
+	_refresh_city_territory_view()
 	if city_production_panel != null:
 		city_production_panel.refresh()
 	_refresh_discovery_action_panel()
@@ -169,6 +177,10 @@ func _sync_terrain_foreground_from_game_state() -> void:
 	if yield_overlay_view != null:
 		yield_overlay_view.scenario = scen
 		yield_overlay_view.queue_redraw()
+	if city_territory_view != null:
+		city_territory_view.scenario = scen
+		## Keep **selection** unchanged — same **RefCounted** instance as **SelectionController**.
+		_refresh_city_territory_view()
 
 func _unhandled_input(event):
 	assert(HexCoordScript != null)

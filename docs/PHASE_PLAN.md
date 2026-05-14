@@ -2289,7 +2289,7 @@ Goal:
 
 Shipped:
 
-- **[tile_yield_overlay_view.gd](../game/presentation/tile_yield_overlay_view.gd)** (polish: **`YIELD_ICON_*`** size + **`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`** / mipmapped **`yield_icons`** like **`map_markers/`**), **[yield_overlay_toggle.gd](../game/presentation/yield_overlay_toggle.gd)**; **[main.tscn](../game/main.tscn)** (**`TileYieldOverlayView`** sibling **`z_index` 1** between **`LightningTreeView`** and **`CityNameplateView`**); **`HudCanvas`** **`YieldsToggle`** **CheckButton**; **`KEY_Y`** + button stay synced via **`YieldOverlayToggle`**; **`SelectionController`** / **`EndTurnController`** / **`AITurnController`** redraw + **`scenario`** refresh; tests **`test_tile_yield_overlay_view.gd`**, **`test_main_hud_yields_toggle.gd`**, **`test_main_tscn_map_layer_sibling_order`** update; docs **[RENDERING.md](RENDERING.md)**, **[CITIES.md](CITIES.md)**, **[DECISION_LOG.md](DECISION_LOG.md)**.
+- **[tile_yield_overlay_view.gd](../game/presentation/tile_yield_overlay_view.gd)** (polish: **`YIELD_ICON_*`** size + **`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`** / mipmapped **`yield_icons`** like **`map_markers/`**), **[yield_overlay_toggle.gd](../game/presentation/yield_overlay_toggle.gd)**; **[main.tscn](../game/main.tscn)** (**`TileYieldOverlayView`** sibling **`z_index` 1** **after** **`LightningTreeView`**; **`CityTerritoryView`** **`z_index` 0** **after** **`MapView`** — **below** foreground / **yields**); **`HudCanvas`** **`YieldsToggle`** **CheckButton**; **`KEY_Y`** + button stay synced via **`YieldOverlayToggle`**; **`SelectionController`** / **`EndTurnController`** / **`AITurnController`** redraw + **`scenario`** refresh; tests **`test_tile_yield_overlay_view.gd`**, **`test_main_hud_yields_toggle.gd`**, **`test_main_tscn_map_layer_sibling_order`** update; docs **[RENDERING.md](RENDERING.md)**, **[CITIES.md](CITIES.md)**, **[DECISION_LOG.md](DECISION_LOG.md)**.
 
 Validation:
 
@@ -2351,6 +2351,24 @@ Shipped:
 Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → **`All 94 headless tests passed.`**
+
+#### 5.1.16i — **CityTerritoryView**: selected-city territory outline (presentation)
+
+**Status:** **Shipped**; **2026-05-14** — **axial** **half-edge** **loops** traced in **layout** space, drawn as **closed** **`Line2D`** (**continuous** joins; **no** default **joint** **dots**); **`MapCamera`** affects **projected** **points** + **width** only.
+
+Goal:
+
+- **Presentation-only** visualization when a **city** is **selected**: **owner-colored** **outer** perimeter from **`Scenario.tiles_owned_by_city`** (**water** included); **map-anchored**; **below** units, cities, **TerrainForegroundView** / **LightningTreeView**, **`TileYieldOverlayView`**, and nameplates; **no** domain edits; **no** all-cities **always-on** mode.
+
+Shipped:
+
+- **[city_territory_view.gd](../game/presentation/city_territory_view.gd)** — **Perimeter** **half-edges** from **axial** **adjacency**; **closed** **loops** by **corner-key** **walk** (**no** **screen** **sort**); **closed** **`Line2D`** **outer** (**owner**) + **`Line2D`** **inner** (**indigo**, **inward-averaged** **corners**); **optional** **debug** **`draw_circle`** caps only; **`MapCamera`** → projection + thickness **only**; **[main.tscn](../game/main.tscn)** / **[main.gd](../game/main.gd)** — **`CityTerritoryView`** after **`MapView`**, **`z_index` 0**; **`SelectionController`** / **`EndTurnController`** / **`AITurnController`** unchanged in intent; tests **`test_city_territory_view.gd`**, **`test_city_territory_main_wiring.gd`**, **`test_main_tscn_map_layer_sibling_order.gd`**; docs **RENDERING**, **CITIES**, **DECISION_LOG**, **PHASE_PLAN**.
+
+**Follow-up (2026-05-14):** Early **presentation-space** loop assembly caused **zoom/pan** artifacts — **superseded**. **Vertex** **join** **disks** **superseded** by **hex-traced** **`Line2D`** **loops** (**DECISION_LOG**).
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → all headless tests pass (count in script output).
 
 #### 5.1.16h — Population auto-works owned tiles (planned)
 

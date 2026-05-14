@@ -20,6 +20,7 @@
 [ext_resource type="Script" path="res://presentation/city_nameplate_view.gd" id="19_city_nameplates"]
 [ext_resource type="Script" path="res://presentation/science_panel.gd" id="18_science_panel"]
 [ext_resource type="Script" path="res://presentation/tile_yield_overlay_view.gd" id="20_tileyield"]
+[ext_resource type="Script" path="res://presentation/city_territory_view.gd" id="21_cityterritory"]
 
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
@@ -133,6 +134,11 @@ text = "Yields"
 [node name="MapView" type="Node2D" parent="." unique_id=1063845021]
 position = Vector2(400, 428)
 script = ExtResource("2_mapview")
+
+[node name="CityTerritoryView" type="Node2D" parent="." unique_id=1063845026]
+position = Vector2(400, 428)
+z_index = 0
+script = ExtResource("21_cityterritory")
 
 [node name="CitiesView" type="Node2D" parent="." unique_id=1402386329]
 position = Vector2(400, 428)
