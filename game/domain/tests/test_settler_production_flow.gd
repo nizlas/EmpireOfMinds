@@ -106,31 +106,15 @@ func _init() -> void:
 	_check(et1["accepted"], "end turn P0 first")
 	var pp1 = _last_production_progress_for_city(gs, city_id)
 	_check(pp1 != null, "tick after et1 present")
-	_check(int((pp1 as Dictionary)["progress_after"]) == 1, "tick 0 to 1")
-	_check(
-		bool((gs.scenario.city_by_id(city_id).current_project as Dictionary).get("ready", false)) == false,
-		"not ready after one tick"
-	)
-	_check(gs.scenario.unit_by_id(expected_settler_unit_id) == null, "no delivery yet")
-
-	var et2 = gs.try_apply(EndTurnScript.make(1))
-	_check(et2["accepted"], "end turn P1 first")
-	_check(int((gs.scenario.city_by_id(city_id).current_project as Dictionary)["progress"]) == 1, "P1 turn no P0 tick")
-	_check(not _has_unit_produced_for(gs, expected_settler_unit_id, city_id), "still no unit_produced")
-
-	var et3 = gs.try_apply(EndTurnScript.make(0))
-	_check(et3["accepted"], "end turn P0 second")
-	var pp3 = _last_production_progress_for_city(gs, city_id)
-	_check(pp3 != null, "tick after et3 present")
-	_check(int((pp3 as Dictionary)["progress_after"]) == 2, "tick 1 to 2")
+	_check(int((pp1 as Dictionary)["progress_after"]) == 3, "center + worked plains-woods neighbor yields +3 production (0 to 3)")
 	_check(
 		bool((gs.scenario.city_by_id(city_id).current_project as Dictionary).get("ready", false)),
-		"ready pending delivery"
+		"project marked ready pending delivery"
 	)
-	_check(gs.scenario.unit_by_id(expected_settler_unit_id) == null, "delivery when P0 next current")
+	_check(gs.scenario.unit_by_id(expected_settler_unit_id) == null, "delivery waits until P0 is current player")
 
-	var et4 = gs.try_apply(EndTurnScript.make(1))
-	_check(et4["accepted"], "end turn P1 second")
+	var et2 = gs.try_apply(EndTurnScript.make(1))
+	_check(et2["accepted"], "end turn P1 runs delivery pass for newly current P0")
 	_check(gs.scenario.city_by_id(city_id).current_project == null, "city project cleared after delivery")
 	_check(_has_unit_produced_for(gs, expected_settler_unit_id, city_id), "unit_produced logged")
 	_check(gs.scenario.peek_next_unit_id() == expected_settler_unit_id + 1, "next unit id bumped")

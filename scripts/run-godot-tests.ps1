@@ -47,6 +47,9 @@ $Tests = @(
 	"res://domain/tests/test_hex_map_landform.gd",
 	"res://domain/tests/test_hex_map_woods.gd",
 	"res://domain/tests/test_city_yields.gd",
+	"res://domain/tests/test_city_population.gd",
+	"res://domain/tests/test_city_yields_worked_tiles.gd",
+	"res://domain/tests/test_city_yields_breakdown.gd",
 	"res://domain/tests/test_prototype_play_map_distribution.gd",
 	"res://domain/tests/test_prototype_lightning_tree_hex.gd",
 	"res://domain/tests/test_unit.gd",
@@ -136,6 +139,7 @@ $Tests = @(
 	"res://presentation/tests/test_tfv_depth_merge_city_unit_sort_keys.gd",
 	"res://presentation/tests/test_main_hud_yields_toggle.gd",
 	"res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd",
+	"res://presentation/tests/test_city_worked_tiles_view.gd",
 	"res://presentation/tests/test_tile_yield_overlay_view.gd",
 	"res://presentation/tests/test_city_territory_view.gd",
 	"res://presentation/tests/test_city_territory_main_wiring.gd"

@@ -12,6 +12,7 @@ func _init() -> void:
 	_check(c.city_name == "", "default city_name empty")
 	_check(not c.is_capital, "default not capital")
 	_check(c.building_ids.is_empty(), "default no buildings")
+	_check(c.population == 1, "default population is 1")
 	_check(
 		c.position != null and c.position.q == 1 and c.position.r == -2,
 		"construction sets position"

@@ -1,7 +1,8 @@
 # Headless: **main.tscn** map **Node2D** siblings under **Main** preserve **Main** subtree order contract:
 # MapView → CityTerritoryView → CitiesView → SelectionView → UnitsView → TerrainForegroundView →
-# LightningTreeView → TileYieldOverlayView → CityNameplateView → UnitNameplateView → SelectionController,
+# LightningTreeView → CityWorkedTilesView → TileYieldOverlayView → CityNameplateView → UnitNameplateView → SelectionController,
 # ignoring other **Main** children (HudCanvas, labels, controllers after SelectionController).
+# **CityWorkedTilesView** (**5.1.17e**): **`z_index` 1**, **after** **`LightningTreeView`**, **before** **`TileYieldOverlayView`** — selected-city overlay **above** terrain/forest/unit+city markers (**0**), **below** yield icons (**later** sibling **1**) and nameplates (**2**). Layering set in **[main.gd](../game/main.gd)** **`_ready`**.
 # **CityTerritoryView** (**`z_index` 0** in scene state) stays on the map stack under yields/nameplates.
 # Phase **5.1.15b:** **CityNameplateView** sibling **before** **UnitNameplateView** (**`z_index` 2**) so units paint above city banners.
 # Usage: godot --headless --path game -s res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd
@@ -19,6 +20,7 @@ var _map_layer_names: Array[String] = [
 	"UnitsView",
 	"TerrainForegroundView",
 	"LightningTreeView",
+	"CityWorkedTilesView",
 	"TileYieldOverlayView",
 	"CityNameplateView",
 	"UnitNameplateView",
@@ -73,6 +75,11 @@ func _run() -> void:
 	if int(ctv.z_index) != 0:
 		main_root.free()
 		_fail("FAIL: CityTerritoryView z_index expected 0 in scene (PackedScene.instantiate)")
+		return
+	var cwv = main_root.get_node(NodePath("CityWorkedTilesView")) as CanvasItem
+	if int(cwv.z_index) != 1:
+		main_root.free()
+		_fail("FAIL: CityWorkedTilesView z_index expected 1 in scene (PackedScene.instantiate)")
 		return
 
 	main_root.free()

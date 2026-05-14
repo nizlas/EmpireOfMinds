@@ -17,6 +17,8 @@ var is_capital: bool
 var building_ids: Array
 ## Phase 5.1.16g — territory: hexes this city owns (center first). Not culture/border growth.
 var owned_tiles: Array
+## Phase 5.1.17a — population selects extra auto-worked territory tiles (domain embryo; no growth UI).
+var population: int
 
 func _init(
 	p_id: int,
@@ -27,6 +29,7 @@ func _init(
 	p_is_capital: bool = false,
 	p_building_ids = null,
 	p_owned_tiles = null,
+	p_population: int = 1,
 ) -> void:
 	id = p_id
 	owner_id = p_owner_id
@@ -67,6 +70,8 @@ func _init(
 				continue
 			seen[ok] = true
 			owned_tiles.append(HexCoordScript.new(oc.q, oc.r))
+
+	population = maxi(0, int(p_population))
 
 func equals(other) -> bool:
 	if other == null:

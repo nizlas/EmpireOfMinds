@@ -21,6 +21,7 @@ var log_view
 var city_production_panel
 var yield_overlay_view
 var city_territory_view
+var city_worked_tiles_view
 var discovery_action_panel
 var science_panel
 var science_completed_popup
@@ -66,6 +67,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					city_production_panel,
 					discovery_action_panel,
 					science_panel,
+					city_worked_tiles_view,
 				)
 			else:
 				push_warning("EndTurn rejected: %s" % result["reason"])

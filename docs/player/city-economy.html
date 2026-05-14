@@ -20,7 +20,7 @@
 		<p class="tagline">How terrain, city centers, and your capital shape the first age of a settlement.</p>
 	</header>
 
-	<p class="prototype-callout" role="note"><strong>Prototype note:</strong> this page documents the <strong>intended</strong> early city economy model. Pieces will arrive in the playable build as the prototype grows—use it as a compass, not a checklist of what is on screen today.</p>
+	<p class="prototype-callout" role="note"><strong>Prototype note:</strong> The rules below describe what the current build models: city centers, the capital Palace, terrain-based countryside contribution, founded cities starting at <strong>population&nbsp;1</strong>, and automatic selection of worked tiles. Sections that talk about possibilities “later” are design direction only until the game catches up.</p>
 
 	<main>
 		<section id="core-idea">
@@ -60,9 +60,21 @@
 			<p class="muted-aside">Behind the scenes the game can keep a stable internal name for this yield while the <strong>words</strong> you hear in later eras shift to match the world’s story.</p>
 		</section>
 
+		<section id="population-worked">
+			<h2>Population and automatically worked tiles</h2>
+			<p>Every founded city begins with <strong>population&nbsp;1</strong> in today’s prototype. Population does not grow yet; it sets how many of your city’s non-center owned tiles can add their raw terrain yield to the city at once.</p>
+			<p>Total yields for the city combine:</p>
+			<ul class="rule-list">
+				<li><strong>City center</strong> — always counted (the settled tile rule in the section below).</li>
+				<li><strong>Buildings</strong> — for example the capital’s Palace.</li>
+				<li><strong>Automatically worked land</strong> — up to <strong>population</strong> tiles drawn from territory you already own besides the center. The prototype picks qualifying tiles in a consistent, automatic order. <strong>Water</strong> gives no workable yield here, and you cannot pick different tiles by hand.</li>
+			</ul>
+			<p><strong>Not in the prototype yet:</strong> manual worked-tile or citizen assignment; population growth; food storage or surplus tracking; a dedicated city-management screen; specialists; housing; happiness; finer citizen control than today’s automation.</p>
+		</section>
+
 		<section id="worked-tiles">
-			<h2>Worked land (intended v0)</h2>
-			<p>When people work a tile directly, these are the baseline yields the land is meant to offer in the earliest slice. (Science does not normally come from raw terrain here.)</p>
+			<h2>Raw terrain (automatically worked countryside)</h2>
+			<p>These baseline numbers describe countryside tiles the prototype can automatically work for you—separate from the city-center boost below. <strong>Science</strong> does not usually come from raw terrain here.</p>
 			<table class="economy-table" aria-label="Terrain yields v0">
 				<thead>
 					<tr>
@@ -180,7 +192,7 @@
 				<li><strong>+1 Coin</strong></li>
 			</ul>
 			<p>Production still rises first from <strong>terrain</strong> and the <strong>settled center</strong>; the Palace leans toward learning, record, and the first pooled surplus—not the saw and the forge by themselves.</p>
-			<p><strong>Capital examples</strong> (city center + Palace):</p>
+			<p><strong>Capital examples</strong> (city center + Palace; with population&nbsp;1 an extra countryside tile layers on top in play):</p>
 			<ul class="compact-list">
 				<li><strong>Grassland capital:</strong> center 2 Food / 1 Production; Palace +1 Science / +1 Coin.</li>
 				<li><strong>Plains hills capital:</strong> center 2 Food / 2 Production; Palace +1 Science / +1 Coin.</li>
@@ -197,7 +209,7 @@
 			<h2>Why this matters later</h2>
 			<p>This foundation is the quiet root under many branches to come:</p>
 			<ul>
-				<li>Population working the land around a city</li>
+				<li>Higher population, growth beyond the starting value, and hand-picked countryside assignments</li>
 				<li>City territory and the ring of tiles you may claim</li>
 				<li>Workers who reshape the countryside</li>
 				<li>Farms, mines, quarries, lumber camps, and other improvements</li>

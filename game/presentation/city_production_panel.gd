@@ -1,6 +1,8 @@
-# Minimal HUD: city production options derived from LegalActions only (no content registries).
+# Selected-city HUD hub: yields + breakdown + **LegalActions** production only (no content registries).
 # Phase 5.1.5: restrained parchment-style presentation; behavior unchanged.
-# Phase 5.1.16e: read-only **CityYields** summary for the selected city (no terrain rules in this file).
+# Phase 5.1.16e: read-only **CityYields** summary + **5.1.17d** breakdown line (no terrain rules in this file).
+# Phase 5.1.17g: **City Hub** header (name, pop), lower-right anchoring in **main.tscn**; **Manage Citizens (planned)** + **Close** (clears city selection).
+# File remains **city_production_panel.gd** / **CityProductionPanel** — see **[CITY_UX.md](../../docs/CITY_UX.md)**.
 # See docs/CITIES.md, docs/RENDERING.md
 class_name CityProductionPanel
 extends PanelContainer
@@ -9,17 +11,30 @@ const LegalActionsScript = preload("res://domain/legal_actions.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 const CityYieldsScript = preload("res://domain/city_yields.gd")
 
+const HUB_BRAND: String = "City Hub"
+const MANAGE_CITIZENS_LABEL: String = "Manage Citizens (planned)"
+const CLOSE_LABEL: String = "Close"
+
 var game_state
 var selection
 var cities_view
 var turn_label
 var log_view
 var city_nameplate_view
+## Wired from **main.gd** so **Close** redraws territory / worked-tile overlays without new selection architecture.
+var selection_view
+var city_territory_view
+var city_worked_tiles_view
 
 var _root_vbox: VBoxContainer
 var _title_label: Label
+var _identity_label: Label
 var _subheader_label: Label
 var _yields_label: Label
+var _breakdown_label: Label
+var _hub_actions_row: HBoxContainer
+var _manage_citizens_btn: Button
+var _close_btn: Button
 var _status_label: Label
 var _actions_block: VBoxContainer
 var _actions_heading_label: Label
@@ -36,8 +51,16 @@ func _ready() -> void:
 	add_child(_root_vbox)
 
 	_title_label = Label.new()
+	_identity_label = Label.new()
 	_subheader_label = Label.new()
 	_status_label = Label.new()
+	_hub_actions_row = HBoxContainer.new()
+	_hub_actions_row.add_theme_constant_override("separation", 10)
+	_manage_citizens_btn = Button.new()
+	_manage_citizens_btn.focus_mode = Control.FOCUS_NONE
+	_close_btn = Button.new()
+	_close_btn.focus_mode = Control.FOCUS_NONE
+	_close_btn.pressed.connect(_on_hub_close_pressed)
 	_actions_block = VBoxContainer.new()
 	_actions_block.add_theme_constant_override("separation", 8)
 	_actions_heading_label = Label.new()
@@ -46,17 +69,29 @@ func _ready() -> void:
 	_btn_container.add_theme_constant_override("separation", 6)
 
 	_style_title_label(_title_label)
+	_style_subheader_label(_identity_label)
 	_style_subheader_label(_subheader_label)
 	_style_body_label(_status_label)
 	_style_section_heading(_actions_heading_label)
 	_style_muted_label(_actions_empty_label)
+	_style_production_button(_manage_citizens_btn)
+	_style_production_button(_close_btn)
 
 	_root_vbox.add_child(_title_label)
+	_root_vbox.add_child(_identity_label)
 	_root_vbox.add_child(_subheader_label)
 	_yields_label = Label.new()
 	_style_body_label(_yields_label)
 	_yields_label.visible = false
 	_root_vbox.add_child(_yields_label)
+	_breakdown_label = Label.new()
+	_style_muted_label(_breakdown_label)
+	_breakdown_label.visible = false
+	_root_vbox.add_child(_breakdown_label)
+	_root_vbox.add_child(HSeparator.new())
+	_hub_actions_row.add_child(_manage_citizens_btn)
+	_hub_actions_row.add_child(_close_btn)
+	_root_vbox.add_child(_hub_actions_row)
 	_root_vbox.add_child(HSeparator.new())
 	_root_vbox.add_child(_status_label)
 	_root_vbox.add_child(HSeparator.new())
@@ -136,15 +171,45 @@ static func _human_project_suffix(project_id: String) -> String:
 	return s.capitalize()
 
 
+static func _compact_yield_tokens(y: Dictionary) -> String:
+	return "%dF %dP %dS %dC" % [
+		CityYieldsScript.get_yield(y, "food"),
+		CityYieldsScript.get_yield(y, "production"),
+		CityYieldsScript.get_yield(y, "science"),
+		CityYieldsScript.get_yield(y, "coin"),
+	]
+
+
+static func _breakdown_line_from_breakdown(brk: Dictionary) -> String:
+	if brk == null or typeof(brk) != TYPE_DICTIONARY or brk.is_empty():
+		return ""
+	if not brk.has("center") or not brk.has("buildings") or not brk.has("worked"):
+		return ""
+	var c = brk["center"] as Dictionary
+	var b = brk["buildings"] as Dictionary
+	var w = brk["worked"] as Dictionary
+	return "Center %s + Buildings %s + Worked %s" % [
+		_compact_yield_tokens(c),
+		_compact_yield_tokens(b),
+		_compact_yield_tokens(w),
+	]
+
+
 static func compute_view_model(game_state, selection) -> Dictionary:
 	var vm = {
 		"visible": false,
 		"header": "",
 		"header_title": "",
+		"hub_brand": "",
+		"identity_line": "",
 		"subheader": "",
+		"manage_citizens_button_text": MANAGE_CITIZENS_LABEL,
+		"manage_citizens_disabled": true,
+		"close_button_text": CLOSE_LABEL,
 		"show_yields": false,
 		"yields": {},
 		"yields_line": "",
+		"breakdown_line": "",
 		"status": "",
 		"show_production_section": false,
 		"actions_heading": "",
@@ -168,12 +233,16 @@ static func compute_view_model(game_state, selection) -> Dictionary:
 		vm["show_yields"] = true
 		vm["yields"] = {"food": fd, "production": pd, "science": sd, "coin": cd}
 		vm["yields_line"] = "Yields: %d Food · %d Production · %d Science · %d Coin" % [fd, pd, sd, cd]
+		var brk: Dictionary = CityYieldsScript.yield_breakdown_for_city(game_state.scenario, city)
+		vm["breakdown_line"] = _breakdown_line_from_breakdown(brk)
 	var cp = game_state.turn_state.current_player_id()
 	vm["visible"] = true
 	var cname: String = str(city.city_name).strip_edges()
 	var title: String = cname if cname != "" else "City"
 	vm["header_title"] = title
 	vm["header"] = title
+	vm["hub_brand"] = HUB_BRAND
+	vm["identity_line"] = "%s · Pop %d" % [title, city.population]
 	vm["subheader"] = "#%d · Owner %d" % [cid, city.owner_id]
 	if city.owner_id != cp:
 		vm["status"] = "Not your city (owner is player %d)." % city.owner_id
@@ -242,10 +311,17 @@ func refresh() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP if show_panel else Control.MOUSE_FILTER_IGNORE
 	if not show_panel:
 		_title_label.text = ""
+		if _identity_label != null:
+			_identity_label.text = ""
 		_subheader_label.text = ""
+		if _hub_actions_row != null:
+			_hub_actions_row.visible = false
 		if _yields_label != null:
 			_yields_label.text = ""
 			_yields_label.visible = false
+		if _breakdown_label != null:
+			_breakdown_label.text = ""
+			_breakdown_label.visible = false
 		_status_label.text = ""
 		_actions_heading_label.text = ""
 		_actions_empty_label.text = ""
@@ -254,8 +330,18 @@ func refresh() -> void:
 		_actions_block.visible = false
 		_clear_buttons()
 		return
-	_title_label.text = str(vm.get("header_title", ""))
+	_title_label.text = str(vm.get("hub_brand", HUB_BRAND))
+	if _identity_label != null:
+		_identity_label.text = str(vm.get("identity_line", ""))
 	_subheader_label.text = str(vm.get("subheader", ""))
+	if _hub_actions_row != null:
+		_hub_actions_row.visible = true
+	if _manage_citizens_btn != null:
+		_manage_citizens_btn.text = str(vm.get("manage_citizens_button_text", MANAGE_CITIZENS_LABEL))
+		_manage_citizens_btn.disabled = bool(vm.get("manage_citizens_disabled", true))
+	if _close_btn != null:
+		_close_btn.text = str(vm.get("close_button_text", CLOSE_LABEL))
+		_close_btn.disabled = false
 	if _yields_label != null:
 		var show_y: bool = bool(vm.get("show_yields", false))
 		if show_y:
@@ -264,6 +350,14 @@ func refresh() -> void:
 		else:
 			_yields_label.text = ""
 			_yields_label.visible = false
+	if _breakdown_label != null:
+		var show_br: bool = bool(vm.get("show_yields", false))
+		if show_br:
+			_breakdown_label.text = str(vm.get("breakdown_line", ""))
+			_breakdown_label.visible = _breakdown_label.text.length() > 0
+		else:
+			_breakdown_label.text = ""
+			_breakdown_label.visible = false
 	_status_label.text = str(vm.get("status", ""))
 	var show_prod = bool(vm.get("show_production_section", false))
 	_actions_block.visible = show_prod
@@ -319,3 +413,16 @@ func _on_production_button_pressed(action: Dictionary) -> void:
 		call_deferred("refresh")
 	else:
 		push_warning("SetCityProduction rejected: %s" % result["reason"])
+
+
+func _on_hub_close_pressed() -> void:
+	if selection == null:
+		return
+	selection.clear_city()
+	if selection_view != null:
+		selection_view.queue_redraw()
+	if city_territory_view != null:
+		city_territory_view.queue_redraw()
+	if city_worked_tiles_view != null:
+		city_worked_tiles_view.queue_redraw()
+	refresh()

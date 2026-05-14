@@ -8,6 +8,7 @@ Concise map of **what exists in code today**. For phased history and decisions u
 
 - Give agents and contributors a **fast mental model**: where state lives, how actions apply, where UI wires in, and high-risk hotspots.
 - **Not** source-of-truth for every rule—for schemas and semantics always follow [ACTIONS.md](ACTIONS.md), [TURNS.md](TURNS.md), [CITIES.md](CITIES.md), [AI_LAYER.md](AI_LAYER.md), [RENDERING.md](RENDERING.md).
+- **Forward-looking city interaction UX** (hub + opt-in planning mode + empire-border layering intent): **[CITY_UX.md](CITY_UX.md)** — orientation only until matching slices ship.
 
 ---
 
@@ -30,8 +31,8 @@ Concise map of **what exists in code today**. For phased history and decisions u
 | **[HexCoord](../game/domain/hex_coord.gd)** | Axial cell identity / neighbors |
 | **[HexMap](../game/domain/hex_map.gd)** | Finite cell set; terrain tags; **`Landform`**; **`_woods` overlay**; prototype factories (**`make_tiny_test_map`**, **`make_prototype_play_map`**) |
 | **[Scenario](../game/domain/scenario.gd)** | Map + units + cities + id bookkeeping + **`tile_owner_city_id`**; **`City.owned_tiles`**, capital / **`building_ids`**, **`lightning_tree_hex`** |
-| **[City](../game/domain/city.gd)** | City row including **`owned_tiles`**, **`is_capital`**, **`building_ids`**, **`current_project`** |
-| **[CityYields](../game/domain/city_yields.gd)** | Read-only yields from terrain, woods, center, buildings (presentation-independent) |
+| **[City](../game/domain/city.gd)** | City row including **`population`** (**default founding `1`**; **no** growth rules yet), **`owned_tiles`**, **`is_capital`**, **`building_ids`**, **`current_project`** |
+| **[CityYields](../game/domain/city_yields.gd)** | Read-only yields from terrain, woods, **city-center rule**, buildings, and **deterministic auto-worked** non-center **`owned_tiles`** (bounded by **`population`**); **`yield_breakdown_for_city`** decomposes **`city_total_yield`** — presentation-independent |
 | **[Unit](../game/domain/unit.gd)** | **`type_id`** + position (see **`UnitDefinitions`**) |
 | **[TurnState](../game/domain/turn_state.gd)** | Player order / current index / turn counter |
 | **[ProgressState](../game/domain/progress_state.gd)** | Unlocks, completed progress, science accumulation, **`current_research_id`** |
@@ -62,7 +63,7 @@ Concise map of **what exists in code today**. For phased history and decisions u
 | **Overlays / landmark** | [TileYieldOverlayView](../game/presentation/tile_yield_overlay_view.gd), [LightningTreeView](../game/presentation/lightning_tree_view.gd), nameplate views |
 | **Camera / space** | [MapCamera](../game/presentation/map_camera.gd), [MapPlaneProjection](../game/presentation/map_plane_projection.gd), [HexLayout](../game/presentation/hex_layout.gd) |
 | **Input / actions submission** | [SelectionController](../game/presentation/selection_controller.gd) (mouse + **`F`/`P`/`G`/`H`**, shared-hex semantics), **`EndTurn`/`AITurn`** controllers (**`SPACE`/`A`**) |
-| **HUD** | **`HudCanvas`** in **`main.tscn`** (city production, discovery/science panels, popups, yields toggle); **`main.gd`** connects signals (**e.g.** **`YieldsToggle`**). |
+| **HUD** | **`HudCanvas`** in **`main.tscn`** — **selected-city hub** (**`city_production_panel.gd`**, class **`CityProductionPanel`**, visible title **City Hub**) + discovery/science panels, popups, yields toggle; **`main.gd`** connects signals (**e.g.** **`YieldsToggle`**) and hub **Close** redraw refs (**`selection_view`**, **`city_territory_view`**, **`city_worked_tiles_view`**). |
 
 Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative rules stay **`try_apply`**.
 
@@ -70,7 +71,7 @@ Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative 
 
 ## Test architecture
 
-- **Runner:** from repo root, [scripts/run-godot-tests.ps1](../scripts/run-godot-tests.ps1) runs a **fixed list (~97)** of Godot headless scripts (**`-s res://…`**).
+- **Runner:** from repo root, [scripts/run-godot-tests.ps1](../scripts/run-godot-tests.ps1) runs a **fixed list (~100)** of Godot headless scripts (**`-s res://…`**).
 - **Layout:** **`game/domain/tests/`**, **`game/presentation/tests/`**, **`game/ai/tests/`** — mix of invariant tests and tighter draw/UI harnesses.
 
 ---
@@ -88,7 +89,7 @@ Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative 
 - **`PHASE_PLAN.md` / `DECISION_LOG.md` are append-heavy** — this file does **not** replace drilling into them for slice intent.
 - **`LegalActions`** is **not** the full universe of playable actions (science / **`CompleteProgress`** paths exist outside it).
 - **`EffectiveRules`** is **not yet** the sole read boundary for every rule (**registry reads remain** elsewhere).
-- **No population / worked-tiles economy** exists yet (**not started**).
+- **Population growth / manual worked-tile UI / food stockpiling are not implemented** (**5.1.17a** ships **`population`** **`1`** + deterministic **`city_total_yield`** worked tiles **without** those systems).
 
 ---
 

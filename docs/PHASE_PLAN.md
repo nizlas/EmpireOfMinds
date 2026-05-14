@@ -2370,9 +2370,51 @@ Validation:
 
 - `powershell -ExecutionPolicy Bypass -File .\scripts\run-godot-tests.ps1` → all headless tests pass (count in script output).
 
+#### 5.1.17a — Population + deterministic auto-worked tiles (domain embryo)
+
+**Status:** **Shipped.**
+
+- **`City.population`** (**`FoundCity`** sets **`1`**; preserved on **`SetCityProduction`** / **`ProductionTick`** / **`ProductionDelivery`** rebuilds). **No** growth rules yet.
+- **`CityYields`**: **`worked_tiles_for_city`** / **`worked_tiles_yield`**; **`city_total_yield`** = center + buildings + worked **raw terrain** from **non-center** **`owned_tiles`** (deterministic ordering; capped by **`population`**). Assignments **not** stored on **`City`**.
+- **No** manual assignment UI.
+
+Docs/tests: **[CITIES.md](CITIES.md)**, **`test_city_population.gd`**, **`test_city_yields_worked_tiles.gd`**, **`scripts/run-godot-tests.ps1`** registration.
+
+#### 5.1.17d — **`yield_breakdown_for_city`** + panel breakdown line (visibility)
+
+**Status:** **Shipped.**
+
+- **`CityYields.yield_breakdown_for_city`** — read-only decomposition (**center**, **buildings**, **worked**, **`worked_tiles`**, **`total`**) matching **`city_total_yield`**; no rule changes.
+- **`CityProductionPanel`** — **`breakdown_line`** under totals (**ASCII**, **Center** / **Buildings** / **Worked** tokens).
+
+Docs/tests: **[CITIES.md](CITIES.md)**, **`test_city_yields_breakdown.gd`**, **`test_city_production_panel.gd`**, **`scripts/run-godot-tests.ps1`**.
+
+#### 5.1.17f — City interaction UX direction doc
+
+**Status:** **Shipped (documentation).**
+
+- **[CITY_UX.md](CITY_UX.md)** — concise orientation: **`CityHubPanel`** lower-right on city selection; **opt-in** **CityPlanningMode** via **Manage Citizens** (presentation-only until mechanics); **always-on empire borders** vs **selection-driven** city/worked overlays; roadmap slices + explicit **out of scope**.
+- Steering pointers: **[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)**, **[RENDERING.md](RENDERING.md)** (**layering direction** note).
+
+Validation:
+
+- Docs-only; **`scripts/run-godot-tests.ps1`** unchanged in intent.
+
+#### 5.1.17g — Selected-city **City Hub** panel skeleton (**city_production_panel.gd**)
+
+**Status:** **Shipped.**
+
+- **`CityProductionPanel`** — lower-right **`HudCanvas`** anchor in **`main.tscn`**; visible header **City Hub** + **identity** (**name · Pop** **`City.population`**) + **`#id · Owner`**; **Manage Citizens (planned)** (**disabled**); **Close** (**`selection.clear_city()`** + territory / worked-tile / panel refresh); **`main.gd`** wires **`selection_view`**, **`city_territory_view`**, **`city_worked_tiles_view`** for redraw only.
+- **`compute_view_model`** — **`hub_brand`**, **`identity_line`**, **`manage_citizens_*`**, **`close_button_text`** ( **`header_title`** unchanged for city name).
+- Tests: **`test_city_production_panel.gd`**, **`test_main_hud_city_panel.gd`**; **`scripts/run-godot-tests.ps1`**.
+
+Validation:
+
+- **`scripts/run-godot-tests.ps1`** green.
+
 #### 5.1.16h — Population auto-works owned tiles (planned)
 
-**Status:** Planned.
+**Status:** Planned (forward umbrella). **Embryo:** **5.1.17a**.
 
 Goal:
 

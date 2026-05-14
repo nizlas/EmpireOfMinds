@@ -4,6 +4,7 @@ class_name CityYields
 extends RefCounted
 
 const HexMapScript = preload("res://domain/hex_map.gd")
+const HexCoordScript = preload("res://domain/hex_coord.gd")
 
 const BUILDING_ID_PALACE: String = "palace"
 
@@ -73,6 +74,81 @@ static func building_yield(building_id: String) -> Dictionary:
 	return empty()
 
 
+static func _raw_yield_nonzero(raw: Dictionary) -> bool:
+	return (
+		get_yield(raw, "food") != 0
+		or get_yield(raw, "production") != 0
+		or get_yield(raw, "science") != 0
+		or get_yield(raw, "coin") != 0
+	)
+
+
+static func _worked_tile_precedes(map, a, b) -> bool:
+	var ra: Dictionary = raw_terrain_yield(map, a)
+	var rb: Dictionary = raw_terrain_yield(map, b)
+	var fa: int = get_yield(ra, "food")
+	var pa: int = get_yield(ra, "production")
+	var fb: int = get_yield(rb, "food")
+	var pb: int = get_yield(rb, "production")
+	var sa: int = fa + pa
+	var sb: int = fb + pb
+	if sa != sb:
+		return sa > sb
+	if fa != fb:
+		return fa > fb
+	if pa != pb:
+		return pa > pb
+	if a.q != b.q:
+		return a.q < b.q
+	return a.r < b.r
+
+
+static func worked_tiles_for_city(p_scenario, city) -> Array:
+	var out: Array = []
+	if p_scenario == null or city == null:
+		return out
+	var cmap = p_scenario.map
+	if cmap == null:
+		return out
+	var lim: int = int(city.population)
+	if lim <= 0:
+		return out
+	var candidates: Array = []
+	var ei: int = 0
+	while ei < city.owned_tiles.size():
+		var h = city.owned_tiles[ei]
+		ei += 1
+		if h == null:
+			continue
+		if h.q == city.position.q and h.r == city.position.r:
+			continue
+		var rw: Dictionary = raw_terrain_yield(cmap, h)
+		if not _raw_yield_nonzero(rw):
+			continue
+		candidates.append(h)
+	if candidates.is_empty():
+		return out
+	candidates.sort_custom(func(a, b): return _worked_tile_precedes(cmap, a, b))
+	var take: int = mini(lim, candidates.size())
+	var ti: int = 0
+	while ti < take:
+		var ch = candidates[ti]
+		out.append(HexCoordScript.new(ch.q, ch.r))
+		ti += 1
+	return out
+
+
+static func worked_tiles_yield(p_scenario, city) -> Dictionary:
+	var acc: Dictionary = empty()
+	var wt: Array = worked_tiles_for_city(p_scenario, city)
+	var wi: int = 0
+	while wi < wt.size():
+		var hx = wt[wi]
+		wi += 1
+		acc = add(acc, raw_terrain_yield(p_scenario.map, hx))
+	return acc
+
+
 static func city_total_yield(p_scenario, city) -> Dictionary:
 	if p_scenario == null or city == null:
 		return empty()
@@ -81,6 +157,43 @@ static func city_total_yield(p_scenario, city) -> Dictionary:
 	while j < city.building_ids.size():
 		out = add(out, building_yield(str(city.building_ids[j])))
 		j = j + 1
+	out = add(out, worked_tiles_yield(p_scenario, city))
+	return out
+
+
+# Phase 5.1.17d — decomposition of **city_total_yield** for visibility/tests; pure read-only compose of existing helpers.
+static func yield_breakdown_for_city(p_scenario, city) -> Dictionary:
+	if p_scenario == null or city == null:
+		return {
+			"center": empty(),
+			"buildings": empty(),
+			"worked": empty(),
+			"worked_tiles": [],
+			"total": empty(),
+		}
+	var cen: Dictionary = city_center_yield(p_scenario.map, city)
+	var bsum: Dictionary = empty()
+	var j: int = 0
+	while j < city.building_ids.size():
+		bsum = add(bsum, building_yield(str(city.building_ids[j])))
+		j = j + 1
+	var wked: Dictionary = worked_tiles_yield(p_scenario, city)
+	var wt_src: Array = worked_tiles_for_city(p_scenario, city)
+	var wt_out: Array = []
+	var wi: int = 0
+	while wi < wt_src.size():
+		var hx = wt_src[wi]
+		wi += 1
+		if hx != null:
+			wt_out.append(HexCoordScript.new(hx.q, hx.r))
+	var tot: Dictionary = add(add(cen, bsum), wked)
+	var out: Dictionary = {
+		"center": cen.duplicate(true),
+		"buildings": bsum.duplicate(true),
+		"worked": wked.duplicate(true),
+		"worked_tiles": wt_out,
+		"total": tot.duplicate(true),
+	}
 	return out
 
 

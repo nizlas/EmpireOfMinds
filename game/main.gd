@@ -2,7 +2,7 @@
 # See docs/RENDERING.md, docs/SELECTION.md
 extends Node2D
 
-## Initial pixel origin for map-layer **Node2D** children including **`CityTerritoryView`** (Phase **5.1.16i**), **`TileYieldOverlayView`** (Phase **5.1.16f**), **UnitNameplateView** / **CityNameplateView** (Phase **5.1.11** / **5.1.15**). **4.5m:** set **once** in `_ready`; pan uses **MapCamera.camera_world_offset**. **`CityTerritoryView`** uses **`z_index` 0** immediately **after** **`MapView`** so the **union border** sits **on** the **base terrain** but **under** cities, units, **TerrainForegroundView** / **LightningTreeView**, **`TileYieldOverlayView`**, and nameplates (**`z_index` 2**). **5.1.15b** orders **`CityNameplateView`** before **`UnitNameplateView`** so **unit** nameplates paint **on top**. Still below **HudCanvas**.
+## Initial pixel origin for map-layer **Node2D** children including **`CityTerritoryView`** (Phase **5.1.16i**), **`CityWorkedTilesView`** (Phase **5.1.17e** — selected-city worked-tile overlay), **`TileYieldOverlayView`** (Phase **5.1.16f**), **UnitNameplateView** / **CityNameplateView** (Phase **5.1.11** / **5.1.15**). **4.5m:** set **once** in `_ready`; pan uses **MapCamera.camera_world_offset**. **`CityTerritoryView`** uses **`z_index` 0** immediately **after** **`MapView`** so the **union border** sits **on** the **base terrain** but **under** cities, units, **TerrainForegroundView** / **LightningTreeView**, **`TileYieldOverlayView`**, and nameplates (**`z_index` 2**). **`CityWorkedTilesView`** (**after** **LightningTreeView**, **before** **`TileYieldOverlayView`**) uses **`z_index` 1**: **above** terrain / forest / city+unit markers (**0**), **below** yield icons (**TileYieldOverlayView**, **later** sibling at **1**) and nameplates (**2**). **5.1.15b** orders **`CityNameplateView`** before **`UnitNameplateView`** so **unit** nameplates paint **on top**. Still below **HudCanvas**.
 const MAP_LAYER_ORIGIN: Vector2 = Vector2(400.0, 428.0)
 
 const ScenarioScript = preload("res://domain/scenario.gd")
@@ -24,6 +24,7 @@ var _map_camera
 func _redraw_map_layers() -> void:
 	$MapView.queue_redraw()
 	$CityTerritoryView.queue_redraw()
+	$CityWorkedTilesView.queue_redraw()
 	$CitiesView.queue_redraw()
 	$SelectionView.queue_redraw()
 	$UnitsView.queue_redraw()
@@ -41,6 +42,7 @@ func _ready() -> void:
 	for n in [
 		$MapView,
 		$CityTerritoryView,
+		$CityWorkedTilesView,
 		$CitiesView,
 		$SelectionView,
 		$UnitsView,
@@ -72,6 +74,9 @@ func _ready() -> void:
 	$CityTerritoryView.scale = Vector2.ONE
 	$CityTerritoryView.camera = _map_camera
 	$CityTerritoryView.z_index = 0
+	$CityWorkedTilesView.scale = Vector2.ONE
+	$CityWorkedTilesView.camera = _map_camera
+	$CityWorkedTilesView.z_index = 1
 	$TileYieldOverlayView.scale = Vector2.ONE
 	$TileYieldOverlayView.camera = _map_camera
 	$TileYieldOverlayView.z_index = 1
@@ -104,6 +109,11 @@ func _ready() -> void:
 	city_territory_view.layout = layout
 	city_territory_view.camera = _map_camera
 	city_territory_view.selection = selection
+	var city_worked_tiles_view = $CityWorkedTilesView
+	city_worked_tiles_view.scenario = scenario
+	city_worked_tiles_view.layout = layout
+	city_worked_tiles_view.camera = _map_camera
+	city_worked_tiles_view.selection = selection
 	var tile_yield_overlay = $TileYieldOverlayView
 	tile_yield_overlay.scenario = scenario
 	tile_yield_overlay.layout = layout
@@ -155,6 +165,7 @@ func _ready() -> void:
 	selection_controller.unit_nameplate_view = unit_nameplate_view
 	selection_controller.city_nameplate_view = city_nameplate_view
 	selection_controller.city_territory_view = city_territory_view
+	selection_controller.city_worked_tiles_view = city_worked_tiles_view
 	selection_controller.yield_overlay_view = tile_yield_overlay
 	var turn_label = $TurnLabel
 	turn_label.game_state = game_state
@@ -186,6 +197,9 @@ func _ready() -> void:
 	var city_production_panel = $HudCanvas/CityProductionPanel
 	city_production_panel.game_state = game_state
 	city_production_panel.selection = selection
+	city_production_panel.selection_view = selection_view
+	city_production_panel.city_territory_view = city_territory_view
+	city_production_panel.city_worked_tiles_view = city_worked_tiles_view
 	city_production_panel.cities_view = cities_view
 	city_production_panel.turn_label = turn_label
 	city_production_panel.log_view = log_view
@@ -195,8 +209,10 @@ func _ready() -> void:
 	ai_turn_controller.city_production_panel = city_production_panel
 	end_turn_controller.yield_overlay_view = tile_yield_overlay
 	end_turn_controller.city_territory_view = city_territory_view
+	end_turn_controller.city_worked_tiles_view = city_worked_tiles_view
 	ai_turn_controller.yield_overlay_view = tile_yield_overlay
 	ai_turn_controller.city_territory_view = city_territory_view
+	ai_turn_controller.city_worked_tiles_view = city_worked_tiles_view
 	city_production_panel.refresh()
 	var discovery_action_panel = $HudCanvas/DiscoveryActionPanel
 	discovery_action_panel.game_state = game_state

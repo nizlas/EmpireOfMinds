@@ -2,7 +2,7 @@
 extends RefCounted
 
 
-## Mirrors **`SelectionController`** `_sync_terrain_foreground_from_game_state` (**terrain + nameplates + yield overlay + territory**); keeps **immediate** **`TerrainForegroundView.queue_redraw`** like that path.
+## Mirrors **`SelectionController`** `_sync_terrain_foreground_from_game_state` (**terrain + nameplates + yield overlay + territory + worked-tile markers**); keeps **immediate** **`TerrainForegroundView.queue_redraw`** like that path.
 static func sync_terrain_related_views(
 	scen,
 	terrain_foreground_view,
@@ -10,6 +10,7 @@ static func sync_terrain_related_views(
 	city_nameplate_view,
 	yield_overlay_view,
 	city_territory_view,
+	city_worked_tiles_view = null,
 ) -> void:
 	if scen == null:
 		return
@@ -29,6 +30,9 @@ static func sync_terrain_related_views(
 	if city_territory_view != null:
 		city_territory_view.scenario = scen
 		city_territory_view.queue_redraw()
+	if city_worked_tiles_view != null:
+		city_worked_tiles_view.scenario = scen
+		city_worked_tiles_view.queue_redraw()
 
 ## Mirrors **EndTurnController** / **AITurnController** accepted-action block after **`discovery_popup`** / **`selection.clear_unit()`** (**not** inclusive of those callers).
 static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_state,
@@ -44,6 +48,7 @@ static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_stat
 	city_production_panel,
 	discovery_action_panel,
 	science_panel,
+	city_worked_tiles_view = null,
 ) -> void:
 	if game_state == null:
 		return
@@ -69,6 +74,9 @@ static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_stat
 	if city_territory_view != null:
 		city_territory_view.scenario = game_state.scenario
 		city_territory_view.queue_redraw()
+	if city_worked_tiles_view != null:
+		city_worked_tiles_view.scenario = game_state.scenario
+		city_worked_tiles_view.queue_redraw()
 	turn_label.refresh()
 	if log_view != null:
 		log_view.refresh()

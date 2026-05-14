@@ -38,6 +38,8 @@ var city_nameplate_view
 var yield_overlay_view
 ## Phase 5.1.16i: selected-city territory outline (**tiles_owned_by_city**); redraw with selection / sync.
 var city_territory_view
+## Phase 5.1.17e: selected-city **auto-worked** hex markers (**yield_breakdown_for_city**.worked_tiles); redraw with territory.
+var city_worked_tiles_view
 var turn_label
 var log_view
 var city_production_panel
@@ -132,6 +134,8 @@ static func plan_shared_hex_pick(
 func _refresh_city_territory_view() -> void:
 	if city_territory_view != null:
 		city_territory_view.queue_redraw()
+	if city_worked_tiles_view != null:
+		city_worked_tiles_view.queue_redraw()
 
 
 func _refresh_city_production_panel() -> void:
@@ -171,6 +175,7 @@ func _sync_terrain_foreground_from_game_state() -> void:
 		city_nameplate_view,
 		yield_overlay_view,
 		city_territory_view,
+		city_worked_tiles_view,
 	)
 
 func _unhandled_input(event):

@@ -19,6 +19,10 @@ var _any_fail = false
 
 
 func _init() -> void:
+	call_deferred("_run")
+
+
+func _run() -> void:
 	_guard_panel_source_has_no_forbidden_imports()
 	var sel = SelectionStateScript.new()
 
@@ -26,6 +30,7 @@ func _init() -> void:
 	_check(not bool(vm0.get("visible", true)), "null game_state hides")
 	_check(not bool(vm0.get("show_yields", true)), "null game_state no yields")
 	_check((vm0.get("yields", {}) as Dictionary).is_empty(), "null game_state yields empty")
+	_check(str(vm0.get("breakdown_line", "x")).is_empty(), "null game_state no breakdown_line")
 
 	var gs_t = GameStateScript.make_tiny_test_state()
 	var vm1 = CityProductionPanelScript.compute_view_model(gs_t, sel)
@@ -44,13 +49,27 @@ func _init() -> void:
 	var vm_idle = CityProductionPanelScript.compute_view_model(gs2, sel)
 	_check(bool(vm_idle.get("visible", false)), "idle city shows panel")
 	_check(str(vm_idle.get("header_title", "")) == "Capital", "header uses founded city name")
+	_check(str(vm_idle.get("hub_brand", "")) == "City Hub", "vm hub_brand City Hub")
+	_check(str(vm_idle.get("identity_line", "")).find("Capital") >= 0, "identity shows city name")
+	_check(str(vm_idle.get("identity_line", "")).find("Pop ") >= 0, "identity shows Pop")
+	_check(str(vm_idle.get("manage_citizens_button_text", "")).find("Manage Citizens") >= 0, "vm manage citizens label")
+	_check(bool(vm_idle.get("manage_citizens_disabled", false)), "vm manage citizens disabled")
+	_check(str(vm_idle.get("close_button_text", "")) == "Close", "vm close label")
 	_check(bool(vm_idle.get("show_yields", false)), "yields visible for founded capital")
 	var y_idle = vm_idle.get("yields", {}) as Dictionary
-	_check(int(y_idle.get("food", -1)) == 2, "tiny plains capital food 2")
-	_check(int(y_idle.get("production", -1)) == 1, "tiny plains capital production 1")
+	_check(int(y_idle.get("food", -1)) == 3, "tiny plains capital food includes one worked neighbor")
+	_check(int(y_idle.get("production", -1)) == 2, "tiny plains capital production includes worked plains")
 	_check(int(y_idle.get("science", -1)) == 1, "palace science 1")
 	_check(int(y_idle.get("coin", -1)) == 1, "palace coin 1")
 	_check(str(vm_idle.get("yields_line", "")).begins_with("Yields:"), "yields line prefix")
+	var br_idle = str(vm_idle.get("breakdown_line", ""))
+	_check(br_idle.length() > 0, "founded capital has breakdown_line")
+	_check(br_idle.find("Center") >= 0, "breakdown mentions Center")
+	_check(br_idle.find("Buildings") >= 0, "breakdown mentions Buildings")
+	_check(br_idle.find("Worked") >= 0, "breakdown mentions Worked")
+	_check(br_idle.find("2F") >= 0, "breakdown center food matches city center floor")
+	_check(br_idle.find("1S") >= 0 and br_idle.find("1C") >= 0, "breakdown palace science and coin")
+	_check(br_idle.find("1P") >= 0, "breakdown includes production tokens")
 	var opts_idle = vm_idle.get("options", []) as Array
 	_check(opts_idle.size() == 2, "warrior and settler baseline empty city")
 	var a0i = (opts_idle[0] as Dictionary)["action"] as Dictionary
@@ -171,6 +190,31 @@ func _init() -> void:
 		int(y_wp.get("science", -1)) == 1 and int(y_np.get("science", -1)) == 0,
 		"palace adds science not production bump"
 	)
+
+	# 5.1.17g — hub skeleton: rendered labels + Close clears city selection only.
+	var gs_hub = GameStateScript.make_tiny_test_state()
+	_check(gs_hub.try_apply(FoundCityScript.make(0, 1, 0, 0))["accepted"], "hub skeleton: found city")
+	var sel_hub = SelectionStateScript.new()
+	sel_hub.select_city(1)
+	var panel = CityProductionPanelScript.new()
+	get_root().add_child(panel)
+	panel.game_state = gs_hub
+	panel.selection = sel_hub
+	panel.refresh()
+	_check(panel.visible, "hub panel visible with city selection")
+	_check(panel._title_label.text == "City Hub", "panel shows City Hub title")
+	_check(panel._identity_label.text.find("Pop ") >= 0, "panel identity shows population")
+	_check(panel._manage_citizens_btn.disabled, "Manage Citizens disabled")
+	_check(panel._manage_citizens_btn.text.find("Manage Citizens") >= 0, "Manage Citizens label")
+	_check(panel._close_btn.text == "Close", "Close button text")
+	var scen_before = gs_hub.scenario
+	var n_cities = gs_hub.scenario.cities().size()
+	panel._on_hub_close_pressed()
+	_check(not sel_hub.has_city(), "Close clears city selection")
+	_check(gs_hub.scenario == scen_before, "Close does not replace scenario")
+	_check(gs_hub.scenario.cities().size() == n_cities, "Close does not add/remove cities")
+	_check(not panel.visible, "panel hides after Close")
+	panel.queue_free()
 
 	if _any_fail:
 		call_deferred("quit", 1)

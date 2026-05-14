@@ -107,7 +107,8 @@ static func apply(a_scenario, action):
 					c.city_name,
 					c.is_capital,
 					c.building_ids,
-					c.owned_tiles
+					c.owned_tiles,
+					c.population
 				)
 			)
 		else:

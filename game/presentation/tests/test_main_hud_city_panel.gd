@@ -19,6 +19,8 @@ func _init() -> void:
 	_check(ctl != null, "CityProductionPanel is Control")
 	_check(is_equal_approx(ctl.anchor_left, 1.0), "panel anchor_left pins to right")
 	_check(is_equal_approx(ctl.anchor_right, 1.0), "panel anchor_right pins to right")
+	_check(is_equal_approx(ctl.anchor_top, 1.0), "panel anchor_top pins to bottom band (city hub)")
+	_check(is_equal_approx(ctl.anchor_bottom, 1.0), "panel anchor_bottom pins to bottom band (city hub)")
 	_check(ctl.offset_right > ctl.offset_left, "panel has positive width (margins from right edge)")
 	if _any_fail:
 		if root != null:
