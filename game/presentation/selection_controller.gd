@@ -77,6 +77,55 @@ static func projected_hex_contains(layout, camera, q: int, r: int, pres_pt: Vect
 	return Geometry2D.is_point_in_polygon(pres_pt, poly)
 
 
+## Phase **5.1.19d** — PLANNING click: toggle/add/replace **manual_worked_tiles** (order preserved; append at end; at capacity replace **last** slot).
+## Returns **`Array`** of **`[q,r]`** pairs for **`SetCityWorkedTiles.make`**. Removing the last manual yields **`[]`** (auto).
+static func planning_manual_worked_tiles_payload(city, clicked_q: int, clicked_r: int) -> Array:
+	var manual: Array = city.manual_worked_tiles
+	var idx: int = -1
+	var mi: int = 0
+	while mi < manual.size():
+		var h = manual[mi]
+		mi += 1
+		if h != null and int(h.q) == int(clicked_q) and int(h.r) == int(clicked_r):
+			idx = mi - 1
+			break
+	if idx >= 0:
+		var out_remove: Array = []
+		var mj: int = 0
+		while mj < manual.size():
+			if mj == idx:
+				mj += 1
+				continue
+			var hx = manual[mj]
+			if hx != null:
+				out_remove.append([int(hx.q), int(hx.r)])
+			mj += 1
+		return out_remove
+	var pop: int = int(city.population)
+	var ms: int = manual.size()
+	if ms < pop:
+		var out_append: Array = []
+		var mk: int = 0
+		while mk < manual.size():
+			var hy = manual[mk]
+			if hy != null:
+				out_append.append([int(hy.q), int(hy.r)])
+			mk += 1
+		out_append.append([int(clicked_q), int(clicked_r)])
+		return out_append
+	var out_replace: Array = []
+	var mk2: int = 0
+	while mk2 < manual.size():
+		var hz = manual[mk2]
+		if mk2 == ms - 1:
+			out_replace.append([int(clicked_q), int(clicked_r)])
+		else:
+			if hz != null:
+				out_replace.append([int(hz.q), int(hz.r)])
+		mk2 += 1
+	return out_replace
+
+
 func _sort_city_ids_asc(ids: Array) -> void:
 	var a = 0
 	while a < ids.size():
@@ -414,13 +463,13 @@ func _unhandled_input(event):
 							if mm != null and mm.q == pht.q and mm.r == pht.r:
 								is_manual_tile = true
 								break
-						var pay: Array = []
-						if is_manual_tile:
-							pay = []
-						elif not CityYieldsScript._raw_yield_nonzero(raw_hit):
+						if not is_manual_tile and not CityYieldsScript._raw_yield_nonzero(raw_hit):
 							continue
-						else:
-							pay = [[int(pht.q), int(pht.r)]]
+						var pay: Array = SelectionController.planning_manual_worked_tiles_payload(
+							c_plan,
+							int(pht.q),
+							int(pht.r)
+						)
 						var sw_act = SetCityWorkedTilesScript.make(
 							int(game_state.turn_state.current_player_id()),
 							int(c_plan.id),

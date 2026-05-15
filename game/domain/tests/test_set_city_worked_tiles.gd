@@ -41,13 +41,19 @@ func _init() -> void:
 	var c2 = scen2.city_by_id(5)
 	_check(c2.manual_worked_tiles.size() == 1, "apply stores one manual hex")
 	_check((c2.manual_worked_tiles[0] as HexCoord).q == 0 and (c2.manual_worked_tiles[0] as HexCoord).r == -1, "apply coord")
+	_check(c2.worked_tiles_mode == CityScript.WORKED_TILES_MODE_MANUAL, "apply enters manual mode")
 
 	var gs_b = GameStateScript.new(ScenarioScript.new(m, u, [city], 10, 20, null))
 	var r1 = gs_b.try_apply(SetCityWorkedTilesScript.make(0, 5, [[0, -1]]))
 	_check(r1["accepted"], "try_apply set manual")
 	var r_clear = gs_b.try_apply(SetCityWorkedTilesScript.make(0, 5, []))
-	_check(r_clear["accepted"], "clear-to-auto accepts")
-	_check(gs_b.scenario.city_by_id(5).manual_worked_tiles.is_empty(), "manual cleared")
+	_check(r_clear["accepted"], "empty payload: all citizens idle")
+	var c_idle = gs_b.scenario.city_by_id(5)
+	_check(c_idle.manual_worked_tiles.is_empty(), "manual list empty")
+	_check(c_idle.worked_tiles_mode == CityScript.WORKED_TILES_MODE_MANUAL, "still manual mode when idle")
+
+	var v_idle_auto = SetCityWorkedTilesScript.validate(scen, SetCityWorkedTilesScript.make(0, 5, []))
+	_check(bool(v_idle_auto["ok"]), "auto city accepts [] to enter manual idle")
 
 	var bad_scen = SetCityWorkedTilesScript.validate(null, a_ok)
 	_check(bad_scen["reason"] == "scenario_null", "scenario_null")
@@ -132,10 +138,71 @@ func _init() -> void:
 	)
 	_check(too["reason"] == "too_many_tiles", "too_many_tiles")
 
-	var same = SetCityWorkedTilesScript.validate(scen, SetCityWorkedTilesScript.make(0, 5, []))
-	_check(same["reason"] == "assignment_unchanged", "assignment_unchanged empty to empty")
+	var city_pop2 = CityScript.new(5, 0, ctr, null, "", false, [], owned, 2)
+	var scen_pop2 = ScenarioScript.new(m, u, [city_pop2], 10, 20, null)
+	var v_two = SetCityWorkedTilesScript.validate(scen_pop2, SetCityWorkedTilesScript.make(0, 5, [[0, -1], [1, 0]]))
+	_check(bool(v_two["ok"]), "two tiles when population 2")
+	var scen_two_ap = SetCityWorkedTilesScript.apply(scen_pop2, SetCityWorkedTilesScript.make(0, 5, [[0, -1], [1, 0]]))
+	var c2ap = scen_two_ap.city_by_id(5)
+	_check(c2ap.manual_worked_tiles.size() == 2, "apply keeps two manual hexes in order")
+	_check(
+		(c2ap.manual_worked_tiles[0] as HexCoord).q == 0 and (c2ap.manual_worked_tiles[0] as HexCoord).r == -1,
+		"first manual coord"
+	)
+	_check(
+		(c2ap.manual_worked_tiles[1] as HexCoord).q == 1 and (c2ap.manual_worked_tiles[1] as HexCoord).r == 0,
+		"second manual coord"
+	)
 
-	var city_m = CityScript.new(8, 0, ctr, null, "", false, [], owned, 1, [HexCoordScript.new(0, -1)])
+	var ctr00 = HexCoordScript.new(0, 0)
+	var own_many: Array = [
+		ctr00,
+		HexCoordScript.new(1, 0),
+		HexCoordScript.new(1, -1),
+		HexCoordScript.new(0, -1),
+		HexCoordScript.new(-1, 1),
+		HexCoordScript.new(0, 1),
+	]
+	var city_ring = CityScript.new(55, 0, ctr00, null, "", false, [], own_many, 2)
+	var scen_ring = ScenarioScript.new(m, u, [city_ring], 50, 60, null)
+	var too3 = SetCityWorkedTilesScript.validate(
+		scen_ring,
+		SetCityWorkedTilesScript.make(0, 55, [[1, 0], [1, -1], [0, -1]])
+	)
+	_check(too3["reason"] == "too_many_tiles", "three tiles rejected when population 2")
+
+	var city_already_idle = CityScript.new(
+		5,
+		0,
+		ctr,
+		null,
+		"",
+		false,
+		[],
+		owned,
+		1,
+		[],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
+	)
+	var scen_idle_m = ScenarioScript.new(m, u, [city_already_idle], 14, 24, null)
+	var same = SetCityWorkedTilesScript.validate(scen_idle_m, SetCityWorkedTilesScript.make(0, 5, []))
+	_check(same["reason"] == "assignment_unchanged", "assignment_unchanged manual idle to []")
+
+	var city_m = CityScript.new(
+		8,
+		0,
+		ctr,
+		null,
+		"",
+		false,
+		[],
+		owned,
+		1,
+		[HexCoordScript.new(0, -1)],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
+	)
 	var scen_m = ScenarioScript.new(m, u, [city_m], 13, 23, null)
 	var unch = SetCityWorkedTilesScript.validate(scen_m, SetCityWorkedTilesScript.make(0, 8, [[0, -1]]))
 	_check(unch["reason"] == "assignment_unchanged", "assignment_unchanged same manual")

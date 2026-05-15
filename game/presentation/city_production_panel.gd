@@ -11,6 +11,7 @@ extends PanelContainer
 const LegalActionsScript = preload("res://domain/legal_actions.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 const CityYieldsScript = preload("res://domain/city_yields.gd")
+const FoodGrowthTickScript = preload("res://domain/food_growth_tick.gd")
 
 const HUB_BRAND: String = "City Hub"
 const MANAGE_CITIZENS_LABEL: String = "Manage Citizens"
@@ -36,6 +37,7 @@ var _identity_label: Label
 var _subheader_label: Label
 var _yields_label: Label
 var _breakdown_label: Label
+var _growth_label: Label
 var _planning_banner_label: Label
 var _hub_actions_row: HBoxContainer
 var _manage_citizens_btn: Button
@@ -104,6 +106,10 @@ func _ready() -> void:
 	_style_muted_label(_breakdown_label)
 	_breakdown_label.visible = false
 	_root_vbox.add_child(_breakdown_label)
+	_growth_label = Label.new()
+	_style_muted_label(_growth_label)
+	_growth_label.visible = false
+	_root_vbox.add_child(_growth_label)
 	_root_vbox.add_child(HSeparator.new())
 	_hub_actions_row.add_child(_manage_citizens_btn)
 	_hub_actions_row.add_child(_done_planning_btn)
@@ -231,6 +237,7 @@ static func compute_view_model(game_state, selection, city_view_state = null) ->
 		"yields": {},
 		"yields_line": "",
 		"breakdown_line": "",
+		"growth_line": "",
 		"status": "",
 		"show_production_section": false,
 		"actions_heading": "",
@@ -274,9 +281,17 @@ static func compute_view_model(game_state, selection, city_view_state = null) ->
 		vm["options"] = []
 		vm["manage_citizens_disabled"] = true
 		vm["done_planning_visible"] = false
+		vm["growth_line"] = ""
 		return vm
 	vm["manage_citizens_disabled"] = planning_now
 	vm["done_planning_visible"] = planning_now
+	if bool(vm.get("show_yields", false)):
+		var y_g: Dictionary = CityYieldsScript.city_total_yield(game_state.scenario, city)
+		var food_tot: int = CityYieldsScript.get_yield(y_g, "food")
+		var surplus_raw: int = food_tot - city.population * 2
+		var surplus_disp: int = maxi(0, surplus_raw)
+		var thr: int = FoodGrowthTickScript.growth_threshold(city.population)
+		vm["growth_line"] = "Growth: %d / %d (+%d/turn)" % [city.food_stored, thr, surplus_disp]
 	vm["show_production_section"] = true
 	vm["actions_heading"] = "Available production"
 	if city.current_project == null:
@@ -353,6 +368,9 @@ func refresh() -> void:
 		if _breakdown_label != null:
 			_breakdown_label.text = ""
 			_breakdown_label.visible = false
+		if _growth_label != null:
+			_growth_label.text = ""
+			_growth_label.visible = false
 		_status_label.text = ""
 		_actions_heading_label.text = ""
 		_actions_empty_label.text = ""
@@ -398,6 +416,14 @@ func refresh() -> void:
 		else:
 			_breakdown_label.text = ""
 			_breakdown_label.visible = false
+	if _growth_label != null:
+		var show_gr: bool = bool(vm.get("show_yields", false))
+		if show_gr:
+			_growth_label.text = str(vm.get("growth_line", ""))
+			_growth_label.visible = _growth_label.text.length() > 0
+		else:
+			_growth_label.text = ""
+			_growth_label.visible = false
 	_status_label.text = str(vm.get("status", ""))
 	var show_prod = bool(vm.get("show_production_section", false))
 	_actions_block.visible = show_prod

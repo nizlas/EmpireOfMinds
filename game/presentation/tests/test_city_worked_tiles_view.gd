@@ -10,6 +10,7 @@ const UnitScript = preload("res://domain/unit.gd")
 const CityScript = preload("res://domain/city.gd")
 const CityYieldsScript = preload("res://domain/city_yields.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
+const SelectionControllerScript = preload("res://presentation/selection_controller.gd")
 
 var _total = 0
 var _any_fail = false
@@ -224,7 +225,9 @@ func _init() -> void:
 		["palace"],
 		pack3["owned"],
 		1,
-		[HexCoordScript.new(1, 0)]
+		[HexCoordScript.new(1, 0)],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
 	)
 	var scen_mvv = ScenarioScript.new(pack3["map"], pack3["units"], [c_man_v], 10, 100, null)
 	var sel_m = SelectionStateScript.new()
@@ -244,6 +247,77 @@ func _init() -> void:
 		wk += 1
 	_check(worked_coord != null, "exactly one worked kind among ring markers")
 	_check(worked_coord.equals(wtm[0] as HexCoord), "worked marker coord matches manual yield breakdown")
+
+	var pack4 = _tiny_three_ring_owned()
+	var c_two_manual = CityScript.new(
+		82,
+		0,
+		pack4["ctr"],
+		null,
+		"TwoMan",
+		false,
+		[],
+		pack4["owned"],
+		2,
+		[HexCoordScript.new(0, -1), HexCoordScript.new(1, 0)],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
+	)
+	var scen_2m = ScenarioScript.new(pack4["map"], pack4["units"], [c_two_manual], 10, 100, null)
+	var sel_2m = SelectionStateScript.new()
+	sel_2m.select_city(82)
+	var items_2m: Array = CityWorkedTilesViewScript.compute_worked_marker_items(scen_2m, sel_2m)
+	_check(items_2m.size() == 2, "pop2 two ring tiles => two marker items")
+	_check(str((items_2m[0] as Dictionary).get("kind", "")) == "worked", "first ring worked")
+	_check(str((items_2m[1] as Dictionary).get("kind", "")) == "worked", "second ring worked")
+
+	var ctr_p = HexCoordScript.new(1, -1)
+	var owned_four: Array = [
+		ctr_p,
+		HexCoordScript.new(0, -1),
+		HexCoordScript.new(1, 0),
+		HexCoordScript.new(-1, 1),
+	]
+	var c_pay0 = CityScript.new(83, 0, ctr_p, null, "", false, [], owned_four, 2, [])
+	var pay_a = SelectionControllerScript.planning_manual_worked_tiles_payload(c_pay0, 0, -1)
+	_check(pay_a.size() == 1 and int(pay_a[0][0]) == 0 and int(pay_a[0][1]) == -1, "append first manual")
+	var c_pay1 = CityScript.new(
+		84,
+		0,
+		ctr_p,
+		null,
+		"",
+		false,
+		[],
+		owned_four,
+		2,
+		[HexCoordScript.new(0, -1)]
+	)
+	var pay_b = SelectionControllerScript.planning_manual_worked_tiles_payload(c_pay1, 1, 0)
+	_check(pay_b.size() == 2, "append second manual")
+	var c_pay2 = CityScript.new(
+		85,
+		0,
+		ctr_p,
+		null,
+		"",
+		false,
+		[],
+		owned_four,
+		2,
+		[HexCoordScript.new(0, -1), HexCoordScript.new(1, 0)]
+	)
+	var pay_c = SelectionControllerScript.planning_manual_worked_tiles_payload(c_pay2, 0, -1)
+	_check(pay_c.size() == 1 and int(pay_c[0][0]) == 1 and int(pay_c[0][1]) == 0, "toggle removes clicked manual in order")
+	var pay_d = SelectionControllerScript.planning_manual_worked_tiles_payload(c_pay2, -1, 1)
+	_check(
+		pay_d.size() == 2
+			and int(pay_d[0][0]) == 0
+			and int(pay_d[0][1]) == -1
+			and int(pay_d[1][0]) == -1
+			and int(pay_d[1][1]) == 1,
+		"at capacity new tile replaces last manual slot"
+	)
 
 	round1.append({"coord": HexCoordScript.new(9, 9), "kind": "worked"})
 	var round3 = CityWorkedTilesViewScript.compute_worked_marker_items(scen, sel_cap)

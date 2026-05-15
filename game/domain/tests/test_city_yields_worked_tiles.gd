@@ -65,19 +65,60 @@ func _init() -> void:
 		["palace"],
 		owned_ring,
 		1,
-		[HexCoordScript.new(0, -1)]
+		[HexCoordScript.new(0, -1)],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
 	)
 	var scen_mh = ScenarioScript.new(m_ht, u, [c_manual_h], 14, 100, null)
 	var wt_mh = CityYieldsScript.worked_tiles_for_city(scen_mh, c_manual_h)
 	_check(wt_mh.size() == 1, "manual pop1 keeps one slot")
 	_check((wt_mh[0] as HexCoord).equals(HexCoordScript.new(0, -1)), "manual prefers declared hills ring")
 
-	var c_m2 = CityScript.new(45, 0, ctr, null, "", false, [], owned_ring, 2, [HexCoordScript.new(0, -1)])
+	var c_m2 = CityScript.new(
+		45,
+		0,
+		ctr,
+		null,
+		"",
+		false,
+		[],
+		owned_ring,
+		2,
+		[HexCoordScript.new(0, -1)],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
+	)
 	var scen_m2 = ScenarioScript.new(m_ht, u, [c_m2], 15, 100, null)
 	var wt_m2 = CityYieldsScript.worked_tiles_for_city(scen_m2, c_m2)
-	_check(wt_m2.size() == 2, "manual first then auto-fill to population")
-	_check((wt_m2[0] as HexCoord).equals(HexCoordScript.new(0, -1)), "manual tile first in list")
-	_check((wt_m2[1] as HexCoord).equals(HexCoordScript.new(1, 0)), "auto-fill skips manual coord")
+	_check(wt_m2.size() == 1, "manual mode: only listed citizens work (no auto-fill)")
+	_check((wt_m2[0] as HexCoord).equals(HexCoordScript.new(0, -1)), "manual tile only")
+
+	var c_m2_auto = CityScript.new(49, 0, ctr, null, "", false, [], owned_ring, 2)
+	var scen_m2a = ScenarioScript.new(m_ht, u, [c_m2_auto], 25, 100, null)
+	var wt_m2a = CityYieldsScript.worked_tiles_for_city(scen_m2a, c_m2_auto)
+	_check(wt_m2a.size() == 2, "auto mode pop 2 deterministic fill")
+	_check((wt_m2a[0] as HexCoord).equals(HexCoordScript.new(1, 0)), "auto prefers higher food when total yield ties")
+	_check((wt_m2a[1] as HexCoord).equals(HexCoordScript.new(0, -1)), "auto second slot hills neighbor")
+
+	var c_m2both = CityScript.new(
+		48,
+		0,
+		ctr,
+		null,
+		"",
+		true,
+		["palace"],
+		owned_ring,
+		2,
+		[HexCoordScript.new(1, 0), HexCoordScript.new(0, -1)],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
+	)
+	var scen_m2b = ScenarioScript.new(m_ht, u, [c_m2both], 18, 100, null)
+	var wt_m2b = CityYieldsScript.worked_tiles_for_city(scen_m2b, c_m2both)
+	_check(wt_m2b.size() == 2, "population 2 with two manuals: no auto-fill slots left")
+	_check((wt_m2b[0] as HexCoord).equals(HexCoordScript.new(1, 0)), "first manual order preserved")
+	_check((wt_m2b[1] as HexCoord).equals(HexCoordScript.new(0, -1)), "second manual order preserved")
 
 	var c_bad_m = CityScript.new(
 		46,
@@ -89,12 +130,13 @@ func _init() -> void:
 		[],
 		owned_ring,
 		1,
-		[HexCoordScript.new(9, 9)]
+		[HexCoordScript.new(9, 9)],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
 	)
 	var scen_bm = ScenarioScript.new(m_tiny, u, [c_bad_m], 16, 100, null)
 	var wt_bm = CityYieldsScript.worked_tiles_for_city(scen_bm, c_bad_m)
-	_check(wt_bm.size() == 1, "invalid manual coord dropped at yield time")
-	_check((wt_bm[0] as HexCoord).equals(ring_a), "fallback to auto when manual not owned")
+	_check(wt_bm.is_empty(), "manual mode: invalid manual yields no worked tiles (no auto fallback)")
 
 	var c_wm = CityScript.new(
 		47,
@@ -106,7 +148,9 @@ func _init() -> void:
 		[],
 		[HexCoordScript.new(0, 0), HexCoordScript.new(-1, 0)],
 		1,
-		[HexCoordScript.new(-1, 0)]
+		[HexCoordScript.new(-1, 0)],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
 	)
 	var scen_wm = ScenarioScript.new(m_tiny, u, [c_wm], 17, 100, null)
 	var wt_wm = CityYieldsScript.worked_tiles_for_city(scen_wm, c_wm)
@@ -133,9 +177,25 @@ func _init() -> void:
 	var exp_two: Array = [HexCoordScript.new(0, -1), HexCoordScript.new(1, 0)]
 	_check(_hex_arrays_equal(wt_lim, exp_two), "stable tie-break among tied plains flats")
 
-	var c_zpop = CityScript.new(43, 0, ctr, null, "", false, [], owned_ring, 0)
-	var scen_z = ScenarioScript.new(m_tiny, u, [c_zpop], 13, 100, null)
-	_check(CityYieldsScript.worked_tiles_for_city(scen_z, c_zpop).is_empty(), "population 0 yields no worked tiles")
+	var c_manual_idle = CityScript.new(
+		52,
+		0,
+		ctr,
+		null,
+		"",
+		false,
+		[],
+		owned_ring,
+		2,
+		[],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
+	)
+	var scen_idle = ScenarioScript.new(m_tiny, u, [c_manual_idle], 26, 100, null)
+	_check(
+		CityYieldsScript.worked_tiles_for_city(scen_idle, c_manual_idle).is_empty(),
+		"manual mode empty list: all citizens idle"
+	)
 
 	var y_tot = CityYieldsScript.city_total_yield(scen_ring, c_ring)
 	_check(int(y_tot["food"]) == 3 and int(y_tot["production"]) == 2, "total includes center floors")

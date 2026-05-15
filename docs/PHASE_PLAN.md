@@ -2374,7 +2374,7 @@ Validation:
 
 **Status:** **Shipped.**
 
-- **`City.population`** (**`FoundCity`** sets **`1`**; preserved on **`SetCityProduction`** / **`ProductionTick`** / **`ProductionDelivery`** rebuilds). **No** growth rules yet.
+- **`City.population`** (**`FoundCity`** sets **`1`**; preserved on **`SetCityProduction`** / **`ProductionTick`** / **`ProductionDelivery`** rebuilds). **Phase 5.1.19b** (**`FoodGrowthTick`**) may increase **`population`** when **`food_stored`** crosses **`growth_threshold(pop)`**.
 - **`CityYields`**: **`worked_tiles_for_city`** / **`worked_tiles_yield`**; **`city_total_yield`** = center + buildings + worked **raw terrain** from **non-center** **`owned_tiles`** (deterministic ordering; capped by **`population`**). Through **5.1.17a** assignments were **not** stored on **`City`** (**5.1.18a** adds **`manual_worked_tiles`**).
 - **No** manual assignment UI through **5.1.17a** (**5.1.18a**: PLANNING click embryo).
 
@@ -2384,23 +2384,73 @@ Docs/tests: **[CITIES.md](CITIES.md)**, **`test_city_population.gd`**, **`test_c
 
 **Status:** **Shipped.**
 
-- **`City.manual_worked_tiles`**: **`Array`** of **`HexCoord`** (constructor-normalized: owned, non-center, deduped **`q,r`**); **`[]`** = all-auto. **`CityYields.worked_tiles_for_city`** uses **manual-first** slots, then existing deterministic auto-fill for remaining **`population`** capacity.
-- Domain action **`set_city_worked_tiles`** (**`SetCityWorkedTiles`**, schema **1**): payload **`tiles: [[q,r], ...]`**; **`[]`** clears manual. Wired **`GameState.try_apply`** + concise log row (**`tiles`**, **`result`**).
-- **`LegalActions.for_current_player`**: v0 deterministic enumeration per current-player city — one action per eligible owned non-center tile (nonzero raw terrain yield, **`q`** asc then **`r`** asc), plus **`tiles: []`** when manual is non-empty.
-- **Presentation:** **`SelectionController`** — only in **PLANNING**; click owned non-center tile assigns **`[[q,r]]`** or clears to auto via **`try_apply`**; refreshes **`city_worked_tiles_view`**, **`city_production_panel`**, **`TurnViewSync`** views (yield overlay), **`log_view`**. **No** new marker assets, drag/drop, or territory border work.
+- **`City.manual_worked_tiles`**: **`Array`** of **`HexCoord`** (constructor-normalized: owned, non-center, deduped **`q,r`**). **`City.worked_tiles_mode`**: **`auto`** (default, **`FoundCity`**) vs **`manual`** (after any accepted **`SetCityWorkedTiles`**). **`CityYields.worked_tiles_for_city`**: **`auto`** → deterministic fill up to **`population`** (ignores **`manual_worked_tiles`**); **`manual`** → only valid **`manual_worked_tiles`**, **no** auto-fill; **`[]`** → no worked-tile raw yield.
+- Domain action **`set_city_worked_tiles`** (**`SetCityWorkedTiles`**, schema **1**): payload **`tiles: [[q,r], ...]`**; applying always sets **`worked_tiles_mode`** to **`manual`**; **`[]`** means idle citizens (**not** revert **`auto`** in this slice).
+- **`LegalActions.for_current_player`**: v0 deterministic enumeration per current-player city — one action per eligible owned non-center tile (nonzero raw terrain yield, **`q`** asc then **`r`** asc), plus **`tiles: []`** when **`worked_tiles_mode`** is **`manual`** and **`manual_worked_tiles`** is non-empty.
+- **Presentation:** **`SelectionController`** — only in **PLANNING**; **`SelectionController.planning_manual_worked_tiles_payload`** ( **5.1.19d** ): click owned non-center tile with nonzero raw yield **or** already manual — **toggle** (remove in place), **append** (when **`manual_worked_tiles.size() < population`**), or **replace last** manual slot (when at capacity); submits **`set_city_worked_tiles`** via **`try_apply`**; **`[]`** all idle (**manual** mode). Refreshes **`city_worked_tiles_view`**, **`city_production_panel`**, **`TurnViewSync`** views (yield overlay), **`log_view`**. **No** new marker assets, drag/drop, or territory border work.
 
-**Out of scope:** population growth, specialists, inter-city tile swaps, save/load schema.
+**Out of scope:** specialists, inter-city tile swaps, save/load schema, starvation / **settler pop cost** / housing beyond **5.1.19b**'s minimal **FoodGrowthTick**.
 
 Docs/tests: **[ACTIONS.md](ACTIONS.md)**, **[CITIES.md](CITIES.md)**, **[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)**, **`test_set_city_worked_tiles.gd`**, **`test_city.gd`**, **`test_city_yields_worked_tiles.gd`**, **`test_legal_actions.gd`**, **`test_production_tick.gd`**, **`test_city_worked_tiles_view.gd`**.
 
-#### 5.1.17d — **`yield_breakdown_for_city`** + panel breakdown line (visibility)
+#### 5.1.19a — City growth pacing analysis (planning)
+
+**Status:** **Shipped (analysis / planning record).**
+
+- Prototype-capital pacing and **manual vs auto** worked-tile food tradeoffs reviewed toward a minimal **food → stockpile → population** loop.
+- **No code deliverable** in **5.1.19a**; implementation deferred to **5.1.19b** (**FoodGrowthTick** + **`City.food_stored`**).
+
+#### 5.1.19b — Food growth embryo (`FoodGrowthTick` + hub growth line)
 
 **Status:** **Shipped.**
 
-- **`CityYields.yield_breakdown_for_city`** — read-only decomposition (**center**, **buildings**, **worked**, **`worked_tiles`**, **`total`**) matching **`city_total_yield`**; no rule changes.
-- **`CityProductionPanel`** — **`breakdown_line`** under totals (**ASCII**, **Center** / **Buildings** / **Worked** tokens).
+- **`City.food_stored`** (`int`, default **`0`**, clamped **`>= 0`**) — threaded through **`FoundCity`** (**`0`**), **`SetCityProduction`**, **`SetCityWorkedTiles`**, **`ProductionTick`**, **`ProductionDelivery`** rebuilds.
+- **`FoodGrowthTick`** ([food_growth_tick.gd](../game/domain/food_growth_tick.gd)): on accepted **`end_turn`**, per ending player, after **`ProductionTick`**, before **`ScienceTick`** / **`EndTurn.apply`** — **`surplus = city_total_yield.food − population×2`**; if **`surplus > 0`**, bank into **`food_stored`**; at **`growth_threshold(pop)`**, **`population += 1`** and subtract threshold (carry remainder). **`surplus ≤ 0`**: no drain, no starvation, no events (v0).
+- **`CityProductionPanel`**: read-only **`growth_line`** for the current player’s selected city (**`Growth: stored / threshold (+N/turn)`**, **`N` clamped to `0`** when surplus **≤ 0**).
+- Tests: **`test_food_growth_tick.gd`**, **`test_end_turn_growth_flow.gd`**, updates to **`test_city.gd`**, **`test_city_production_panel.gd`**; **`scripts/run-godot-tests.ps1`** registration.
+- Docs: **`CITIES.md`**, **`CURRENT_ARCHITECTURE.md`**, this plan.
 
-Docs/tests: **[CITIES.md](CITIES.md)**, **`test_city_yields_breakdown.gd`**, **`test_city_production_panel.gd`**, **`scripts/run-godot-tests.ps1`**.
+**Still out of scope:** starvation, **settler** population cost, housing, tile ownership swaps, save/load for **`food_stored`**.
+
+#### 5.1.19c — Growth / play loop smoke (validation slice)
+
+**Status:** **Shipped.**
+
+- **Scope:** narrow **smoke / validation** only — **no** balance edits, **no** new rules, **no** map or registry changes.
+- Headless **`test_growth_play_loop_smoke.gd`**: **`Scenario.make_prototype_play_scenario`**, **`GameState.try_apply`** only (found capital → warrior → settler → second **`FoundCity`** → growth milestones + **manual worked-tile** probe). Asserts **EndTurn** log pipeline order on this fixture (production → food growth → end_turn → delivery where present), monotonic log growth, **capital** **`population >= 2`** with **`city_grew`**, second city **`food_growth_progress`** with **`surplus >= 1`**, **P0** owns two cities.
+- Manual checklist: **[VALIDATION_CHECKLIST.md](VALIDATION_CHECKLIST.md)** (**Phase 5.1.19c** section).
+- Runner: **`scripts/run-godot-tests.ps1`** includes the new test.
+
+#### 5.1.19d — Multi-manual PLANNING clicks (`manual_worked_tiles` up to **population**)
+
+**Status:** **Shipped.**
+
+- **`SelectionController.planning_manual_worked_tiles_payload`**: in **PLANNING** with a **current-player** city selected, **`set_city_worked_tiles`** payloads preserve manual **list order** — **remove** clicked tile if present (in place); else **append** when **`manual_worked_tiles.size() < population`**; else **replace the last** manual entry with the clicked tile (deterministic one-click reassignment at cap). Assigning a **new** tile still requires **nonzero** raw terrain yield (**existing** guard); **removing** a manual entry does **not** re-check yield on that hex.
+- Domain: **`City.worked_tiles_mode`** + **`CityYields`** split (**superseded** by **5.1.19e** — idle citizens, **no** post-removal auto-fill while **`manual`**).
+- Tests/doc touch: **`test_set_city_worked_tiles.gd`**, **`test_city_yields_worked_tiles.gd`**, **`test_city_worked_tiles_view.gd`**; **`CITIES.md`**, **`CITY_UX.md`**, this plan.
+
+Validation: **`scripts/run-godot-tests.ps1`**; manual **`main.tscn`**: grow to **pop 2**, **Manage Citizens**, two **worked** markers; see **5.1.19e** for idle behavior after toggle-off.
+
+#### 5.1.19e — Manual worked mode + idle citizens (no hidden auto-fill)
+
+**Status:** **Shipped.**
+
+- **`City.WORKED_TILES_MODE_AUTO`** / **`WORKED_TILES_MODE_MANUAL`** on **`City`** (default **`auto`** on **`FoundCity`**). **`SetCityWorkedTiles.apply`** always sets **`manual`**; payload **`tiles: []`** ⇒ **`manual_worked_tiles` empty** ⇒ **no** worked-tile **raw** yield from citizens until the player assigns again (**idle**, not revert **`auto`**; **no** visible **Auto** control in this slice).
+- **`CityYields.worked_tiles_for_city`**: **`auto`** ignores **`manual_worked_tiles`** and uses the prior deterministic auto picker up to **`population`**; **`manual`** uses only validated **`manual_worked_tiles`** (no auto-fill of free slots).
+- Preserved on **`ProductionTick`**, **`ProductionDelivery`**, **`SetCityProduction`**, **`FoodGrowthTick`** rebuilds.
+- Tests: **`test_city.gd`**, **`test_set_city_worked_tiles.gd`**, **`test_city_yields_worked_tiles.gd`**, **`test_legal_actions.gd`**, **`test_production_tick.gd`**, **`test_city_worked_tiles_view.gd`**; docs **`CITIES.md`**, **`CITY_UX.md`**, **5.1.18a** bullets here.
+
+Validation: **`scripts/run-godot-tests.ps1`**; manual: **pop 2**, **Manage Citizens**, two **worked**; click one **worked** tile — marker drops with **no** replacement **worked** on another ring tile; assign from **dim** again; hub yields/growth refresh.
+
+#### 5.1.19f — Turn status HUD (**`TurnStatusPanel`**; presentation-only)
+
+**Status:** **Shipped** (hotseat wording + **UnitNameplateView** accent alignment — **2026** correction).
+
+- **`TurnStatusPanel`** ([turn_status_panel.gd](../game/presentation/turn_status_panel.gd)) — small **`PanelContainer`** under **`HudCanvas`**, **lower-right**, **above** **`CityProductionPanel`**; reads **`GameState.turn_state`** only. **Prototype / local hotseat:** title **`Player N's turn`** (who is playing **in this app**); **no** “Waiting for …” / remote-server semantics in this slice. **Orb + panel tint + border** derive from **`UnitNameplateView.owner_nameplate_accent_color(N)`** — same owner accent source as **`EmpireBorderView`** / nameplate strips (**not** **`UnitsView.owner_to_color`** marker disks). **`local_player_id`** export remains for future remote-seat UX; **ignored** for copy in hotseat mode.
+- **`TurnLabel.after_refresh`** chains **`TurnStatusPanel.refresh`** so HUD stays in sync wherever **`turn_label.refresh()`** runs; **no** **`EndTurn`** / turn-order rule changes.
+- Tests: **`test_turn_status_panel.gd`**, **`test_main_hud_city_panel.gd`**; **`scripts/run-godot-tests.ps1`**; **[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)**, **[VALIDATION_CHECKLIST.md](VALIDATION_CHECKLIST.md)** (manual turn HUD).
+
+Validation: **`scripts/run-godot-tests.ps1`** green; **`main.tscn`**: panel always visible; **`Player N's turn`** + **nameplate/empire** accent colors track **`current_player`** (**End Turn** / hotseat). **[VALIDATION_CHECKLIST.md](VALIDATION_CHECKLIST.md)** — Phase **5.1.19f** manual HUD checks.
 
 #### 5.1.17f — City interaction UX direction doc
 

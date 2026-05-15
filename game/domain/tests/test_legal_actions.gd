@@ -218,7 +218,20 @@ func _init() -> void:
 	_check(n_assign == 2, "two eligible owned ring tiles -> two set actions (q,r) sorted")
 	_check(n_clr == 0, "no clear when manual empty")
 
-	var c_wm = CityScript.new(51, 0, ctr_sw, null, "", false, [], own_sw, 1, [HexCoordScript.new(0, -1)])
+	var c_wm = CityScript.new(
+		51,
+		0,
+		ctr_sw,
+		null,
+		"",
+		false,
+		[],
+		own_sw,
+		1,
+		[HexCoordScript.new(0, -1)],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
+	)
 	var sc_wm = ScenarioScript.new(m_sw, u_sw, [c_wm], 51, 56)
 	var gs_wm = GameStateScript.new(sc_wm)
 	var Lwm = LegalActionsScript.for_current_player(gs_wm)
@@ -232,7 +245,7 @@ func _init() -> void:
 				has_clear_wm = true
 				break
 		sy += 1
-	_check(has_clear_wm, "clear-to-auto in legal list when manual non-empty")
+	_check(has_clear_wm, "idle-all [] in legal list when manual non-empty (manual mode)")
 
 	var m_w = HexMapScript.make_tiny_test_map()
 	var u_w = [UnitScript.new(2, 0, HexCoordScript.new(-1, 0), "settler")]

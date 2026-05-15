@@ -24,6 +24,7 @@
 [ext_resource type="Script" path="res://presentation/city_worked_tiles_view.gd" id="22_city_worked"]
 [ext_resource type="Script" path="res://presentation/empire_border_view.gd" id="23_empire_border"]
 [ext_resource type="Script" path="res://presentation/terrain_edge_blend_view.gd" id="24_terrain_edge_blend"]
+[ext_resource type="Script" path="res://presentation/turn_status_panel.gd" id="25_turn_status"]
 
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
@@ -85,6 +86,22 @@ offset_bottom = -20.0
 grow_horizontal = 0
 grow_vertical = 0
 script = ExtResource("12_cityprod")
+
+[node name="TurnStatusPanel" type="PanelContainer" parent="HudCanvas" unique_id=928810046]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -404.0
+offset_top = -510.0
+offset_right = -12.0
+offset_bottom = -438.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+script = ExtResource("25_turn_status")
 
 [node name="DiscoveryPopup" type="PanelContainer" parent="HudCanvas" unique_id=482910573]
 layout_mode = 1

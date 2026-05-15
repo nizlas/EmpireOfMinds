@@ -5,6 +5,10 @@ extends RefCounted
 
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 
+## **`"auto"`** — deterministic auto-worked tiles up to **`population`** (ignores **`manual_worked_tiles`**). **`"manual"`** — only valid **`manual_worked_tiles`** count; empty list = citizens idle on **worked** layer (`SetCityWorkedTiles` enters **manual**).
+const WORKED_TILES_MODE_AUTO := "auto"
+const WORKED_TILES_MODE_MANUAL := "manual"
+
 var id: int
 var owner_id: int
 var position
@@ -19,8 +23,12 @@ var building_ids: Array
 var owned_tiles: Array
 ## Phase 5.1.17a — population selects extra auto-worked territory tiles (domain embryo; no growth UI).
 var population: int
-## Phase 5.1.18a — explicit worked tiles (fresh **HexCoord** rows); [] means auto assignment.
+## Phase 5.1.18a — explicit worked tiles (fresh **HexCoord** rows); meaning depends on **`worked_tiles_mode`**.
 var manual_worked_tiles: Array
+## Phase 5.1.19b — food banked toward growth (**FoodGrowthTick**); clamped **>= 0**.
+var food_stored: int
+## **`WORKED_TILES_MODE_AUTO`** (default) vs **`WORKED_TILES_MODE_MANUAL`** after **`SetCityWorkedTiles`**.
+var worked_tiles_mode: String
 
 func _init(
 	p_id: int,
@@ -33,6 +41,8 @@ func _init(
 	p_owned_tiles = null,
 	p_population: int = 1,
 	p_manual_worked_tiles = null,
+	p_food_stored: int = 0,
+	p_worked_tiles_mode: String = WORKED_TILES_MODE_AUTO,
 ) -> void:
 	id = p_id
 	owner_id = p_owner_id
@@ -112,6 +122,13 @@ func _init(
 				continue
 			seen_manual[mk] = true
 			manual_worked_tiles.append(HexCoordScript.new(mq, mr))
+
+	food_stored = maxi(0, int(p_food_stored))
+	var wm_raw: String = str(p_worked_tiles_mode)
+	if wm_raw == WORKED_TILES_MODE_MANUAL:
+		worked_tiles_mode = WORKED_TILES_MODE_MANUAL
+	else:
+		worked_tiles_mode = WORKED_TILES_MODE_AUTO
 
 func equals(other) -> bool:
 	if other == null:

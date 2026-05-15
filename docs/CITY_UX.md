@@ -31,8 +31,8 @@ Align city interaction around:
 
 1. **Map play** — **`EmpireBorderView`** always-on (**union** perimeter per **`owner_id`**); map overlays otherwise match **[RENDERING.md](RENDERING.md)**. No **City Hub** until a city is selected.
 2. **Select city** — **City Hub** only (**`city_production_panel.gd`** / **`CityProductionPanel`**, lower-right **`HudCanvas`**) — yields + production + **Manage Citizens** + **Done** (when planning) + **Close**; **no** citizen markers on the map until **Manage Citizens**.
-3. **Hub actions** — production unchanged in intent; **Manage Citizens** enters **CityPlanningMode** (**presentation-only** until mechanics ship).
-4. **CityPlanningMode** — **`CityWorkedTilesView`** draws **citizen** **`dim` / `worked`** markers (**read-only**); swap preview / manual assignment remain **future**; exit via **Done** / **Escape** / selection changes per **[RENDERING.md](RENDERING.md)**.
+3. **Hub actions** — production unchanged in intent; **Manage Citizens** enters **CityPlanningMode** (**presentation** state + **`set_city_worked_tiles`**; **5.1.19e** **`worked_tiles_mode`**).
+4. **CityPlanningMode** — **`CityWorkedTilesView`** draws **citizen** **`dim` / `worked`** markers (**read-only** display); **5.1.18a / 5.1.19d / 5.1.19e:** map clicks on owned ring tiles (non-center; **assigning** a new tile requires nonzero raw yield) submit **`set_city_worked_tiles`** — **dim** ring = place/append/replace-last up to **`City.population`**; **worked** ring = **remove** that assignment (**idle** citizen — **no** hidden auto-replacement; **`tiles: []`** leaves all citizens idle in **manual** mode). See **CITIES.md** / **PHASE_PLAN**. Tile **ownership** swap preview remains **future**; exit via **Done** / **Escape** / selection changes per **[RENDERING.md](RENDERING.md)**.
 5. **No automatic jump** into planning on city click — hub remains the gate.
 
 ---
@@ -55,7 +55,7 @@ Hub is **HUD** (`HudCanvas`), not a separate scene tree root.
 
 ## CityPlanningMode concept
 
-- **Presentation state only** until explicit phases add actions/schemas.
+- **Presentation state** gates marker draw and input routing; **Manage Citizens** tile clicks build **`set_city_worked_tiles`** payloads (**domain** validates). **`[]`** payload = all citizens **idle** on worked yields (**manual** mode; **no** “restore auto” button in this slice).
 - Focused overlays: emphasize **`owned_tiles`**, highlight **worked** subset, reserve styling for **swap candidates** (read-only enumeration later).
 - Does **not** replace map camera or spawn a full city screen scene in early slices.
 
@@ -75,7 +75,7 @@ Hub is **HUD** (`HudCanvas`), not a separate scene tree root.
 | Yield overlay (`TileYieldOverlay`) | toggle | toggle | toggle |
 | Nameplates | yes | yes | yes |
 
-**Always-on empire border** = union perimeter per **`owner_id`** (**unchanged** when selecting a city). **City-selected NORMAL** = **hub only** — **no** citizen markers. **PLANNING** = hub + **`CityWorkedTilesView`** markers (**dim** vs **`worked`**, **`planning_marker_draw_style()`** sizing). **`CityTerritoryView`** does **not** draw a rim. **Manual** tile assignment / **swap** / extra marker states remain **future**.
+**Always-on empire border** = union perimeter per **`owner_id`** (**unchanged** when selecting a city). **City-selected NORMAL** = **hub only** — **no** citizen markers. **PLANNING** = hub + **`CityWorkedTilesView`** markers (**dim** vs **`worked`**, **`planning_marker_draw_style()`** sizing). **`CityTerritoryView`** does **not** draw a rim. **Manual** list is capped by **`population`** (**PHASE_PLAN** **5.1.19d**); **swap** / extra marker states remain **future**.
 
 ---
 
@@ -86,7 +86,7 @@ Hub is **HUD** (`HudCanvas`), not a separate scene tree root.
 | **`CityHubPanel`** | Lower-right hub; gates entry to planning mode; stays **`LegalActions`**-clean for production buttons. |
 | **`EmpireBorderView`** | Always-on faction **realm** envelope (**union** **`owned_tiles`**); **dual** **`Line2D`** rim (**5.1.17h** / **5.1.17h.1**). |
 | **`CityTerritoryView`** | **Dormant** **`_draw`** (**no** selected-city border rim). Static perimeter helpers + **`Line2D`** pool for **`EmpireBorderView`** / tests. |
-| **`CityWorkedTilesView`** | **5.1.17j / 5.1.17j.1:** **PLANNING** (**Manage Citizens**) **citizen** markers — **`dim`** on **non-center** **`owned_tiles`**, **`worked`** where coord ∈ **`yield_breakdown_for_city`(..).`worked_tiles`**; **`_draw`** empty in **NORMAL** (city-selected hub only). **v0:** no marker on city **center**. |
+| **`CityWorkedTilesView`** | **5.1.17j / 5.1.17j.1:** **PLANNING** (**Manage Citizens**) **citizen** markers — **`dim`** on **non-center** **`owned_tiles`**, **`worked`** where coord ∈ **`yield_breakdown_for_city`(..).`worked_tiles`** (multiple **`worked`** markers when **`population`** and manual/auto fill use more than one tile); **`_draw`** empty in **NORMAL** (city-selected hub only). **v0:** no marker on city **center**. |
 | **Planning-only views** (future slices) | **Swap** accent / previews — **read-only** until phased; **no** new citizen texture states in **5.1.17j**. |
 
 ---
@@ -116,8 +116,8 @@ Polish/asset packs follow once interaction skeleton is stable.
 
 Until explicitly phased:
 
-- Food storage, population **growth**, happiness, housing, amenities.
-- **Manual** worked-tile assignment, **swap actions**, new **`ACTIONS`** schemas, **`schema_version`** bumps, **new log events**.
+- Happiness, housing, amenities, starvation, **settler** population cost (beyond **5.1.19b** growth).
+- **Inter-city** tile **swap** actions / ownership transfer, **new** **`ACTIONS`** schemas beyond shipped **`set_city_worked_tiles`**, **`schema_version`** bumps driven by this UX slice, **new log events** for mode-only toggles.
 - Dedicated **city screen** scene, camera modes, specialists.
 - AI consumption of planning modes.
 - **`TerrainForegroundView`** splits or large presentation rewrites.

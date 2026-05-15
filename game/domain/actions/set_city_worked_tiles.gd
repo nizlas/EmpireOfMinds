@@ -1,4 +1,4 @@
-# SetCityWorkedTiles: manual worked-tile override (embryo); [] clears to auto assignment.
+# SetCityWorkedTiles: manual worked-tile mode (**manual** idle vs placed); **`[]`** = all citizens idle on worked layer (still **manual** mode).
 # See docs/ACTIONS.md, docs/CITIES.md
 class_name SetCityWorkedTiles
 extends RefCounted
@@ -113,7 +113,10 @@ static func validate(a_scenario, action) -> Dictionary:
 			return {"ok": false, "reason": "tile_zero_yield"}
 		normalized.append([tq, tr])
 
-	if _tiles_equal_to_city_manual(target, normalized):
+	if str(target.worked_tiles_mode) == CityScript.WORKED_TILES_MODE_MANUAL and _tiles_equal_to_city_manual(
+		target,
+		normalized
+	):
 		return {"ok": false, "reason": "assignment_unchanged"}
 
 	return {"ok": true, "reason": ""}
@@ -148,7 +151,9 @@ static func apply(a_scenario, action):
 					c.building_ids,
 					c.owned_tiles,
 					c.population,
-					built
+					built,
+					c.food_stored,
+					CityScript.WORKED_TILES_MODE_MANUAL
 				)
 			)
 		else:

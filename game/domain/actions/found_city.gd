@@ -137,7 +137,8 @@ static func apply(a_scenario, action):
 			bld,
 			initial_owned,
 			1,
-			[]
+			[],
+			0
 		)
 	)
 	return ScenarioScript.new(

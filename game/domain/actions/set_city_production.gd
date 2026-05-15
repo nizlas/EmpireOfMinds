@@ -109,7 +109,9 @@ static func apply(a_scenario, action):
 					c.building_ids,
 					c.owned_tiles,
 					c.population,
-					c.manual_worked_tiles
+					c.manual_worked_tiles,
+					c.food_stored,
+					c.worked_tiles_mode
 				)
 			)
 		else:

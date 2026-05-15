@@ -123,7 +123,9 @@ static func deliver_pending_for_player(a_scenario, owner_id: int) -> Dictionary:
 					c2.building_ids,
 					c2.owned_tiles,
 					c2.population,
-					c2.manual_worked_tiles
+					c2.manual_worked_tiles,
+					c2.food_stored,
+					c2.worked_tiles_mode
 				)
 			)
 		else:

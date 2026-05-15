@@ -70,3 +70,27 @@ This checklist is used after each implementation step.
 - [ ] Agent explained validation performed.
 - [ ] Agent did not silently change steering documents.
 - [ ] Agent proposed steering document updates when needed.
+
+## Phase 5.1.19c — Growth / play loop smoke (prototype map)
+
+Manual validation in the Godot editor (`main.tscn`); **no** new visuals required. Confirms **5.1.19b** growth + **Manage Citizens** + production/delivery loop on the curated island.
+
+- [ ] Launch **Play** / open **`main.tscn`** with the prototype scenario path used by local play.
+- [ ] Found capital (**F** or equivalent) at the opening settler position.
+- [ ] Open **City Hub**; confirm **Growth:** line shows `stored / threshold (+N/turn)`.
+- [ ] **End Turn** repeatedly as P0; confirm **`food_stored`** / growth line climbs when surplus is positive (watch hub or **Action Log** `food_growth_progress`).
+- [ ] **Manage Citizens**, click another **owned** non-center tile (planning); return to hub and confirm **`(+N/turn)`** changes **if** the tile differs from AUTO worked choice (if map gives no differing eligible tile, note equality).
+- [ ] Continue until **population reaches 2** on the capital (hub **Pop** + optional `city_grew` in log).
+- [ ] Queue **settler** production; **End Turn** until settler **delivers**; move settler to a distant legal land hex; found **second city** (**F**).
+- [ ] Select second city; confirm **Growth** line appears and **food / stored** begin moving when surplus is positive.
+
+For scripted coverage, run **`scripts/run-godot-tests.ps1`** — includes **`test_growth_play_loop_smoke.gd`** (headless, **Deterministic-first**).
+
+## Phase 5.1.19f — Turn status HUD (hotseat wording + player accent)
+
+Manual check in **`main.tscn`** / local play (**no** domain changes).
+
+- [ ] **Lower-right** **Turn** strip shows **`Player 0's turn`** at start (or equivalent **“now playing”** copy — **no** **“Waiting for Player …”** in local hotseat).
+- [ ] **End Turn** → strip shows **`Player 1's turn`**; P1 can act immediately in the **same** run.
+- [ ] Panel **orb / border / tint** matches the **same** owner accent family as **empire border** and **unit/city nameplate** strips (teal/cyan vs rose for P0/P1 in the prototype palette).
+- [ ] Turn strip stays **visible** and updates **without** opening **City Hub** / city selection.

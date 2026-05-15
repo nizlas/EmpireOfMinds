@@ -6,6 +6,9 @@ const GameStateScript = preload("res://domain/game_state.gd")
 
 var game_state
 
+## Optional chain after **`refresh()`** (e.g. **`TurnStatusPanel`**) — avoids duplicating refresh calls across HUD.
+var after_refresh: Callable = Callable()
+
 static func compute_text(a_game_state) -> String:
 	if a_game_state == null:
 		return ""
@@ -14,3 +17,5 @@ static func compute_text(a_game_state) -> String:
 
 func refresh() -> void:
 	text = compute_text(game_state)
+	if after_refresh.is_valid():
+		after_refresh.call()

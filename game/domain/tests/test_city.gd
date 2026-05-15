@@ -19,6 +19,10 @@ func _init() -> void:
 	)
 	_check(c.owned_tiles.size() == 1 and c.owned_tiles[0].equals(c.position), "default owned_tiles is center only")
 	_check(c.manual_worked_tiles.is_empty(), "default manual_worked_tiles empty")
+	_check(c.food_stored == 0, "default food_stored is 0")
+	_check(c.worked_tiles_mode == CityScript.WORKED_TILES_MODE_AUTO, "default worked_tiles_mode auto")
+	var c_neg = CityScript.new(20, 0, HexCoordScript.new(0, 0), null, "", false, null, null, 1, [], -5)
+	_check(c_neg.food_stored == 0, "food_stored clamps negative to 0")
 	var custom_tiles: Array = [HexCoordScript.new(1, 1), HexCoordScript.new(1, 0)]
 	var c_custom = CityScript.new(11, 0, HexCoordScript.new(0, 0), null, "", false, null, custom_tiles)
 	_check(c_custom.owned_tiles.size() == 3, "custom owned_tiles adds neighbors with center first")
@@ -63,10 +67,40 @@ func _init() -> void:
 		null,
 		own_keep,
 		1,
-		[HexCoordScript.new(2, 2)]
+		[HexCoordScript.new(2, 2)],
+		7
 	)
 	_check(c_pres.manual_worked_tiles.size() == 1, "manual preserves valid owned hex")
-	_check((c_pres.manual_worked_tiles[0] as HexCoord).equals(HexCoordScript.new(2, 2)), "manual coord value")
+	_check(c_pres.food_stored == 7, "food_stored preserved when trailing arg set")
+	var c_pres_f0 = CityScript.new(
+		15,
+		0,
+		HexCoordScript.new(0, 0),
+		null,
+		"",
+		false,
+		null,
+		own_keep,
+		1,
+		[HexCoordScript.new(2, 2)],
+		0
+	)
+	_check(c_pres_f0.food_stored == 0, "explicit zero food_stored")
+	var c_mode_m = CityScript.new(
+		16,
+		0,
+		HexCoordScript.new(0, 0),
+		null,
+		"",
+		false,
+		null,
+		own_keep,
+		1,
+		[HexCoordScript.new(2, 2)],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
+	)
+	_check(c_mode_m.worked_tiles_mode == CityScript.WORKED_TILES_MODE_MANUAL, "constructor accepts manual mode")
 	# Immutability: no public mutators; fields are plain var but convention matches Unit.
 	if _any_fail:
 		call_deferred("quit", 1)

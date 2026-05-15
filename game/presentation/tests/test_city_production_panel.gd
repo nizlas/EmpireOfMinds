@@ -63,6 +63,10 @@ func _run() -> void:
 	_check(int(y_idle.get("science", -1)) == 1, "palace science 1")
 	_check(int(y_idle.get("coin", -1)) == 1, "palace coin 1")
 	_check(str(vm_idle.get("yields_line", "")).begins_with("Yields:"), "yields line prefix")
+	var gl_idle = str(vm_idle.get("growth_line", ""))
+	_check(gl_idle.begins_with("Growth:"), "growth_line prefix")
+	_check(gl_idle.find("/ 15") >= 0, "growth threshold pop1")
+	_check(gl_idle.find("(+1/turn)") >= 0, "tiny capital surplus +1 display")
 	var br_idle = str(vm_idle.get("breakdown_line", ""))
 	_check(br_idle.length() > 0, "founded capital has breakdown_line")
 	_check(br_idle.find("Center") >= 0, "breakdown mentions Center")
@@ -148,6 +152,7 @@ func _run() -> void:
 	var vm_g = CityProductionPanelScript.compute_view_model(gs_g, sel_y)
 	var yg = vm_g.get("yields", {}) as Dictionary
 	_check(int(yg.get("food", -1)) == 2, "grassland flat capital food 2")
+	_check(str(vm_g.get("growth_line", "")).find("(+0/turn)") >= 0, "surplus<=0 shows +0/turn")
 	_check(int(yg.get("production", -1)) == 1, "grassland flat production 1")
 	_check(int(yg.get("science", -1)) == 1, "capital palace science 1")
 	_check(int(yg.get("coin", -1)) == 1, "capital palace coin 1")

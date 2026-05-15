@@ -10,6 +10,7 @@ const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 const SetCityWorkedTilesScript = preload("res://domain/actions/set_city_worked_tiles.gd")
 const CityYieldsScript = preload("res://domain/city_yields.gd")
+const CityScript = preload("res://domain/city.gd")
 const EffectiveRulesScript = preload("res://domain/effective_rules.gd")
 
 static func _sort_units_by_id(units: Array) -> void:
@@ -147,7 +148,10 @@ static func for_current_player(game_state, effective_rules = null) -> Array:
 			if bool(sw_v["ok"]):
 				out.append(sw_a)
 			eq += 1
-		if cz.manual_worked_tiles.size() > 0:
+		if (
+			str(cz.worked_tiles_mode) == CityScript.WORKED_TILES_MODE_MANUAL
+			and cz.manual_worked_tiles.size() > 0
+		):
 			var sw_c = SetCityWorkedTilesScript.make(cp, cz.id, [])
 			if bool(SetCityWorkedTilesScript.validate(scenario, sw_c)["ok"]):
 				out.append(sw_c)

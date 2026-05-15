@@ -193,6 +193,10 @@ func _ready() -> void:
 	selection_controller.terrain_edge_blend_view = terrain_edge_blend
 	var turn_label = $TurnLabel
 	turn_label.game_state = game_state
+	var turn_status_panel = $HudCanvas/TurnStatusPanel
+	turn_status_panel.game_state = game_state
+	turn_status_panel.local_player_id = 0
+	turn_label.after_refresh = Callable(turn_status_panel, "refresh")
 	turn_label.refresh()
 	selection_controller.turn_label = turn_label
 	var end_turn_controller = $EndTurnController

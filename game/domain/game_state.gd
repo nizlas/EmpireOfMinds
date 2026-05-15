@@ -15,6 +15,7 @@ const SetCurrentResearchScript = preload("res://domain/actions/set_current_resea
 const ProgressUnlockResolverScript = preload("res://domain/progress_unlock_resolver.gd")
 const TurnStateScript = preload("res://domain/turn_state.gd")
 const ProductionTickScript = preload("res://domain/production_tick.gd")
+const FoodGrowthTickScript = preload("res://domain/food_growth_tick.gd")
 const ProductionDeliveryScript = preload("res://domain/production_delivery.gd")
 const ProgressStateScript = preload("res://domain/progress_state.gd")
 const ScienceTickScript = preload("res://domain/science_tick.gd")
@@ -217,6 +218,13 @@ func try_apply(action) -> Dictionary:
 		while tvi < tick_events.size():
 			log.append(tick_events[tvi])
 			tvi = tvi + 1
+		var growth_pack = FoodGrowthTickScript.apply_for_player(scenario, ending_player_id)
+		scenario = growth_pack["scenario"]
+		var growth_events = growth_pack["events"] as Array
+		var gvi = 0
+		while gvi < growth_events.size():
+			log.append(growth_events[gvi])
+			gvi = gvi + 1
 		var sci_pack = ScienceTickScript.apply_for_player(progress_state, scenario, ending_player_id)
 		progress_state = sci_pack["progress_state"]
 		var sci_ev = sci_pack["events"] as Array

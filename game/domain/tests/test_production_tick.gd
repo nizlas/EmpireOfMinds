@@ -282,7 +282,20 @@ func _init() -> void:
 	d_ht["progress"] = 0
 	d_ht["cost"] = 10
 	d_ht["ready"] = false
-	var c_mht = CityScript.new(92, 0, ctr_ht, d_ht, "", false, [], own_ht, 1, [HexCoordScript.new(0, -1)])
+	var c_mht = CityScript.new(
+		92,
+		0,
+		ctr_ht,
+		d_ht,
+		"",
+		false,
+		[],
+		own_ht,
+		1,
+		[HexCoordScript.new(0, -1)],
+		0,
+		CityScript.WORKED_TILES_MODE_MANUAL
+	)
 	var sc_mht = ScenarioScript.new(m_ht, u_ht, [c_mht], 200, 201, null)
 	var r_mht = ProductionTickScript.apply_for_player(sc_mht, 0)
 	var ev_mht = (r_mht["events"] as Array)[0] as Dictionary

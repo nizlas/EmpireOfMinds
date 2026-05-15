@@ -5,6 +5,7 @@ extends RefCounted
 
 const HexMapScript = preload("res://domain/hex_map.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
+const CityScript = preload("res://domain/city.gd")
 
 const BUILDING_ID_PALACE: String = "palace"
 
@@ -114,63 +115,55 @@ static func worked_tiles_for_city(p_scenario, city) -> Array:
 	if lim <= 0:
 		return out
 
-	var used: Dictionary = {}
-	var manual_first: Array = []
-	var mi: int = 0
-	while mi < city.manual_worked_tiles.size() and manual_first.size() < lim:
-		var mh = city.manual_worked_tiles[mi]
-		mi += 1
-		if mh == null:
-			continue
-		if mh.q == city.position.q and mh.r == city.position.r:
-			continue
-		var mk := Vector2i(mh.q, mh.r)
-		if not _city_tile_owned(city, mh.q, mh.r):
-			continue
-		var rman: Dictionary = raw_terrain_yield(cmap, mh)
-		if not _raw_yield_nonzero(rman):
-			continue
-		if used.has(mk):
-			continue
-		used[mk] = true
-		manual_first.append(HexCoordScript.new(mh.q, mh.r))
+	var manual_mode: bool = str(city.worked_tiles_mode) == CityScript.WORKED_TILES_MODE_MANUAL
+	if manual_mode:
+		var mi: int = 0
+		while mi < city.manual_worked_tiles.size() and out.size() < lim:
+			var mh = city.manual_worked_tiles[mi]
+			mi += 1
+			if mh == null:
+				continue
+			if mh.q == city.position.q and mh.r == city.position.r:
+				continue
+			if not _city_tile_owned(city, mh.q, mh.r):
+				continue
+			var rman: Dictionary = raw_terrain_yield(cmap, mh)
+			if not _raw_yield_nonzero(rman):
+				continue
+			var dup: bool = false
+			var ji: int = 0
+			while ji < out.size():
+				var ex = out[ji]
+				if ex != null and int(ex.q) == int(mh.q) and int(ex.r) == int(mh.r):
+					dup = true
+					break
+				ji += 1
+			if dup:
+				continue
+			out.append(HexCoordScript.new(mh.q, mh.r))
+		return out
 
-	var remaining: int = lim - manual_first.size()
-	var auto_fill: Array = []
-	if remaining > 0:
-		var candidates: Array = []
-		var ei: int = 0
-		while ei < city.owned_tiles.size():
-			var h = city.owned_tiles[ei]
-			ei += 1
-			if h == null:
-				continue
-			if h.q == city.position.q and h.r == city.position.r:
-				continue
-			var ek := Vector2i(h.q, h.r)
-			if used.has(ek):
-				continue
-			var rw: Dictionary = raw_terrain_yield(cmap, h)
-			if not _raw_yield_nonzero(rw):
-				continue
-			candidates.append(h)
-		if not candidates.is_empty():
-			candidates.sort_custom(func(a, b): return _worked_tile_precedes(cmap, a, b))
-			var take: int = mini(remaining, candidates.size())
-			var ti: int = 0
-			while ti < take:
-				var ch = candidates[ti]
-				auto_fill.append(HexCoordScript.new(ch.q, ch.r))
-				ti += 1
-
-	var fi: int = 0
-	while fi < manual_first.size():
-		out.append(manual_first[fi])
-		fi += 1
-	var ai: int = 0
-	while ai < auto_fill.size():
-		out.append(auto_fill[ai])
-		ai += 1
+	var candidates: Array = []
+	var ei: int = 0
+	while ei < city.owned_tiles.size():
+		var h = city.owned_tiles[ei]
+		ei += 1
+		if h == null:
+			continue
+		if h.q == city.position.q and h.r == city.position.r:
+			continue
+		var rw: Dictionary = raw_terrain_yield(cmap, h)
+		if not _raw_yield_nonzero(rw):
+			continue
+		candidates.append(h)
+	if not candidates.is_empty():
+		candidates.sort_custom(func(a, b): return _worked_tile_precedes(cmap, a, b))
+		var take: int = mini(lim, candidates.size())
+		var ti: int = 0
+		while ti < take:
+			var ch = candidates[ti]
+			out.append(HexCoordScript.new(ch.q, ch.r))
+			ti += 1
 	return out
 
 
