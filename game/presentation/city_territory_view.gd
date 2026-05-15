@@ -1,5 +1,5 @@
 # Selected-city territory outline (Phase 5.1.16i). **read-only** domain; **MapCamera** / **HexLayout** anchored.
-# **5.1.17h correction:** normal selection **does not** draw a second rim — **`EmpireBorderView`** owns the visible realm outline at full strength. This node stays **dormant** until **CityPlanningMode** / future emphasis reuses the same **`Line2D`** plumbing.
+# **Design correction:** **`EmpireBorderView`** is the **only** realm/faction **border-like** outline (**selection-independent**). Tiles owned by the **selected** city must **not** be shown with a **second perimeter stroke** — ownership/work intent belongs on **citizen / head markers** per hex (**dim** = city-owned, **not** worked; **highlighted** = worked; **swap** glyph later). **`CityTerritoryView`** **`_draw`** stays **dormant** (no visible rim in normal or city-selected mode); **`Line2D`** pool + static perimeter helpers remain for **`EmpireBorderView`** / tests only unless a future slice deliberately revives rim drawing.
 # Perimeter **topology** static API remains for tests and **`EmpireBorderView`** reuse; closed loops **are** **traced** via **logical corner adjacency** (layout **world** keys — camera-independent). **No** screen-space
 # sorting, **no** centroid angle order, **no** global polygon triangulation. **Line2D** continuous stroked paths with
 # **round joints** (no default **joint dots** / rivets). **Debug** endpoint caps remain **opt-in** only.
@@ -666,7 +666,8 @@ func _draw() -> void:
 		print(
 			(
 				"[EOM_CITY_TERRITORY] dormant=true (realm outline is EmpireBorderView); "
-				+ "selection_has_city=%s city_id=%s — planning emphasis deferred"
+				+ "selection_has_city=%s city_id=%s — no selected-city border rim"
 			)
 			% [str(hc), str(cid)]
 		)
+	return

@@ -2417,7 +2417,7 @@ Validation:
 **Status:** **Shipped** (**5.1.17h** prototype + **5.1.17h.1** strength / layering correction).
 
 - **`game/presentation/empire_border_view.gd`** — **`Node2D`**, **`scenario` / `layout` / `MapCamera`** only (**no** **`SelectionState`**); unions **`City.owned_tiles`** per **`owner_id`**; outer perimeter (**`CityTerritoryView`** topology helpers). **Dual** **`Line2D`** rim — **owner-colored** outer + **indigo** inner (**same alpha / width fractions** as legacy **`CityTerritoryView`** territory emphasis); selection-independent appearance.
-- **`CityTerritoryView`** — **`_draw`** **dormant** in normal play (**no** second rim); node + **`SelectionController`** wiring retained for future **CityPlanningMode**.
+- **`CityTerritoryView`** — **`_draw`** **dormant** in normal play (**no** second rim; **selection-independent** **`EmpireBorderView`** unchanged when a city is selected). Node + **`SelectionController`** wiring retained for future slices. **Forward UX:** city-owned tiles → **citizen/head** markers, **not** perimeter strokes.
 - **`main.tscn` / `main.gd`** — sibling **after** **`MapView`**, **`z_index` 0**, **before** **`CityTerritoryView`** (slot above empire for future planning-only emphasis).
 - **`TurnViewSync`** + **`SelectionController`** / **`EndTurnController`** / **`AITurnController`** — **`empire_border_view`** redraw alongside terrain when **`Scenario`** updates.
 - Tests: **`test_empire_border_view.gd`**, **`test_main_tscn_map_layer_sibling_order.gd`**, **`test_turn_view_sync.gd`**, **`test_city_territory_main_wiring.gd`**; **`scripts/run-godot-tests.ps1`**.
@@ -2433,15 +2433,38 @@ Validation:
 - **`game/presentation/city_view_state.gd`** — presentation **`RefCounted`**; **`enter_planning`**, **`exit_planning`**, **`reset_to_normal`**, **`is_planning`**; **no** domain / **`try_apply`** / log.
 - **`game/main.gd`** — one **`CityViewState`** beside **`SelectionState`**; wired to **`CityProductionPanel`**, **`CityWorkedTilesView`**, **`SelectionController`**.
 - **`city_production_panel.gd`** — **Manage Citizens** enables for **current-player** selected city; enters **PLANNING**; **Done** exits planning (**city** stays selected); **Close** **`reset_to_normal`** + **`selection.clear_city()`**; planning banner line on hub.
-- **`city_worked_tiles_view.gd`** — worked hex markers **only** in **`CityViewState`** **PLANNING** (**Manage Citizens**); **`compute_draw_marker_items`** mirrors **`_draw`** gating; **`compute_worked_marker_items`** + **`yield_breakdown_for_city`** unchanged for tests/helpers.
+- **`city_worked_tiles_view.gd`** — **5.1.17j** / **5.1.17j.1**: citizen **`dim` / `worked`** prototype textures; **`_draw`** and **`compute_draw_marker_items`** run **only** in **`CityViewState`** **PLANNING** — city select shows **hub** without map markers.
 - **`selection_controller.gd`** — **ESC** exits planning (**normal** behavior unchanged otherwise); clears planning when selection changes (**different city**, **unit**, **clear**).
 - **`CityTerritoryView`** untouched (**dormant**).
 - Tests: **`test_city_view_state.gd`**, updates **`test_city_production_panel.gd`**, **`test_city_worked_tiles_view.gd`**; **`scripts/run-godot-tests.ps1`**.
-- **5.1.17i.1 correction:** **`CityWorkedTilesView`** draws **nothing** in **NORMAL** (city-selected hub **without** worked-tile overlay); markers appear **only** after **Manage Citizens**.
+- **5.1.17i.1 (historical):** aquamarine inset markers **PLANNING-only** — **removed** by **5.1.17j** citizen PNGs; **5.1.17j.1** restores **PLANNING-only** draw after a brief **NORMAL**-marker regression.
 
 Validation:
 
 - **`scripts/run-godot-tests.ps1`** green.
+
+#### 5.1.17j — Selected-city **citizen markers** (prototype **`dim` / `worked`** assets)
+
+**Status:** **Shipped** (draw semantics finalized in **5.1.17j.1**).
+
+- **`game/presentation/city_worked_tiles_view.gd`** — class/file **`CityWorkedTilesView`** unchanged for wiring: loads **`res://assets/prototype/map_markers/city_citizens/citizen_marker_dim.png`** and **`citizen_marker_worked.png`** (**`ResourceLoader.load`**, **`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`**); **`draw_texture_rect`** at projected hex center + **`perspective_scale_at`**; **non-center** **`City.owned_tiles`** only; **`kind`** **`dim`** vs **`worked`** from **`CityYields.yield_breakdown_for_city`(..).`worked_tiles`**. **`compute_worked_marker_items`** exposes the logical list (tests); **`compute_draw_marker_items`** / **`_draw`** gated by **`CityViewState`** **PLANNING** (**5.1.17j.1**). Deterministic item order: **`q`** asc, **`r`** asc.
+- **Assets:** **`.import`** **`mipmaps/generate=true`**. Fresh checkout: **`godot --path game --import --headless`** if imports missing.
+- Tests: **`test_city_worked_tiles_view.gd`**; **`scripts/run-godot-tests.ps1`** green.
+
+Validation:
+
+- **`scripts/run-godot-tests.ps1`** green.
+
+#### 5.1.17j.1 — Citizen markers **PLANNING-only** (hub vs management visualization)
+
+**Status:** **Shipped** (UX correction).
+
+- **Intent:** Selecting a city shows **City Hub** only — **no** citizen/head markers on the map until **Manage Citizens** enters **PLANNING**. **Done** / **ESC** exits planning (markers off, city stays selected); **Close** clears selection and markers.
+- **`city_worked_tiles_view.gd`:** **`_draw`** returns immediately unless **`city_view_state.is_planning()`**; **`planning_marker_draw_style()`** applies **only** on this path (scale/alpha multipliers for citizen-management mode).
+
+Validation:
+
+- **`scripts/run-godot-tests.ps1`** green; manual **`main.tscn`**: city select → **hub, no markers**; **Manage Citizens** → **dim/worked** markers; **Done**/**ESC** → markers off; **Close** → hub off; **`EmpireBorderView`** unchanged; **`CityTerritoryView`** still no rim.
 
 #### 5.1.16h — Population auto-works owned tiles (planned)
 

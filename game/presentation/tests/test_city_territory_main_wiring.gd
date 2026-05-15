@@ -1,4 +1,4 @@
-# Headless: **main.tscn** keeps **CityTerritoryView** in the map stack for wiring parity (**selection** shared with **SelectionController**); draw path is **dormant** — **`EmpireBorderView`** is the visible realm border (**5.1.17h** correction).
+# Headless: **main.tscn** keeps **CityTerritoryView** in the map stack for wiring parity (**selection** shared with **SelectionController**); **`_draw`** is **dormant** — **no** selected-city border rim (**empire outline is **`EmpireBorderView`** only). Forward UX: city-owned tiles → **citizen/head** markers (not perimeter strokes).
 # Loads **PackedScene** + instantiates **Main** under tree so **`_ready`** runs (matches manual play wiring).
 # Usage: godot --headless --path game -s res://presentation/tests/test_city_territory_main_wiring.gd
 extends SceneTree

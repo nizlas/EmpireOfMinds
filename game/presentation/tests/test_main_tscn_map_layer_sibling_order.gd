@@ -2,9 +2,9 @@
 # MapView → EmpireBorderView → CityTerritoryView → CitiesView → SelectionView → UnitsView → TerrainForegroundView →
 # LightningTreeView → CityWorkedTilesView → TileYieldOverlayView → CityNameplateView → UnitNameplateView → SelectionController,
 # ignoring other **Main** children (HudCanvas, labels, controllers after SelectionController).
-# **EmpireBorderView** (**5.1.17h**, strength **5.1.17h.1**): **`z_index` 0**, sibling **after** **`MapView`**, **before** **`CityTerritoryView`** — always-on owner **union** realm outline (**dual** **`Line2D`** rim matching legacy territory weight). **`CityTerritoryView`** stays **later** sibling but **dormant** (no normal rim; future **CityPlanningMode**).
+# **EmpireBorderView** (**5.1.17h**, strength **5.1.17h.1**): **`z_index` 0**, sibling **after** **`MapView`**, **before** **`CityTerritoryView`** — always-on owner **union** realm outline (**dual** **`Line2D`** rim). **`CityTerritoryView`** stays **later** sibling but **dormant** (**no** selected-city border rim; forward UX uses **citizen/head** markers on tiles, not a second **`Line2D`** perimeter).
 # **CityWorkedTilesView** (**5.1.17e**): **`z_index` 1**, **after** **`LightningTreeView`**, **before** **`TileYieldOverlayView`** — selected-city overlay **above** terrain/forest/unit+city markers (**0**), **below** yield icons (**later** sibling **1**) and nameplates (**2**). Layering set in **[main.gd](../game/main.gd)** **`_ready`**.
-# **CityTerritoryView** (**`z_index` 0**): slot retained **above** **EmpireBorderView** for future planning emphasis; **does not** add a second visible rim in normal play.
+# **CityTerritoryView** (**`z_index` 0**): slot retained **above** **EmpireBorderView** for wiring/helpers; **does not** draw a visible rim — realm border stays **selection-independent**.
 # Phase **5.1.15b:** **CityNameplateView** sibling **before** **UnitNameplateView** (**`z_index` 2**) so units paint above city banners.
 # Usage: godot --headless --path game -s res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd
 extends SceneTree

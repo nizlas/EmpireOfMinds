@@ -69,9 +69,10 @@ func _init() -> void:
 	_forbidden_scan_source()
 
 	var pst = CityWorkedTilesViewScript.planning_marker_draw_style()
-	_check(float(pst.get("outer_width", 0.0)) > 4.0, "planning outer_width sane")
-	_check(float(pst.get("inner_width", 0.0)) > 2.0, "planning inner_width sane")
-	_check(float(pst.get("fill_alpha", 0.0)) > 0.5, "planning fill_alpha sane")
+	_check(float(pst.get("citizen_icon_height_ratio", 0.0)) > 0.1, "citizen_icon_height_ratio sane")
+	_check(float(pst.get("planning_scale_mul", 0.0)) >= 1.5, "planning_scale_mul stays elevated for PLANNING readability")
+	_check(float(pst.get("planning_y_offset_icon_ratio", 0.0)) < 0.0, "planning_y_offset_icon_ratio shifts markers upward")
+	_check(float(pst.get("normal_alpha", 0.0)) > 0.0, "normal_alpha sane")
 
 	var sel_none = SelectionStateScript.new()
 	var tiny = _tiny_pop1_capital_scenario()
@@ -92,7 +93,13 @@ func _init() -> void:
 	var sel_cap = SelectionStateScript.new()
 	sel_cap.select_city(77)
 	var items: Array = CityWorkedTilesViewScript.compute_worked_marker_items(scen, sel_cap)
-	_check(items.size() == 1, "tiny pop1 yields one marker")
+	_check(items.size() == 1, "tiny pop1 one non-center owned tile")
+	var bd: Dictionary = CityYieldsScript.yield_breakdown_for_city(scen, c_cap) as Dictionary
+	var wt: Array = bd.get("worked_tiles", []) as Array
+	_check(wt.size() == 1, "breakdown has one worked tile")
+	var d0: Dictionary = items[0] as Dictionary
+	_check(str(d0.get("kind", "")) == "worked", "ring tile is worked")
+	_check((d0.get("coord", null) as Object).equals(wt[0] as Object), "marker coord matches breakdown worked_tiles[0]")
 
 	var cvs_off = CityViewStateScript.new()
 	_check(
@@ -101,25 +108,22 @@ func _init() -> void:
 	)
 	_check(
 		CityWorkedTilesViewScript.compute_draw_marker_items(scen, sel_cap, cvs_off).is_empty(),
-		"draw items empty in NORMAL"
+		"draw items empty in NORMAL (hub only, no citizen markers)"
 	)
 	cvs_off.enter_planning()
-	var drawn: Array = CityWorkedTilesViewScript.compute_draw_marker_items(scen, sel_cap, cvs_off)
-	_check(drawn.size() == items.size(), "draw items match worked items in PLANNING")
-	_check(_markers_equal_lists(drawn, items), "PLANNING draw list equals compute_worked_marker_items")
+	var drawn_plan: Array = CityWorkedTilesViewScript.compute_draw_marker_items(scen, sel_cap, cvs_off)
+	_check(drawn_plan.size() == items.size(), "PLANNING draw item count matches logical list")
+	_check(_markers_equal_lists(drawn_plan, items), "PLANNING draw list equals compute_worked_marker_items")
 
-	var wt: Array = (CityYieldsScript.yield_breakdown_for_city(scen, c_cap) as Dictionary).get(
-		"worked_tiles", []
-	) as Array
-	_check(items.size() == wt.size(), "markers count matches breakdown worked_tiles")
-	var eo: int = 0
-	while eo < items.size():
-		var d: Dictionary = items[eo] as Dictionary
-		_check(str(d.get("kind", "")) == "auto_worked", "kind auto_worked")
-		var coo = d.get("coord", null)
-		var wt_h = wt[eo]
-		_check(coo != null and wt_h != null and (coo as Object).equals(wt_h as Object), "coord + order matches breakdown worked_tiles")
-		eo += 1
+	var k_sorted: int = 0
+	while k_sorted < items.size() - 1:
+		var da: Dictionary = items[k_sorted] as Dictionary
+		var db: Dictionary = items[k_sorted + 1] as Dictionary
+		var ca: HexCoord = da["coord"] as HexCoord
+		var cb: HexCoord = db["coord"] as HexCoord
+		var leq: bool = ca.q < cb.q or (ca.q == cb.q and ca.r <= cb.r)
+		_check(leq, "deterministic q then r order")
+		k_sorted += 1
 
 	var c_z = CityScript.new(
 		78,
@@ -135,7 +139,9 @@ func _init() -> void:
 	var scen_z = ScenarioScript.new(scen.map, scen.units(), [c_z], 10, 100, null)
 	var sel_z = SelectionStateScript.new()
 	sel_z.select_city(78)
-	_check(CityWorkedTilesViewScript.compute_worked_marker_items(scen_z, sel_z).is_empty(), "population 0 empty")
+	var items_z: Array = CityWorkedTilesViewScript.compute_worked_marker_items(scen_z, sel_z)
+	_check(items_z.size() == 1, "population 0 still shows dim on non-center owned")
+	_check(str((items_z[0] as Dictionary).get("kind", "")) == "dim", "population 0 kind dim")
 
 	var c_water = CityScript.new(
 		79,
@@ -151,18 +157,37 @@ func _init() -> void:
 	var scen_w = ScenarioScript.new(scen.map, scen.units(), [c_water], 10, 100, null)
 	var sel_w = SelectionStateScript.new()
 	sel_w.select_city(79)
-	_check(CityWorkedTilesViewScript.compute_worked_marker_items(scen_w, sel_w).is_empty(), "water/zero-yield ring empty")
+	var items_w: Array = CityWorkedTilesViewScript.compute_worked_marker_items(scen_w, sel_w)
+	_check(items_w.size() == 1, "water ring tile still listed as dim marker")
+	_check(str((items_w[0] as Dictionary).get("kind", "")) == "dim", "zero-yield ring is dim not worked")
+	var hxw: HexCoord = (items_w[0] as Dictionary).get("coord") as HexCoord
+	_check(hxw.q == -1 and hxw.r == 0, "non-center water coord")
+
+	var ctr2 = HexCoordScript.new(1, -1)
+	var owned_two: Array = [ctr2, HexCoordScript.new(0, -1), HexCoordScript.new(1, 0)]
+	var c_two = CityScript.new(80, 0, ctr2, null, "TwoRing", false, [], owned_two, 0)
+	var scen_two = ScenarioScript.new(scen.map, scen.units(), [c_two], 10, 100, null)
+	var sel_two = SelectionStateScript.new()
+	sel_two.select_city(80)
+	var items_two: Array = CityWorkedTilesViewScript.compute_worked_marker_items(scen_two, sel_two)
+	_check(items_two.size() == 2, "two non-center owned")
+	var t0: Dictionary = items_two[0] as Dictionary
+	var t1: Dictionary = items_two[1] as Dictionary
+	var c0: HexCoord = t0["coord"] as HexCoord
+	var c1: HexCoord = t1["coord"] as HexCoord
+	_check(c0.q == 0 and c0.r == -1 and c1.q == 1 and c1.r == 0, "sorted (0,-1) before (1,0)")
+	_check(str(t0.get("kind", "")) == "dim" and str(t1.get("kind", "")) == "dim", "both dim when pop 0")
 
 	var round1 = CityWorkedTilesViewScript.compute_worked_marker_items(scen, sel_cap)
 	var round2 = CityWorkedTilesViewScript.compute_worked_marker_items(scen, sel_cap)
 	_check(_markers_equal_lists(round1, round2), "two calls equal markers")
-	round1.append({"coord": HexCoordScript.new(9, 9), "kind": "auto_worked"})
+	round1.append({"coord": HexCoordScript.new(9, 9), "kind": "worked"})
 	var round3 = CityWorkedTilesViewScript.compute_worked_marker_items(scen, sel_cap)
 	_check(round3.size() == 1, "mut array append does not leak")
 	var d_live: Dictionary = round3[0] as Dictionary
 	d_live["kind"] = "broken"
 	var round4 = CityWorkedTilesViewScript.compute_worked_marker_items(scen, sel_cap)
-	_check(str((round4[0] as Dictionary).get("kind", "")) == "auto_worked", "mut dict does not affect next call")
+	_check(str((round4[0] as Dictionary).get("kind", "")) == "worked", "mut dict does not affect next call")
 
 	if _any_fail:
 		call_deferred("quit", 1)
