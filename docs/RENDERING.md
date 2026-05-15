@@ -49,6 +49,10 @@
 - **Tuning:** **`band_width_ratio`**, **`blend_alpha`**, optional **`enable_band_jitter`** (**off** by default; deterministic per-edge width mul when **on**).
 - **Draw order:** blend sits **above** **`MapView`** base terrain **fills**, **below** **`EmpireBorderView`** and later **`z_index` 0** siblings — empire outline stays **crisp**; **`TerrainForegroundView`** (**`z_index` 1**) remains **above** the blend.
 
+## Phase 5.2.3 — Map visibility / fog v0 (`MapVisibilityView`)
+
+- **`MapVisibilityView`** ([map_visibility_view.gd](../game/presentation/map_visibility_view.gd)) — **`Node2D`**, **`z_index` 1**, **sibling after** **`TerrainForegroundView`**, **before** **`LightningTreeView`** / **`TileYieldOverlayView`** / nameplates in [main.tscn](../game/main.tscn). Reads **`game_state`**, **`turn_state.current_player_id()`**, **`visibility_state`**, **`scenario.map`**, **`HexLayout`**, **`MapCamera`**; **`_draw`** fills only hexes **not** **`is_explored(current_player, coord)`** with **`res://assets/prototype/map_overlays/unexplored_parchment_overlay_prototype.png`** via **`draw_colored_polygon(..., Color.WHITE, uvs, tex)`** — **UVs** from **`MapView._world_anchored_corner_uvs`** (same world-anchored sampling as base terrain) so the parchment reads as **one** continuous sheet with **cut-out** explored holes. **`texture_repeat`**, **`TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`**; if load fails, flat sepia **`Color(0.18, 0.16, 0.12, 0.78)`** fill. **No** enemy hiding, **no** input capture. **`MapVisibilityView.compute_overlay_items(game_state, layout)`** exposes the overlay coord list for tests. Refresh follows **`TurnViewSync`** (**`SelectionController`** / **`EndTurnController`** / **`AITurnController`**) with **`game_state`** assignment + **`queue_redraw`**.
+
 ## Optional labels (Phase 1.3)
 
 - Coordinate text on tiles is **optional**; the first implementation may draw **polygons only** to stay robust across Godot versions. If labels are added later, they remain presentation-only and must not become gameplay state.

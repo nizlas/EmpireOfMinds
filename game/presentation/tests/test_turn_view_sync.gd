@@ -31,6 +31,22 @@ class TerrainViewStub extends ScenarioViewStub:
 			map_writes += 1
 
 
+class MapVisibilityStub extends Node:
+	var redraws := 0
+	var game_state_writes := 0
+	var _gs = null
+
+	var game_state:
+		get:
+			return _gs
+		set(value):
+			_gs = value
+			game_state_writes += 1
+
+	func queue_redraw() -> void:
+		redraws += 1
+
+
 class RefreshStub extends Node:
 	var refreshes := 0
 
@@ -55,11 +71,13 @@ func _init() -> void:
 	var ct = ScenarioViewStub.new()
 	var eb = ScenarioViewStub.new()
 	var teb = TerrainViewStub.new()
-	TurnViewSyncScript.sync_terrain_related_views(scen, tf, un, cn, yo, ct, null, eb, teb)
+	var mvis = MapVisibilityStub.new()
+	TurnViewSyncScript.sync_terrain_related_views(scen, tf, un, cn, yo, ct, null, eb, teb, gs, mvis)
 	_check(tf.map_writes == 1, "terrain map assignment once")
 	_check(tf.redraws == 1 and un.redraws == 1 and cn.redraws == 1, "terrain+name redraws once each")
 	_check(yo.redraws == 1 and ct.redraws == 1 and eb.redraws == 1, "yield+territory+empire redraw once")
 	_check(teb.map_writes == 1 and teb.redraws == 1, "terrain edge blend map+redraw once")
+	_check(mvis.game_state == gs and mvis.game_state_writes == 1 and mvis.redraws == 1, "map visibility sync")
 
 	## refresh_map_views_and_hud_after_try_apply_turn_controllers
 	var sel = ScenarioViewStub.new()
@@ -78,6 +96,8 @@ func _init() -> void:
 	var eb2 = ScenarioViewStub.new()
 	var teb2 = TerrainViewStub.new()
 
+	var mvis2 = MapVisibilityStub.new()
+
 	TurnViewSyncScript.refresh_map_views_and_hud_after_try_apply_turn_controllers(
 		gs,
 		sel,
@@ -95,6 +115,7 @@ func _init() -> void:
 		null,
 		eb2,
 		teb2,
+		mvis2,
 	)
 	_check(sel.scenario == scen and uv.scenario == scen, "selection/units wired to scenario")
 	_check(sel.redraws == 1 and uv.redraws == 1, "selection/units redraw once")
@@ -104,6 +125,10 @@ func _init() -> void:
 		"each overlay-style view redraw once (incl empire)"
 	)
 	_check(teb2.map_writes == 1 and teb2.redraws == 1, "terrain edge blend redraw path")
+	_check(
+		mvis2.game_state == gs and mvis2.game_state_writes == 1 and mvis2.redraws == 1,
+		"map visibility refresh once",
+	)
 	_check(tl.refreshes == 1 and lv.refreshes == 1, "turn label + log refresh once")
 	_check(cpp.refreshes == 1 and dap.refreshes == 1 and sp.refreshes == 1, "HUD panels refreshed once")
 
@@ -117,6 +142,7 @@ func _init() -> void:
 		+ ctv2.redraws
 		+ eb2.redraws
 		+ teb2.redraws
+		+ mvis2.redraws
 	)
 	TurnViewSyncScript.refresh_map_views_and_hud_after_try_apply_turn_controllers(
 		null,
@@ -135,6 +161,7 @@ func _init() -> void:
 		null,
 		eb2,
 		teb2,
+		mvis2,
 	)
 	var redraw_after: int = (
 		sel.redraws
@@ -146,10 +173,35 @@ func _init() -> void:
 			+ ctv2.redraws
 			+ eb2.redraws
 			+ teb2.redraws
+			+ mvis2.redraws
 	)
 	_check(redraw_after == redraw_tot, "null GameState skips all view redraws")
 
-	for n in [tf, un, cn, yo, ct, eb, teb, sel, uv, tl, lv, cpp, dap, sp, tf2, unp2, cnp2, yov2, ctv2, eb2, teb2]:
+	for n in [
+		tf,
+		un,
+		cn,
+		yo,
+		ct,
+		eb,
+		teb,
+		mvis,
+		sel,
+		uv,
+		tl,
+		lv,
+		cpp,
+		dap,
+		sp,
+		tf2,
+		unp2,
+		cnp2,
+		yov2,
+		ctv2,
+		eb2,
+		teb2,
+		mvis2,
+	]:
 		if is_instance_valid(n) and n is Node:
 			n.free()
 

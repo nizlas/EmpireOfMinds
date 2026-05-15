@@ -71,10 +71,14 @@ Direction names in the table are **labels** for axial neighbors; see [HEX_COORDI
 
 Code under `game/domain/` must not depend on Godot scene nodes, rendering, UI, input, networking, or LLMs; see [game/domain/README.md](../game/domain/README.md).
 
+## Phase 5.2.3 — Explored memory / fog v0 (`PlayerVisibilityState`; presentation overlay)
+
+**No longer fully deferred:** Per-player **explored** hex sets (**not** “line of sight” vs memory, **no** enemy hiding) live in domain **`[PlayerVisibilityState](../game/domain/player_visibility_state.gd)`** — immutable owner maps of **`Vector2i(q,r) → true`**, **`UNIT_SIGHT_RADIUS` / `CITY_SIGHT_RADIUS` = 2**, recomputed deterministically from **`Scenario`** on **`GameState.try_apply`** (**`move_unit`**, **`found_city`**, **`end_turn`** after production delivery). **[`HexCoord.axial_distance`](../game/domain/hex_coord.gd)** supports the disk queries. Presentation **[`MapVisibilityView`](../game/presentation/map_visibility_view.gd)** only **reads** **`GameState`** and draws a parchment mask over the **unexplored** complement for **`TurnState.current_player_id()`** (local hotseat). **`HexMap`** still does **not** store visibility flags — visibility remains **session** state on **`GameState`**.
+
 ## Explicitly deferred
 
 - A dedicated **cell** or **terrain** type with gameplay fields (owner, resources, move cost, etc.)
-- **Fog of war** and **visibility**
+- **Line-of-sight** / **current visibility** distinct from **explored memory**; **fog-of-war privacy** for multiplayer; hiding enemy units/cities
 - **Distance / range / line / path** queries on the map
 - **Pixel coordinates, viewport placement, projection, pan/zoom, and draw layering** belong to **presentation** (**`HexLayout`**, **`MapCamera`**, views under **`game/presentation/`**; see **[RENDERING.md](RENDERING.md)**). **`HexMap`** stays **presentation-free** hex addressing + terrain/landform/woods **tags**. It intentionally does **not** store screen offsets, texture UV policy, or `z_index`.
 - **Serialization** of maps and terrain for save / replay (with schema versioning, per architecture)

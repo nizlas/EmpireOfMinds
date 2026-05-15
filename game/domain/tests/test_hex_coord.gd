@@ -32,6 +32,14 @@ func _init() -> void:
 		HexCoord.new(3, -2).neighbor(HexCoord.Direction.NW).equals(HexCoord.new(3, -3)),
 		"NW of (3,-2) should be (3,-3)"
 	)
+	var a := HexCoord.new(2, -1)
+	var b := HexCoord.new(-1, 3)
+	_check(HexCoord.axial_distance(a, b) == HexCoord.axial_distance(b, a), "axial_distance symmetric")
+	_check(HexCoord.axial_distance(HexCoord.new(0, 0), HexCoord.new(0, 0)) == 0, "distance to self is 0")
+	var nbr := HexCoord.new(0, 0).neighbor(HexCoord.Direction.E)
+	_check(HexCoord.axial_distance(HexCoord.new(0, 0), nbr) == 1, "direct neighbor distance 1")
+	var two := HexCoord.new(0, 0).neighbor(HexCoord.Direction.E).neighbor(HexCoord.Direction.E)
+	_check(HexCoord.axial_distance(HexCoord.new(0, 0), two) == 2, "two-step along axis distance 2")
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

@@ -1,6 +1,6 @@
 # Headless: **main.tscn** map **Node2D** siblings under **Main** preserve **Main** subtree order contract:
 # MapView → TerrainEdgeBlendView → EmpireBorderView → CityTerritoryView → CitiesView → SelectionView → UnitsView → TerrainForegroundView →
-# LightningTreeView → TileYieldOverlayView → CityWorkedTilesView → CityNameplateView → UnitNameplateView → SelectionController,
+# MapVisibilityView → LightningTreeView → TileYieldOverlayView → CityWorkedTilesView → CityNameplateView → UnitNameplateView → SelectionController,
 # ignoring other **Main** children (HudCanvas, labels, controllers after SelectionController).
 # **EmpireBorderView** (**5.1.17h**, strength **5.1.17h.1**): **`z_index` 0**, sibling **after** **`TerrainEdgeBlendView`**, **before** **`CityTerritoryView`** — always-on owner **union** realm outline (**dual** **`Line2D`** rim). **`CityTerritoryView`** stays **later** sibling but **dormant** (**no** selected-city border rim; forward UX uses **citizen/head** markers on tiles, not a second **`Line2D`** perimeter).
 # **CityWorkedTilesView** (**5.1.17e**): **`z_index` 1**, **after** **`TileYieldOverlayView`** (same **`z_index`**) — **PLANNING** citizen markers **above** yield icons; **before** nameplates (**`z_index` 2**). Layering set in **[main.gd](../game/main.gd)** **`_ready`**.
@@ -22,6 +22,7 @@ var _map_layer_names: Array[String] = [
 	"SelectionView",
 	"UnitsView",
 	"TerrainForegroundView",
+	"MapVisibilityView",
 	"LightningTreeView",
 	"TileYieldOverlayView",
 	"CityWorkedTilesView",
@@ -77,6 +78,20 @@ func _run() -> void:
 	var mv: Node = main_root.get_node(NodePath("MapView"))
 	var teb: CanvasItem = main_root.get_node(NodePath("TerrainEdgeBlendView")) as CanvasItem
 	var ebv: CanvasItem = main_root.get_node(NodePath("EmpireBorderView")) as CanvasItem
+	var mapvis = main_root.get_node(NodePath("MapVisibilityView")) as CanvasItem
+	var tfv = main_root.get_node(NodePath("TerrainForegroundView")) as Node
+	if tfv.get_index() >= mapvis.get_index():
+		main_root.free()
+		_fail("FAIL: MapVisibilityView must be after TerrainForegroundView")
+		return
+	if mapvis.get_index() >= main_root.get_node(NodePath("LightningTreeView")).get_index():
+		main_root.free()
+		_fail("FAIL: MapVisibilityView must be before LightningTreeView")
+		return
+	if int(mapvis.z_index) != 1:
+		main_root.free()
+		_fail("FAIL: MapVisibilityView z_index expected 1 in scene (PackedScene.instantiate)")
+		return
 	if mv.get_index() >= teb.get_index() or teb.get_index() >= ebv.get_index():
 		main_root.free()
 		_fail("FAIL: TerrainEdgeBlendView must be after MapView and before EmpireBorderView")

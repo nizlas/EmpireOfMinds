@@ -132,3 +132,15 @@ Manual check in **`main.tscn`** (**local hotseat prototype**).
 - [ ] Strip stays **separate** from **lower-right** **`TurnStatusPanel`** and **City Hub** on the default viewport.
 
 Validation: **`scripts/run-godot-tests.ps1`** — **`test_player_contact_strip.gd`**.
+
+## Phase 5.2.3 — Map visibility / fog v0 (parchment unexplored overlay)
+
+Manual check in **`main.tscn`** (**local hotseat prototype**).
+
+- [ ] On start, only the area around **P0**’s starting units (radius **2**) is **clear**; the rest of the map shows **parchment** (or flat fallback if the texture is missing).
+- [ ] Move **P0**’s warrior one hex: tiles within radius **2** of the new position are **clear** for **P0**; tiles explored earlier **stay** clear (**memory**).
+- [ ] Press **Space** (**End Turn**): the overlay switches to **P1**’s explored set (**P1**’s starting areas clear, not **P0**’s full map unless overlapped).
+- [ ] Found a city with **P0**’s settler: city center, **`owned_tiles`**, and radius-**2** ring become **clear** for **that** player.
+- [ ] **P0** / **P1** discovery stays **separate** (no cross-player reveal).
+
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_player_visibility_state.gd`**, **`test_player_visibility_reveal.gd`**, **`test_map_visibility_view.gd`**, sibling-order and **`test_turn_view_sync.gd`** updates.

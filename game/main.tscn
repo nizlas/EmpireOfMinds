@@ -26,6 +26,7 @@
 [ext_resource type="Script" path="res://presentation/terrain_edge_blend_view.gd" id="24_terrain_edge_blend"]
 [ext_resource type="Script" path="res://presentation/turn_status_panel.gd" id="25_turn_status"]
 [ext_resource type="Script" path="res://presentation/player_contact_strip.gd" id="26_player_contact"]
+[ext_resource type="Script" path="res://presentation/map_visibility_view.gd" id="27_map_visibility"]
 
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
@@ -202,6 +203,11 @@ script = ExtResource("4_unitsview")
 [node name="TerrainForegroundView" type="Node2D" parent="." unique_id=555384625]
 position = Vector2(400, 428)
 script = ExtResource("11_terrainforeground")
+
+[node name="MapVisibilityView" type="Node2D" parent="." unique_id=555384626]
+position = Vector2(400, 428)
+z_index = 1
+script = ExtResource("27_map_visibility")
 
 [node name="LightningTreeView" type="Node2D" parent="." unique_id=1063845022]
 position = Vector2(400, 428)

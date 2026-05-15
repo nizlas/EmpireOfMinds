@@ -40,6 +40,8 @@ var city_nameplate_view
 var yield_overlay_view
 ## Phase **5.1.17k:** terrain edge blend (**map** only); sync redraw with **`TurnViewSync`**.
 var terrain_edge_blend_view
+## Phase **5.2.3:** parchment overlay from **current_player_id** explored tiles.
+var map_visibility_view
 ## Phase 5.1.16i: selected-city territory outline (**tiles_owned_by_city**); redraw with selection / sync.
 var city_territory_view
 ## Phase **5.1.17h**: always-on owner-union perimeter (**EmpireBorderView**); redraw with terrain sync / scenario assigns.
@@ -244,6 +246,8 @@ func _sync_terrain_foreground_from_game_state() -> void:
 		city_worked_tiles_view,
 		empire_border_view,
 		terrain_edge_blend_view,
+		game_state,
+		map_visibility_view,
 	)
 
 func _unhandled_input(event):

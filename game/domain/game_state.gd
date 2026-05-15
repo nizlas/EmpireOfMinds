@@ -19,12 +19,14 @@ const FoodGrowthTickScript = preload("res://domain/food_growth_tick.gd")
 const ProductionDeliveryScript = preload("res://domain/production_delivery.gd")
 const ProgressStateScript = preload("res://domain/progress_state.gd")
 const ScienceTickScript = preload("res://domain/science_tick.gd")
+const PlayerVisibilityStateScript = preload("res://domain/player_visibility_state.gd")
 const _GAME_STATE_SCRIPT = preload("res://domain/game_state.gd")
 
 var scenario
 var log
 var turn_state
 var progress_state
+var visibility_state
 
 func _init(initial_scenario, p_progress_state = null) -> void:
 	scenario = initial_scenario
@@ -44,6 +46,12 @@ func _init(initial_scenario, p_progress_state = null) -> void:
 	while iv < init_ev.size():
 		log.append(init_ev[iv])
 		iv = iv + 1
+	visibility_state = PlayerVisibilityStateScript.empty_for_players(turn_state.players)
+	visibility_state = PlayerVisibilityStateScript.seed_all_players(
+		visibility_state,
+		scenario,
+		turn_state.players,
+	)
 
 func try_apply(action) -> Dictionary:
 	if action == null:
@@ -96,6 +104,11 @@ func try_apply(action) -> Dictionary:
 		while oi < obs_ev.size():
 			log.append(obs_ev[oi])
 			oi = oi + 1
+		visibility_state = PlayerVisibilityStateScript.recompute_for_actor(
+			visibility_state,
+			scenario,
+			int(action["actor_id"]),
+		)
 		return {"accepted": true, "reason": "", "index": idx}
 	if at == FoundCityScript.ACTION_TYPE:
 		var fr = FoundCityScript.validate(scenario, action)
@@ -113,6 +126,11 @@ func try_apply(action) -> Dictionary:
 			"result": "accepted",
 		}
 		var fc_idx = log.append(fc_entry)
+		visibility_state = PlayerVisibilityStateScript.recompute_for_actor(
+			visibility_state,
+			scenario,
+			int(action["actor_id"]),
+		)
 		return {"accepted": true, "reason": "", "index": fc_idx}
 	if at == SetCityProductionScript.ACTION_TYPE:
 		var spr = SetCityProductionScript.validate(scenario, action)
@@ -252,6 +270,11 @@ func try_apply(action) -> Dictionary:
 		while di < del_ev.size():
 			log.append(del_ev[di])
 			di = di + 1
+		visibility_state = PlayerVisibilityStateScript.recompute_for_actor(
+			visibility_state,
+			scenario,
+			turn_state.current_player_id(),
+		)
 		return {"accepted": true, "reason": "", "index": e_idx}
 	return {"accepted": false, "reason": "unknown_action_type", "index": -1}
 

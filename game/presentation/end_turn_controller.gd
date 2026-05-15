@@ -28,6 +28,7 @@ var discovery_action_panel
 var science_panel
 var science_completed_popup
 var discovery_popup
+var map_visibility_view
 
 
 ## Phase **5.2.1** hotseat: after accepted **`EndTurn`**, clear unit + city selection and exit **PLANNING** so the next **current** player does not inherit hub focus. Presentation-only.
@@ -83,6 +84,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					city_worked_tiles_view,
 					empire_border_view,
 					terrain_edge_blend_view,
+					map_visibility_view,
 				)
 			else:
 				push_warning("EndTurn rejected: %s" % result["reason"])

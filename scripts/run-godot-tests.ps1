@@ -43,6 +43,8 @@ $GodotExe = Get-GodotExecutable
 
 $Tests = @(
 	"res://domain/tests/test_hex_coord.gd",
+	"res://domain/tests/test_player_visibility_state.gd",
+	"res://domain/tests/test_player_visibility_reveal.gd",
 	"res://domain/tests/test_hex_map.gd",
 	"res://domain/tests/test_hex_map_landform.gd",
 	"res://domain/tests/test_hex_map_woods.gd",
@@ -132,6 +134,7 @@ $Tests = @(
 	"res://presentation/tests/test_turn_label.gd",
 	"res://presentation/tests/test_turn_status_panel.gd",
 	"res://presentation/tests/test_turn_view_sync.gd",
+	"res://presentation/tests/test_map_visibility_view.gd",
 	"res://presentation/tests/test_faction_asset_paths.gd",
 	"res://presentation/tests/test_faction_banner_gallery.gd",
 	"res://domain/tests/test_legal_actions.gd",

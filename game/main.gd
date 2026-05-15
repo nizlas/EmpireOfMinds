@@ -31,6 +31,7 @@ func _redraw_map_layers() -> void:
 	$SelectionView.queue_redraw()
 	$UnitsView.queue_redraw()
 	$TerrainForegroundView.queue_redraw()
+	$MapVisibilityView.queue_redraw()
 	$LightningTreeView.queue_redraw()
 	$TileYieldOverlayView.queue_redraw()
 	$CityWorkedTilesView.queue_redraw()
@@ -81,6 +82,9 @@ func _ready() -> void:
 	$TerrainForegroundView.scale = Vector2.ONE
 	$TerrainForegroundView.camera = _map_camera
 	$TerrainForegroundView.z_index = 1
+	$MapVisibilityView.scale = Vector2.ONE
+	$MapVisibilityView.camera = _map_camera
+	$MapVisibilityView.z_index = 1
 	$LightningTreeView.z_index = 1
 	$EmpireBorderView.scale = Vector2.ONE
 	$EmpireBorderView.camera = _map_camera
@@ -112,6 +116,10 @@ func _ready() -> void:
 	var selection = SelectionStateScript.new()
 	var city_view_state = CityViewStateScript.new()
 	var map_view = $MapView
+	var map_visibility_view = $MapVisibilityView
+	map_visibility_view.layout = layout
+	map_visibility_view.game_state = game_state
+	map_visibility_view.parchment_world_scale = map_view.terrain_texture_world_scale * 1.5
 	map_view.map = scenario.map
 	map_view.layout = layout
 	var terrain_edge_blend = $TerrainEdgeBlendView
@@ -197,6 +205,7 @@ func _ready() -> void:
 	selection_controller.city_view_state = city_view_state
 	selection_controller.yield_overlay_view = tile_yield_overlay
 	selection_controller.terrain_edge_blend_view = terrain_edge_blend
+	selection_controller.map_visibility_view = map_visibility_view
 	var turn_label = $TurnLabel
 	turn_label.game_state = game_state
 	var turn_status_panel = $HudCanvas/TurnStatusPanel
@@ -249,11 +258,13 @@ func _ready() -> void:
 	end_turn_controller.empire_border_view = empire_border_view
 	end_turn_controller.city_worked_tiles_view = city_worked_tiles_view
 	end_turn_controller.terrain_edge_blend_view = terrain_edge_blend
+	end_turn_controller.map_visibility_view = map_visibility_view
 	ai_turn_controller.yield_overlay_view = tile_yield_overlay
 	ai_turn_controller.city_territory_view = city_territory_view
 	ai_turn_controller.empire_border_view = empire_border_view
 	ai_turn_controller.city_worked_tiles_view = city_worked_tiles_view
 	ai_turn_controller.terrain_edge_blend_view = terrain_edge_blend
+	ai_turn_controller.map_visibility_view = map_visibility_view
 	city_production_panel.refresh()
 	var discovery_action_panel = $HudCanvas/DiscoveryActionPanel
 	discovery_action_panel.game_state = game_state

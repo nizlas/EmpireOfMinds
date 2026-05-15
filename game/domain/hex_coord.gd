@@ -36,3 +36,23 @@ func neighbors() -> Array:
 	for d in range(6):
 		out.append(neighbor(d))
 	return out
+
+
+## Cube axial metric on pointy-top axial (q, r); reusable for range, sight, combat.
+static func axial_distance(a: HexCoord, b: HexCoord) -> int:
+	if a == null or b == null:
+		return 0
+	var aq: int = a.q
+	var ar: int = a.r
+	var bq: int = b.q
+	var br: int = b.r
+	var ac: int = aq
+	var ay: int = ar
+	var az: int = -aq - ar
+	var bc: int = bq
+	var by: int = br
+	var bz: int = -bq - br
+	var dx: int = ac - bc
+	var dy: int = ay - by
+	var dz: int = az - bz
+	return maxi(abs(dx), maxi(abs(dy), abs(dz)))

@@ -13,6 +13,8 @@ static func sync_terrain_related_views(
 	city_worked_tiles_view = null,
 	empire_border_view = null,
 	terrain_edge_blend_view = null,
+	game_state = null,
+	map_visibility_view = null,
 ) -> void:
 	if scen == null:
 		return
@@ -41,6 +43,9 @@ static func sync_terrain_related_views(
 	if terrain_edge_blend_view != null:
 		terrain_edge_blend_view.map = scen.map
 		terrain_edge_blend_view.queue_redraw()
+	if game_state != null and map_visibility_view != null:
+		map_visibility_view.game_state = game_state
+		map_visibility_view.queue_redraw()
 
 ## Mirrors **EndTurnController** / **AITurnController** accepted-action block after **`discovery_popup`** / **`selection.clear_unit()`** (**not** inclusive of those callers).
 static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_state,
@@ -59,6 +64,7 @@ static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_stat
 	city_worked_tiles_view = null,
 	empire_border_view = null,
 	terrain_edge_blend_view = null,
+	map_visibility_view = null,
 ) -> void:
 	if game_state == null:
 		return
@@ -93,6 +99,9 @@ static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_stat
 	if terrain_edge_blend_view != null:
 		terrain_edge_blend_view.map = game_state.scenario.map
 		terrain_edge_blend_view.queue_redraw()
+	if map_visibility_view != null:
+		map_visibility_view.game_state = game_state
+		map_visibility_view.queue_redraw()
 	turn_label.refresh()
 	if log_view != null:
 		log_view.refresh()

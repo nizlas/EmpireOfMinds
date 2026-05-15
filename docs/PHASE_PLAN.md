@@ -2484,6 +2484,17 @@ Validation: **`scripts/run-godot-tests.ps1`** green; **`main.tscn`**: select cap
 
 Validation: **`scripts/run-godot-tests.ps1`** green; **`main.tscn`**: strip shows **P0**/**P1**; **Space** moves highlight; colors match lower-right turn strip family; strip does not use **“Waiting for …”** in local hotseat.
 
+#### 5.2.3 — Map visibility / fog v0 (**`PlayerVisibilityState`** domain + **`MapVisibilityView`** parchment overlay)
+
+**Status:** **Shipped.**
+
+- **Domain:** **[`PlayerVisibilityState`](../game/domain/player_visibility_state.gd)** — immutable per-player explored-tile memory (**`Dictionary[Vector2i, true]`** per owner, same shape as **`ProgressState`** owner maps). **`UNIT_SIGHT_RADIUS`** / **`CITY_SIGHT_RADIUS`** = **2**; **`recompute_for_actor`** unions prior explored set for that owner only with sight from owned units and owned city centers + **`City.owned_tiles`** (clamped to **`scenario.map`** cells via **`map.coords()`** only). **`GameState`** (**[`game_state.gd`](../game/domain/game_state.gd)**) seeds **`visibility_state`** after initial **`ProductionDelivery`** for all **`TurnState.players`**; **`try_apply`** recomputes on accepted **`move_unit`**, **`found_city`**, and **`end_turn`** (after delivery for the **new** **`current_player_id`**). **No** enemy hiding, **no** “currently visible” vs memory, **no** AI / **`LegalActions`** changes.
+- **Presentation:** **[`MapVisibilityView`](../game/presentation/map_visibility_view.gd)** — **`Node2D`** sibling **after** **`TerrainForegroundView`**, **before** **`LightningTreeView`** / nameplates / **`HudCanvas`**; draws **`unexplored_parchment_overlay_prototype.png`** with **`MapView._world_anchored_corner_uvs`** so the fog reads as **one** continuous layer with **holes** at explored hexes for **`turn_state.current_player_id()`** (local hotseat). **`TurnViewSync`** passes **`game_state`** + **`queue_redraw`** from **`SelectionController`** / **`EndTurnController`** / **`AITurnController`**.
+- Tests: **`test_player_visibility_state.gd`**, **`test_player_visibility_reveal.gd`**, **`test_map_visibility_view.gd`**, **`test_hex_coord.gd`** (distance), updates **`test_main_tscn_map_layer_sibling_order.gd`**, **`test_turn_view_sync.gd`**; **`scripts/run-godot-tests.ps1`**.
+- Docs: **[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)**, **[MAP_MODEL.md](MAP_MODEL.md)**, **[RENDERING.md](RENDERING.md)**, **[VALIDATION_CHECKLIST.md](VALIDATION_CHECKLIST.md)**.
+
+Validation: **`scripts/run-godot-tests.ps1`** green; manual **`main.tscn`**: starting area for **P0** clear, rest parchment; move warrior extends clear disk; **Space** switches overlay to **P1**’s explored memory; found city clears center + owned + radius-2; parchment tiles continuously in world space.
+
 #### 5.1.17f — City interaction UX direction doc
 
 **Status:** **Shipped (documentation).**
