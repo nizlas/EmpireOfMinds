@@ -8,6 +8,7 @@ const LegalActionsScript = preload("res://domain/legal_actions.gd")
 const RuleBasedAIPlayerScript = preload("res://ai/rule_based_ai_player.gd")
 const DiscoveryPopupScript = preload("res://presentation/discovery_popup.gd")
 const TurnViewSyncScript = preload("res://presentation/turn_view_sync.gd")
+const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 
 var game_state
 var selection
@@ -58,7 +59,13 @@ func _unhandled_input(event: InputEvent) -> void:
 					science_completed_popup,
 					prev_log_sz
 				)
-				selection.clear_unit()
+				if str(action.get("action_type", "")) == EndTurnScript.ACTION_TYPE:
+					EndTurnController.apply_hotseat_clear_after_accepted_end_turn(
+						selection,
+						city_production_panel
+					)
+				else:
+					selection.clear_unit()
 				TurnViewSyncScript.refresh_map_views_and_hud_after_try_apply_turn_controllers(
 					game_state,
 					selection_view,

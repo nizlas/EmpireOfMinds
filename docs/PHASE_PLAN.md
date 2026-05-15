@@ -2452,6 +2452,38 @@ Validation: **`scripts/run-godot-tests.ps1`**; manual: **pop 2**, **Manage Citiz
 
 Validation: **`scripts/run-godot-tests.ps1`** green; **`main.tscn`**: panel always visible; **`Player N's turn`** + **nameplate/empire** accent colors track **`current_player`** (**End Turn** / hotseat). **[VALIDATION_CHECKLIST.md](VALIDATION_CHECKLIST.md)** — Phase **5.1.19f** manual HUD checks.
 
+#### 5.2.0 — Local hotseat / debug-mode checkpoint
+
+**Status:** **Shipped (documentation only).**
+
+- **Canonical mode name:** **local hotseat prototype** — one **Godot** app instance; **`TurnState.current_player_id()`** rotates on **`EndTurn`**; a **single local user** may submit actions for **whichever player is current** (shared control). The domain still requires **`actor_id == current_player_id()`** on every accepted action via **`GameState.try_apply`**.
+- **Out of scope today:** **server / cloud multiplayer**, networking, lobby, accounts, **fog-of-war / privacy**, **remote-seat** “waiting for …” copy, and **authoritative** backends — all **explicitly future** (see **[CLOUD_PLAY.md](CLOUD_PLAY.md)**, **[ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md)**).
+- Steering updates: **[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)** (turn control / hotseat), **[VALIDATION_CHECKLIST.md](VALIDATION_CHECKLIST.md)** (Phase **5.2.0** readiness), **[CLOUD_PLAY.md](CLOUD_PLAY.md)** (current state), **[player/PLAYTEST_GUIDE.md](player/PLAYTEST_GUIDE.md)** (hotseat keybinds), **[AI_DESIGN.md](AI_DESIGN.md)** (manual AI trigger).
+
+**Follow-up:** **5.2.1** — hotseat selection clear on **`EndTurn`** — **shipped**; see **5.2.1** below.
+
+Validation: manual read of **5.2.0** docs; automated coverage for the **5.2.1** behavior is **`test_hotseat_endturn_selection_clear.gd`** (see **5.2.1**).
+
+#### 5.2.1 — Hotseat: clear city selection on accepted **`EndTurn`** (`EndTurnController` / **`AITurnController`**)
+
+**Status:** **Shipped** (presentation-only).
+
+- **`EndTurnController`** ([end_turn_controller.gd](../game/presentation/end_turn_controller.gd)): after **`DiscoveryPopup`** sequencing on **accepted** **`EndTurn`**, calls **`apply_hotseat_clear_after_accepted_end_turn`** — **`selection.clear_unit()`**, **`city_production_panel.city_view_state.reset_to_normal()`** when wired, **`selection.clear_city()`**, then existing **`TurnViewSync.refresh_map_views_and_hud_after_try_apply_turn_controllers`** (**`CityProductionPanel.refresh()`** hides hub when no city selected).
+- **`AITurnController`** ([ai_turn_controller.gd](../game/presentation/ai_turn_controller.gd)): same clear **only** when the accepted action is **`end_turn`**; non-**`end_turn`** AI actions still **`clear_unit()`** only (prior behavior).
+- Tests: **`test_hotseat_endturn_selection_clear.gd`**; **`scripts/run-godot-tests.ps1`**.
+
+Validation: **`scripts/run-godot-tests.ps1`** green; **`main.tscn`**: select capital → **Manage Citizens** → **Space** — **City Hub** closes, planning exits, **TurnStatusPanel** shows **P1**; citizen markers hide when not in **PLANNING**.
+
+#### 5.2.2 — Player / contact strip v0 (**`PlayerContactStrip`**; presentation-only)
+
+**Status:** **Shipped.**
+
+- **`PlayerContactStrip`** ([player_contact_strip.gd](../game/presentation/player_contact_strip.gd)) — **`HudCanvas`**, **upper-right** compact strip: one chip per **`TurnState.players`**; **current** seat **highlight** (border + fill); **`P0` / `P1`** short labels + **`Player N`** tooltip; accent from **`UnitNameplateView.owner_nameplate_accent_color`** (same as **`TurnStatusPanel`** / empire / nameplates). **`contact_state: known`** placeholder per entry for future **unknown / remote / diplomacy** — **no** contact or fog logic yet. **`MOUSE_FILTER_IGNORE`**. **`main.gd`** chains **`TurnLabel.after_refresh`** with **`TurnStatusPanel`** so the strip updates on **`EndTurn`** / HUD turn refresh.
+- Tests: **`test_player_contact_strip.gd`**; **`scripts/run-godot-tests.ps1`**.
+- Docs: **[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)**, **[VALIDATION_CHECKLIST.md](VALIDATION_CHECKLIST.md)**, **[RENDERING.md](RENDERING.md)**.
+
+Validation: **`scripts/run-godot-tests.ps1`** green; **`main.tscn`**: strip shows **P0**/**P1**; **Space** moves highlight; colors match lower-right turn strip family; strip does not use **“Waiting for …”** in local hotseat.
+
 #### 5.1.17f — City interaction UX direction doc
 
 **Status:** **Shipped (documentation).**

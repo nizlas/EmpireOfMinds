@@ -29,6 +29,17 @@ var science_panel
 var science_completed_popup
 var discovery_popup
 
+
+## Phase **5.2.1** hotseat: after accepted **`EndTurn`**, clear unit + city selection and exit **PLANNING** so the next **current** player does not inherit hub focus. Presentation-only.
+static func apply_hotseat_clear_after_accepted_end_turn(selection, city_production_panel) -> void:
+	if selection != null:
+		selection.clear_unit()
+	if city_production_panel != null and city_production_panel.city_view_state != null:
+		city_production_panel.city_view_state.reset_to_normal()
+	if selection != null:
+		selection.clear_city()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	assert(GameStateScript != null)
 	assert(EndTurnScript != null)
@@ -54,7 +65,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					science_completed_popup,
 					prev_log_sz
 				)
-				selection.clear_unit()
+				apply_hotseat_clear_after_accepted_end_turn(selection, city_production_panel)
 				TurnViewSyncScript.refresh_map_views_and_hud_after_try_apply_turn_controllers(
 					game_state,
 					selection_view,

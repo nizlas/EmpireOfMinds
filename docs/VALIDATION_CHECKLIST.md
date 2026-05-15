@@ -94,3 +94,41 @@ Manual check in **`main.tscn`** / local play (**no** domain changes).
 - [ ] **End Turn** → strip shows **`Player 1's turn`**; P1 can act immediately in the **same** run.
 - [ ] Panel **orb / border / tint** matches the **same** owner accent family as **empire border** and **unit/city nameplate** strips (teal/cyan vs rose for P0/P1 in the prototype palette).
 - [ ] Turn strip stays **visible** and updates **without** opening **City Hub** / city selection.
+
+## Phase 5.2.0 — Local hotseat readiness
+
+Manual validation for **local hotseat prototype** builds (external playtest / “Niklas minigame” style). **No** server, lobby, or remote opponent — one human controls **whichever `TurnState` seat is current**.
+
+- [ ] App starts and **`TurnStatusPanel`** shows **`Player 0's turn`** with the **P0** nameplate/empire accent family.
+- [ ] **Capital** can be **founded**, **grown**, and queue **warrior** + **settler** (per current rules).
+- [ ] **Space** ends turn; the HUD flips to **`Player 1's turn`** with the **P1** accent.
+- [ ] **P1** can act on **P1** units in the **same** app instance without restart.
+- [ ] Trying to act on the **wrong** player's unit/city is either **disabled** in UI or fails readably (e.g. **`not_current_player`** in reject paths / log).
+- [ ] Selecting an **opponent** city does **not** allow **production** / **Manage Citizens** (hub explains **not your city** or equivalent).
+- [ ] **`KEY_A`** is understood as **“AI plays one action for whoever is current”** — **not** autopilot; document for testers ([PLAYTEST_GUIDE.md](player/PLAYTEST_GUIDE.md)).
+- [ ] **20–50** **`EndTurn`** cycles can run without **null** dereference or stack trace.
+- [ ] **City Hub** **Close** clears city selection (expected today).
+- [ ] **`scripts/run-godot-tests.ps1`** is green before handing off a build.
+
+## Phase 5.2.1 — Hotseat: **`EndTurn`** clears **City Hub** selection
+
+Manual check in **`main.tscn`** (**local hotseat prototype**).
+
+- [ ] Select **P0** capital; open **Manage Citizens** (**PLANNING**); press **Space** (**End Turn**).
+- [ ] **City Hub** closes (or is hidden); **citizen** markers leave the map (**PLANNING** off).
+- [ ] **`TurnStatusPanel`** shows **`Player 1's turn`** (accent matches **P1**).
+- [ ] **P1** can select and act immediately without seeing **P0**’s hub from the prior turn.
+
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_hotseat_endturn_selection_clear.gd`**.
+
+## Phase 5.2.2 — Player / contact strip v0 (upper-right seats)
+
+Manual check in **`main.tscn`** (**local hotseat prototype**).
+
+- [ ] **Upper-right** strip shows **P0** and **P1** (one chip per **`TurnState`** seat).
+- [ ] **Current** seat has a **stronger** border/fill than the inactive seat(s).
+- [ ] Press **Space** (**End Turn**): highlight moves to the **next** player; **no** **“Waiting for Player …”** copy on the strip.
+- [ ] Chip **accent** colors match the same **player** tint family as **`TurnStatusPanel`** / **empire** / **nameplates**.
+- [ ] Strip stays **separate** from **lower-right** **`TurnStatusPanel`** and **City Hub** on the default viewport.
+
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_player_contact_strip.gd`**.

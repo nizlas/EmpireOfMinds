@@ -18,6 +18,10 @@ The project should support Bring Your Own Server / Private Cloud first.
 
 Single machine. Useful for Phase 1 and early testing.
 
+### Current state as of Phase 5.2.0
+
+The **shipping playable embryo** today is a **local hotseat prototype**: **one** client process, **no** network multiplayer, **no** authoritative server, **no** lobby, **no** accounts, **no** fog-of-war / **privacy** partition between players, and **no** **remote-seat** concept in code. **All** gameplay changes still go through **`GameState.try_apply`** with the usual **`actor_id == current_player_id()`** gate. A **future server / cloud** mode should remain **authoritative** and reuse the same **action validation / application** model at the session boundary; UI copy such as **“Waiting for remote Player N”** belongs to that **future** slice, **not** to the current **local hotseat prototype** (the HUD uses **`Player N's turn`** instead).
+
 ### Connect to Existing Server
 
 Client connects to a backend URL.

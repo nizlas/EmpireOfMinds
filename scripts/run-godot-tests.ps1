@@ -112,6 +112,8 @@ $Tests = @(
 	"res://presentation/tests/test_city_production_panel.gd",
 	"res://presentation/tests/test_city_production_panel_button_deferred.gd",
 	"res://presentation/tests/test_main_hud_city_panel.gd",
+	"res://presentation/tests/test_hotseat_endturn_selection_clear.gd",
+	"res://presentation/tests/test_player_contact_strip.gd",
 	"res://presentation/tests/test_main_hud_discovery_popup.gd",
 	"res://presentation/tests/test_main_hud_science_completed_popup.gd",
 	"res://presentation/tests/test_main_hud_science_panel.gd",

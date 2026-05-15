@@ -8,6 +8,16 @@ You are trying a **small ancient-era slice**: found a **first city**, use the **
 
 Empire of Minds is meant to be a turn-based 4X about how civilizations **learn**, with worlds that can emphasize different lessons over time. **Right now** you are not getting a full era or a finished game—only this early **embryo** on the test map.
 
+## Local hotseat prototype — how turns work
+
+This build is the **local hotseat prototype**: **one human** plays **both sides** in the **same** run (there is no online “waiting for another player” in this version).
+
+- **Space** — ends the **current** player’s **turn** (production and growth still tick when the turn advances). If you have a **city** selected and the **City Hub** or **Manage Citizens** view open, **Space** also **closes that city focus** and drops out of planning so the next player’s turn does not inherit your panel.
+- **Turn strip** — the small panel in the **lower-right** shows **who is current**, e.g. **Player 0’s turn** or **Player 1’s turn**, and updates as soon as the turn moves.
+- **A** — optional: the **rule-based AI** does **one** legal action for **whoever is current** (try-it / debug only — **not** full autopilot).
+
+**Found city → grow → produce → move → Manage Citizens** (when offered) is the core loop to exercise.
+
 ## Quick start
 
 1. **Launch** the prototype (your host will tell you how).
@@ -40,7 +50,7 @@ If anything fails, note **where** you were in this list and what you expected to
 - If a **unit** stands on the **same tile** as a **city**, **repeated clicks** on that hex **alternate** between selecting the **city** and the **unit**. This is a **prototype** rule, not promised final UX.
 - **F** — **Found a city** while a **settler** (or eligible founder) is **selected**, on their current tile.
 - **H** — **current prototype shortcut** to complete **Controlled Fire** after you have **founded a city** (temporary until a real discovery interface exists).
-- **Space** — **End turn** for the current player; ending turns **advances production** and can **deliver** trained units.
+- **Space** — **End turn** for the **current** player; advances production and can **deliver** trained units. If the **City Hub** or **Manage Citizens** was open for a selected city, **Space** **closes** that focus when the turn ends (see **Local hotseat** above).
 
 Other keys may exist for hosts or experiments—treat them as **prototype-only** unless your host says otherwise.
 

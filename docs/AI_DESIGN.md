@@ -34,6 +34,8 @@ For Phase 1, `action_plan` is expected to be a small set of actions chosen only 
 
 **Phase 1.8 (implemented):** the concrete local step is **`RuleBasedAIPlayer.decide(game_state, legal_actions) -> Dictionary`** — **one action per call**, chosen from the enumerated list (or an empty **`Dictionary`** when nothing legal is recognized). Triggers (e.g. **`KEY_A`**) invoke that decision once per press; see [AI_LAYER.md](AI_LAYER.md).
 
+In the **local hotseat prototype**, that controller is **manual / debug only** and acts for **`whoever is current_player_id()`**; **per-seat AI assignment** (“AI always owns player 1”) is **future work**.
+
 ## Phase 1 scope
 
 Phase 1 targets a simple rule-based opponent: it receives legal actions and returns choices; it does not implement a strategic planner, LLM integration, or learning. Broader AI features are out of scope until later phases (see [PHASE_PLAN.md](PHASE_PLAN.md)).

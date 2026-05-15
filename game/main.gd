@@ -37,6 +37,12 @@ func _redraw_map_layers() -> void:
 	$CityNameplateView.queue_redraw()
 	$UnitNameplateView.queue_redraw()
 
+
+func _refresh_turn_hud_after_turn_label() -> void:
+	$HudCanvas/TurnStatusPanel.refresh()
+	$HudCanvas/PlayerContactStrip.refresh()
+
+
 func _ready() -> void:
 	_map_projection = MapPlaneProjectionScript.new()
 	_map_projection.vanishing_pres = (get_viewport_rect().size * 0.5) - MAP_LAYER_ORIGIN
@@ -194,9 +200,11 @@ func _ready() -> void:
 	var turn_label = $TurnLabel
 	turn_label.game_state = game_state
 	var turn_status_panel = $HudCanvas/TurnStatusPanel
+	var player_contact_strip = $HudCanvas/PlayerContactStrip
 	turn_status_panel.game_state = game_state
+	player_contact_strip.game_state = game_state
 	turn_status_panel.local_player_id = 0
-	turn_label.after_refresh = Callable(turn_status_panel, "refresh")
+	turn_label.after_refresh = Callable(self, "_refresh_turn_hud_after_turn_label")
 	turn_label.refresh()
 	selection_controller.turn_label = turn_label
 	var end_turn_controller = $EndTurnController
