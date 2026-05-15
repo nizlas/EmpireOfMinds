@@ -8,6 +8,8 @@ const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
+const SetCityWorkedTilesScript = preload("res://domain/actions/set_city_worked_tiles.gd")
+const CityYieldsScript = preload("res://domain/city_yields.gd")
 const EffectiveRulesScript = preload("res://domain/effective_rules.gd")
 
 static func _sort_units_by_id(units: Array) -> void:
@@ -120,5 +122,35 @@ static func for_current_player(game_state, effective_rules = null) -> Array:
 						out.append(sp)
 				pi = pi + 1
 		cj = cj + 1
+	var ck: int = 0
+	while ck < p0cities.size():
+		var cz = p0cities[ck]
+		var elig: Array = []
+		var ej: int = 0
+		while ej < cz.owned_tiles.size():
+			var oh = cz.owned_tiles[ej]
+			ej += 1
+			if oh == null:
+				continue
+			if oh.q == cz.position.q and oh.r == cz.position.r:
+				continue
+			var rw2: Dictionary = CityYieldsScript.raw_terrain_yield(scenario.map, oh)
+			if not CityYieldsScript._raw_yield_nonzero(rw2):
+				continue
+			elig.append(oh)
+		_sort_coords_by_qr(elig)
+		var eq: int = 0
+		while eq < elig.size():
+			var ehx = elig[eq]
+			var sw_a = SetCityWorkedTilesScript.make(cp, cz.id, [[ehx.q, ehx.r]])
+			var sw_v = SetCityWorkedTilesScript.validate(scenario, sw_a)
+			if bool(sw_v["ok"]):
+				out.append(sw_a)
+			eq += 1
+		if cz.manual_worked_tiles.size() > 0:
+			var sw_c = SetCityWorkedTilesScript.make(cp, cz.id, [])
+			if bool(SetCityWorkedTilesScript.validate(scenario, sw_c)["ok"]):
+				out.append(sw_c)
+		ck += 1
 	out.append(EndTurnScript.make(cp))
 	return out

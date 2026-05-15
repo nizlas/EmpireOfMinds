@@ -129,7 +129,9 @@ static func compute_overlay_entries(p_scenario, p_layout, p_camera) -> Array:
 		var ydict: Dictionary = CityYieldsScript.empty()
 		var at_city: Array = p_scenario.cities_at(coord)
 		if at_city.size() > 0:
-			ydict = CityYieldsScript.city_total_yield(p_scenario, at_city[0])
+			# Per-hex overlay: city **center** shows **`city_center_yield`** only (local tile rule).
+			# **`city_total_yield`** (buildings, worked tiles, etc.) stays in **City Hub** / totals — not repeated on the map cell.
+			ydict = CityYieldsScript.city_center_yield(m, at_city[0])
 		else:
 			ydict = CityYieldsScript.raw_terrain_yield(m, coord)
 		if compute_active_yield_columns(ydict).is_empty():

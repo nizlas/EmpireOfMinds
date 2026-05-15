@@ -18,6 +18,7 @@ func _init() -> void:
 		"construction sets position"
 	)
 	_check(c.owned_tiles.size() == 1 and c.owned_tiles[0].equals(c.position), "default owned_tiles is center only")
+	_check(c.manual_worked_tiles.is_empty(), "default manual_worked_tiles empty")
 	var custom_tiles: Array = [HexCoordScript.new(1, 1), HexCoordScript.new(1, 0)]
 	var c_custom = CityScript.new(11, 0, HexCoordScript.new(0, 0), null, "", false, null, custom_tiles)
 	_check(c_custom.owned_tiles.size() == 3, "custom owned_tiles adds neighbors with center first")
@@ -35,6 +36,37 @@ func _init() -> void:
 	_check(not c.equals_id(11), "equals_id false")
 	var c3 = CityScript.new(11, 0, HexCoordScript.new(0, 0))
 	_check(not c.equals(c3), "different id not equals")
+	var own_m: Array = [HexCoordScript.new(0, 0), HexCoordScript.new(1, 1)]
+	var man_dup: Array = [[1, 1], HexCoordScript.new(1, 1), [0, 0]]
+	var c_man = CityScript.new(
+		13,
+		0,
+		HexCoordScript.new(0, 0),
+		null,
+		"",
+		false,
+		null,
+		own_m,
+		2,
+		man_dup
+	)
+	_check(c_man.manual_worked_tiles.size() == 1, "manual dedupes and drops center")
+	_check((c_man.manual_worked_tiles[0] as HexCoord).equals(HexCoordScript.new(1, 1)), "manual keeps owned non-center")
+	var own_keep: Array = [HexCoordScript.new(0, 0), HexCoordScript.new(2, 2)]
+	var c_pres = CityScript.new(
+		14,
+		0,
+		HexCoordScript.new(0, 0),
+		null,
+		"",
+		false,
+		null,
+		own_keep,
+		1,
+		[HexCoordScript.new(2, 2)]
+	)
+	_check(c_pres.manual_worked_tiles.size() == 1, "manual preserves valid owned hex")
+	_check((c_pres.manual_worked_tiles[0] as HexCoord).equals(HexCoordScript.new(2, 2)), "manual coord value")
 	# Immutability: no public mutators; fields are plain var but convention matches Unit.
 	if _any_fail:
 		call_deferred("quit", 1)

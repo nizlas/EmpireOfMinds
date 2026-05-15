@@ -32,7 +32,7 @@ Concise map of **what exists in code today**. For phased history and decisions u
 | **[HexMap](../game/domain/hex_map.gd)** | Finite cell set; terrain tags; **`Landform`**; **`_woods` overlay**; prototype factories (**`make_tiny_test_map`**, **`make_prototype_play_map`**) |
 | **[Scenario](../game/domain/scenario.gd)** | Map + units + cities + id bookkeeping + **`tile_owner_city_id`**; **`City.owned_tiles`**, capital / **`building_ids`**, **`lightning_tree_hex`** |
 | **[City](../game/domain/city.gd)** | City row including **`population`** (**default founding `1`**; **no** growth rules yet), **`owned_tiles`**, **`is_capital`**, **`building_ids`**, **`current_project`** |
-| **[CityYields](../game/domain/city_yields.gd)** | Read-only yields from terrain, woods, **city-center rule**, buildings, and **deterministic auto-worked** non-center **`owned_tiles`** (bounded by **`population`**); **`yield_breakdown_for_city`** decomposes **`city_total_yield`** — presentation-independent |
+| **[CityYields](../game/domain/city_yields.gd)** | Read-only yields from terrain, woods, **city-center rule**, buildings, and **worked** non-center **`owned_tiles`** (**manual-first** then deterministic auto-fill, bounded by **`population`**); **`yield_breakdown_for_city`** decomposes **`city_total_yield`** — presentation-independent |
 | **[Unit](../game/domain/unit.gd)** | **`type_id`** + position (see **`UnitDefinitions`**) |
 | **[TurnState](../game/domain/turn_state.gd)** | Player order / current index / turn counter |
 | **[ProgressState](../game/domain/progress_state.gd)** | Unlocks, completed progress, science accumulation, **`current_research_id`** |
@@ -89,7 +89,7 @@ Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative 
 - **`PHASE_PLAN.md` / `DECISION_LOG.md` are append-heavy** — this file does **not** replace drilling into them for slice intent.
 - **`LegalActions`** is **not** the full universe of playable actions (science / **`CompleteProgress`** paths exist outside it).
 - **`EffectiveRules`** is **not yet** the sole read boundary for every rule (**registry reads remain** elsewhere).
-- **Population growth / manual worked-tile UI / food stockpiling are not implemented** (**5.1.17a** ships **`population`** **`1`** + deterministic **`city_total_yield`** worked tiles **without** those systems).
+- **Population growth / manual worked-tile UI beyond the 5.1.18a PLANNING map toggle / food stockpiling are not implemented** (**5.1.17a** ships **`population`** **`1`** + **`city_total_yield`** worked tiles; **5.1.18a** adds **`City.manual_worked_tiles`** + **`set_city_worked_tiles`** embryo).
 
 ---
 

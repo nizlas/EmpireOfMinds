@@ -19,6 +19,8 @@ var building_ids: Array
 var owned_tiles: Array
 ## Phase 5.1.17a — population selects extra auto-worked territory tiles (domain embryo; no growth UI).
 var population: int
+## Phase 5.1.18a — explicit worked tiles (fresh **HexCoord** rows); [] means auto assignment.
+var manual_worked_tiles: Array
 
 func _init(
 	p_id: int,
@@ -30,6 +32,7 @@ func _init(
 	p_building_ids = null,
 	p_owned_tiles = null,
 	p_population: int = 1,
+	p_manual_worked_tiles = null,
 ) -> void:
 	id = p_id
 	owner_id = p_owner_id
@@ -72,6 +75,43 @@ func _init(
 			owned_tiles.append(HexCoordScript.new(oc.q, oc.r))
 
 	population = maxi(0, int(p_population))
+
+	manual_worked_tiles = []
+	if p_manual_worked_tiles != null and typeof(p_manual_worked_tiles) == TYPE_ARRAY:
+		var owned_keys: Dictionary = {}
+		var oki: int = 0
+		while oki < owned_tiles.size():
+			var oh = owned_tiles[oki]
+			owned_keys[Vector2i(oh.q, oh.r)] = true
+			oki += 1
+		var seen_manual: Dictionary = {}
+		var msrc: Array = p_manual_worked_tiles as Array
+		var mi: int = 0
+		while mi < msrc.size():
+			var ment = msrc[mi]
+			mi += 1
+			var mq: int = 0
+			var mr: int = 0
+			if ment != null and typeof(ment) == TYPE_OBJECT and ment is HexCoord:
+				mq = ment.q
+				mr = ment.r
+			elif ment != null and typeof(ment) == TYPE_ARRAY:
+				var marr = ment as Array
+				if marr.size() != 2 or typeof(marr[0]) != TYPE_INT or typeof(marr[1]) != TYPE_INT:
+					continue
+				mq = marr[0] as int
+				mr = marr[1] as int
+			else:
+				continue
+			if mq == position.q and mr == position.r:
+				continue
+			var mk := Vector2i(mq, mr)
+			if not owned_keys.has(mk):
+				continue
+			if seen_manual.has(mk):
+				continue
+			seen_manual[mk] = true
+			manual_worked_tiles.append(HexCoordScript.new(mq, mr))
 
 func equals(other) -> bool:
 	if other == null:

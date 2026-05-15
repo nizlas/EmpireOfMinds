@@ -2375,10 +2375,23 @@ Validation:
 **Status:** **Shipped.**
 
 - **`City.population`** (**`FoundCity`** sets **`1`**; preserved on **`SetCityProduction`** / **`ProductionTick`** / **`ProductionDelivery`** rebuilds). **No** growth rules yet.
-- **`CityYields`**: **`worked_tiles_for_city`** / **`worked_tiles_yield`**; **`city_total_yield`** = center + buildings + worked **raw terrain** from **non-center** **`owned_tiles`** (deterministic ordering; capped by **`population`**). Assignments **not** stored on **`City`**.
-- **No** manual assignment UI.
+- **`CityYields`**: **`worked_tiles_for_city`** / **`worked_tiles_yield`**; **`city_total_yield`** = center + buildings + worked **raw terrain** from **non-center** **`owned_tiles`** (deterministic ordering; capped by **`population`**). Through **5.1.17a** assignments were **not** stored on **`City`** (**5.1.18a** adds **`manual_worked_tiles`**).
+- **No** manual assignment UI through **5.1.17a** (**5.1.18a**: PLANNING click embryo).
 
 Docs/tests: **[CITIES.md](CITIES.md)**, **`test_city_population.gd`**, **`test_city_yields_worked_tiles.gd`**, **`scripts/run-godot-tests.ps1`** registration.
+
+#### 5.1.18a — Manual worked-tile assignment embryo (`set_city_worked_tiles`)
+
+**Status:** **Shipped.**
+
+- **`City.manual_worked_tiles`**: **`Array`** of **`HexCoord`** (constructor-normalized: owned, non-center, deduped **`q,r`**); **`[]`** = all-auto. **`CityYields.worked_tiles_for_city`** uses **manual-first** slots, then existing deterministic auto-fill for remaining **`population`** capacity.
+- Domain action **`set_city_worked_tiles`** (**`SetCityWorkedTiles`**, schema **1**): payload **`tiles: [[q,r], ...]`**; **`[]`** clears manual. Wired **`GameState.try_apply`** + concise log row (**`tiles`**, **`result`**).
+- **`LegalActions.for_current_player`**: v0 deterministic enumeration per current-player city — one action per eligible owned non-center tile (nonzero raw terrain yield, **`q`** asc then **`r`** asc), plus **`tiles: []`** when manual is non-empty.
+- **Presentation:** **`SelectionController`** — only in **PLANNING**; click owned non-center tile assigns **`[[q,r]]`** or clears to auto via **`try_apply`**; refreshes **`city_worked_tiles_view`**, **`city_production_panel`**, **`TurnViewSync`** views (yield overlay), **`log_view`**. **No** new marker assets, drag/drop, or territory border work.
+
+**Out of scope:** population growth, specialists, inter-city tile swaps, save/load schema.
+
+Docs/tests: **[ACTIONS.md](ACTIONS.md)**, **[CITIES.md](CITIES.md)**, **[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)**, **`test_set_city_worked_tiles.gd`**, **`test_city.gd`**, **`test_city_yields_worked_tiles.gd`**, **`test_legal_actions.gd`**, **`test_production_tick.gd`**, **`test_city_worked_tiles_view.gd`**.
 
 #### 5.1.17d — **`yield_breakdown_for_city`** + panel breakdown line (visibility)
 

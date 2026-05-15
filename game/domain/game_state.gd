@@ -9,6 +9,7 @@ const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
+const SetCityWorkedTilesScript = preload("res://domain/actions/set_city_worked_tiles.gd")
 const CompleteProgressScript = preload("res://domain/actions/complete_progress.gd")
 const SetCurrentResearchScript = preload("res://domain/actions/set_current_research.gd")
 const ProgressUnlockResolverScript = preload("res://domain/progress_unlock_resolver.gd")
@@ -58,6 +59,7 @@ func try_apply(action) -> Dictionary:
 		and at != EndTurnScript.ACTION_TYPE
 		and at != FoundCityScript.ACTION_TYPE
 		and at != SetCityProductionScript.ACTION_TYPE
+		and at != SetCityWorkedTilesScript.ACTION_TYPE
 		and at != CompleteProgressScript.ACTION_TYPE
 		and at != SetCurrentResearchScript.ACTION_TYPE
 	):
@@ -137,6 +139,28 @@ func try_apply(action) -> Dictionary:
 		}
 		var sp_idx = log.append(sp_entry)
 		return {"accepted": true, "reason": "", "index": sp_idx}
+	if at == SetCityWorkedTilesScript.ACTION_TYPE:
+		var swr = SetCityWorkedTilesScript.validate(scenario, action)
+		if not swr["ok"]:
+			return {"accepted": false, "reason": swr["reason"], "index": -1}
+		scenario = SetCityWorkedTilesScript.apply(scenario, action)
+		var tiles_log: Array = []
+		var tla = action["tiles"] as Array
+		var tli = 0
+		while tli < tla.size():
+			var row = tla[tli] as Array
+			tiles_log.append([(row[0] as int), (row[1] as int)])
+			tli = tli + 1
+		var sw_entry = {
+			"schema_version": action["schema_version"],
+			"action_type": action["action_type"],
+			"actor_id": action["actor_id"],
+			"city_id": action["city_id"],
+			"tiles": tiles_log,
+			"result": "accepted",
+		}
+		var sw_idx = log.append(sw_entry)
+		return {"accepted": true, "reason": "", "index": sw_idx}
 	if at == SetCurrentResearchScript.ACTION_TYPE:
 		var srr = SetCurrentResearchScript.validate(progress_state, action)
 		if not srr["ok"]:

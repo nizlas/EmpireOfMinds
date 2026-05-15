@@ -136,7 +136,8 @@ static func apply(a_scenario, action):
 			cap,
 			bld,
 			initial_owned,
-			1
+			1,
+			[]
 		)
 	)
 	return ScenarioScript.new(

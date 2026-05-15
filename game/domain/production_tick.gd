@@ -112,7 +112,8 @@ static func apply_for_player(a_scenario, owner_id: int) -> Dictionary:
 					c2.is_capital,
 					c2.building_ids,
 					c2.owned_tiles,
-					c2.population
+					c2.population,
+					c2.manual_worked_tiles
 				)
 			)
 		else:

@@ -44,6 +44,73 @@ func _init() -> void:
 	var wt_b = CityYieldsScript.worked_tiles_for_city(scen_ring, c_ring)
 	_check(_hex_arrays_equal(wt, wt_b), "worked tile order is deterministic across calls")
 
+	var cells_ht := {
+		Vector2i(0, 0): HexMapScript.Terrain.PLAINS,
+		Vector2i(1, 0): HexMapScript.Terrain.PLAINS,
+		Vector2i(1, -1): HexMapScript.Terrain.PLAINS,
+		Vector2i(0, -1): HexMapScript.Terrain.PLAINS,
+		Vector2i(-1, 0): HexMapScript.Terrain.WATER,
+		Vector2i(-1, 1): HexMapScript.Terrain.PLAINS,
+		Vector2i(0, 1): HexMapScript.Terrain.PLAINS,
+	}
+	var lf_ht := {Vector2i(0, -1): HexMapScript.Landform.HILLS}
+	var m_ht = HexMapScript.new(cells_ht, lf_ht)
+	var c_manual_h = CityScript.new(
+		44,
+		0,
+		ctr,
+		null,
+		"",
+		true,
+		["palace"],
+		owned_ring,
+		1,
+		[HexCoordScript.new(0, -1)]
+	)
+	var scen_mh = ScenarioScript.new(m_ht, u, [c_manual_h], 14, 100, null)
+	var wt_mh = CityYieldsScript.worked_tiles_for_city(scen_mh, c_manual_h)
+	_check(wt_mh.size() == 1, "manual pop1 keeps one slot")
+	_check((wt_mh[0] as HexCoord).equals(HexCoordScript.new(0, -1)), "manual prefers declared hills ring")
+
+	var c_m2 = CityScript.new(45, 0, ctr, null, "", false, [], owned_ring, 2, [HexCoordScript.new(0, -1)])
+	var scen_m2 = ScenarioScript.new(m_ht, u, [c_m2], 15, 100, null)
+	var wt_m2 = CityYieldsScript.worked_tiles_for_city(scen_m2, c_m2)
+	_check(wt_m2.size() == 2, "manual first then auto-fill to population")
+	_check((wt_m2[0] as HexCoord).equals(HexCoordScript.new(0, -1)), "manual tile first in list")
+	_check((wt_m2[1] as HexCoord).equals(HexCoordScript.new(1, 0)), "auto-fill skips manual coord")
+
+	var c_bad_m = CityScript.new(
+		46,
+		0,
+		ctr,
+		null,
+		"",
+		false,
+		[],
+		owned_ring,
+		1,
+		[HexCoordScript.new(9, 9)]
+	)
+	var scen_bm = ScenarioScript.new(m_tiny, u, [c_bad_m], 16, 100, null)
+	var wt_bm = CityYieldsScript.worked_tiles_for_city(scen_bm, c_bad_m)
+	_check(wt_bm.size() == 1, "invalid manual coord dropped at yield time")
+	_check((wt_bm[0] as HexCoord).equals(ring_a), "fallback to auto when manual not owned")
+
+	var c_wm = CityScript.new(
+		47,
+		0,
+		HexCoordScript.new(0, 0),
+		null,
+		"",
+		false,
+		[],
+		[HexCoordScript.new(0, 0), HexCoordScript.new(-1, 0)],
+		1,
+		[HexCoordScript.new(-1, 0)]
+	)
+	var scen_wm = ScenarioScript.new(m_tiny, u, [c_wm], 17, 100, null)
+	var wt_wm = CityYieldsScript.worked_tiles_for_city(scen_wm, c_wm)
+	_check(wt_wm.is_empty(), "manual water only yields no worked tile")
 	var c_water_ring = CityScript.new(
 		41,
 		0,

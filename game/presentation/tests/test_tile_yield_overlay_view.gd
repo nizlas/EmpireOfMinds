@@ -96,15 +96,28 @@ func _init() -> void:
 	var c_cap = CityScript.new(4, 0, HexCoordScript.new(1, -1), null, "", true, ["palace"])
 	var scen_cap = ScenarioScript.new(m_tiny, u, [c_cap], 10, 20, null)
 	var cap_entries = TileYieldOverlayViewScript.compute_overlay_entries(scen_cap, layout, cam)
-	var has_sci: bool = false
+	var cap_food: int = 0
+	var cap_prod: int = 0
+	var cap_sci: int = 0
+	var cap_coin: int = 0
 	var cap_ci: int = 0
 	while cap_ci < cap_entries.size():
 		var ed: Dictionary = cap_entries[cap_ci] as Dictionary
-		if ed["coord"].equals(c_cap.position) and str(ed.get("yield_id", "")) == "science":
-			has_sci = true
-			break
+		if ed["coord"].equals(c_cap.position):
+			match str(ed.get("yield_id", "")):
+				"food":
+					cap_food += 1
+				"production":
+					cap_prod += 1
+				"science":
+					cap_sci += 1
+				"coin":
+					cap_coin += 1
 		cap_ci += 1
-	_check(has_sci, "capital palace yields include science column entry")
+	var cen: Dictionary = CityYieldsScript.city_center_yield(m_tiny, c_cap)
+	_check(cap_sci == 0 and cap_coin == 0, "map overlay uses center tile only — no palace S/C on city hex")
+	_check(cap_food == CityYieldsScript.get_yield(cen, "food"), "center hex food icons match city_center_yield")
+	_check(cap_prod == CityYieldsScript.get_yield(cen, "production"), "center hex production icons match city_center_yield")
 
 	_check(TileYieldOverlayViewScript._load_yield_texture("res://__missing__/x.png") == null, "missing texture path")
 

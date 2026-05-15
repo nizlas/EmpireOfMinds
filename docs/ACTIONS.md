@@ -14,7 +14,7 @@ intent
 
 **Forward pointer (Phase 3.4a+):** **breakthroughs** and **unlock state** from [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) may **later** feed **which actions are legal** or **which targets exist**, but **Phase 3.4a** changes **no** action **`schema_version`** or payload — modeling only. **Phase 3.4b:** action **legality** does **not** consult **`ProgressDefinitions`** yet ([progress_definitions.gd](../game/domain/content/progress_definitions.gd)).
 
-**Phase 1.6** introduces **`move_unit`**, **`GameState`**, and **`ActionLog`**. **Phase 1.7** adds **`TurnState`**, **`end_turn`**, and a **common current-player gate** in **`GameState.try_apply`** (see [TURNS.md](TURNS.md)). **Phase 1.8** adds **legal-action enumeration** for the current player (see below, [AI_LAYER.md](AI_LAYER.md)). **Phase 2.2b** adds **`found_city`** (`FoundCity`): structural validation and **`Scenario`** rebuild that consumes the founding unit and appends a **`City`** with **`city_id = peek_next_city_id()`** before apply (see [CITIES.md](CITIES.md)). **Phase 2.3** adds **`set_city_production`** (`SetCityProduction`): sets a city’s **`current_project`** primitive **`Dictionary`** (or **`null`** to clear); **no** production progress or unit creation in that phase (see [CITIES.md](CITIES.md)). **Phase 2.4a** adds an **engine** **`production_progress`** log step on **accepted** **`end_turn`**. **Phase 2.4b** introduced **`produce_unit`** **completion** (threshold) on tick. **Phase 2.4c** **defers** **`unit_produced`** / unit spawn until the **owner** becomes **`current_player_id`** again (**`ProductionDelivery`** after **`end_turn`**); see **Production on EndTurn (Phase 2.4a–c, engine)** below.
+**Phase 1.6** introduces **`move_unit`**, **`GameState`**, and **`ActionLog`**. **Phase 1.7** adds **`TurnState`**, **`end_turn`**, and a **common current-player gate** in **`GameState.try_apply`** (see [TURNS.md](TURNS.md)). **Phase 1.8** adds **legal-action enumeration** for the current player (see below, [AI_LAYER.md](AI_LAYER.md)). **Phase 2.2b** adds **`found_city`** (`FoundCity`): structural validation and **`Scenario`** rebuild that consumes the founding unit and appends a **`City`** with **`city_id = peek_next_city_id()`** before apply (see [CITIES.md](CITIES.md)). **Phase 2.3** adds **`set_city_production`** (`SetCityProduction`): sets a city’s **`current_project`** primitive **`Dictionary`** (or **`null`** to clear); **no** production progress or unit creation in that phase (see [CITIES.md](CITIES.md)). **Phase 5.1.18a** adds **`set_city_worked_tiles`** (`SetCityWorkedTiles`): updates **`City.manual_worked_tiles`** for worked-tile assignment (see [CITIES.md](CITIES.md)). **Phase 2.4a** adds an **engine** **`production_progress`** log step on **accepted** **`end_turn`**. **Phase 2.4b** introduced **`produce_unit`** **completion** (threshold) on tick. **Phase 2.4c** **defers** **`unit_produced`** / unit spawn until the **owner** becomes **`current_player_id`** again (**`ProductionDelivery`** after **`end_turn`**); see **Production on EndTurn (Phase 2.4a–c, engine)** below.
 
 ## Legal action enumeration (Phase 1.8, extended Phase 2.5)
 
@@ -23,13 +23,14 @@ intent
 1. All legal **`MoveUnit.make(...)`** for **`game_state.scenario`** under **`MovementRules.legal_destinations`** for each **current-player** unit (deterministic unit and destination order; see [AI_LAYER.md](AI_LAYER.md)).
 2. **Phase 2.5:** each **current-player** unit’s **`FoundCity.make`** at its current tile, **only** if **`FoundCity.validate`** passes (policy-agnostic; multiple cities per player are still enumerated if legal). **Phase 3.1:** validation includes **unit-type** founding eligibility via **`UnitDefinitions`**, so only units whose **`type_id`** can found appear here.
 3. **Phase 2.5:** for each **current-player** city with **`current_project == null`**, **`SetCityProduction.make(..., SetCityProduction.PROJECT_ID_PRODUCE_UNIT_WARRIOR)`** ( **`"produce_unit:warrior"`** ) **only** if **`SetCityProduction.validate`** passes. Cities with any non-**`null`** project (including **`ready: true`**) emit **no** **`set_city_production`** here; **`SetCityProduction.PROJECT_ID_NONE`** (**`"none"`**) clear actions are **not** enumerated in this phase.
-4. Exactly one **`EndTurn.make(current_player_id)`**, **last**.
+4. **Phase 5.1.18a:** for each **current-player** city, deterministic **`set_city_worked_tiles`** actions: one per **eligible** **non-center** **owned** tile with **nonzero** **`CityYields.raw_terrain_yield`**, ordered **`q`** ascending then **`r`** ascending; plus **`tiles: []`** **clear-to-auto** when **`city.manual_worked_tiles`** is non-empty. Entries are **omitted** when **`SetCityWorkedTiles.validate`** fails (e.g. **`assignment_unchanged`** for the tile already manual).
+5. Exactly one **`EndTurn.make(current_player_id)`**, **last**.
 
 **`production_progress`** and **`unit_produced`** remain **engine-only** log types and are **never** included in this list. Returns **`[]`** if **`game_state`** is **`null`**.
 
 Enumeration is a **read-only query**: it does not mutate **`GameState`**, call **`try_apply`**, or filter by AI taste. **AI and debug UI** pick one entry from this list (or pass it to **`RuleBasedAIPlayer.decide`**) and still submit only through **`GameState.try_apply`**.
 
-**Phase 1.8b:** AI turn length for **movement** is still gated by **`RuleBasedAIPolicy.has_actor_moved_this_turn`** ([rule_based_ai_policy.gd](../game/ai/rule_based_ai_policy.gd)). **Phase 2.5:** **`found_city`** and **`set_city_production`** do **not** count as **`move_unit`** for that policy (see [AI_LAYER.md](AI_LAYER.md)).
+**Phase 1.8b:** AI turn length for **movement** is still gated by **`RuleBasedAIPolicy.has_actor_moved_this_turn`** ([rule_based_ai_policy.gd](../game/ai/rule_based_ai_policy.gd)). **Phase 2.5:** **`found_city`**, **`set_city_production`**, and **`set_city_worked_tiles`** do **not** count as **`move_unit`** for that policy (see [AI_LAYER.md](AI_LAYER.md)).
 
 **Phase 3.0 / 3.1+:** Player-action **`Dictionary`** schemas may later carry content **IDs** (e.g. **`unit_type_id`**, **`project_id`**) per [CONTENT_MODEL.md](CONTENT_MODEL.md). Any required-field change **must** bump **`schema_version`** on that action. **Phase 3.0** introduces **no** schema changes.
 
@@ -220,6 +221,36 @@ For **`set_city_production`**, **`GameState.try_apply`** runs **in this order**:
 - Returned **`Scenario`** passes forward **`map`**, **all** **`units()`**, all **non-target** **`City`** references as-is, **`peek_next_unit_id()`**, **`peek_next_city_id()`** unchanged.
 - **Phase 2.4a–c** advance **`progress`**, mark **`produce_unit`** **`ready`**, and **deliver** units via **`ProductionDelivery`** (see **Production on EndTurn** above); there is **no** **`ProduceUnit`** player action.
 
+## SetCityWorkedTiles schema (Phase 5.1.18a)
+
+| Field | Type | Meaning |
+|--------|------|--------|
+| `schema_version` | `int` | `1` (`SetCityWorkedTiles.SCHEMA_VERSION`). |
+| `action_type` | `String` | `"set_city_worked_tiles"`. |
+| `actor_id` | `int` | Must match **`city.owner_id`** in **`validate`**; must equal **`turn_state.current_player_id()`** at **`try_apply`**. |
+| `city_id` | `int` | Target city. |
+| `tiles` | `Array` | Each element **`[q, r]`** (`int` pair). **`[]`** clears manual assignment (**all-auto**). Count must be **`<= city.population`**. |
+
+Built with **`SetCityWorkedTiles.make(actor_id, city_id, tiles)`** in [set_city_worked_tiles.gd](../game/domain/actions/set_city_worked_tiles.gd). **`apply`** rebuilds the target **`City`** with normalized **`manual_worked_tiles`** (fresh **`HexCoord`** rows).
+
+### SetCityWorkedTiles validation order
+
+**`SetCityWorkedTiles.validate(scenario, action)`** (does **not** check **`current_player_id`**):
+
+1. `scenario_null`
+2. `wrong_action_type`
+3. `unsupported_schema_version`
+4. `malformed_action` — **`actor_id`**, **`city_id`**, **`tiles`** (**must** be **`Array`**; each tile **`[q,r]`** with **`TYPE_INT`** coords)
+5. `unknown_city`
+6. `actor_not_owner`
+7. `too_many_tiles` — **`tiles.size() > city.population`**
+8. Per payload tile in order: `malformed_action` (inner shape), `duplicate_tile`, `tile_is_center`, `tile_not_owned`, `tile_zero_yield`
+9. `assignment_unchanged`
+
+### SetCityWorkedTiles and GameState.try_apply
+
+After the **common** **`actor_id`** / **`current_player`** gate: **`validate` → `apply` →** log entry includes **`city_id`**, **`tiles`** (array of **`[q,r]`** int pairs), **`result: "accepted"`**.
+
 ## CompleteProgress schema (Phase 3.4e)
 
 | Field | Type | Meaning |
@@ -264,21 +295,22 @@ For **`complete_progress`**, after the **common** **`actor_id`** / **`current_pl
 
 **`try_apply(action) -> { "accepted": bool, "reason": String, "index": int }`**
 
-- **`action`** must be a **`Dictionary`** with string **`action_type`** **`move_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, or **`complete_progress`**; otherwise **`unknown_action_type`** (also **`null`** / non-dict / missing **`action_type`** / non-string **`action_type`**).
+- **`action`** must be a **`Dictionary`** with string **`action_type`** **`move_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`set_current_research`**, or **`complete_progress`**; otherwise **`unknown_action_type`** (also **`null`** / non-dict / missing **`action_type`** / non-string **`action_type`**).
 - **Common gate** (these action types): **`actor_id`** must be present and **`TYPE_INT`**; **`actor_id == turn_state.current_player_id()`** or **`malformed_action`** / **`not_current_player`**.
 - **`move_unit`**: **`MoveUnit.validate` → apply →** log entry as in Phase 1.6.
 - **`found_city`**: **`FoundCity.validate` →** read **`created_city_id = scenario.peek_next_city_id()`** **before** **`apply`** (deterministic log) **`→ FoundCity.apply →`** log entry includes **`city_id`**, **`position`** (duplicate), **`unit_id`**, **`result: "accepted"`**.
 - **`set_city_production`**: **`SetCityProduction.validate` →** (optional **`project_not_unlocked`** from **`GameState`**) **`→ apply →`** log entry includes **`city_id`**, **`project_id`**, **`result: "accepted"`** (**no** **`project_type`** on the action log row in **Phase 3.3**).
+- **`set_city_worked_tiles`**: **`SetCityWorkedTiles.validate` → apply →** log entry includes **`city_id`**, **`tiles`**, **`result: "accepted"`**.
 - **`complete_progress`**: **`CompleteProgress.validate(progress_state, action)`** **`→`** **`ProgressUnlockResolver.complete_progress`** **`→`** replace **`progress_state`** **`→`** log entry includes **`progress_id`**, **`unlocked_targets`**, **`result: "accepted"`**.
 - **`end_turn`**: **`EndTurn.validate` →** **`ProductionTick.apply_for_player`** (optional **`production_progress`** **0..N**) **→** **`EndTurn.apply` (`turn_state`)** **→** append **`end_turn`** **→** **`ProductionDelivery.deliver_pending_for_player`** (optional **`unit_produced`** **0..M**) **after** **`end_turn`**. Returned **`index`** is the **`end_turn`** entry only.
 
 On **reject**: **`accepted: false`**, **`index: -1`**, no log append, **`scenario` / `turn_state` / `progress_state` / `log`** unchanged (except where only validation failed after gate — still no mutation).
 
-On **accept**: updates **`scenario`** and/or **`turn_state`** and/or **`progress_state`**, appends **deep-copied** log entries; for **`end_turn`**, **`production_progress`** entries, then **`end_turn`**, then **`unit_produced`** entries; returns **`index`** for **`move_unit`**, **`found_city`**, **`set_city_production`**, **`complete_progress`** as that entry’s index; for **`end_turn`**, **`index`** is always the **`end_turn`** entry.
+On **accept**: updates **`scenario`** and/or **`turn_state`** and/or **`progress_state`**, appends **deep-copied** log entries; for **`end_turn`**, **`production_progress`** entries, then **`end_turn`**, then **`unit_produced`** entries; returns **`index`** for **`move_unit`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`complete_progress`**, **`set_current_research`** as that entry’s index; for **`end_turn`**, **`index`** is always the **`end_turn`** entry.
 
 ## ActionLog
 
-**[action_log.gd](../game/domain/action_log.gd)** stores **accepted** player **actions** (**`move_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, **`complete_progress`**) **and** engine **`production_progress`** / **`unit_produced`** entries (Phase 2.4a+)).
+**[action_log.gd](../game/domain/action_log.gd)** stores **accepted** player **actions** (**`move_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`set_current_research`**, **`complete_progress`**) **and** engine **`production_progress`** / **`unit_produced`** entries (Phase 2.4a+)).
 
 - **`append(entry)`** stores **`entry.duplicate(true)`** and sets **`index`** on the stored copy.
 - **`get_entry`** and **`entries()`** each return **duplicates** so callers cannot corrupt history.

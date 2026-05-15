@@ -263,6 +263,37 @@ func _init() -> void:
 	_check(cy_ter.owned_tiles.size() == 2, "tick preserves owned_tiles count")
 	_check(cy_ter.owned_tiles[1].equals(HexCoordScript.new(0, -1)), "tick preserves ring hex")
 
+	var cells_ht := {
+		Vector2i(0, 0): HexMapScript.Terrain.PLAINS,
+		Vector2i(1, 0): HexMapScript.Terrain.PLAINS,
+		Vector2i(1, -1): HexMapScript.Terrain.PLAINS,
+		Vector2i(0, -1): HexMapScript.Terrain.PLAINS,
+		Vector2i(-1, 0): HexMapScript.Terrain.WATER,
+		Vector2i(-1, 1): HexMapScript.Terrain.PLAINS,
+		Vector2i(0, 1): HexMapScript.Terrain.PLAINS,
+	}
+	var lf_ht := {Vector2i(0, -1): HexMapScript.Landform.HILLS}
+	var m_ht = HexMapScript.new(cells_ht, lf_ht)
+	var u_ht = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
+	var ctr_ht = HexCoordScript.new(1, -1)
+	var own_ht: Array = [ctr_ht, HexCoordScript.new(0, -1), HexCoordScript.new(1, 0)]
+	var d_ht: Dictionary = {}
+	d_ht["project_type"] = "produce_unit"
+	d_ht["progress"] = 0
+	d_ht["cost"] = 10
+	d_ht["ready"] = false
+	var c_mht = CityScript.new(92, 0, ctr_ht, d_ht, "", false, [], own_ht, 1, [HexCoordScript.new(0, -1)])
+	var sc_mht = ScenarioScript.new(m_ht, u_ht, [c_mht], 200, 201, null)
+	var r_mht = ProductionTickScript.apply_for_player(sc_mht, 0)
+	var ev_mht = (r_mht["events"] as Array)[0] as Dictionary
+	_check(int(ev_mht["progress_after"]) == 3, "manual hills worked tile +3 production total delta")
+
+	var c_ht_auto = CityScript.new(93, 0, ctr_ht, d_ht, "", false, [], own_ht, 1, [])
+	var sc_hta2 = ScenarioScript.new(m_ht, u_ht, [c_ht_auto], 202, 203, null)
+	var r_hta = ProductionTickScript.apply_for_player(sc_hta2, 0)
+	var ev_hta = (r_hta["events"] as Array)[0] as Dictionary
+	_check(int(ev_hta["progress_after"]) == 2, "auto pick plains neighbor +2 production total delta")
+
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

@@ -12,8 +12,10 @@ const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const MovementRulesScript = preload("res://domain/movement_rules.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
+const SetCityWorkedTilesScript = preload("res://domain/actions/set_city_worked_tiles.gd")
 const CompleteProgressScript = preload("res://domain/actions/complete_progress.gd")
 const ProgressCandidateFilterScript = preload("res://domain/progress_candidate_filter.gd")
+const CityYieldsScript = preload("res://domain/city_yields.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const DiscoveryPopupScript = preload("res://presentation/discovery_popup.gd")
@@ -201,8 +203,10 @@ func _unhandled_input(event):
 	assert(MovementRulesScript != null)
 	assert(FoundCityScript != null)
 	assert(SetCityProductionScript != null)
+	assert(SetCityWorkedTilesScript != null)
 	assert(CompleteProgressScript != null)
 	assert(ProgressCandidateFilterScript != null)
+	assert(CityYieldsScript != null)
 	if game_state == null or layout == null or selection == null or selection_view == null or units_view == null:
 		return
 	if event is InputEventKey:
@@ -378,6 +382,70 @@ func _unhandled_input(event):
 					else:
 						push_warning("MoveUnit rejected: %s" % result["reason"])
 					return
+			if (
+				city_view_state != null
+				and city_view_state.is_planning()
+				and selection.has_city()
+			):
+				var c_plan = scen.city_by_id(selection.city_id)
+				if (
+					c_plan != null
+					and int(c_plan.owner_id) == int(game_state.turn_state.current_player_id())
+				):
+					var pi2: int = 0
+					var hit_plan: bool = false
+					while pi2 < c_plan.owned_tiles.size():
+						var pht = c_plan.owned_tiles[pi2]
+						pi2 += 1
+						if pht == null:
+							continue
+						if pht.q == c_plan.position.q and pht.r == c_plan.position.r:
+							continue
+						if not SelectionController.projected_hex_contains(
+							layout, camera, pht.q, pht.r, local_point
+						):
+							continue
+						var raw_hit: Dictionary = CityYieldsScript.raw_terrain_yield(scen.map, pht)
+						var is_manual_tile: bool = false
+						var mk: int = 0
+						while mk < c_plan.manual_worked_tiles.size():
+							var mm = c_plan.manual_worked_tiles[mk]
+							mk += 1
+							if mm != null and mm.q == pht.q and mm.r == pht.r:
+								is_manual_tile = true
+								break
+						var pay: Array = []
+						if is_manual_tile:
+							pay = []
+						elif not CityYieldsScript._raw_yield_nonzero(raw_hit):
+							continue
+						else:
+							pay = [[int(pht.q), int(pht.r)]]
+						var sw_act = SetCityWorkedTilesScript.make(
+							int(game_state.turn_state.current_player_id()),
+							int(c_plan.id),
+							pay
+						)
+						var sw_res = game_state.try_apply(sw_act)
+						if sw_res["accepted"]:
+							scenario = game_state.scenario
+							if selection_view != null:
+								selection_view.scenario = game_state.scenario
+							if units_view != null:
+								units_view.scenario = game_state.scenario
+							if cities_view != null:
+								cities_view.scenario = game_state.scenario
+							_sync_terrain_foreground_from_game_state()
+							if turn_label != null:
+								turn_label.refresh()
+							if log_view != null:
+								log_view.refresh()
+							_refresh_city_production_panel()
+						get_viewport().set_input_as_handled()
+						hit_plan = true
+						break
+					if hit_plan:
+						return
 			var city_hits: Array = []
 			var cj = 0
 			var c_all = scen.cities()

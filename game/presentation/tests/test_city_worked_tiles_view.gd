@@ -49,6 +49,14 @@ func _tiny_pop1_capital_scenario():
 	return {"scenario": scen, "city": c_cap}
 
 
+func _tiny_three_ring_owned():
+	var m_tiny = HexMapScript.make_tiny_test_map()
+	var u = [UnitScript.new(1, 0, HexCoordScript.new(0, 0), "warrior")]
+	var ctr = HexCoordScript.new(1, -1)
+	var owned_ring: Array = [ctr, HexCoordScript.new(0, -1), HexCoordScript.new(1, 0)]
+	return {"map": m_tiny, "units": u, "ctr": ctr, "owned": owned_ring}
+
+
 func _forbidden_scan_source() -> void:
 	var fp: String = "res://presentation/city_worked_tiles_view.gd"
 	var txt: String = FileAccess.get_file_as_string(fp)
@@ -204,6 +212,39 @@ func _init() -> void:
 	var round1 = CityWorkedTilesViewScript.compute_worked_marker_items(scen, sel_cap)
 	var round2 = CityWorkedTilesViewScript.compute_worked_marker_items(scen, sel_cap)
 	_check(_markers_equal_lists(round1, round2), "two calls equal markers")
+
+	var pack3 = _tiny_three_ring_owned()
+	var c_man_v = CityScript.new(
+		77,
+		0,
+		pack3["ctr"],
+		null,
+		"CapTiny",
+		true,
+		["palace"],
+		pack3["owned"],
+		1,
+		[HexCoordScript.new(1, 0)]
+	)
+	var scen_mvv = ScenarioScript.new(pack3["map"], pack3["units"], [c_man_v], 10, 100, null)
+	var sel_m = SelectionStateScript.new()
+	sel_m.select_city(77)
+	var items_mv: Array = CityWorkedTilesViewScript.compute_worked_marker_items(scen_mvv, sel_m)
+	var bd_m: Dictionary = CityYieldsScript.yield_breakdown_for_city(scen_mvv, c_man_v)
+	var wtm: Array = bd_m.get("worked_tiles", []) as Array
+	_check(wtm.size() == 1, "manual scenario one worked tile in breakdown")
+	_check(items_mv.size() == 2, "two non-center owned tiles => two marker items")
+	var wk: int = 0
+	var worked_coord: HexCoord = null
+	while wk < items_mv.size():
+		var it: Dictionary = items_mv[wk] as Dictionary
+		if str(it.get("kind", "")) == "worked":
+			worked_coord = it.get("coord", null) as HexCoord
+			break
+		wk += 1
+	_check(worked_coord != null, "exactly one worked kind among ring markers")
+	_check(worked_coord.equals(wtm[0] as HexCoord), "worked marker coord matches manual yield breakdown")
+
 	round1.append({"coord": HexCoordScript.new(9, 9), "kind": "worked"})
 	var round3 = CityWorkedTilesViewScript.compute_worked_marker_items(scen, sel_cap)
 	_check(round3.size() == 1, "mut array append does not leak")

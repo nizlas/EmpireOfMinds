@@ -26,6 +26,7 @@ const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
+const SetCityWorkedTilesScript = preload("res://domain/actions/set_city_worked_tiles.gd")
 
 var _total = 0
 var _any_fail = false
@@ -49,7 +50,9 @@ func _check_list_segments_no_engine(L: Array) -> void:
 		i = i + 1
 	while i < n - 1 and (L[i] as Dictionary)["action_type"] == SetCityProductionScript.ACTION_TYPE:
 		i = i + 1
-	_check(i == n - 1, "ordered moves fc sp then only end")
+	while i < n - 1 and (L[i] as Dictionary)["action_type"] == SetCityWorkedTilesScript.ACTION_TYPE:
+		i = i + 1
+	_check(i == n - 1, "ordered moves fc sp swt then only end")
 
 
 func _init() -> void:
@@ -191,6 +194,45 @@ func _init() -> void:
 			has_sp_rd = true
 		lr = lr + 1
 	_check(not has_sp_rd, "no SetCityProduction when ready project")
+
+	var m_sw = HexMapScript.make_tiny_test_map()
+	var u_sw = [UnitScript.new(1, 0, HexCoordScript.new(0, 0))]
+	var ctr_sw = HexCoordScript.new(1, -1)
+	var own_sw: Array = [ctr_sw, HexCoordScript.new(0, -1), HexCoordScript.new(1, 0)]
+	var c_sw = CityScript.new(50, 0, ctr_sw, null, "", false, [], own_sw, 1, [])
+	var sc_sw = ScenarioScript.new(m_sw, u_sw, [c_sw], 50, 55)
+	var gs_sw = GameStateScript.new(sc_sw)
+	var Lsw = LegalActionsScript.for_current_player(gs_sw)
+	var n_assign = 0
+	var n_clr = 0
+	var sx = 0
+	while sx < Lsw.size() - 1:
+		var ex = Lsw[sx] as Dictionary
+		if ex["action_type"] == SetCityWorkedTilesScript.ACTION_TYPE:
+			var tx = ex["tiles"] as Array
+			if tx.is_empty():
+				n_clr += 1
+			else:
+				n_assign += 1
+		sx += 1
+	_check(n_assign == 2, "two eligible owned ring tiles -> two set actions (q,r) sorted")
+	_check(n_clr == 0, "no clear when manual empty")
+
+	var c_wm = CityScript.new(51, 0, ctr_sw, null, "", false, [], own_sw, 1, [HexCoordScript.new(0, -1)])
+	var sc_wm = ScenarioScript.new(m_sw, u_sw, [c_wm], 51, 56)
+	var gs_wm = GameStateScript.new(sc_wm)
+	var Lwm = LegalActionsScript.for_current_player(gs_wm)
+	var has_clear_wm = false
+	var sy = 0
+	while sy < Lwm.size() - 1:
+		var ey = Lwm[sy] as Dictionary
+		if ey["action_type"] == SetCityWorkedTilesScript.ACTION_TYPE:
+			var ty = ey["tiles"] as Array
+			if ty.is_empty():
+				has_clear_wm = true
+				break
+		sy += 1
+	_check(has_clear_wm, "clear-to-auto in legal list when manual non-empty")
 
 	var m_w = HexMapScript.make_tiny_test_map()
 	var u_w = [UnitScript.new(2, 0, HexCoordScript.new(-1, 0), "settler")]
