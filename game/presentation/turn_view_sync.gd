@@ -1,8 +1,8 @@
-# Dedup **`Scenario`** → map **`Node2D`** views → HUD **`refresh`** sequences shared by **EndTurnController** / **AITurnController** and **SelectionController** foreground sync.
+# Dedup **`Scenario`** → map **`Node2D`** views → HUD **`refresh`** sequences shared by **EndTurnController** / **AITurnController** and **SelectionController** foreground sync. **5.1.17k:** optional **`TerrainEdgeBlendView`** (**`map`** on node only).
 extends RefCounted
 
 
-## Mirrors **`SelectionController`** `_sync_terrain_foreground_from_game_state` (**terrain + nameplates + yield overlay + empire border + territory + worked-tile markers**); keeps **immediate** **`TerrainForegroundView.queue_redraw`** like that path.
+## Mirrors **`SelectionController`** `_sync_terrain_foreground_from_game_state` (**terrain + nameplates + yield overlay + empire border + terrain edge blend + territory + worked-tile markers**); keeps **immediate** **`TerrainForegroundView.queue_redraw`** like that path.
 static func sync_terrain_related_views(
 	scen,
 	terrain_foreground_view,
@@ -12,6 +12,7 @@ static func sync_terrain_related_views(
 	city_territory_view,
 	city_worked_tiles_view = null,
 	empire_border_view = null,
+	terrain_edge_blend_view = null,
 ) -> void:
 	if scen == null:
 		return
@@ -37,6 +38,9 @@ static func sync_terrain_related_views(
 	if city_worked_tiles_view != null:
 		city_worked_tiles_view.scenario = scen
 		city_worked_tiles_view.queue_redraw()
+	if terrain_edge_blend_view != null:
+		terrain_edge_blend_view.map = scen.map
+		terrain_edge_blend_view.queue_redraw()
 
 ## Mirrors **EndTurnController** / **AITurnController** accepted-action block after **`discovery_popup`** / **`selection.clear_unit()`** (**not** inclusive of those callers).
 static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_state,
@@ -54,6 +58,7 @@ static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_stat
 	science_panel,
 	city_worked_tiles_view = null,
 	empire_border_view = null,
+	terrain_edge_blend_view = null,
 ) -> void:
 	if game_state == null:
 		return
@@ -85,6 +90,9 @@ static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_stat
 	if city_worked_tiles_view != null:
 		city_worked_tiles_view.scenario = game_state.scenario
 		city_worked_tiles_view.queue_redraw()
+	if terrain_edge_blend_view != null:
+		terrain_edge_blend_view.map = game_state.scenario.map
+		terrain_edge_blend_view.queue_redraw()
 	turn_label.refresh()
 	if log_view != null:
 		log_view.refresh()

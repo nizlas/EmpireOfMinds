@@ -58,9 +58,9 @@ Concise map of **what exists in code today**. For phased history and decisions u
 
 | Concern | Main nodes / scripts |
 |--------|-----------------------|
-| **Map stack** | [MapView](../game/presentation/map_view.gd), [EmpireBorderView](../game/presentation/empire_border_view.gd) (**selection-independent** realm border), [CityTerritoryView](../game/presentation/city_territory_view.gd) (**dormant** **`_draw`** — **no** selected-city rim; forward **citizen/head** markers for owned tiles), [CitiesView](../game/presentation/cities_view.gd), [SelectionView](../game/presentation/selection_view.gd), [UnitsView](../game/presentation/units_view.gd) |
+| **Map stack** | [MapView](../game/presentation/map_view.gd), [TerrainEdgeBlendView](../game/presentation/terrain_edge_blend_view.gd) (**5.1.17k** — **present**; **`draw_edge_blend`** default **off**, **no** edge ribbons until re-enabled), [EmpireBorderView](../game/presentation/empire_border_view.gd) (**selection-independent** realm border), [CityTerritoryView](../game/presentation/city_territory_view.gd) (**dormant** **`_draw`** — **no** selected-city rim; forward **citizen/head** markers for owned tiles), [CitiesView](../game/presentation/cities_view.gd), [SelectionView](../game/presentation/selection_view.gd), [UnitsView](../game/presentation/units_view.gd) |
 | **Foreground hub** | [TerrainForegroundView](../game/presentation/terrain_foreground_view.gd) — **large (~2k+ lines), multi-pass forest + delegated unit/city markers, depth-merge, many debug knobs** → **fragile hotspot**; **do not split blindly** pending a deliberate slice |
-| **Overlays / landmark** | [CityWorkedTilesView](../game/presentation/city_worked_tiles_view.gd) (**PLANNING / Manage Citizens** citizen **`dim` / `worked`** markers; **non-center** **`owned_tiles`**; **5.1.17j** + **5.1.17j.1**), [TileYieldOverlayView](../game/presentation/tile_yield_overlay_view.gd), [LightningTreeView](../game/presentation/lightning_tree_view.gd), nameplate views |
+| **Overlays / landmark** | [TileYieldOverlayView](../game/presentation/tile_yield_overlay_view.gd), [CityWorkedTilesView](../game/presentation/city_worked_tiles_view.gd) (**PLANNING / Manage Citizens** citizen **`dim` / `worked`** markers **above** yield icons; **non-center** **`owned_tiles`**; **5.1.17j** + **5.1.17j.1**), [LightningTreeView](../game/presentation/lightning_tree_view.gd), nameplate views |
 | **Camera / space** | [MapCamera](../game/presentation/map_camera.gd), [MapPlaneProjection](../game/presentation/map_plane_projection.gd), [HexLayout](../game/presentation/hex_layout.gd) |
 | **Input / actions submission** | [SelectionController](../game/presentation/selection_controller.gd) (mouse + **`F`/`P`/`G`/`H`**, shared-hex semantics), **`EndTurn`/`AITurn`** controllers (**`SPACE`/`A`**) |
 | **HUD** | **`HudCanvas`** in **`main.tscn`** — **selected-city hub** (**`city_production_panel.gd`**, **`CityProductionPanel`**) + **`CityViewState`** (**`city_view_state.gd`**, **NORMAL**/**PLANNING** presentation submode); discovery/science panels, popups, yields toggle; **`main.gd`** wires hub **`Close`** redraw refs (**`selection_view`**, **`city_territory_view`**, **`city_worked_tiles_view`**). Map stack includes **always-on** **`EmpireBorderView`**. |
@@ -71,7 +71,7 @@ Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative 
 
 ## Test architecture
 
-- **Runner:** from repo root, [scripts/run-godot-tests.ps1](../scripts/run-godot-tests.ps1) runs a **fixed list (~100)** of Godot headless scripts (**`-s res://…`**).
+- **Runner:** from repo root, [scripts/run-godot-tests.ps1](../scripts/run-godot-tests.ps1) runs a **fixed list (~104)** of Godot headless scripts (**`-s res://…`**).
 - **Layout:** **`game/domain/tests/`**, **`game/presentation/tests/`**, **`game/ai/tests/`** — mix of invariant tests and tighter draw/UI harnesses.
 
 ---

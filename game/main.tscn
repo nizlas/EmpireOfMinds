@@ -23,6 +23,7 @@
 [ext_resource type="Script" path="res://presentation/city_territory_view.gd" id="21_cityterritory"]
 [ext_resource type="Script" path="res://presentation/city_worked_tiles_view.gd" id="22_city_worked"]
 [ext_resource type="Script" path="res://presentation/empire_border_view.gd" id="23_empire_border"]
+[ext_resource type="Script" path="res://presentation/terrain_edge_blend_view.gd" id="24_terrain_edge_blend"]
 
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
@@ -137,6 +138,11 @@ text = "Yields"
 position = Vector2(400, 428)
 script = ExtResource("2_mapview")
 
+[node name="TerrainEdgeBlendView" type="Node2D" parent="." unique_id=1063845030]
+position = Vector2(400, 428)
+z_index = 0
+script = ExtResource("24_terrain_edge_blend")
+
 [node name="EmpireBorderView" type="Node2D" parent="." unique_id=1063845028]
 position = Vector2(400, 428)
 z_index = 0
@@ -167,16 +173,16 @@ script = ExtResource("11_terrainforeground")
 position = Vector2(400, 428)
 script = ExtResource("14_lightning")
 
-[node name="CityWorkedTilesView" type="Node2D" parent="." unique_id=1063845027]
-position = Vector2(400, 428)
-z_index = 1
-script = ExtResource("22_city_worked")
-
 [node name="TileYieldOverlayView" type="Node2D" parent="." unique_id=1063845025]
 position = Vector2(400, 428)
 visible = false
 z_index = 1
 script = ExtResource("20_tileyield")
+
+[node name="CityWorkedTilesView" type="Node2D" parent="." unique_id=1063845027]
+position = Vector2(400, 428)
+z_index = 1
+script = ExtResource("22_city_worked")
 
 [node name="CityNameplateView" type="Node2D" parent="." unique_id=1063845024]
 position = Vector2(400, 428)

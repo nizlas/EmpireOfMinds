@@ -23,6 +23,7 @@ var yield_overlay_view
 var city_territory_view
 var empire_border_view
 var city_worked_tiles_view
+var terrain_edge_blend_view
 var discovery_action_panel
 var science_panel
 var science_completed_popup
@@ -74,6 +75,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					science_panel,
 					city_worked_tiles_view,
 					empire_border_view,
+					terrain_edge_blend_view,
 				)
 			else:
 				push_warning("AI action rejected: %s" % result["reason"])

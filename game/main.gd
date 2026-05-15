@@ -2,7 +2,7 @@
 # See docs/RENDERING.md, docs/SELECTION.md
 extends Node2D
 
-## Initial pixel origin for map-layer **Node2D** children including **`EmpireBorderView`** (Phase **5.1.17h** — always-on owner **union** perimeter), **`CityTerritoryView`** (Phase **5.1.16i** — selected-city emphasis ring), **`CityWorkedTilesView`** (Phase **5.1.17e** — selected-city worked-tile overlay), **`TileYieldOverlayView`** (Phase **5.1.16f**), **UnitNameplateView** / **CityNameplateView** (Phase **5.1.11** / **5.1.15**). **4.5m:** set **once** in `_ready`; pan uses **MapCamera.camera_world_offset**. **`EmpireBorderView`** sibling **after** **`MapView`**, **`z_index` 0**, thinner stroke — **above** base terrain paint, **below** **`CityTerritoryView`** / cities / units shells (**0**, later sibling draws **above**) / **`TerrainForegroundView`** (**`z_index` 1**) / **`TileYieldOverlayView`** / nameplates (**`z_index` 2**). **`CityWorkedTilesView`** (**after** **LightningTreeView**, **before** **`TileYieldOverlayView`**) uses **`z_index` 1**: **above** terrain / empire / territory (**0**), **below** yield icons (**TileYieldOverlayView**, **later** sibling at **1**) and nameplates (**2**). **5.1.15b** orders **`CityNameplateView`** before **`UnitNameplateView`** so **unit** nameplates paint **on top**. Still below **HudCanvas**.
+## Initial pixel origin for map-layer **Node2D** children including **`TerrainEdgeBlendView`** (**5.1.17k** — **PLAINS↔GRASSLAND** edge softening), **`EmpireBorderView`** (Phase **5.1.17h** — always-on owner **union** perimeter), **`CityTerritoryView`** (Phase **5.1.16i** — selected-city emphasis ring), **`TileYieldOverlayView`** (Phase **5.1.16f**), **`CityWorkedTilesView`** (Phase **5.1.17e** — citizen markers **PLANNING-only**), **UnitNameplateView** / **CityNameplateView** (Phase **5.1.11** / **5.1.15**). **4.5m:** set **once** in `_ready`; pan uses **MapCamera.camera_world_offset**. **`TerrainEdgeBlendView`** sibling **after** **`MapView`**, **`z_index` 0** — above **base terrain**, below **`EmpireBorderView`**. **`EmpireBorderView`** sibling **after** **`TerrainEdgeBlendView`**, **`z_index` 0**, thinner stroke — **above** terrain blend + base paint, **below** **`CityTerritoryView`** / cities / units shells (**0**, later sibling draws **above**) / **`TerrainForegroundView`** / **`LightningTreeView`** / **`TileYieldOverlayView`** (**`z_index` 1**). **`CityWorkedTilesView`** (**after** **`TileYieldOverlayView`**, same **`z_index` 1**) paints **above** yield icons in **Manage Citizens** (primary planning read); **below** nameplates (**`z_index` 2**). **5.1.15b** orders **`CityNameplateView`** before **`UnitNameplateView`** so **unit** nameplates paint **on top**. Still below **HudCanvas**.
 const MAP_LAYER_ORIGIN: Vector2 = Vector2(400.0, 428.0)
 
 const ScenarioScript = preload("res://domain/scenario.gd")
@@ -24,15 +24,16 @@ var _map_camera
 
 func _redraw_map_layers() -> void:
 	$MapView.queue_redraw()
+	$TerrainEdgeBlendView.queue_redraw()
 	$EmpireBorderView.queue_redraw()
 	$CityTerritoryView.queue_redraw()
-	$CityWorkedTilesView.queue_redraw()
 	$CitiesView.queue_redraw()
 	$SelectionView.queue_redraw()
 	$UnitsView.queue_redraw()
 	$TerrainForegroundView.queue_redraw()
 	$LightningTreeView.queue_redraw()
 	$TileYieldOverlayView.queue_redraw()
+	$CityWorkedTilesView.queue_redraw()
 	$CityNameplateView.queue_redraw()
 	$UnitNameplateView.queue_redraw()
 
@@ -43,15 +44,16 @@ func _ready() -> void:
 	_map_camera.projection = _map_projection
 	for n in [
 		$MapView,
+		$TerrainEdgeBlendView,
 		$EmpireBorderView,
 		$CityTerritoryView,
-		$CityWorkedTilesView,
 		$CitiesView,
 		$SelectionView,
 		$UnitsView,
 		$TerrainForegroundView,
 		$LightningTreeView,
 		$TileYieldOverlayView,
+		$CityWorkedTilesView,
 		$CityNameplateView,
 		$UnitNameplateView,
 		$SelectionController,
@@ -77,16 +79,19 @@ func _ready() -> void:
 	$EmpireBorderView.scale = Vector2.ONE
 	$EmpireBorderView.camera = _map_camera
 	$EmpireBorderView.z_index = 0
+	$TerrainEdgeBlendView.scale = Vector2.ONE
+	$TerrainEdgeBlendView.camera = _map_camera
+	$TerrainEdgeBlendView.z_index = 0
 	$CityTerritoryView.scale = Vector2.ONE
 	$CityTerritoryView.camera = _map_camera
 	$CityTerritoryView.z_index = 0
-	$CityWorkedTilesView.scale = Vector2.ONE
-	$CityWorkedTilesView.camera = _map_camera
-	$CityWorkedTilesView.z_index = 1
 	$TileYieldOverlayView.scale = Vector2.ONE
 	$TileYieldOverlayView.camera = _map_camera
 	$TileYieldOverlayView.z_index = 1
 	$TileYieldOverlayView.visible = false
+	$CityWorkedTilesView.scale = Vector2.ONE
+	$CityWorkedTilesView.camera = _map_camera
+	$CityWorkedTilesView.z_index = 1
 	$UnitNameplateView.scale = Vector2.ONE
 	$UnitNameplateView.camera = _map_camera
 	$UnitNameplateView.z_index = 2
@@ -103,6 +108,10 @@ func _ready() -> void:
 	var map_view = $MapView
 	map_view.map = scenario.map
 	map_view.layout = layout
+	var terrain_edge_blend = $TerrainEdgeBlendView
+	terrain_edge_blend.map = scenario.map
+	terrain_edge_blend.layout = layout
+	terrain_edge_blend.camera = _map_camera
 	var cities_view = $CitiesView
 	cities_view.scenario = scenario
 	cities_view.layout = layout
@@ -181,6 +190,7 @@ func _ready() -> void:
 	selection_controller.city_worked_tiles_view = city_worked_tiles_view
 	selection_controller.city_view_state = city_view_state
 	selection_controller.yield_overlay_view = tile_yield_overlay
+	selection_controller.terrain_edge_blend_view = terrain_edge_blend
 	var turn_label = $TurnLabel
 	turn_label.game_state = game_state
 	turn_label.refresh()
@@ -226,10 +236,12 @@ func _ready() -> void:
 	end_turn_controller.city_territory_view = city_territory_view
 	end_turn_controller.empire_border_view = empire_border_view
 	end_turn_controller.city_worked_tiles_view = city_worked_tiles_view
+	end_turn_controller.terrain_edge_blend_view = terrain_edge_blend
 	ai_turn_controller.yield_overlay_view = tile_yield_overlay
 	ai_turn_controller.city_territory_view = city_territory_view
 	ai_turn_controller.empire_border_view = empire_border_view
 	ai_turn_controller.city_worked_tiles_view = city_worked_tiles_view
+	ai_turn_controller.terrain_edge_blend_view = terrain_edge_blend
 	city_production_panel.refresh()
 	var discovery_action_panel = $HudCanvas/DiscoveryActionPanel
 	discovery_action_panel.game_state = game_state

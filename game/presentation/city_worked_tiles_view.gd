@@ -2,6 +2,7 @@
 # **read-only**: **`City.owned_tiles`**, **`CityYields.yield_breakdown_for_city`(..).`worked_tiles`** — **no** presentation-side recomputation of which tiles are worked.
 # **v0:** **no** marker on the **city center** hex (city marker / nameplate already identifies it).
 # **`_draw`** and **`compute_draw_marker_items`** run **only** when **`CityViewState`** is **PLANNING** (**Manage Citizens**). **City-selected NORMAL** = **City Hub** only, **no** citizen markers.
+# **v0:** **only** **`draw_texture_rect`** citizen marker PNGs — **no** per-tile hex **polygon** **fills** / translucent tints (overlapping alpha reads as **seams** on **painterly** terrain).
 # No input. See **[RENDERING.md](../../docs/RENDERING.md)**.
 class_name CityWorkedTilesView
 extends Node2D
@@ -106,7 +107,8 @@ static func compute_draw_marker_items(p_scenario, p_selection, p_city_view_state
 
 
 func _ready() -> void:
-	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	## **No mipmaps:** **`TEXTURE_FILTER_LINEAR`** avoids mipmapped minification that **softened** edges and **bled** alpha into **painterly** terrain at map scale.
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_tex_dim = _load_rgba(_CITIZEN_DIM_PATH)
 	_tex_worked = _load_rgba(_CITIZEN_WORKED_PATH)
 	if _tex_dim == null:

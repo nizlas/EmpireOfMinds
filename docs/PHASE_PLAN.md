@@ -2466,6 +2466,19 @@ Validation:
 
 - **`scripts/run-godot-tests.ps1`** green; manual **`main.tscn`**: city select → **hub, no markers**; **Manage Citizens** → **dim/worked** markers; **Done**/**ESC** → markers off; **Close** → hub off; **`EmpireBorderView`** unchanged; **`CityTerritoryView`** still no rim.
 
+#### 5.1.17k — Terrain **edge blend** (**PLAINS ↔ GRASSLAND**; presentation-only)
+
+**Status:** **Shipped**.
+
+- **`game/presentation/terrain_edge_blend_view.gd`** — **`TerrainEdgeBlendView`**, **`Node2D`**: reads **`HexMap`** / **`HexLayout`** / **`MapCamera`** only (**no** `Scenario` on node); **`compute_blend_items(p_map)`** (**canonical edges**, **deterministic** sort); **`_draw`** = low-alpha **`draw_colored_polygon`** ribbons straddling shared edges (**lerp** of local terrain fallback RGB). **v1:** **PLAINS–GRASSLAND** adjacency **only** — **no** **WATER** / coast, **no** **woods**/forest, **no** **shaders**, **no** new PNGs, **no** **`TerrainForegroundView`** / **`MapView`** rewrites.
+- **`main.tscn`**: sibling order **`MapView` → `TerrainEdgeBlendView` → `EmpireBorderView` → …**; **`z_index` 0** on blend ( **above** base terrain, **below** empire + later map chrome).
+- **`main.gd`**, **`turn_view_sync.gd`**, **`SelectionController`**, **`EndTurnController`**, **`AITurnController`**: **`map`** assign + **`queue_redraw`** with existing sync (**no** bus/registry).
+- Tests: **`test_terrain_edge_blend_view.gd`**; updates **`test_main_tscn_map_layer_sibling_order.gd`**, **`test_turn_view_sync.gd`**; **`scripts/run-godot-tests.ps1`**.
+
+Validation:
+
+- **`scripts/run-godot-tests.ps1`** green; manual **`main.tscn`**: **PLAINS/GRASSLAND** seams slightly softer; empire border crisp; no extra “hex grid” stroke look from blend; water/forest seams unchanged in **v1** scope.
+
 #### 5.1.16h — Population auto-works owned tiles (planned)
 
 **Status:** Planned (forward umbrella). **Embryo:** **5.1.17a**.

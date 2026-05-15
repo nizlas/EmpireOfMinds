@@ -55,6 +55,12 @@ func _forbidden_scan_source() -> void:
 	_check(txt.find("yield_breakdown_for_city") >= 0, "view source references yield_breakdown_for_city")
 	_check(txt.find("set_deferred(\"z_index\")") < 0, "no deferred z_index workaround in view")
 	_check(txt.find("worked_tiles_for_city") < 0, "view source must not name worked_tiles_for_city")
+	_check(txt.find("draw_colored_polygon(") < 0, "view must not draw full-hex planning fills (draw_colored_polygon)")
+	_check(txt.find("draw_polygon(") < 0, "view must not draw full-hex planning fills (draw_polygon)")
+	_check(
+		txt.find("TEXTURE_FILTER_LINEAR_WITH_MIPMAPS") < 0,
+		"citizen markers must not use LINEAR_WITH_MIPMAPS (edge bleed / banding)"
+	)
 	var banned: PackedStringArray = PackedStringArray(
 		["city_project_definitions", "effective_rules", "legal_actions", "city_production_panel"]
 	)
@@ -65,8 +71,25 @@ func _forbidden_scan_source() -> void:
 		bi += 1
 
 
+func _citizen_marker_imports_disable_mipmaps() -> void:
+	var paths: PackedStringArray = PackedStringArray(
+		[
+			"res://assets/prototype/map_markers/city_citizens/citizen_marker_dim.png.import",
+			"res://assets/prototype/map_markers/city_citizens/citizen_marker_worked.png.import",
+		]
+	)
+	var pi: int = 0
+	while pi < paths.size():
+		var ip: String = paths[pi]
+		var itxt: String = FileAccess.get_file_as_string(ip)
+		_check(itxt.find("mipmaps/generate=false") >= 0, "%s must set mipmaps/generate=false" % ip)
+		_check(itxt.find("mipmaps/generate=true") < 0, "%s must not enable mipmaps" % ip)
+		pi += 1
+
+
 func _init() -> void:
 	_forbidden_scan_source()
+	_citizen_marker_imports_disable_mipmaps()
 
 	var pst = CityWorkedTilesViewScript.planning_marker_draw_style()
 	_check(float(pst.get("citizen_icon_height_ratio", 0.0)) > 0.1, "citizen_icon_height_ratio sane")
