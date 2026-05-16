@@ -2,6 +2,8 @@
 
 This document is the single canonical architecture envelope for Empire of Minds. The implementer is a constrained implementer, not architect-in-chief. Architecture must be made explicit in documents before it is implemented in code. Process, approval steps, and the steering-document change rule are defined in [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md).
 
+**Authority pivot:** The **canonical gameplay authority target** is **Python/FastAPI** under `server/`. Godot retains **client / presentation / input / animation** for that mode. **Execution charter, slices, and rollback discipline:** [AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md). Until cutover is **proven**, `game/domain/` + `GameState.try_apply` remain an in-process **legacy** authority path.
+
 ## Core game-domain principle
 
 Empire of Minds must be built as a game-domain-first project, not as a pile of Godot scenes.
@@ -99,9 +101,9 @@ Must treat clients as untrusted.
 
 Game state must have a clear source of truth.
 
-In local Phase 1, the authoritative state may live in a local domain/session object.
+**Target (Authority pivot):** canonical match state, validation, application, action log, snapshots, and derived hashes live on the **Python authority** (`server/`). The Godot client is **not** authoritative for gameplay outcomes in server mode; it submits **actions** and renders **server-provided** state.
 
-In future cloud play, the authoritative state must move to the backend/server.
+**Transitional:** the **legacy** local session (`GameState` + `game/domain/`) stays until **Slice F** cutover is proven; local vs cloud then differs by **URL/transport**, not rules architecture ([AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md)).
 
 The architecture must not assume that the Godot client will always be authoritative.
 

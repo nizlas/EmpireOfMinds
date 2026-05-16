@@ -2,11 +2,13 @@
 
 HTTP contract for the **local authority** prototype under `server/`. This is a **wire + persistence** slice, not a steering or gameplay-spec document.
 
+**Authority pivot:** Python/FastAPI under `server/` is the **canonical gameplay authority target**; this document’s **`/v1`** match + snapshot + revision + `state_hash` + events shape is the **spine** that will gain **additional `action_type` values** and **richer snapshots** as slices **B–D** land—without changing rejection/HTTP semantics. **Full charter:** [AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md).
+
 **Direction:** [CLOUD_PLAY_DIRECTION.md](CLOUD_PLAY_DIRECTION.md). **Strategy / BYOS:** [CLOUD_PLAY.md](CLOUD_PLAY.md).
 
 ## Principles
 
-- Clients submit **actions** (`end_turn` only in v0), mirroring [ACTIONS.md](ACTIONS.md) / `GameState.try_apply` shape.
+- Clients submit **actions** mirroring [ACTIONS.md](ACTIONS.md) / `GameState.try_apply` shape. **Shipped Cloud 0.1** accepts **`end_turn` only**; additional player actions arrive with the pivot slices (see **Out of scope** / [AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md)).
 - **Rejected** actions are **not** logged; responses use **HTTP 200** with `accepted: false` to mirror GDScript `try_apply` (not REST error semantics).
 - **`state_hash`** is **never** stored inside `snapshot`; it is derived with `sha256(canonical_json(snapshot))` and returned by the API.
 
@@ -114,6 +116,8 @@ Under `server/data/matches/<match_id>/` (or `EMPIRE_SERVER_DATA_DIR/matches/...`
 - `snapshot.json` — latest snapshot (overwritten each accept).
 - `events.jsonl` — append-only accepted events.
 
-## Out of scope (v0)
+## Out of scope (v0 wire as originally shipped)
 
-Auth, lobby, WebSockets, Godot client, `move_unit`, combat, deployment, database.
+Auth, lobby, WebSockets, Godot client harness, **`move_unit`**, combat, deployment, database.
+
+**Note:** The **Authority pivot** explicitly adds these to **`server/`** in later slices; when a capability is implemented server-side, update this document’s examples and tables for that **schema version**—the **`/v1`** endpoint family and **`try_apply`-mirroring rejection behavior** stay stable.

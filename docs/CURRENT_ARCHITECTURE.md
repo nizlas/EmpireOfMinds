@@ -2,6 +2,10 @@
 
 Concise map of **what exists in code today**. For phased history and decisions use [PHASE_PLAN.md](PHASE_PLAN.md) and [DECISION_LOG.md](DECISION_LOG.md). For norms and boundaries use [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md), [CONTENT_MODEL.md](CONTENT_MODEL.md), [CORE_LOOP.md](CORE_LOOP.md), [MAP_MODEL.md](MAP_MODEL.md), and [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md).
 
+## Authority pivot (in progress)
+
+**Charter:** [AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md). **Target:** Python/FastAPI under `server/` owns canonical gameplay; Godot becomes client/presentation for **localhost** (hotseat) and **remote** (cloud) by address only. **Today (pre–Slice F):** the runnable game still uses **`GameState.try_apply`** + `game/domain/` as described below; the Python server is **Cloud 0.1**-shaped and will grow per the pivot slices. **Legacy Godot domain is kept** until cutover survives playtesting.
+
 ---
 
 ## Purpose

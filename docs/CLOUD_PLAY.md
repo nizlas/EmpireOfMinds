@@ -2,6 +2,8 @@
 
 **Long-term direction (authority model, async/live-feel, action vocabulary, roadmap labels, AI parity):** [CLOUD_PLAY_DIRECTION.md](CLOUD_PLAY_DIRECTION.md). This page stays focused on **product/strategy** (modes, BYOS); the direction doc is the **canonical architecture checkpoint** for cloud/multiplayer/AI without implementation detail.
 
+**Authority pivot:** The project is **migrating** canonical gameplay authority to **Python/FastAPI** under `server/` while preserving a **legacy** Godot-domain path until cutover is proven. **Slices, rollback, and “local = localhost authority”** are defined in [AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md). Local hotseat and future cloud play share the **same** server rules; they differ only by **base URL / transport**.
+
 ## Vision
 
 Empire of Minds should support asynchronous play-by-cloud.
@@ -22,7 +24,7 @@ Single machine. Useful for Phase 1 and early testing.
 
 ### Current state as of Phase 5.2.0
 
-The **shipping playable embryo** today is a **local hotseat prototype**: **one** client process, **no** network multiplayer, **no** authoritative server, **no** lobby, **no** accounts, **no** fog-of-war / **privacy** partition between players, and **no** **remote-seat** concept in code. **All** gameplay changes still go through **`GameState.try_apply`** with the usual **`actor_id == current_player_id()`** gate. A **future server / cloud** mode should remain **authoritative** and reuse the same **action validation / application** model at the session boundary; UI copy such as **“Waiting for remote Player N”** belongs to that **future** slice, **not** to the current **local hotseat prototype** (the HUD uses **`Player N's turn`** instead).
+The **shipping playable embryo** today is a **local hotseat prototype**: **one** client process, **no** network multiplayer, **no** lobby, **no** accounts, and **no** **remote-seat** concept in code. **All** gameplay changes still go through **`GameState.try_apply`** with the usual **`actor_id == current_player_id()`** gate **until** the **Authority pivot** cutover ([AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md)); after cutover, the same actions go through **`POST /v1/matches/.../actions`** on the **localhost** or **remote** authority. A **FastAPI** authority prototype (`server/`, [CLOUD_API_V0.md](CLOUD_API_V0.md)) exists today with a **minimal** snapshot (`end_turn` only in the shipped v0 wire); it will grow to hold the full loop. UI copy such as **“Waiting for remote Player N”** belongs to a **future** slice, **not** to the current **local hotseat prototype** (the HUD uses **`Player N's turn`** instead).
 
 ### Connect to Existing Server
 
