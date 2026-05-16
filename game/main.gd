@@ -153,6 +153,7 @@ func _ready() -> void:
 	tile_yield_overlay.scenario = scenario
 	tile_yield_overlay.layout = layout
 	tile_yield_overlay.camera = _map_camera
+	tile_yield_overlay.game_state = game_state
 	var units_view = $UnitsView
 	units_view.scenario = scenario
 	units_view.layout = layout
@@ -162,6 +163,7 @@ func _ready() -> void:
 	terrain_foreground.map = scenario.map
 	terrain_foreground.layout = layout
 	terrain_foreground.scenario = scenario
+	terrain_foreground.game_state = game_state
 	terrain_foreground.forest_density_ratio = map_view.forest_density_ratio
 	terrain_foreground.foreground_unit_reference_height_ratio = units_view.unit_icon_height_ratio
 	# Prototype play map only: deterministic forest clusters for visual review (not gameplay / not biome rules).
@@ -179,11 +181,13 @@ func _ready() -> void:
 	unit_nameplate_view.scenario = scenario
 	unit_nameplate_view.layout = layout
 	unit_nameplate_view.units_view = units_view
+	unit_nameplate_view.game_state = game_state
 	var city_nameplate_view = $CityNameplateView
 	city_nameplate_view.scenario = scenario
 	city_nameplate_view.layout = layout
 	city_nameplate_view.cities_view = cities_view
 	city_nameplate_view.terrain_foreground_view = terrain_foreground
+	city_nameplate_view.game_state = game_state
 	var selection_view = $SelectionView
 	selection_view.scenario = scenario
 	selection_view.layout = layout
@@ -206,6 +210,7 @@ func _ready() -> void:
 	selection_controller.yield_overlay_view = tile_yield_overlay
 	selection_controller.terrain_edge_blend_view = terrain_edge_blend
 	selection_controller.map_visibility_view = map_visibility_view
+	selection_controller.lightning_tree_view = lightning_tree_view
 	var turn_label = $TurnLabel
 	turn_label.game_state = game_state
 	var turn_status_panel = $HudCanvas/TurnStatusPanel
@@ -259,12 +264,14 @@ func _ready() -> void:
 	end_turn_controller.city_worked_tiles_view = city_worked_tiles_view
 	end_turn_controller.terrain_edge_blend_view = terrain_edge_blend
 	end_turn_controller.map_visibility_view = map_visibility_view
+	end_turn_controller.lightning_tree_view = lightning_tree_view
 	ai_turn_controller.yield_overlay_view = tile_yield_overlay
 	ai_turn_controller.city_territory_view = city_territory_view
 	ai_turn_controller.empire_border_view = empire_border_view
 	ai_turn_controller.city_worked_tiles_view = city_worked_tiles_view
 	ai_turn_controller.terrain_edge_blend_view = terrain_edge_blend
 	ai_turn_controller.map_visibility_view = map_visibility_view
+	ai_turn_controller.lightning_tree_view = lightning_tree_view
 	city_production_panel.refresh()
 	var discovery_action_panel = $HudCanvas/DiscoveryActionPanel
 	discovery_action_panel.game_state = game_state

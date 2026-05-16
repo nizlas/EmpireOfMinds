@@ -30,6 +30,7 @@ var science_panel
 var science_completed_popup
 var discovery_popup
 var map_visibility_view
+var lightning_tree_view
 
 func _unhandled_input(event: InputEvent) -> void:
 	assert(GameStateScript != null)
@@ -85,6 +86,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					empire_border_view,
 					terrain_edge_blend_view,
 					map_visibility_view,
+					lightning_tree_view,
 				)
 			else:
 				push_warning("AI action rejected: %s" % result["reason"])

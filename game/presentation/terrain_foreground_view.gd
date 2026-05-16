@@ -7,6 +7,8 @@
 # See docs/RENDERING.md
 extends Node2D
 
+const PresentationVisibilityScript = preload("res://presentation/presentation_visibility.gd")
+
 ## Salts **4000–4099** reserved for Phase **4.6e** hex-owned foreground (deterministic only).
 const _SALT_MAIN_PLACE: int = 4000
 const _SALT_MAIN_SIZE: int = 4001
@@ -118,6 +120,8 @@ var units_view
 var cities_view
 ## Wired by **`main`** — read **`MapView.debug_plains_back_forest_draw_calls`** for isolated summaries.
 var map_view
+## Wired from **`main`** / **`TurnViewSync`**: gate forest/decoration draws on **current_player** explored tiles (**5.2.4k**).
+var game_state = null
 ## Prototype / visual-review only: when non-empty, forest decoration gates use this hex set instead of `forest_density_ratio`.
 ## Not gameplay forest, not a production biome. Wired from **`main`** for **`HexMap.make_prototype_play_map`** only; keep `{}` elsewhere.
 var forest_decoration_override: Dictionary = {}
@@ -180,6 +184,10 @@ func _fg_hex_has_forest_decoration_for_draw(q: int, r: int) -> bool:
 	return PlainsForestScript.is_plains_forest_decorated_with_override(
 		q, r, forest_density_ratio, forest_decoration_override
 	)
+
+
+func _should_draw_decoration_for_coord(coord) -> bool:
+	return PresentationVisibilityScript.should_draw_map_detail_for_current_player(game_state, coord)
 
 
 ## **Six-row 2/3/5/5/3/2 lattice:** authoritative **`P = _GRID_ROW_PITCH_FRAC × HexLayout.SIZE`**. Row **y** = **(−2.5 … +2.5) × P** in half-P steps. Derived **production** circle edge gap = **`P − 2×R_jitter`**. (Legacy: **10** slots **2/3/3/2** with **(−1.5…+1.5)×P**.)
@@ -1547,7 +1555,10 @@ func _fg_run_unit_forest_occluder_pass_for_map(coord_list, cam) -> void:
 		var ocoord = coord_list[oi]
 		var oter: int = int(map.terrain_at(ocoord))
 		if oter == HexMapScript.Terrain.PLAINS:
-			if _fg_hex_has_forest_decoration_for_draw(ocoord.q, ocoord.r):
+			if (
+				_should_draw_decoration_for_coord(ocoord)
+				and _fg_hex_has_forest_decoration_for_draw(ocoord.q, ocoord.r)
+			):
 				if (
 					scenario.cities_at(ocoord).size() == 0
 					and scenario.units_at(ocoord).size() > 0
@@ -1679,7 +1690,10 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 		var coord_m = coord_list[ci]
 		var terr_m: int = int(map.terrain_at(coord_m))
 		if terr_m == HexMapScript.Terrain.PLAINS:
-			if _fg_hex_has_forest_decoration_for_draw(coord_m.q, coord_m.r):
+			if (
+				_should_draw_decoration_for_coord(coord_m)
+				and _fg_hex_has_forest_decoration_for_draw(coord_m.q, coord_m.r)
+			):
 				var allow_m: bool = _fg_isolated_draw_this_hex(coord_m.q, coord_m.r)
 				var skip_m: bool = _should_skip_main_clump_for_city(coord_m)
 				var log_hex_m: bool = (
@@ -1803,7 +1817,7 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 					)
 				)
 				CityNameplateView.draw_city_banner_on_canvas_item(
-					self, layout, cam, cities_view, cty_m
+					self, layout, cam, cities_view, cty_m, game_state
 				)
 				_fg_debug_log_shared_hex_layer_order(
 					(
@@ -2212,8 +2226,11 @@ func _draw() -> void:
 			var c = cl[ii]
 			if int(map.terrain_at(c)) == HexMapScript.Terrain.PLAINS:
 				plains_n += 1
-				if PlainsForestScript.is_plains_forest_decorated_with_override(
-					c.q, c.r, forest_density_ratio, forest_decoration_override
+				if (
+					_should_draw_decoration_for_coord(c)
+					and PlainsForestScript.is_plains_forest_decorated_with_override(
+						c.q, c.r, forest_density_ratio, forest_decoration_override
+					)
 				):
 					dec_n += 1
 			ii += 1
@@ -2342,7 +2359,10 @@ func _draw() -> void:
 		var coord = coord_list[idx]
 		var terrain: int = int(map.terrain_at(coord))
 		if terrain == HexMapScript.Terrain.PLAINS:
-			if _fg_hex_has_forest_decoration_for_draw(coord.q, coord.r):
+			if (
+				_should_draw_decoration_for_coord(coord)
+				and _fg_hex_has_forest_decoration_for_draw(coord.q, coord.r)
+			):
 				if not do_forest_unit_depth_merge:
 					var world: Vector2 = layout.hex_to_world(coord.q, coord.r)
 					_reload_forest_tree_symbols_if_needed()
@@ -2408,7 +2428,7 @@ func _draw() -> void:
 			)
 			if CityNameplateView.city_hex_has_units(scenario, cp):
 				CityNameplateView.draw_city_banner_on_canvas_item(
-					self, layout, camera, cities_view, cp
+					self, layout, camera, cities_view, cp, game_state
 				)
 			ci_p2 += 1
 	if units_view != null and scenario != null and not do_forest_unit_depth_merge:
@@ -2490,7 +2510,10 @@ func _draw() -> void:
 		var coord_c = coord_list[idx]
 		var terr_c: int = int(map.terrain_at(coord_c))
 		if terr_c == HexMapScript.Terrain.PLAINS:
-			if _fg_hex_has_forest_decoration_for_draw(coord_c.q, coord_c.r):
+			if (
+				_should_draw_decoration_for_coord(coord_c)
+				and _fg_hex_has_forest_decoration_for_draw(coord_c.q, coord_c.r)
+			):
 				if not do_forest_unit_depth_merge:
 					var world_c: Vector2 = layout.hex_to_world(coord_c.q, coord_c.r)
 					_reload_forest_tree_symbols_if_needed()

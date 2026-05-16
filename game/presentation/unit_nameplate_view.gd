@@ -5,6 +5,7 @@ extends Node2D
 
 const UnitDefinitionsScript = preload("res://domain/content/unit_definitions.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
+const PresentationVisibilityScript = preload("res://presentation/presentation_visibility.gd")
 
 ## Shared with main: parchment map layer uses linear mipmaps for markers.
 const _NAMEPLATE_FONT_SIZE: int = 12
@@ -27,6 +28,8 @@ var layout
 var camera
 ## Used to align banner Y with PNG marker top (same geometry as TerrainForegroundView marker pass).
 var units_view
+## Phase **5.2.4k:** gate nameplates on **current_player** explored tiles.
+var game_state = null
 
 
 static func _humanize_type_id(raw: String) -> String:
@@ -119,7 +122,7 @@ static func compute_nameplate_rect(
 	return Rect2(anchor_pres.x - w * 0.5, cy - h * 0.5, w, h)
 
 
-static func compute_all_nameplate_rects(p_scenario, p_layout, p_camera, p_units_view) -> Array:
+static func compute_all_nameplate_rects(p_scenario, p_layout, p_camera, p_units_view, p_game_state = null) -> Array:
 	var out: Array = []
 	if p_scenario == null or p_layout == null or p_camera == null:
 		return out
@@ -129,6 +132,9 @@ static func compute_all_nameplate_rects(p_scenario, p_layout, p_camera, p_units_
 	var i = 0
 	while i < ulist.size():
 		var u = ulist[i]
+		if not PresentationVisibilityScript.should_draw_map_detail_for_current_player(p_game_state, u.position):
+			i = i + 1
+			continue
 		var wc = p_layout.hex_to_world(u.position.q, u.position.r)
 		var anchor = p_camera.to_presentation(wc)
 		var pscale: float = p_camera.perspective_scale_at(wc)
@@ -155,6 +161,9 @@ func _draw() -> void:
 	var i = 0
 	while i < ulist.size():
 		var u = ulist[i]
+		if not PresentationVisibilityScript.should_draw_map_detail_for_current_player(game_state, u.position):
+			i = i + 1
+			continue
 		var wc = layout.hex_to_world(u.position.q, u.position.r)
 		var anchor = camera.to_presentation(wc)
 		var pscale: float = camera.perspective_scale_at(wc)

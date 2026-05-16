@@ -8,6 +8,7 @@ extends Node2D
 
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const UnitNameplateViewScript = preload("res://presentation/unit_nameplate_view.gd")
+const PresentationVisibilityScript = preload("res://presentation/presentation_visibility.gd")
 ## **4.3f** default textured city height ratio — must match **CitiesView** default when **`cities_view` null** for fallback geometry.
 const _FALLBACK_CITY_ICON_HEIGHT_RATIO: float = 0.90
 
@@ -35,6 +36,8 @@ var camera
 var cities_view
 ## When set (main wires **TerrainForegroundView**), shared-hex banners are drawn by TFV for correct depth vs unit markers.
 var terrain_foreground_view
+## Phase **5.2.4k:** gate banners on **current_player** explored tiles.
+var game_state = null
 
 
 static func display_label_for_city(city) -> String:
@@ -99,7 +102,8 @@ static func compute_all_city_banner_rects(
 	p_layout,
 	p_camera,
 	p_cities_view,
-	omit_cities_with_units_on_hex: bool = false
+	omit_cities_with_units_on_hex: bool = false,
+	p_game_state = null
 ) -> Array:
 	var out: Array = []
 	if p_scenario == null or p_layout == null or p_camera == null:
@@ -111,6 +115,9 @@ static func compute_all_city_banner_rects(
 	while i < clist.size():
 		var cty = clist[i]
 		if omit_cities_with_units_on_hex and city_hex_has_units(p_scenario, cty):
+			i = i + 1
+			continue
+		if not PresentationVisibilityScript.should_draw_map_detail_for_current_player(p_game_state, cty.position):
 			i = i + 1
 			continue
 		var wc = p_layout.hex_to_world(cty.position.q, cty.position.r)
@@ -128,9 +135,12 @@ static func draw_city_banner_on_canvas_item(
 	p_layout,
 	p_camera,
 	p_cities_view,
-	city
+	city,
+	p_game_state = null
 ) -> void:
 	if target == null or p_layout == null or p_camera == null or city == null:
+		return
+	if not PresentationVisibilityScript.should_draw_map_detail_for_current_player(p_game_state, city.position):
 		return
 	var wc: Vector2 = p_layout.hex_to_world(city.position.q, city.position.r)
 	var anchor: Vector2 = p_camera.to_presentation(wc)
@@ -225,6 +235,9 @@ func _draw() -> void:
 						% [int(cty.id), int(cty.position.q), int(cty.position.r)]
 					)
 				)
+			i = i + 1
+			continue
+		if not PresentationVisibilityScript.should_draw_map_detail_for_current_player(game_state, cty.position):
 			i = i + 1
 			continue
 		var wc = layout.hex_to_world(cty.position.q, cty.position.r)

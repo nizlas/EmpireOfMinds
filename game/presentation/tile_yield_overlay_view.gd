@@ -7,6 +7,7 @@ const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 const CityYieldsScript = preload("res://domain/city_yields.gd")
+const PresentationVisibilityScript = preload("res://presentation/presentation_visibility.gd")
 
 const STABLE_YIELD_ORDER := ["food", "production", "science", "coin"]
 
@@ -26,6 +27,8 @@ const _PATH_COIN: String = "res://assets/prototype/yield_icons/coin_resource.png
 var scenario = null
 var layout = null
 var camera = null
+## Phase **5.2.4k:** when set, overlay entries skip hexes not explored for **current_player_id**.
+var game_state = null
 
 var _tex_food: Texture2D
 var _tex_production: Texture2D
@@ -115,7 +118,7 @@ static func compute_icon_entries_for_hex(
 	return out
 
 
-static func compute_overlay_entries(p_scenario, p_layout, p_camera) -> Array:
+static func compute_overlay_entries(p_scenario, p_layout, p_camera, p_game_state = null) -> Array:
 	var all: Array = []
 	if p_scenario == null or p_layout == null or p_camera == null:
 		return all
@@ -126,6 +129,9 @@ static func compute_overlay_entries(p_scenario, p_layout, p_camera) -> Array:
 	var ci: int = 0
 	while ci < coord_list.size():
 		var coord = coord_list[ci]
+		if not PresentationVisibilityScript.should_draw_map_detail_for_current_player(p_game_state, coord):
+			ci += 1
+			continue
 		var ydict: Dictionary = CityYieldsScript.empty()
 		var at_city: Array = p_scenario.cities_at(coord)
 		if at_city.size() > 0:
@@ -226,7 +232,7 @@ func _draw() -> void:
 		camera = cam
 	var font: Font = ThemeDB.fallback_font
 	var fsize: int = 11
-	var ents: Array = compute_overlay_entries(scenario, layout, camera)
+	var ents: Array = compute_overlay_entries(scenario, layout, camera, game_state)
 	var di: int = 0
 	while di < ents.size():
 		var e = ents[di]

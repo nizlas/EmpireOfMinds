@@ -8,6 +8,15 @@ const GameStateScript = preload("res://domain/game_state.gd")
 class ScenarioViewStub extends Node:
 	var redraws := 0
 	var _scenario = null
+	var game_state_writes := 0
+	var _gs = null
+
+	var game_state:
+		get:
+			return _gs
+		set(value):
+			_gs = value
+			game_state_writes += 1
 
 	var scenario:
 		get:
@@ -32,6 +41,22 @@ class TerrainViewStub extends ScenarioViewStub:
 
 
 class MapVisibilityStub extends Node:
+	var redraws := 0
+	var game_state_writes := 0
+	var _gs = null
+
+	var game_state:
+		get:
+			return _gs
+		set(value):
+			_gs = value
+			game_state_writes += 1
+
+	func queue_redraw() -> void:
+		redraws += 1
+
+
+class LightningTreeStub extends Node:
 	var redraws := 0
 	var game_state_writes := 0
 	var _gs = null
@@ -72,12 +97,18 @@ func _init() -> void:
 	var eb = ScenarioViewStub.new()
 	var teb = TerrainViewStub.new()
 	var mvis = MapVisibilityStub.new()
-	TurnViewSyncScript.sync_terrain_related_views(scen, tf, un, cn, yo, ct, null, eb, teb, gs, mvis)
+	var lt = LightningTreeStub.new()
+	TurnViewSyncScript.sync_terrain_related_views(scen, tf, un, cn, yo, ct, null, eb, teb, gs, mvis, lt)
 	_check(tf.map_writes == 1, "terrain map assignment once")
 	_check(tf.redraws == 1 and un.redraws == 1 and cn.redraws == 1, "terrain+name redraws once each")
 	_check(yo.redraws == 1 and ct.redraws == 1 and eb.redraws == 1, "yield+territory+empire redraw once")
 	_check(teb.map_writes == 1 and teb.redraws == 1, "terrain edge blend map+redraw once")
 	_check(mvis.game_state == gs and mvis.game_state_writes == 1 and mvis.redraws == 1, "map visibility sync")
+	_check(tf.game_state == gs and tf.game_state_writes == 1, "sync terrain game_state")
+	_check(un.game_state == gs and un.game_state_writes == 1, "sync unit nameplate game_state")
+	_check(cn.game_state == gs and cn.game_state_writes == 1, "sync city nameplate game_state")
+	_check(yo.game_state == gs and yo.game_state_writes == 1, "sync yield overlay game_state")
+	_check(lt.game_state == gs and lt.game_state_writes == 1 and lt.redraws == 1, "lightning game_state sync")
 
 	## refresh_map_views_and_hud_after_try_apply_turn_controllers
 	var sel = ScenarioViewStub.new()
@@ -97,6 +128,7 @@ func _init() -> void:
 	var teb2 = TerrainViewStub.new()
 
 	var mvis2 = MapVisibilityStub.new()
+	var lt2 = LightningTreeStub.new()
 
 	TurnViewSyncScript.refresh_map_views_and_hud_after_try_apply_turn_controllers(
 		gs,
@@ -116,6 +148,7 @@ func _init() -> void:
 		eb2,
 		teb2,
 		mvis2,
+		lt2,
 	)
 	_check(sel.scenario == scen and uv.scenario == scen, "selection/units wired to scenario")
 	_check(sel.redraws == 1 and uv.redraws == 1, "selection/units redraw once")
@@ -129,6 +162,11 @@ func _init() -> void:
 		mvis2.game_state == gs and mvis2.game_state_writes == 1 and mvis2.redraws == 1,
 		"map visibility refresh once",
 	)
+	_check(tf2.game_state == gs and tf2.game_state_writes == 1, "refresh terrain game_state")
+	_check(unp2.game_state == gs and unp2.game_state_writes == 1, "refresh unit nameplate game_state")
+	_check(cnp2.game_state == gs and cnp2.game_state_writes == 1, "refresh city nameplate game_state")
+	_check(yov2.game_state == gs and yov2.game_state_writes == 1, "refresh yield overlay game_state")
+	_check(lt2.game_state == gs and lt2.game_state_writes == 1 and lt2.redraws == 1, "lightning refresh game_state")
 	_check(tl.refreshes == 1 and lv.refreshes == 1, "turn label + log refresh once")
 	_check(cpp.refreshes == 1 and dap.refreshes == 1 and sp.refreshes == 1, "HUD panels refreshed once")
 
@@ -143,6 +181,7 @@ func _init() -> void:
 		+ eb2.redraws
 		+ teb2.redraws
 		+ mvis2.redraws
+		+ lt2.redraws
 	)
 	TurnViewSyncScript.refresh_map_views_and_hud_after_try_apply_turn_controllers(
 		null,
@@ -162,6 +201,7 @@ func _init() -> void:
 		eb2,
 		teb2,
 		mvis2,
+		lt2,
 	)
 	var redraw_after: int = (
 		sel.redraws
@@ -174,7 +214,8 @@ func _init() -> void:
 			+ eb2.redraws
 			+ teb2.redraws
 			+ mvis2.redraws
-	)
+			+ lt2.redraws
+			)
 	_check(redraw_after == redraw_tot, "null GameState skips all view redraws")
 
 	for n in [
@@ -186,6 +227,7 @@ func _init() -> void:
 		eb,
 		teb,
 		mvis,
+		lt,
 		sel,
 		uv,
 		tl,
@@ -201,6 +243,7 @@ func _init() -> void:
 		eb2,
 		teb2,
 		mvis2,
+		lt2,
 	]:
 		if is_instance_valid(n) and n is Node:
 			n.free()

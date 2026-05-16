@@ -144,3 +144,25 @@ Manual check in **`main.tscn`** (**local hotseat prototype**).
 - [ ] **P0** / **P1** discovery stays **separate** (no cross-player reveal).
 
 Validation: **`scripts/run-godot-tests.ps1`** — **`test_player_visibility_state.gd`**, **`test_player_visibility_reveal.gd`**, **`test_map_visibility_view.gd`**, sibling-order and **`test_turn_view_sync.gd`** updates.
+
+## Phase 5.2.4k — Unexplored map-detail source culling (yields, decorations, name banners)
+
+Manual check in **`main.tscn`** with **Yields** toggled on where applicable.
+
+- [ ] Over **unexplored** parchment: **no** yield icons or yield letter fallbacks, **no** lightning-tree stump, **no** forest **TerrainForegroundView** decorations on those hexes, **no** city **name** banners or unit **name** banners that would sit on unexplored cells.
+- [ ] On **explored** hexes, those elements behave as **before** this slice.
+- [ ] **Space** (hotseat): switching **current** player updates which cells are treated as explored for the above (**same** set as parchment).
+
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_presentation_visibility.gd`**, **`test_tile_yield_overlay_view_visibility.gd`**, **`test_lightning_tree_view_visibility.gd`**, **`test_terrain_foreground_view_visibility.gd`**, **`test_city_nameplate_view_visibility.gd`**, **`test_unit_nameplate_view_visibility.gd`**, plus **`test_turn_view_sync.gd`** ( **`game_state`** propagation).
+
+## Phase 5.2.4l — Real WATER sea shell (prototype footprint)
+
+Manual check in **`main.tscn`**.
+
+- [ ] Map **footprint** reads as a **straight-edged rectangle** in world space (outer ring is **WATER** on **`HexMap`**, not a presentation plate).
+- [ ] **Land / content** layout matches the pre-shell curated island: same **(q,r)** for terrain, cities, units, yields as before **5.2.4l** on those cells.
+- [ ] Roughly **three** hex-steps of **WATER** padding between the old playable/content edge and the new outer boundary (world-axis shell).
+- [ ] **Unexplored parchment** covers unexplored **outer** water (real map cells).
+- [ ] Yields, decorations, and labels **do not** leak over parchment in unexplored areas (**5.2.4k** gating still holds).
+
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_prototype_rectangular_water_shell.gd`**, **`test_prototype_play_map_distribution.gd`**, **`test_map_visibility_view.gd`**, **`test_main_tscn_map_layer_sibling_order.gd`**, **`test_turn_view_sync.gd`**, **`test_presentation_visibility.gd`**.

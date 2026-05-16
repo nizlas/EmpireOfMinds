@@ -15,21 +15,30 @@ static func sync_terrain_related_views(
 	terrain_edge_blend_view = null,
 	game_state = null,
 	map_visibility_view = null,
+	lightning_tree_view = null,
 ) -> void:
 	if scen == null:
 		return
 	if terrain_foreground_view != null:
 		terrain_foreground_view.scenario = scen
 		terrain_foreground_view.map = scen.map
+		if game_state != null:
+			terrain_foreground_view.game_state = game_state
 		terrain_foreground_view.queue_redraw()
 	if unit_nameplate_view != null:
 		unit_nameplate_view.scenario = scen
+		if game_state != null:
+			unit_nameplate_view.game_state = game_state
 		unit_nameplate_view.queue_redraw()
 	if city_nameplate_view != null:
 		city_nameplate_view.scenario = scen
+		if game_state != null:
+			city_nameplate_view.game_state = game_state
 		city_nameplate_view.queue_redraw()
 	if yield_overlay_view != null:
 		yield_overlay_view.scenario = scen
+		if game_state != null:
+			yield_overlay_view.game_state = game_state
 		yield_overlay_view.queue_redraw()
 	if city_territory_view != null:
 		city_territory_view.scenario = scen
@@ -46,6 +55,10 @@ static func sync_terrain_related_views(
 	if game_state != null and map_visibility_view != null:
 		map_visibility_view.game_state = game_state
 		map_visibility_view.queue_redraw()
+	if game_state != null and lightning_tree_view != null:
+		lightning_tree_view.game_state = game_state
+		lightning_tree_view.queue_redraw()
+
 
 ## Mirrors **EndTurnController** / **AITurnController** accepted-action block after **`discovery_popup`** / **`selection.clear_unit()`** (**not** inclusive of those callers).
 static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_state,
@@ -65,6 +78,7 @@ static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_stat
 	empire_border_view = null,
 	terrain_edge_blend_view = null,
 	map_visibility_view = null,
+	lightning_tree_view = null,
 ) -> void:
 	if game_state == null:
 		return
@@ -74,18 +88,22 @@ static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_stat
 		var scen = game_state.scenario
 		terrain_foreground_view.scenario = scen
 		terrain_foreground_view.map = scen.map
+		terrain_foreground_view.game_state = game_state
 	selection_view.queue_redraw()
 	units_view.queue_redraw()
 	if terrain_foreground_view != null:
 		terrain_foreground_view.queue_redraw()
 	if unit_nameplate_view != null:
 		unit_nameplate_view.scenario = game_state.scenario
+		unit_nameplate_view.game_state = game_state
 		unit_nameplate_view.queue_redraw()
 	if city_nameplate_view != null:
 		city_nameplate_view.scenario = game_state.scenario
+		city_nameplate_view.game_state = game_state
 		city_nameplate_view.queue_redraw()
 	if yield_overlay_view != null:
 		yield_overlay_view.scenario = game_state.scenario
+		yield_overlay_view.game_state = game_state
 		yield_overlay_view.queue_redraw()
 	if city_territory_view != null:
 		city_territory_view.scenario = game_state.scenario
@@ -102,6 +120,9 @@ static func refresh_map_views_and_hud_after_try_apply_turn_controllers(game_stat
 	if map_visibility_view != null:
 		map_visibility_view.game_state = game_state
 		map_visibility_view.queue_redraw()
+	if lightning_tree_view != null:
+		lightning_tree_view.game_state = game_state
+		lightning_tree_view.queue_redraw()
 	turn_label.refresh()
 	if log_view != null:
 		log_view.refresh()

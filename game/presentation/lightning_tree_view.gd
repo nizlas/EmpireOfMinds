@@ -5,6 +5,7 @@ class_name LightningTreeView
 extends Node2D
 
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
+const PresentationVisibilityScript = preload("res://presentation/presentation_visibility.gd")
 
 const _ASSET_PATH: String = "res://assets/prototype/terrain/scarred_tree_stump.png"
 ## Display height as a fraction of projected pointy-top hex height (2 * HexLayout.SIZE * perspective_scale).
@@ -198,6 +199,8 @@ func _draw() -> void:
 		return
 	var hc = scen.lightning_tree_hex
 	if hc == null:
+		return
+	if not PresentationVisibilityScript.should_draw_map_detail_for_current_player(game_state, hc):
 		return
 	var drew_texture: bool = false
 	var tex: Texture2D = load_keyed_stump_texture()

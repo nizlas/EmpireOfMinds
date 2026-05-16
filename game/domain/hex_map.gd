@@ -86,6 +86,104 @@ static func _proto_axial_dist(q: int, r: int, aq: int, ar: int) -> int:
 	return int(abs(q - aq) + abs(r - ar) + abs(q + r - aq - ar)) / 2
 
 
+## Must match HexLayout.SIZE in `game/presentation/hex_layout.gd` (128.0): world-space padding for the prototype sea shell.
+const _PROTO_LAYOUT_HEX_SIZE: float = 128.0
+## World-axis-aligned sea frame: ~this many neighbor steps beyond the land AABB (pointy-top spacing on X and Y).
+const _PROTO_VIS_WATER_SHELL_PAD_STEPS: int = 3
+
+
+static func _proto_hex_center_world(q: int, r: int) -> Vector2:
+	var x: float = _PROTO_LAYOUT_HEX_SIZE * sqrt(3.0) * (float(q) + float(r) / 2.0)
+	var y: float = _PROTO_LAYOUT_HEX_SIZE * 1.5 * float(r)
+	return Vector2(x, y)
+
+
+static func _proto_hex_world_aabb_xy(q: int, r: int) -> Rect2:
+	var center: Vector2 = _proto_hex_center_world(q, r)
+	var min_x: float = INF
+	var max_x: float = -INF
+	var min_y: float = INF
+	var max_y: float = -INF
+	var degs: Array = [30, 90, 150, 210, 270, 330]
+	var di: int = 0
+	while di < 6:
+		var rad: float = deg_to_rad(float(degs[di]))
+		var px: float = center.x + cos(rad) * _PROTO_LAYOUT_HEX_SIZE
+		var py: float = center.y + sin(rad) * _PROTO_LAYOUT_HEX_SIZE
+		min_x = minf(min_x, px)
+		max_x = maxf(max_x, px)
+		min_y = minf(min_y, py)
+		max_y = maxf(max_y, py)
+		di += 1
+	return Rect2(min_x, min_y, max_x - min_x, max_y - min_y)
+
+
+static func _proto_land_world_rect(land: Dictionary) -> Rect2:
+	var first: bool = true
+	var acc: Rect2 = Rect2()
+	for k in land.keys():
+		var hb: Rect2 = _proto_hex_world_aabb_xy(k.x, k.y)
+		if first:
+			acc = hb
+			first = false
+		else:
+			acc = acc.merge(hb)
+	return acc
+
+
+static func _proto_expand_world_rect_pad_hex_steps(r: Rect2, steps: int) -> Rect2:
+	var pad_x: float = float(steps) * sqrt(3.0) * _PROTO_LAYOUT_HEX_SIZE
+	var pad_y: float = float(steps) * 1.5 * _PROTO_LAYOUT_HEX_SIZE
+	return Rect2(
+		r.position.x - pad_x,
+		r.position.y - pad_y,
+		r.size.x + 2.0 * pad_x,
+		r.size.y + 2.0 * pad_y,
+	)
+
+
+## Sea shell from **base land** only (Phase **5.2.4l**): fill an **axis-aligned world rectangle** around the land footprint with **real** WATER cells (no presentation filler). Single deterministic pass.
+static func _proto_add_world_axis_rect_water_shell(land: Dictionary, c: Dictionary) -> void:
+	var inner: Rect2 = _proto_land_world_rect(land)
+	var outer: Rect2 = _proto_expand_world_rect_pad_hex_steps(inner, _PROTO_VIS_WATER_SHELL_PAD_STEPS)
+	var q_lo: int = 2147483647
+	var q_hi: int = -2147483648
+	var r_lo: int = 2147483647
+	var r_hi: int = -2147483648
+	for k in land.keys():
+		q_lo = mini(q_lo, k.x)
+		q_hi = maxi(q_hi, k.x)
+		r_lo = mini(r_lo, k.y)
+		r_hi = maxi(r_hi, k.y)
+	var span: int = 12 + _PROTO_VIS_WATER_SHELL_PAD_STEPS * 4
+	var q: int = q_lo - span
+	while q <= q_hi + span:
+		var r: int = r_lo - span
+		while r <= r_hi + span:
+			var kk := Vector2i(q, r)
+			if land.has(kk):
+				r += 1
+				continue
+			var hb: Rect2 = _proto_hex_world_aabb_xy(q, r)
+			if outer.intersects(hb):
+				c[kk] = Terrain.WATER
+			r += 1
+		q += 1
+
+
+## Test/support: curated **land** key set for **`make_prototype_play_map()`** before the perimeter WATER shell (same dict as internal flood result).
+static func prototype_play_land_key_set() -> Dictionary:
+	return _proto_collect_land_keys()
+
+
+## World-axis target rectangle (**expanded land AABB** + **`_PROTO_VIS_WATER_SHELL_PAD_STEPS`** on X/Y) used for the prototype sea shell — for tests / docs alignment with **HexLayout** space.
+static func prototype_play_target_sea_world_rect() -> Rect2:
+	return _proto_expand_world_rect_pad_hex_steps(
+		_proto_land_world_rect(prototype_play_land_key_set()),
+		_PROTO_VIS_WATER_SHELL_PAD_STEPS,
+	)
+
+
 ## Phase 5.1.16g.1 lineage: west strait + bay bites (see MAP_MODEL). Keys are **removed** from dry land before the NE/S extensions stitch on.
 static func _proto_lake_strait_dict() -> Dictionary:
 	var d: Dictionary = {}
@@ -475,27 +573,10 @@ static func _proto_paint_land_terrain(land: Dictionary, c: Dictionary, lf: Dicti
 		di += 1
 
 
-static func _proto_add_full_water_ring(land: Dictionary, c: Dictionary) -> void:
-	## Every land edge faces **WATER** on the map — reads as a true island / enclosing sea shell.
-	for k in land.keys():
-		var q: int = k.x
-		var r: int = k.y
-		var ni: int = 0
-		while ni < 6:
-			var wq: int = q + _PROTO_AX_NEI[ni].x
-			var wr: int = r + _PROTO_AX_NEI[ni].y
-			var wk := Vector2i(wq, wr)
-			if land.has(wk):
-				ni += 1
-				continue
-			c[wk] = Terrain.WATER
-			ni += 1
-
-
 static func make_prototype_play_map():
 	var land: Dictionary = _proto_collect_land_keys()
 	var c: Dictionary = {}
 	var lf: Dictionary = {}
 	_proto_paint_land_terrain(land, c, lf)
-	_proto_add_full_water_ring(land, c)
+	_proto_add_world_axis_rect_water_shell(land, c)
 	return _HEX_MAP_SCRIPT.new(c, lf, _PROTOTYPE_TERRAIN_FEATURES.prototype_woods_set())

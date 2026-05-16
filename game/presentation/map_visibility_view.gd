@@ -44,6 +44,25 @@ func _ready() -> void:
 	queue_redraw()
 
 
+func _draw_parchment_hex(coord) -> void:
+	var world_center: Vector2 = layout.hex_to_world(coord.q, coord.r)
+	var corners_world: PackedVector2Array = layout.hex_corners(world_center)
+	var corners_draw: PackedVector2Array = PackedVector2Array()
+	corners_draw.resize(6)
+	var ci: int = 0
+	while ci < 6:
+		corners_draw[ci] = camera.to_presentation(corners_world[ci])
+		ci = ci + 1
+	var uvs: PackedVector2Array = MapViewScript._world_anchored_corner_uvs(
+		corners_world,
+		parchment_world_scale,
+	)
+	if _parchment_tex != null:
+		draw_colored_polygon(corners_draw, Color.WHITE, uvs, _parchment_tex)
+	else:
+		draw_colored_polygon(corners_draw, _FALLBACK_FOG)
+
+
 func _draw() -> void:
 	if game_state == null or layout == null or camera == null:
 		return
@@ -54,27 +73,13 @@ func _draw() -> void:
 	var pid: int = int(game_state.turn_state.current_player_id())
 	var vis = game_state.visibility_state
 	var mp = game_state.scenario.map
-	var coords: Array = mp.coords()
+
 	var i: int = 0
+	var coords: Array = mp.coords()
 	while i < coords.size():
 		var coord = coords[i]
 		if vis.is_explored(pid, coord):
 			i = i + 1
 			continue
-		var world_center: Vector2 = layout.hex_to_world(coord.q, coord.r)
-		var corners_world: PackedVector2Array = layout.hex_corners(world_center)
-		var corners_draw: PackedVector2Array = PackedVector2Array()
-		corners_draw.resize(6)
-		var ci: int = 0
-		while ci < 6:
-			corners_draw[ci] = camera.to_presentation(corners_world[ci])
-			ci = ci + 1
-		var uvs: PackedVector2Array = MapViewScript._world_anchored_corner_uvs(
-			corners_world,
-			parchment_world_scale,
-		)
-		if _parchment_tex != null:
-			draw_colored_polygon(corners_draw, Color.WHITE, uvs, _parchment_tex)
-		else:
-			draw_colored_polygon(corners_draw, _FALLBACK_FOG)
+		_draw_parchment_hex(coord)
 		i = i + 1

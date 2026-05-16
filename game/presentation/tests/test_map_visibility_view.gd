@@ -36,7 +36,7 @@ func _run() -> void:
 		var hc: HexCoord = coords[idx] as HexCoord
 		var vk := Vector2i(int(hc.q), int(hc.r))
 		var explored_p0: bool = gs.visibility_state.is_explored(0, hc)
-		_check(s0.has(vk) != explored_p0, "P0: overlay is complement of explored")
+		_check(s0.has(vk) != explored_p0, "P0: overlay is complement of explored on all map coords")
 		idx += 1
 	var et = EndTurnScript.make(0)
 	_check(gs.try_apply(et)["accepted"], "EndTurn to P1")
@@ -48,7 +48,7 @@ func _run() -> void:
 		var hc1: HexCoord = coords[j] as HexCoord
 		var vk1 := Vector2i(int(hc1.q), int(hc1.r))
 		var explored_p1: bool = gs.visibility_state.is_explored(1, hc1)
-		_check(s1.has(vk1) != explored_p1, "P1: overlay is complement of explored after EndTurn")
+		_check(s1.has(vk1) != explored_p1, "P1: overlay is complement of explored after EndTurn on map coords")
 		j += 1
 
 	if _any_fail:

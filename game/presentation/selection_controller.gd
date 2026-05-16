@@ -42,6 +42,8 @@ var yield_overlay_view
 var terrain_edge_blend_view
 ## Phase **5.2.3:** parchment overlay from **current_player_id** explored tiles.
 var map_visibility_view
+## Phase **5.2.4k:** lightning stump uses same visibility gating as parchment (**TurnViewSync** assigns **game_state**).
+var lightning_tree_view
 ## Phase 5.1.16i: selected-city territory outline (**tiles_owned_by_city**); redraw with selection / sync.
 var city_territory_view
 ## Phase **5.1.17h**: always-on owner-union perimeter (**EmpireBorderView**); redraw with terrain sync / scenario assigns.
@@ -248,6 +250,7 @@ func _sync_terrain_foreground_from_game_state() -> void:
 		terrain_edge_blend_view,
 		game_state,
 		map_visibility_view,
+		lightning_tree_view,
 	)
 
 func _unhandled_input(event):

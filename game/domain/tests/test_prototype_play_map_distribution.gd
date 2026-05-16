@@ -75,8 +75,8 @@ func _init() -> void:
 
 	var land_dict: Dictionary = _land_keys(m)
 
-	_check(n_land >= 130 and n_water >= 70, "expanded vs 5.1.16g.1 (~90 land / ~30 halo water): more land + full perimeter sea shell")
-	_check(m.size() >= 220 and m.size() <= 340, "total cell count (land + complete water halo)")
+	_check(n_land >= 130 and n_water >= 400, "expanded island: land mass + axis-aligned sea shell")
+	_check(m.size() >= 220 and m.size() <= 750, "total cell count (land + world-rect sea shell)")
 	_check(n_pf >= 12 and n_ph >= 8 and n_gf >= 35 and n_gh >= 6, "mixed terrain: grass-forward balance + visible hills")
 	_check(n_flat >= 35 and n_hill >= 18, "flat/hill variety on land")
 	var n_plains: int = n_pf + n_ph
