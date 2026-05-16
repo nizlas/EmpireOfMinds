@@ -15,3 +15,10 @@ export_credentials.cfg
 .mono/
 data_*/
 mono_crash.*.json
+
+# Local authority server (Cloud 0.1)
+server/data/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
