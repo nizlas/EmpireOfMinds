@@ -1,5 +1,7 @@
 # Empire of Minds — Cloud Play Strategy
 
+**Long-term direction (authority model, async/live-feel, action vocabulary, roadmap labels, AI parity):** [CLOUD_PLAY_DIRECTION.md](CLOUD_PLAY_DIRECTION.md). This page stays focused on **product/strategy** (modes, BYOS); the direction doc is the **canonical architecture checkpoint** for cloud/multiplayer/AI without implementation detail.
+
 ## Vision
 
 Empire of Minds should support asynchronous play-by-cloud.

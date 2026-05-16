@@ -25,6 +25,14 @@ Exit criteria:
 - Phase 1 scope is narrow and testable
 - implementation agent has clear constraints
 
+## Direction checkpoint — Cloud play, authority, and AI (documentation only)
+
+**Purpose:** Lock **long-term** steering so later slices stay coherent. **No** new gameplay implementation phases; **no** networking or backend work implied by this checkpoint.
+
+**Canonical document:** [CLOUD_PLAY_DIRECTION.md](CLOUD_PLAY_DIRECTION.md) — async-first cloud play, server-authoritative rules in cloud mode, **action / intention** submissions (not client-resolved outcomes), local–server **conceptual** parity of rules/actions, persistence direction (action log + snapshots; delta sync + snapshot recovery at a high level), and **labeled** roadmap stages (**v0**–**v4**) for async, live-feel updates, AI assignment, and optional LLM-assisted AI—**without** prescribing protocols, matchmaking, or technology choices here.
+
+**Alignment:** [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) (deterministic-first, **EffectiveRules** direction, **no** special-case AI gameplay path), [CLOUD_PLAY.md](CLOUD_PLAY.md), [AI_DESIGN.md](AI_DESIGN.md). Implementation backlog remains in subsequent sections of this file; when cloud or sync work is added, it should cite **CLOUD_PLAY_DIRECTION.md** and avoid realtime-first assumptions unless a phase explicitly requires them.
+
 ## Phase 1 — Local Playable Prototype
 
 Goal:

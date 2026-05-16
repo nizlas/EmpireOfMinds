@@ -16,7 +16,7 @@ It must be treated as:
 
 **a small turn-based strategy rules engine that currently happens to render one local hex-map scenario in Godot.**
 
-The design must support a logical growth path toward later phases (multiple players, cities, combat, fog of war, AI, deterministic action logs, save/load, async cloud play, server-authoritative validation) without introducing subsystems that are out of scope for the current phase. Scope for each phase is defined in [PHASE_PLAN.md](PHASE_PLAN.md) and the project brief.
+The design must support a logical growth path toward later phases (multiple players, cities, combat, fog of war, AI, deterministic action logs, save/load, async cloud play, server-authoritative validation) without introducing subsystems that are out of scope for the current phase. Scope for each phase is defined in [PHASE_PLAN.md](PHASE_PLAN.md) and the project brief. **Long-term cloud/multiplayer/AI direction** (async-first, authority model, roadmap **labels** only) is anchored in [CLOUD_PLAY_DIRECTION.md](CLOUD_PLAY_DIRECTION.md)—high level only; not a protocol or backend spec.
 
 ## Architectural layers
 
@@ -148,6 +148,17 @@ In cloud games:
 - server applies accepted actions
 - server persists action log and/or snapshots
 - clients receive updated state
+
+## Long-term multiplayer and cloud shape (direction)
+
+**Canonical detail:** [CLOUD_PLAY_DIRECTION.md](CLOUD_PLAY_DIRECTION.md). Below is the **architectural** contract this project aims toward—without assuming realtime-first transport, specific backends, or scope not yet in [PHASE_PLAN.md](PHASE_PLAN.md).
+
+- **Action-shaped domain rules:** local gameplay should **evolve toward** the same **explicit action** vocabulary and validation/application paths that cloud mode will use, where practical. Local hotseat is **not** a throwaway genre of code relative to that goal.
+- **Server-authoritative cloud:** in cloud games, the server owns canonical state and applies accepted actions; clients remain untrusted ([CLOUD_PLAY.md](CLOUD_PLAY.md) strategy layer).
+- **Actions and intentions, not outcomes:** clients and AI submit **candidate actions** (e.g. attack with declared parameters)—not client-owned **resolved** combat outcomes or other final state deltas. Resolution stays inside domain rule modules on the authority side (see **CombatRules.resolve_attack**-style framing in [CLOUD_PLAY_DIRECTION.md](CLOUD_PLAY_DIRECTION.md)).
+- **Conceptual compatibility:** local authority (today) vs server authority (future cloud) should differ by **where** `try_apply` / validation runs—not by inventing a second, incompatible command set for the same moves.
+- **AI parity:** AI must continue to choose from **legal actions** and go through the same validation path as humans ([AI_DESIGN.md](AI_DESIGN.md)); future LLM or planner assistance is **adapter-shaped**, not a shadow rules engine.
+- **Determinism and rules envelope:** cloud-shaped work stays aligned with **deterministic-first** logs, seeded randomness discipline above, and **EffectiveRules** as the runtime content read boundary once that layer is in force (**Gameplay consumes EffectiveRules**).
 
 ## Determinism principle
 
