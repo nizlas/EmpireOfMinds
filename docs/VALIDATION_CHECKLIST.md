@@ -189,3 +189,14 @@ Manual check in **`main.tscn`** (**local hotseat**).
 - [ ] **Space** (**End Turn**): **5.2.1** selection clear for the next player still behaves as before.
 
 Validation: **`scripts/run-godot-tests.ps1`** — **`test_selection_post_move_unit.gd`**, **`test_hotseat_endturn_selection_clear.gd`** (unchanged **EndTurn** clear contract).
+
+## Phase 5.2.6 — Turn-start scroll banner (first interaction dismisses)
+
+Manual check in **`main.tscn`** (**assets** **`game/assets/prototype/ui/turn_scroll_banner.png`**).
+
+- [ ] On **Play**, a centered **scroll** banner appears with **`Your turn, Player 0`** (or the opening **current** id).
+- [ ] Any **click**, **key**, **wheel**, or **right-drag** motion dismisses the banner; gameplay (**Space** end turn, map pick, etc.) can still run on that same input when **`Main._input`** runs first (**5.2.6** hook).
+- [ ] After **End Turn** (**Space**), the **next** player’s banner appears (**`Your turn, Player 1`**, etc.).
+- [ ] If you **do nothing**, the banner may stay visible (no close button).
+
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_turn_start_banner_view.gd`**.

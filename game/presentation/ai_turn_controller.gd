@@ -31,6 +31,7 @@ var science_completed_popup
 var discovery_popup
 var map_visibility_view
 var lightning_tree_view
+var turn_start_banner
 
 func _unhandled_input(event: InputEvent) -> void:
 	assert(GameStateScript != null)
@@ -88,5 +89,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					map_visibility_view,
 					lightning_tree_view,
 				)
+				if str(action.get("action_type", "")) == EndTurnScript.ACTION_TYPE and turn_start_banner != null:
+					turn_start_banner.show_for_current_player(game_state)
 			else:
 				push_warning("AI action rejected: %s" % result["reason"])

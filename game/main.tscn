@@ -27,6 +27,7 @@
 [ext_resource type="Script" path="res://presentation/turn_status_panel.gd" id="25_turn_status"]
 [ext_resource type="Script" path="res://presentation/player_contact_strip.gd" id="26_player_contact"]
 [ext_resource type="Script" path="res://presentation/map_visibility_view.gd" id="27_map_visibility"]
+[ext_resource type="Script" path="res://presentation/turn_start_banner_view.gd" id="28_turn_banner"]
 
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
@@ -37,6 +38,9 @@ offset_top = 20.0
 offset_right = 800.0
 offset_bottom = 100.0
 script = ExtResource("6_turnlabel")
+
+[node name="TurnStartBanner" type="CanvasLayer" parent="."]
+script = ExtResource("28_turn_banner")
 
 [node name="HudCanvas" type="CanvasLayer" parent="." unique_id=928810041]
 layer = 16

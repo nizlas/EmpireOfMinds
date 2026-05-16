@@ -265,6 +265,7 @@ func _ready() -> void:
 	end_turn_controller.terrain_edge_blend_view = terrain_edge_blend
 	end_turn_controller.map_visibility_view = map_visibility_view
 	end_turn_controller.lightning_tree_view = lightning_tree_view
+	end_turn_controller.turn_start_banner = $TurnStartBanner
 	ai_turn_controller.yield_overlay_view = tile_yield_overlay
 	ai_turn_controller.city_territory_view = city_territory_view
 	ai_turn_controller.empire_border_view = empire_border_view
@@ -272,6 +273,7 @@ func _ready() -> void:
 	ai_turn_controller.terrain_edge_blend_view = terrain_edge_blend
 	ai_turn_controller.map_visibility_view = map_visibility_view
 	ai_turn_controller.lightning_tree_view = lightning_tree_view
+	ai_turn_controller.turn_start_banner = $TurnStartBanner
 	city_production_panel.refresh()
 	var discovery_action_panel = $HudCanvas/DiscoveryActionPanel
 	discovery_action_panel.game_state = game_state
@@ -307,10 +309,16 @@ func _ready() -> void:
 		yields_toggle.toggled.connect(_on_yields_toggle_toggled)
 	_faction_banner_gallery = FactionBannerGalleryScript.new()
 	add_child(_faction_banner_gallery)
+	var turn_start_banner = $TurnStartBanner
+	turn_start_banner.set_game_state(game_state)
+	turn_start_banner.show_for_current_player(game_state)
 	_redraw_map_layers()
 
 
 func _input(event: InputEvent) -> void:
+	var turn_start_banner = $TurnStartBanner
+	if turn_start_banner != null:
+		turn_start_banner.on_user_interaction(event)
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if not mb.pressed:
