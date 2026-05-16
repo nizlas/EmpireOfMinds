@@ -5,6 +5,7 @@ const GameStateScript = preload("res://domain/game_state.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const PlayerContactStripScr = preload("res://presentation/player_contact_strip.gd")
 const UnitNameplateViewScript = preload("res://presentation/unit_nameplate_view.gd")
+const PlaytestPlayerDisplayScript = preload("res://presentation/playtest_player_display.gd")
 
 var _total = 0
 var _any_fail = false
@@ -41,7 +42,14 @@ func _run() -> void:
 	_check(bool(d0.get("is_current_turn", false)), "P0 is current initially")
 	_check(not bool(d1.get("is_current_turn", true)), "P1 not current initially")
 	_check(int(d0.get("player_id", -9)) == 0, "first id 0")
-	_check(str(d0.get("label_short", "")) == "P0", "short label P0")
+	_check(
+		str(d0.get("label_short", "")) == PlaytestPlayerDisplayScript.display_name_for_player_id(0),
+		"chip label playtest P0",
+	)
+	_check(
+		str(d0.get("label_long", "")) == PlaytestPlayerDisplayScript.display_name_for_player_id(0),
+		"long label playtest P0",
+	)
 	_check(str(d0.get("contact_state", "")) == "known", "v0 contact_state known")
 	_check(
 		(d0.get("accent_color", Color.BLACK) as Color).is_equal_approx(

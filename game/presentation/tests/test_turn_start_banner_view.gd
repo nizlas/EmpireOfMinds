@@ -21,15 +21,15 @@ func _run() -> void:
 	banner.show_for_current_player(gs)
 	_check(banner.is_visible_banner(), "visible after show opening")
 	_check(
-		banner.debug_banner_line() == "Your turn, Player 0",
-		"copy names Player 0",
+		banner.debug_banner_line() == "Your turn, Västerviksjävlarna",
+		"copy names playtest P0",
 	)
 	_check(gs.try_apply(EndTurnScript.make(0))["accepted"], "end turn")
 	banner.show_for_current_player(gs)
 	_check(banner.is_visible_banner(), "visible after end turn for next player")
 	_check(
-		banner.debug_banner_line() == "Your turn, Player 1",
-		"copy names Player 1",
+		banner.debug_banner_line() == "Your turn, Malmöfubikkarna",
+		"copy names playtest P1",
 	)
 	banner.dismiss()
 	_check(not banner.is_visible_banner(), "dismiss hides")

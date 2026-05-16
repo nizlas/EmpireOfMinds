@@ -10,13 +10,13 @@ var _any_fail = false
 func _init() -> void:
 	_check(TurnLabelScript.compute_text(null) == "", "null game_state text")
 	var gs = GameStateScript.make_tiny_test_state()
-	_check(TurnLabelScript.compute_text(gs) == "Turn 1 — Player 0", "initial label")
+	_check(TurnLabelScript.compute_text(gs) == "Turn 1 — Västerviksjävlarna", "initial label")
 	var r1 = gs.try_apply(EndTurnScript.make(0))
 	_check(r1["accepted"], "first EndTurn applies")
-	_check(TurnLabelScript.compute_text(gs) == "Turn 1 — Player 1", "after one EndTurn")
+	_check(TurnLabelScript.compute_text(gs) == "Turn 1 — Malmöfubikkarna", "after one EndTurn")
 	var r2 = gs.try_apply(EndTurnScript.make(1))
 	_check(r2["accepted"], "second EndTurn applies")
-	_check(TurnLabelScript.compute_text(gs) == "Turn 2 — Player 0", "after two EndTurns")
+	_check(TurnLabelScript.compute_text(gs) == "Turn 2 — Västerviksjävlarna", "after two EndTurns")
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

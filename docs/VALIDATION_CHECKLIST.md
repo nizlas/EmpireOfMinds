@@ -194,9 +194,19 @@ Validation: **`scripts/run-godot-tests.ps1`** — **`test_selection_post_move_un
 
 Manual check in **`main.tscn`** (**assets** **`game/assets/prototype/ui/turn_scroll_banner.png`**).
 
-- [ ] On **Play**, a centered **scroll** banner appears with **`Your turn, Player 0`** (or the opening **current** id).
+- [ ] On **Play**, a centered **scroll** banner appears with **`Your turn, Västerviksjävlarna`** (opening **Player 0** seat; **5.2.6a** display names).
 - [ ] Any **click**, **key**, **wheel**, or **right-drag** motion dismisses the banner; gameplay (**Space** end turn, map pick, etc.) can still run on that same input when **`Main._input`** runs first (**5.2.6** hook).
-- [ ] After **End Turn** (**Space**), the **next** player’s banner appears (**`Your turn, Player 1`**, etc.).
+- [ ] After **End Turn** (**Space**), the **next** player’s banner appears (**`Your turn, Malmöfubikkarna`** for **Player 1**).
 - [ ] If you **do nothing**, the banner may stay visible (no close button).
 
-Validation: **`scripts/run-godot-tests.ps1`** — **`test_turn_start_banner_view.gd`**.
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_turn_start_banner_view.gd`**, **`test_playtest_player_display.gd`**.
+
+## Phase 5.2.6a — Playtest player display names (hotseat HUD)
+
+Manual check in **`main.tscn`** (names from **`FactionDefinitions`** debug rows via **`PlaytestPlayerDisplay`**).
+
+- [ ] **Turn** label (**upper-left**) and **lower-right** turn strip use **Västerviksjävlarna** / **Malmöfubikkarna** (not **Player 0 / Player 1**); **numeric ids** in domain / log lines are unchanged.
+- [ ] **Player contact** chips (**upper-right**) show the same faction names (may truncate at max chip width); tooltips match.
+- [ ] Turn-advance order is unchanged (**Player 0** → **Player 1** → …).
+
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_playtest_player_display.gd`**, **`test_turn_label.gd`**, **`test_turn_status_panel.gd`**, **`test_player_contact_strip.gd`**.

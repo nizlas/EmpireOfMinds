@@ -5,6 +5,7 @@ class_name PlayerContactStrip
 extends Control
 
 const UnitNameplateViewScript = preload("res://presentation/unit_nameplate_view.gd")
+const PlaytestPlayerDisplayScript = preload("res://presentation/playtest_player_display.gd")
 
 var game_state = null
 var _hbox: HBoxContainer
@@ -20,16 +21,24 @@ static func compute_view_model(gs) -> Dictionary:
 	while i < ts.players.size():
 		var pid: int = int(ts.players[i])
 		var accent: Color = UnitNameplateViewScript.owner_nameplate_accent_color(pid)
+		var dname: String = PlaytestPlayerDisplayScript.display_name_for_player_id(pid)
 		entries.append({
 			"player_id": pid,
-			"label_short": "P%d" % pid,
-			"label_long": "Player %d" % pid,
+			"label_short": dname,
+			"label_long": dname,
 			"is_current_turn": pid == cur,
 			"accent_color": accent,
 			"contact_state": "known",
 		})
 		i = i + 1
 	return {"visible": entries.size() > 0, "entries": entries}
+
+
+static func _chip_min_width_for_label(short_l: String) -> float:
+	var font: Font = ThemeDB.fallback_font
+	var fs: int = 14
+	var tw: float = font.get_string_size(short_l, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	return clampf(tw + 20.0, 56.0, 260.0)
 
 
 func _ready() -> void:
@@ -78,10 +87,15 @@ func refresh() -> void:
 		custom_minimum_size = Vector2(48.0, 44.0)
 		return
 	var ei: int = 0
+	var total_w: float = 20.0
 	while ei < entries.size():
-		_hbox.add_child(_make_chip(entries[ei] as Dictionary))
+		var ed: Dictionary = entries[ei] as Dictionary
+		_hbox.add_child(_make_chip(ed))
+		total_w += _chip_min_width_for_label(str(ed.get("label_short", "?")))
+		if ei < entries.size() - 1:
+			total_w += 8.0
 		ei = ei + 1
-	custom_minimum_size = Vector2(20.0 + float(entries.size()) * 64.0, 52.0)
+	custom_minimum_size = Vector2(total_w, 52.0)
 
 
 func _make_chip(entry: Dictionary) -> Control:
@@ -92,7 +106,7 @@ func _make_chip(entry: Dictionary) -> Control:
 
 	var wrap := PanelContainer.new()
 	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	wrap.custom_minimum_size = Vector2(54, 40)
+	wrap.custom_minimum_size = Vector2(_chip_min_width_for_label(short_l), 40)
 	var chip := StyleBoxFlat.new()
 	chip.set_corner_radius_all(20)
 	if is_cur:
@@ -125,5 +139,5 @@ func _make_chip(entry: Dictionary) -> Control:
 	lbl.add_theme_font_size_override("font_size", 14)
 	margin.add_child(lbl)
 
-	wrap.tooltip_text = str(entry.get("label_long", "Player %d" % pid))
+	wrap.tooltip_text = str(entry.get("label_long", PlaytestPlayerDisplayScript.display_name_for_player_id(pid)))
 	return wrap

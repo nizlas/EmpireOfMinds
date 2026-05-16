@@ -5,6 +5,7 @@ class_name TurnStatusPanel
 extends PanelContainer
 
 const UnitNameplateViewScript = preload("res://presentation/unit_nameplate_view.gd")
+const PlaytestPlayerDisplayScript = preload("res://presentation/playtest_player_display.gd")
 
 var game_state = null
 ## Reserved for a future **remote seat** slice; **ignored** for copy/styling in local hotseat mode (**`compute_view_model`** takes it for a stable call signature / **`refresh`** wiring).
@@ -45,8 +46,9 @@ static func compute_view_model(gs, _local_id: int = 0) -> Dictionary:
 	var cur: int = int(gs.turn_state.current_player_id())
 	var tnum: int = int(gs.turn_state.turn_number)
 	var cols: Dictionary = _colors_for_current_player(cur)
+	var pname: String = PlaytestPlayerDisplayScript.display_name_for_player_id(cur)
 	return {
-		"title": "Player %d's turn" % cur,
+		"title": "%s's turn" % pname,
 		"detail": "Turn %d" % tnum,
 		"orb_color": cols["orb_color"],
 		"panel_bg": cols["panel_bg"],

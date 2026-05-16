@@ -21,7 +21,7 @@ func _run() -> void:
 
 	var gs = GameStateScript.make_tiny_test_state()
 	var vm_p0 = TurnStatusPanelScript.compute_view_model(gs, 0)
-	_check(str(vm_p0.get("title", "")) == "Player 0's turn", "opening turn names P0 (hotseat)")
+	_check(str(vm_p0.get("title", "")) == "Västerviksjävlarna's turn", "opening turn names playtest P0")
 	_check(str(vm_p0.get("detail", "")) == "Turn 1", "detail is turn number only")
 	_check(str(vm_p0.get("title", "")).find("Waiting") < 0, "no remote-waiting copy for P0")
 	var accent0: Color = UnitNameplateViewScript.owner_nameplate_accent_color(0)
@@ -37,8 +37,8 @@ func _run() -> void:
 	_check(gs.try_apply(EndTurnScript.make(0))["accepted"], "end turn to advance current player")
 	var vm_p1_seat0 = TurnStatusPanelScript.compute_view_model(gs, 0)
 	_check(
-		str(vm_p1_seat0.get("title", "")) == "Player 1's turn",
-		"after EndTurn copy names P1 (still hotseat; local_id ignored)"
+		str(vm_p1_seat0.get("title", "")) == "Malmöfubikkarna's turn",
+		"after EndTurn copy names playtest P1 (still hotseat; local_id ignored)"
 	)
 	_check(str(vm_p1_seat0.get("detail", "")) == "Turn 1", "still same turn number domain state")
 	_check(str(vm_p1_seat0.get("title", "")).find("Waiting") < 0, "no Waiting after P0 ends turn")
@@ -49,7 +49,10 @@ func _run() -> void:
 	)
 
 	var vm_p1_seat1 = TurnStatusPanelScript.compute_view_model(gs, 1)
-	_check(str(vm_p1_seat1.get("title", "")) == "Player 1's turn", "same title with different local_id arg")
+	_check(
+		str(vm_p1_seat1.get("title", "")) == "Malmöfubikkarna's turn",
+		"same title with different local_id arg"
+	)
 
 	var o0 = vm_p0.get("orb_color", Color.BLACK) as Color
 	var o1 = vm_p1_seat0.get("orb_color", Color.BLACK) as Color

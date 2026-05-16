@@ -3,6 +3,7 @@ class_name TurnStartBannerView
 extends CanvasLayer
 
 const BANNER_PATH: String = "res://assets/prototype/ui/turn_scroll_banner.png"
+const PlaytestPlayerDisplayScript = preload("res://presentation/playtest_player_display.gd")
 
 ## Vertical offset of banner **center** above viewport center, as a fraction of viewport height (larger = higher).
 const BANNER_CENTER_ABOVE_VIEWPORT_CENTER: float = 0.235
@@ -65,7 +66,8 @@ func show_for_current_player(gs) -> void:
 	if gs == null or gs.turn_state == null:
 		return
 	_ensure_texture()
-	_line = "Your turn, Player %d" % int(gs.turn_state.current_player_id())
+	var pname: String = PlaytestPlayerDisplayScript.display_name_for_player_id(int(gs.turn_state.current_player_id()))
+	_line = "Your turn, %s" % pname
 	_visible_banner = true
 	if _painter != null:
 		_painter.queue_redraw()
