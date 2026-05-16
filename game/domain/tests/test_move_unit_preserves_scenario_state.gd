@@ -56,6 +56,9 @@ func _init() -> void:
 		nu.lightning_tree_hex != null and nu.lightning_tree_hex.equals(lt),
 		"lightning_tree_hex preserved across MoveUnit.apply",
 	)
+	_check(before_u.remaining_movement == 2, "fixture full MP")
+	_check(nu.unit_by_id(7).remaining_movement == 1, "MP reduced by move")
+	_check(nu.unit_by_id(7).max_movement == 2, "max_movement preserved")
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

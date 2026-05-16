@@ -12,7 +12,7 @@ Hex cell addressing uses axial coordinates; see [HEX_COORDINATES.md](HEX_COORDIN
 
 ## Terrain (tag-only in Phase 1.2)
 
-`HexMap.Terrain` is a minimal inline enum: `PLAINS`, `WATER`, **`GRASSLAND` (2)** — append-only so existing numeric values stay stable. Values are **tags** only in **`HexMap`** (no per-cell gameplay fields here). **Phase 3.2:** **[TerrainRuleDefinitions](../game/domain/content/terrain_rule_definitions.gd)** holds **passability** and **`movement_cost`** metadata keyed by stable ids **`plains`** / **`water`** / **`grassland`** mapped from this enum. **`movement_cost`** does **not** expand move range yet—still one step per [MOVEMENT_RULES.md](MOVEMENT_RULES.md).
+`HexMap.Terrain` is a minimal inline enum: `PLAINS`, `WATER`, **`GRASSLAND` (2)** — append-only so existing numeric values stay stable. Values are **tags** only in **`HexMap`** (no per-cell gameplay fields here). **Phase 3.2:** **[TerrainRuleDefinitions](../game/domain/content/terrain_rule_definitions.gd)** holds **passability** and **`movement_cost`** metadata keyed by stable ids **`plains`** / **`water`** / **`grassland`** mapped from this enum. **`movement_cost`** does **not** affect **`MoveUnit`** spend in **5.2.5** — legality stays one neighbor step per action, and each accepted move costs **1** MP regardless of terrain; see [MOVEMENT_RULES.md](MOVEMENT_RULES.md).
 
 ## Landform (visual / data-only)
 

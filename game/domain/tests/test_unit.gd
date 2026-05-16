@@ -27,6 +27,13 @@ func _init() -> void:
 		UnitScript.new(1, 0, HexCoordScript.new(0, 0), "settler").type_id == "settler",
 		"type_id settler"
 	)
+	var uw = UnitScript.new(10, 0, HexCoordScript.new(0, 0), "warrior")
+	_check(uw.max_movement == 2 and uw.remaining_movement == 2, "warrior full MP v0")
+	var us = UnitScript.new(11, 0, HexCoordScript.new(0, 0), "settler")
+	_check(us.max_movement == 2 and us.remaining_movement == 2, "settler full MP v0")
+	var u0mp = UnitScript.new(12, 0, HexCoordScript.new(0, 0), "warrior", 0)
+	_check(u0mp.remaining_movement == 0, "explicit 0 remaining")
+	_check(UnitScript.new(13, 0, HexCoordScript.new(0, 0), "warrior", 99).remaining_movement == 2, "clamp to max")
 	var u1 = UnitScript.new(1, 0, HexCoordScript.new(0, 0))
 	var u2 = UnitScript.new(1, 0, HexCoordScript.new(0, 0))
 	_check(

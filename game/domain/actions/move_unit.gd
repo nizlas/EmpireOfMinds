@@ -5,6 +5,8 @@ extends RefCounted
 
 const SCHEMA_VERSION: int = 1
 const ACTION_TYPE: String = "move_unit"
+## Phase **5.2.5** — flat per-tile cost until terrain rules consume **`movement_cost`**.
+const MOVEMENT_COST_PER_STEP: int = 1
 
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const ScenarioScript = preload("res://domain/scenario.gd")
@@ -58,6 +60,8 @@ static func validate(a_scenario, action) -> Dictionary:
 	var from_c = HexCoordScript.new(from_a[0], from_a[1])
 	if not u.position.equals(from_c):
 		return {"ok": false, "reason": "from_does_not_match_unit_position"}
+	if u.remaining_movement < MOVEMENT_COST_PER_STEP:
+		return {"ok": false, "reason": "movement_exhausted"}
 	var to_c = HexCoordScript.new(to_a[0], to_a[1])
 	var legals = MovementRulesScript.legal_destinations(a_scenario, action["unit_id"])
 	var dest_ok = false
@@ -86,7 +90,8 @@ static func apply(a_scenario, action):
 					u.id,
 					u.owner_id,
 					HexCoordScript.new(to_a[0] as int, to_a[1] as int),
-					u.type_id
+					u.type_id,
+					u.remaining_movement - MOVEMENT_COST_PER_STEP,
 				)
 			)
 		else:

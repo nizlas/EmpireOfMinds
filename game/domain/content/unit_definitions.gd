@@ -14,6 +14,7 @@ const _DEFINITIONS: Dictionary = {
 		"can_found_city": true,
 		"production_cost": 2,
 		"role": "founder",
+		"max_movement": 2,
 	},
 	"warrior":
 	{
@@ -22,6 +23,7 @@ const _DEFINITIONS: Dictionary = {
 		"can_found_city": false,
 		"production_cost": 2,
 		"role": "basic_melee",
+		"max_movement": 2,
 	},
 }
 
@@ -44,3 +46,11 @@ static func ids() -> Array:
 static func can_found_city(id: String) -> bool:
 	var d = get_definition(id)
 	return d != null and bool(d.get("can_found_city", false))
+
+
+## Phase **5.2.5** — per-turn movement points cap (flat cost **1** per step in **`MoveUnit`** for now).
+static func max_movement_for_type(type_id: String) -> int:
+	var d = get_definition(type_id)
+	if d == null:
+		return 0
+	return int(d.get("max_movement", 0))

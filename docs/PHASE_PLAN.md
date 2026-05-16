@@ -2495,6 +2495,19 @@ Validation: **`scripts/run-godot-tests.ps1`** green; **`main.tscn`**: strip show
 
 Validation: **`scripts/run-godot-tests.ps1`** green; manual **`main.tscn`**: starting area for **P0** clear, rest parchment; move warrior extends clear disk; **Space** switches overlay to **P1**’s explored memory; found city clears center + owned + radius-2; parchment tiles continuously in world space.
 
+#### 5.2.5 — Per-turn movement points v0 (`max_movement` / `remaining_movement`; flat cost **1**)
+
+**Status:** **Shipped.**
+
+- **Domain:** **`Unit`** carries **`max_movement`** (from **`UnitDefinitions`**) and **`remaining_movement`**. **`MoveUnit`** spends **1** per accepted step (terrain **`movement_cost`** in **`TerrainRuleDefinitions`** is still **not** consumed for legality). **`MovementRules.legal_destinations`** returns **`[]`** when **`remaining_movement < 1`**. **`Scenario.with_refreshed_movement_for_owner`** rebuilds that owner’s units at full MP; **`GameState.try_apply`** runs it after initial **`ProductionDelivery`** for the opening **`current_player_id`**, and after accepted **`end_turn`** once **`ProductionDelivery`** has run for the **new** current player (hotseat: the seat that **ended** does **not** get an immediate re-refresh for itself).
+- **Definitions:** **`settler`** and **`warrior`** — **`max_movement` = `2`** in **`UnitDefinitions`**; **`max_movement_for_type`** helper for caps.
+- **Tests:** **`test_unit_movement_points_v0.gd`**, updates to **`test_move_unit.gd`**, **`test_movement_rules.gd`**, **`test_unit.gd`**, **`test_move_unit_preserves_scenario_state.gd`**, **`test_unit_definitions.gd`**; **`scripts/run-godot-tests.ps1`**.
+- **Docs:** **[CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md)**, **[MOVEMENT_RULES.md](MOVEMENT_RULES.md)**, **[UNITS.md](UNITS.md)**, **[MAP_MODEL.md](MAP_MODEL.md)**, **[VALIDATION_CHECKLIST.md](VALIDATION_CHECKLIST.md)**.
+
+**Out of scope (explicit):** terrain- or feature-based movement costs, roads, embarkation / water movement, pathfinding redesign beyond enforcing MP, AI policy changes beyond **`LegalActions`**, combat/production changes except MP field initialization.
+
+Validation: **`scripts/run-godot-tests.ps1`** green; manual **`main.tscn`**: each unit moves at most **two** **`MoveUnit`** steps per turn; third click does nothing / rejects; **Space** gives the **next** player full MP; cycle back restores the first player’s MP; fog/reveal after valid moves unchanged.
+
 #### 5.1.17f — City interaction UX direction doc
 
 **Status:** **Shipped (documentation).**

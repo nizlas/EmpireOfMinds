@@ -31,6 +31,7 @@ Concise map of **what exists in code today**. For phased history and decisions u
 - **[`AITurnController`](../game/presentation/ai_turn_controller.gd)** is **manual** (**`KEY_A`**): one **`RuleBasedAIPlayer.decide`** per press for **`LegalActions.for_current_player`**, i.e. **whoever is current** — not an autopilot loop and **not** a per-seat “AI owns player 1” assignment.
 - **Phase 5.2.1:** on **accepted** **`EndTurn`** (**`Space`** or AI-chosen **`end_turn`**), **[`EndTurnController.apply_hotseat_clear_after_accepted_end_turn`](../game/presentation/end_turn_controller.gd)** clears **unit** + **city** selection and **`CityViewState.reset_to_normal()`** (via **`city_production_panel.city_view_state`**) before the usual **HUD** refresh — so the next **current** player does not inherit the prior **City Hub** / **PLANNING** focus.
 - **Phase 5.2.2:** **`PlayerContactStrip`** (**upper-right** **`HudCanvas`**) lists **`TurnState.players`** with **current-seat** highlight; **`TurnLabel.after_refresh`** (**`main.gd`**, **`_refresh_turn_hud_after_turn_label`**) refreshes **`TurnStatusPanel`** and **`PlayerContactStrip`** when the turn advances — **presentation-only**, no contact/diplomacy/fog.
+- **Phase 5.2.5:** **`Unit`** MP — **`max_movement`** / **`remaining_movement`**; each accepted **`move_unit`** spends **1**; full refresh for a player’s units when that player **becomes** current (after **`end_turn`** + **`ProductionDelivery`** for the new actor, and once at session start for the opening current player). **`LegalActions`** / **`MovementRules`** respect exhausted MP.
 
 ---
 
@@ -44,12 +45,12 @@ Concise map of **what exists in code today**. For phased history and decisions u
 | **[Scenario](../game/domain/scenario.gd)** | Map + units + cities + id bookkeeping + **`tile_owner_city_id`**; **`City.owned_tiles`**, capital / **`building_ids`**, **`lightning_tree_hex`** |
 | **[City](../game/domain/city.gd)** | City row including **`population`** (**default founding `1`**), **`food_stored`** (**5.1.19b**), **`owned_tiles`**, **`is_capital`**, **`building_ids`**, **`current_project`**, **`manual_worked_tiles`** |
 | **[CityYields](../game/domain/city_yields.gd)** | Read-only yields from terrain, woods, **city-center rule**, buildings, and **worked** non-center **`owned_tiles`** (**manual-first** then deterministic auto-fill, bounded by **`population`**); **`yield_breakdown_for_city`** decomposes **`city_total_yield`** — presentation-independent |
-| **[Unit](../game/domain/unit.gd)** | **`type_id`** + position (see **`UnitDefinitions`**) |
+| **[Unit](../game/domain/unit.gd)** | **`type_id`**, position, **`max_movement`**, **`remaining_movement`** (**5.2.5** — per-turn MP; **`UnitDefinitions`** cap) |
 | **[TurnState](../game/domain/turn_state.gd)** | Player order / current index / turn counter |
 | **[ProgressState](../game/domain/progress_state.gd)** | Unlocks, completed progress, science accumulation, **`current_research_id`** |
 | **[PlayerVisibilityState](../game/domain/player_visibility_state.gd)** | **5.2.3:** Immutable per-player explored-tile sets; deterministic **`recompute_for_actor`** from scenario (units + cities); presentation-independent |
 | **[LegalActions](../game/domain/legal_actions.gd)** | Enumerates **`move_unit`**, **`found_city`**, **`set_city_production`**, **`end_turn`** (optional **`effective_rules`**); not all player actions (**e.g.** **`complete_progress`** / **`set_current_research`**) appear here |
-| **[MovementRules](../game/domain/movement_rules.gd)** | One-step destinations from **`TerrainRuleDefinitions`** |
+| **[MovementRules](../game/domain/movement_rules.gd)** | One-step destinations from **`TerrainRuleDefinitions`**, gated when **`remaining_movement < 1`** (**5.2.5**) |
 | **[EffectiveRules](../game/domain/effective_rules.gd)** | **Thin façade** today (e.g. supported city projects via **`CityProjectDefinitions`**) |
 | **`RuleSet`** | **Architecture direction only** — **no** matching GDScript **`class_name`** yet; persistence / compilation story lives in **[CONTENT_MODEL.md](CONTENT_MODEL.md)**, **[CLOUD_PLAY.md](CLOUD_PLAY.md)** |
 | **`game/domain/content/`** | **`UnitDefinitions`**, **`CityProjectDefinitions`**, **`ProgressDefinitions`**, **`TerrainRuleDefinitions`**, **`FactionDefinitions`**, … |
@@ -83,7 +84,7 @@ Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative 
 
 ## Test architecture
 
-- **Runner:** from repo root, [scripts/run-godot-tests.ps1](../scripts/run-godot-tests.ps1) runs a **fixed ordered list** of Godot headless scripts (**`-s res://…`**); count grows with new phases (see script array — includes **5.2.3** visibility tests, **5.2.4k** presentation gating tests, **5.2.4l** prototype sea-shell tests).
+- **Runner:** from repo root, [scripts/run-godot-tests.ps1](../scripts/run-godot-tests.ps1) runs a **fixed ordered list** of Godot headless scripts (**`-s res://…`**); count grows with new phases (see script array — includes **5.2.3** visibility tests, **5.2.4k** presentation gating tests, **5.2.4l** prototype sea-shell tests, **5.2.5** movement-points tests).
 - **Layout:** **`game/domain/tests/`**, **`game/presentation/tests/`**, **`game/ai/tests/`** — mix of invariant tests and tighter draw/UI harnesses.
 
 ---

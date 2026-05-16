@@ -240,6 +240,28 @@ func tiles_owned_by_city(city_id: int) -> Array:
 	return out
 
 
+## Phase **5.2.5** — set **`remaining_movement`** to max for all units owned by **`owner_id`** (turn start for that seat).
+static func with_refreshed_movement_for_owner(a_scenario, owner_id: int):
+	var new_units: Array = []
+	var ulist = a_scenario.units()
+	var i: int = 0
+	while i < ulist.size():
+		var u = ulist[i]
+		if u.owner_id == owner_id:
+			new_units.append(UnitScript.new(u.id, u.owner_id, u.position, u.type_id, -1))
+		else:
+			new_units.append(u)
+		i = i + 1
+	return _SCENARIO_SCRIPT.new(
+		a_scenario.map,
+		new_units,
+		a_scenario.cities(),
+		a_scenario.peek_next_unit_id(),
+		a_scenario.peek_next_city_id(),
+		a_scenario.lightning_tree_hex,
+	)
+
+
 static func make_tiny_test_scenario():
 	var m = HexMapScript.make_tiny_test_map()
 	var us = [

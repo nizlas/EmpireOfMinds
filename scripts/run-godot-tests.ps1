@@ -81,6 +81,7 @@ $Tests = @(
 	"res://domain/tests/test_scenario.gd",
 	"res://domain/tests/test_movement_rules.gd",
 	"res://domain/tests/test_move_unit.gd",
+	"res://domain/tests/test_unit_movement_points_v0.gd",
 	"res://domain/tests/test_move_unit_science_observation_bonus.gd",
 	"res://domain/tests/test_move_unit_preserves_scenario_state.gd",
 	"res://domain/tests/test_found_city.gd",

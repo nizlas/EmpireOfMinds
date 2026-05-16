@@ -1,4 +1,4 @@
-# Empire of Minds — Movement rules (Phase 1.5)
+# Empire of Minds — Movement rules (Phase 1.5 + **5.2.5** MP v0)
 
 ## Where rules live
 
@@ -14,6 +14,7 @@
 2. **`scenario.map.has(coord)`** — destination exists on the map.
 3. **`TerrainRuleDefinitions.is_passable_hex_map_value(scenario.map.terrain_at(coord))`** — destination terrain must be **passable** per [terrain_rule_definitions.gd](../game/domain/content/terrain_rule_definitions.gd) (today **`plains`** passable, **`water`** not). Definitions include **`movement_cost`**, which is **metadata only** in **3.2** and does **not** change one-step range.
 4. **`scenario.units_at(coord).size() == 0`** — destination is **not occupied** by any unit.
+5. **Phase 5.2.5:** the unit’s **`remaining_movement >= 1`**. If exhausted, **`legal_destinations`** is **`[]`** (noMP-aware selection / **`LegalActions`**).
 
 **`FoundCity.validate`** still uses **`tile_is_water`** against **`HexMap.Terrain.WATER`** directly; routing founding through **`TerrainRuleDefinitions`** is **deferred** so city and movement rule modules stay independently testable for now.
 
@@ -21,7 +22,9 @@
 
 Returns **`[]`** if `scenario` is **`null`**, **`unit_id`** is unknown, or the unit is missing from the scenario.
 
-**No** pathfinding, **no** range beyond one hex, **no** movement points. **`MoveUnit`** validation **reuses** this list for legality; **state change** is **`MoveUnit.apply`** + **`GameState`** (see [ACTIONS.md](ACTIONS.md)).
+**Phase 5.2.5 (implemented):** each accepted **`MoveUnit`** deducts **1** from **`remaining_movement`** (flat step cost **regardless of terrain**). **`TerrainRuleDefinitions.movement_cost`** remains **metadata** for future slices — it does **not** affect **`MoveUnit`** spend or **`legal_destinations`** yet. **`max_movement`** comes from **`UnitDefinitions`**; MP is refilled when an owner **becomes** the current player (see **`Scenario.with_refreshed_movement_for_owner`**, **`GameState.try_apply`** after **`end_turn`**).
+
+**No** pathfinding beyond one hex per action, **no** multi-hex paths in one **`MoveUnit`**. **`MoveUnit`** validation **reuses** this destination set for legality; **state change** is **`MoveUnit.apply`** + **`GameState`** (see [ACTIONS.md](ACTIONS.md)).
 
 ## Layer boundary
 
@@ -29,7 +32,7 @@ Returns **`[]`** if `scenario` is **`null`**, **`unit_id`** is unknown, or the u
 
 ## Explicitly deferred
 
-- Range > 1, **consuming** **`movement_cost`** for legality or path budget, roads, railways.
+- Range > 1 **per accepted `MoveUnit`** (still one hex per action), **consuming** **`TerrainRuleDefinitions.movement_cost`** for legality or path budget (today flat **1** only), roads, railways.
 - Stacking, zone of control, friendly/enemy blocking beyond “occupied”.
 - Pathfinding (A*, etc.).
 - Turn ownership (“only current player may query”) — Phase 1.7+.

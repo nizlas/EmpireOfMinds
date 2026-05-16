@@ -41,6 +41,10 @@ func _init(initial_scenario, p_progress_state = null) -> void:
 		turn_state.current_player_id()
 	)
 	scenario = init_delivery["scenario"]
+	scenario = ScenarioScript.with_refreshed_movement_for_owner(
+		scenario,
+		turn_state.current_player_id(),
+	)
 	var init_ev = init_delivery["events"] as Array
 	var iv = 0
 	while iv < init_ev.size():
@@ -270,6 +274,10 @@ func try_apply(action) -> Dictionary:
 		while di < del_ev.size():
 			log.append(del_ev[di])
 			di = di + 1
+		scenario = ScenarioScript.with_refreshed_movement_for_owner(
+			scenario,
+			turn_state.current_player_id(),
+		)
 		visibility_state = PlayerVisibilityStateScript.recompute_for_actor(
 			visibility_state,
 			scenario,

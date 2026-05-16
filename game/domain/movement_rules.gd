@@ -17,6 +17,8 @@ static func legal_destinations(a_scenario, unit_id: int) -> Array:
 	var u = a_scenario.unit_by_id(unit_id)
 	if u == null:
 		return []
+	if u.remaining_movement < 1:
+		return []
 	var out = []
 	var ns = u.position.neighbors()
 	var i = 0

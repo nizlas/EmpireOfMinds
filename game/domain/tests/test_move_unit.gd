@@ -81,6 +81,8 @@ func _init() -> void:
 		"moved position"
 	)
 	_check(new_sc.unit_by_id(1).type_id == u_before.type_id, "type_id preserved")
+	_check(new_sc.unit_by_id(1).max_movement == 2, "max_movement from definitions")
+	_check(new_sc.unit_by_id(1).remaining_movement == 1, "one step spends 1 MP")
 	_check(
 		u_before.position.equals(HexCoordScript.new(0, 0)),
 		"old unit ref unchanged"
@@ -89,6 +91,22 @@ func _init() -> void:
 	_check(new_sc.units().size() == 3, "still 3 units")
 	_check(new_sc.unit_by_id(2).id == 2 and new_sc.unit_by_id(3).id == 3, "other ids")
 	_check(new_sc.map.has(HexCoordScript.new(0, 0)), "map still valid")
+	_check(u_before.remaining_movement == 2, "fixture starts full MP")
+	var r_ex = MoveUnitScript.validate(
+		new_sc,
+		MoveUnitScript.make(0, 1, 1, -1, 0, 0)
+	)
+	_check(r_ex["ok"], "second step validate while MP=1")
+	var sc_mid = MoveUnitScript.apply(new_sc, MoveUnitScript.make(0, 1, 1, -1, 0, 0))
+	_check(sc_mid.unit_by_id(1).remaining_movement == 0, "two steps drain MP")
+	var r_denied = MoveUnitScript.validate(
+		sc_mid,
+		MoveUnitScript.make(0, 1, 0, 0, 1, -1)
+	)
+	_check(
+		not r_denied["ok"] and r_denied["reason"] == "movement_exhausted",
+		"third move rejected",
+	)
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:

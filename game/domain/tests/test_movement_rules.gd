@@ -5,6 +5,7 @@ const ScenarioScript = preload("res://domain/scenario.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexMapScript = preload("res://domain/hex_map.gd")
 const TerrainRuleDefinitionsScript = preload("res://domain/content/terrain_rule_definitions.gd")
+const UnitScript = preload("res://domain/unit.gd")
 
 var _total = 0
 var _any_fail = false
@@ -60,6 +61,17 @@ func _init() -> void:
 	_check(
 		not _contains_coord(d3, HexCoordScript.new(0, 0)),
 		"unit 3 should not include occupied (0,0)"
+	)
+	var m_ex = HexMapScript.make_tiny_test_map()
+	var us_ex: Array = [
+		UnitScript.new(1, 0, HexCoordScript.new(0, 0), "settler", 0),
+		UnitScript.new(2, 0, HexCoordScript.new(1, 0), "warrior"),
+		UnitScript.new(3, 1, HexCoordScript.new(0, -1), "settler"),
+	]
+	var sc_ex = ScenarioScript.new(m_ex, us_ex)
+	_check(
+		MovementRulesScript.legal_destinations(sc_ex, 1).size() == 0,
+		"0 remaining_movement => no legal destinations",
 	)
 	_assert_all_invariants(sc, d1)
 	_assert_all_invariants(sc, d2)

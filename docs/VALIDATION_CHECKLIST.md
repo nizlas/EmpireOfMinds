@@ -166,3 +166,15 @@ Manual check in **`main.tscn`**.
 - [ ] Yields, decorations, and labels **do not** leak over parchment in unexplored areas (**5.2.4k** gating still holds).
 
 Validation: **`scripts/run-godot-tests.ps1`** — **`test_prototype_rectangular_water_shell.gd`**, **`test_prototype_play_map_distribution.gd`**, **`test_map_visibility_view.gd`**, **`test_main_tscn_map_layer_sibling_order.gd`**, **`test_turn_view_sync.gd`**, **`test_presentation_visibility.gd`**.
+
+## Phase 5.2.5 — Per-turn movement points v0 (warrior / settler)
+
+Manual check in **`main.tscn`** (**local hotseat**).
+
+- [ ] Select **P0** warrior: move **two** adjacent legal steps; a **third** move in the same turn is **not** applied (no position change / no illegal log spam).
+- [ ] Select **P0** settler: same **two**-then-blocked behavior.
+- [ ] **Space** (**End Turn**): **P1**’s units have **full** MP again; move them twice each; third blocked.
+- [ ] **Space** until **P0** is current again: **P0**’s units have **full** MP again (**2** steps each).
+- [ ] After a valid move, **fog / exploration** for the **current** player still updates as before (**5.2.3**).
+
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_unit_movement_points_v0.gd`**, **`test_move_unit.gd`**, **`test_movement_rules.gd`**, **`test_unit.gd`**, **`test_move_unit_preserves_scenario_state.gd`**, **`test_player_visibility_reveal.gd`** (or existing visibility suite as regression).

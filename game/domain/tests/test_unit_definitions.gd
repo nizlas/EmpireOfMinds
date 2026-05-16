@@ -17,9 +17,14 @@ func _init() -> void:
 	_check(ds["display_name"] == "Settler", "settler display_name")
 	_check(bool(ds["can_found_city"]), "settler can_found_city")
 	_check(int(ds["production_cost"]) == 2, "settler production_cost")
+	_check(int(ds["max_movement"]) == 2, "settler max_movement v0")
 	_check(ds["role"] == "founder", "settler role")
 
 	var dw = UnitDefinitionsScript.get_definition("warrior") as Dictionary
+	_check(dw["id"] == "warrior", "warrior id")
+	_check(dw["display_name"] == "Warrior", "warrior display_name")
+	_check(int(dw["production_cost"]) == 2, "warrior production_cost")
+	_check(int(dw["max_movement"]) == 2, "warrior max_movement v0")
 	_check(not bool(dw["can_found_city"]), "warrior can_found_city")
 	_check(dw["role"] == "basic_melee", "warrior role")
 
@@ -43,6 +48,10 @@ func _init() -> void:
 	_check(UnitDefinitionsScript.can_found_city("settler"), "can_found settler")
 	_check(not UnitDefinitionsScript.can_found_city("warrior"), "cannot_found warrior")
 	_check(not UnitDefinitionsScript.can_found_city("nope"), "cannot_found unknown")
+
+	_check(UnitDefinitionsScript.max_movement_for_type("settler") == 2, "api settler MP")
+	_check(UnitDefinitionsScript.max_movement_for_type("warrior") == 2, "api warrior MP")
+	_check(UnitDefinitionsScript.max_movement_for_type("nope") == 0, "unknown type 0 MP")
 
 	if _any_fail:
 		call_deferred("quit", 1)

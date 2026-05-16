@@ -8,13 +8,15 @@
 - **`owner_id`**: int — which player or faction “owns” the unit. `Player` as a class is deferred; only integers are used in Phase 1.4.
 - **`position`**: a `HexCoord` — where the unit sits. Must refer to a cell that exists on the map when placed inside a `Scenario`.
 - **`type_id`**: **`String`** — stable id of the unit’s **content row** (see [CONTENT_MODEL.md](CONTENT_MODEL.md)). **`Unit._init`** defaults **`type_id`** to **`"warrior"`** so older **three-argument** call sites stay valid.
+- **`max_movement`**: **`int`** — per-turn cap from **`UnitDefinitions`** (**5.2.5**).
+- **`remaining_movement`**: **`int`** — how many **`MoveUnit`** steps (**cost 1** each in **5.2.5**) the unit may still take this turn; refilled when its owner **becomes** **`current_player_id`** (see **`Scenario.with_refreshed_movement_for_owner`**, **`GameState.try_apply`**).
 
 ## Unit definitions (Phase 3.1)
 
-**`UnitDefinitions`** ([unit_definitions.gd](../game/domain/content/unit_definitions.gd)) is a **static registry** ( **`class_name`**, **`RefCounted`**, **no** autoload): **`has`**, **`get_definition`** (deep **`Dictionary`** copy of one row — named this way because **`RefCounted`** cannot define **`get`** without clashing with **`Object.get`**), **`ids`** (fixed order **`["settler", "warrior"]`**), and **`can_found_city(type_id)`**. Real rows today:
+**`UnitDefinitions`** ([unit_definitions.gd](../game/domain/content/unit_definitions.gd)) is a **static registry** ( **`class_name`**, **`RefCounted`**, **no** autoload): **`has`**, **`get_definition`** (deep **`Dictionary`** copy of one row — named this way because **`RefCounted`** cannot define **`get`** without clashing with **`Object.get`**), **`ids`** (fixed order **`["settler", "warrior"]`**), **`can_found_city(type_id)`**, and **`max_movement_for_type(type_id)`** (**5.2.5**). Real rows today:
 
-- **`settler`** — **`can_found_city: true`**
-- **`warrior`** — **`can_found_city: false`**
+- **`settler`** — **`can_found_city: true`**, **`max_movement: 2`**
+- **`warrior`** — **`can_found_city: false`**, **`max_movement: 2`**
 
 Only types with **`can_found_city`** may **`FoundCity`** ([ACTIONS.md](ACTIONS.md)). Longer unit lists and flavor belong in [CONTENT_BACKLOG.md](CONTENT_BACKLOG.md); this file stays limited to **shipped** domain behavior.
 
@@ -58,7 +60,7 @@ See [SELECTION.md](SELECTION.md) and [MOVEMENT_RULES.md](MOVEMENT_RULES.md).
 
 ## Production spawn (Phase 2.4b–c, engine)
 
-When a **`produce_unit`** project is **`ready`** (**`progress` >= `cost`** after a tick), **`ProductionDelivery`** (on **`GameState`** **`end_turn`** after **`TurnState.advance`**, or during **`GameState._init`** if the opening scenario already has **`ready`** work) appends a **`Unit`** with **`unit_id`** from **`peek_next_unit_id()`** at **`city.position`**. **Phase 3.3:** the spawned unit’s **`type_id`** is **`CityProjectDefinitions.produces_unit_type(project_id)`** for known **`current_project.project_id`** (today **`"warrior"`** for **`produce_unit:warrior`**); missing or unknown **`project_id`** still yields **`"warrior"`**. The new unit is owned by the **city owner** and appears when **that player** becomes **`current_player_id`**, not during the opponent’s turn. **Multiple** units per hex remain **allowed**. Not a **`ProduceUnit`** player action ([ACTIONS.md](ACTIONS.md)).
+When a **`produce_unit`** project is **`ready`** (**`progress` >= `cost`** after a tick), **`ProductionDelivery`** (on **`GameState`** **`end_turn`** after **`TurnState.advance`**, or during **`GameState._init`** if the opening scenario already has **`ready`** work) appends a **`Unit`** with **`unit_id`** from **`peek_next_unit_id()`** at **`city.position`**. **Phase 3.3:** the spawned unit’s **`type_id`** is **`CityProjectDefinitions.produces_unit_type(project_id)`** for known **`current_project.project_id`** (today **`"warrior"`** for **`produce_unit:warrior`**); missing or unknown **`project_id`** still yields **`"warrior"`**. The new unit is owned by the **city owner** and appears when **that player** becomes **`current_player_id`**, not during the opponent’s turn. **Phase 5.2.5:** delivered units initialize **`remaining_movement`** to full when the receiving **`GameState`** / refresh path applies (same timing as other units for that owner’s active turn). **Multiple** units per hex remain **allowed**. Not a **`ProduceUnit`** player action ([ACTIONS.md](ACTIONS.md)).
 
 ## FoundCity (Phase 2.2b, Phase 3.1)
 
@@ -70,8 +72,9 @@ The following are **out of scope** for Phase 1.4 and must not be assumed from th
 
 - Sprite, label, and health-bar **rendering** of units
 - **Action-driven** selection or highlighting (e.g. only after a server-validated action); local **`MoveUnit`** does not replace cloud validation
-- Pathfinding beyond one hex, movement points, and **non-move** actions
-- Turn state, phases, and action points
+- Pathfinding beyond one hex per accepted **`MoveUnit`**, **non-flat** movement costs from terrain, roads, rivers, embarkation
+- Turn state machine subtleties **beyond** shipped **`TurnState`** + **5.2.5** MP refresh
+- **Non-move** player actions not yet modeled as first-class **`LegalActions`** rows
 - AI and automation
 - Combat resolution
 - Save/load
