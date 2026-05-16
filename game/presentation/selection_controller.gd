@@ -1,4 +1,5 @@
 # Mouse input: legal-destination MoveUnit (when selected) before unit re-selection; shared city/own-unit hex alternates city then unit; then unit pick on other hexes; else clear.
+# Phase **5.2.5a:** after accepted **MoveUnit**, the same unit stays selected when it still exists so multi-step MP moves do not require re-picking the unit; **0** MP leaves the unit selected with no legal destinations (ring only).
 # Submits actions only via game_state.try_apply. Does not mutate Scenario or Unit directly.
 # See docs/SELECTION.md, docs/ACTIONS.md
 class_name SelectionController
@@ -146,6 +147,17 @@ func _sort_city_ids_asc(ids: Array) -> void:
 func _reset_shared_hex_cycle() -> void:
 	_shared_track_q = SHARED_HEX_TRACK_NONE
 	_shared_phase = 0
+
+
+## Phase **5.2.5a** — presentation-only: after an accepted **MoveUnit**, keep **moved_unit_id** selected when that unit still exists (**`select`** clears city focus). If the unit vanished (**should not** on move), clear selection.
+static func apply_post_accepted_move_unit_selection(a_selection, a_scenario, moved_unit_id: int) -> void:
+	if a_selection == null or a_scenario == null:
+		return
+	var mu = a_scenario.unit_by_id(int(moved_unit_id))
+	if mu != null:
+		a_selection.select(int(mu.id))
+	else:
+		a_selection.clear()
 
 
 ## Pure helper: **shared** tile = city + current-player unit on that hex. Alternates **city** then **unit** (lowest **unit id**) on repeated clicks **same** **(q,r)**; new hex resets to **city** first. See **docs/SELECTION.md**.
@@ -417,6 +429,7 @@ func _unhandled_input(event):
 						dest_hit.r
 					)
 					var prev_log_mv = game_state.log.size()
+					var moved_unit_id: int = int(u.id)
 					var result = game_state.try_apply(action)
 					if result["accepted"]:
 						scenario = game_state.scenario
@@ -425,7 +438,7 @@ func _unhandled_input(event):
 						_sync_terrain_foreground_from_game_state()
 						_reset_shared_hex_cycle()
 						var prev_c_mv = selection.city_id
-						selection.clear()
+						apply_post_accepted_move_unit_selection(selection, game_state.scenario, moved_unit_id)
 						selection_view.queue_redraw()
 						units_view.queue_redraw()
 						_sync_city_view_state_after_selection_change(prev_c_mv)

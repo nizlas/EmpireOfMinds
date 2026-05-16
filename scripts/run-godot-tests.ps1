@@ -113,6 +113,7 @@ $Tests = @(
 	"res://presentation/tests/test_city_nameplate_shared_hex_runtime_clearance.gd",
 	"res://presentation/tests/test_selection_state.gd",
 	"res://presentation/tests/test_selection_shared_hex_pick.gd",
+	"res://presentation/tests/test_selection_post_move_unit.gd",
 	"res://presentation/tests/test_city_production_panel.gd",
 	"res://presentation/tests/test_city_production_panel_button_deferred.gd",
 	"res://presentation/tests/test_main_hud_city_panel.gd",

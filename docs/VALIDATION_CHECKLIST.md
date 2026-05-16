@@ -178,3 +178,14 @@ Manual check in **`main.tscn`** (**local hotseat**).
 - [ ] After a valid move, **fog / exploration** for the **current** player still updates as before (**5.2.3**).
 
 Validation: **`scripts/run-godot-tests.ps1`** — **`test_unit_movement_points_v0.gd`**, **`test_move_unit.gd`**, **`test_movement_rules.gd`**, **`test_unit.gd`**, **`test_move_unit_preserves_scenario_state.gd`**, **`test_player_visibility_reveal.gd`** (or existing visibility suite as regression).
+
+## Phase 5.2.5a — Keep unit selected while movement remains (presentation)
+
+Manual check in **`main.tscn`** (**local hotseat**).
+
+- [ ] Select **P0** warrior: move **one** hex — warrior **stays** selected and legal move highlights show any remaining **one**-step destinations; move a **second** hex without re-clicking the unit.
+- [ ] After the **second** step, a **third** move is **not** available (no destination overlay / click does nothing).
+- [ ] Repeat with **P0** settler: one step → still selected; second step → exhausted.
+- [ ] **Space** (**End Turn**): **5.2.1** selection clear for the next player still behaves as before.
+
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_selection_post_move_unit.gd`**, **`test_hotseat_endturn_selection_clear.gd`** (unchanged **EndTurn** clear contract).
