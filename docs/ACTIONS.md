@@ -14,7 +14,7 @@ intent
 
 **Forward pointer (Phase 3.4a+):** **breakthroughs** and **unlock state** from [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) may **later** feed **which actions are legal** or **which targets exist**, but **Phase 3.4a** changes **no** action **`schema_version`** or payload — modeling only. **Phase 3.4b:** action **legality** does **not** consult **`ProgressDefinitions`** yet ([progress_definitions.gd](../game/domain/content/progress_definitions.gd)).
 
-**Phase 1.6** introduces **`move_unit`**, **`GameState`**, and **`ActionLog`**. **Phase 1.7** adds **`TurnState`**, **`end_turn`**, and a **common current-player gate** in **`GameState.try_apply`** (see [TURNS.md](TURNS.md)). **Phase 1.8** adds **legal-action enumeration** for the current player (see below, [AI_LAYER.md](AI_LAYER.md)). **Phase 2.2b** adds **`found_city`** (`FoundCity`): structural validation and **`Scenario`** rebuild that consumes the founding unit and appends a **`City`** with **`city_id = peek_next_city_id()`** before apply (see [CITIES.md](CITIES.md)). **Phase 2.3** adds **`set_city_production`** (`SetCityProduction`): sets a city’s **`current_project`** primitive **`Dictionary`** (or **`null`** to clear); **no** production progress or unit creation in that phase (see [CITIES.md](CITIES.md)). **Phase 5.1.18a** adds **`set_city_worked_tiles`** (`SetCityWorkedTiles`): updates **`City.manual_worked_tiles`** for worked-tile assignment (see [CITIES.md](CITIES.md)). **Phase 2.4a** adds an **engine** **`production_progress`** log step on **accepted** **`end_turn`**. **Phase 2.4b** introduced **`produce_unit`** **completion** (threshold) on tick. **Phase 2.4c** **defers** **`unit_produced`** / unit spawn until the **owner** becomes **`current_player_id`** again (**`ProductionDelivery`** after **`end_turn`**); see **Production on EndTurn (Phase 2.4a–c, engine)** below.
+**Phase 1.6** introduces **`move_unit`**, **`GameState`**, and **`ActionLog`**. **Local Combat 0.1** adds **`attack_unit`** (**Warrior** vs adjacent **Warrior**) with **`CombatRules`** + **`AttackUnit.apply_with_result`** (see **AttackUnit** below). **Phase 1.7** adds **`TurnState`**, **`end_turn`**, and a **common current-player gate** in **`GameState.try_apply`** (see [TURNS.md](TURNS.md)). **Phase 1.8** adds **legal-action enumeration** for the current player (see below, [AI_LAYER.md](AI_LAYER.md)). **Phase 2.2b** adds **`found_city`** (`FoundCity`): structural validation and **`Scenario`** rebuild that consumes the founding unit and appends a **`City`** with **`city_id = peek_next_city_id()`** before apply (see [CITIES.md](CITIES.md)). **Phase 2.3** adds **`set_city_production`** (`SetCityProduction`): sets a city’s **`current_project`** primitive **`Dictionary`** (or **`null`** to clear); **no** production progress or unit creation in that phase (see [CITIES.md](CITIES.md)). **Phase 5.1.18a** adds **`set_city_worked_tiles`** (`SetCityWorkedTiles`): updates **`City.manual_worked_tiles`** for worked-tile assignment (see [CITIES.md](CITIES.md)). **Phase 2.4a** adds an **engine** **`production_progress`** log step on **accepted** **`end_turn`**. **Phase 2.4b** introduced **`produce_unit`** **completion** (threshold) on tick. **Phase 2.4c** **defers** **`unit_produced`** / unit spawn until the **owner** becomes **`current_player_id`** again (**`ProductionDelivery`** after **`end_turn`**); see **Production on EndTurn (Phase 2.4a–c, engine)** below.
 
 ## Legal action enumeration (Phase 1.8, extended Phase 2.5)
 
@@ -68,6 +68,46 @@ Built with **`MoveUnit.make(actor_id, unit_id, from_q, from_r, to_q, to_r)`** in
 
 - **Does not** mutate the input **`Unit`** or **`Scenario`**.
 - Builds a **new** **`Unit`** for the moved id with the new **`HexCoord`**, copies other unit references from **`scenario.units()`**, and returns **`Scenario.new(...)`** passing forward **`scenario.map`**, **`new_units`**, **`scenario.cities()`**, **`scenario.peek_next_unit_id()`**, and **`scenario.peek_next_city_id()`** (see [CITIES.md](CITIES.md)) — **no** city or counter recomputation from remaining entities in **`apply`**.
+
+## AttackUnit schema (Local Combat 0.1)
+
+**Slice:** current-player **Warrior** attacks an **adjacent** enemy **Warrior** only. No terrain, RNG, ranged, promotions, or **`LegalActions`** enumeration in this slice.
+
+| Field | Type | Meaning |
+|--------|------|--------|
+| `schema_version` | `int` | `1` (`AttackUnit.SCHEMA_VERSION`). |
+| `action_type` | `String` | `"attack_unit"` (`AttackUnit.ACTION_TYPE`). |
+| `actor_id` | `int` | Must equal **`turn_state.current_player_id()`** at **`try_apply`** (**`not_current_player`** is enforced only in **`GameState`**, same as other actions). Must own **`attacker_id`**. |
+| `attacker_id` | `int` | Attacking unit; **`type_id`** must be **`"warrior"`**. |
+| `defender_id` | `int` | Target unit; **`type_id`** must be **`"warrior"`**, different **owner**, **axial_distance** **1** from attacker. |
+
+Built with **`AttackUnit.make(actor_id, attacker_id, defender_id)`** in [attack_unit.gd](../game/domain/actions/attack_unit.gd).
+
+### AttackUnit validation order
+
+**`AttackUnit.validate(scenario, action)`** runs in this **fixed order** (does **not** check **`current_player_id`**):
+
+1. `scenario_null`
+2. `wrong_action_type`
+3. `unsupported_schema_version`
+4. `malformed_action` — missing / non-int **`actor_id`**, **`attacker_id`**, **`defender_id`**
+5. `unknown_attacker`
+6. `unknown_defender`
+7. `actor_not_owner`
+8. `attacker_not_warrior`
+9. `defender_not_warrior`
+10. `cannot_attack_own_unit`
+11. `defender_not_adjacent`
+12. `movement_exhausted` — attacker **`remaining_movement < 1`**
+
+### Resolution and apply
+
+- **`GameState.try_apply`** (**`attack_unit`**): after **`validate`** → **`CombatRules.resolve_attack(scenario, action)`** **once** → **`AttackUnit.apply_with_result(scenario, action, combat_result)`**. There is **no** **`AttackUnit.apply`** that re-resolves combat; tests that need apply **without** **`GameState`** call **`resolve_attack`** then **`apply_with_result`**.
+- **Damage** (deterministic): **`base_damage = 30`**, per strike **`round(30 * exp((attacker_effective_strength - defender_effective_strength) / 25.0))`**, clamped **1..100**. **Local Combat 0.1** uses **`UnitDefinitions.combat_strength_for_type`** as effective strength (e.g. Warrior **20** vs **20** → **30** each). Defender **retaliates** only if still alive after the first strike. Units at **`hp <= 0`** are removed. Accepted attack sets attacker **`remaining_movement = 0`**; defender MP unchanged.
+
+### Accepted log entry shape
+
+Append **`result: "accepted"`** plus combat snapshot fields (from **`CombatRules`** / resolve step), including: **`attacker_id`**, **`defender_id`**, **`attacker_position`**, **`defender_position`** (`[q,r]` arrays), **`attacker_strength`**, **`defender_strength`**, **`attacker_damage_taken`**, **`defender_damage_taken`**, **`attacker_hp_before`**, **`defender_hp_before`**, **`attacker_hp_after`**, **`defender_hp_after`**, **`attacker_killed`**, **`defender_killed`**, **`retaliated`**.
 
 ## EndTurn schema (Phase 1.7)
 
@@ -295,9 +335,10 @@ For **`complete_progress`**, after the **common** **`actor_id`** / **`current_pl
 
 **`try_apply(action) -> { "accepted": bool, "reason": String, "index": int }`**
 
-- **`action`** must be a **`Dictionary`** with string **`action_type`** **`move_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`set_current_research`**, or **`complete_progress`**; otherwise **`unknown_action_type`** (also **`null`** / non-dict / missing **`action_type`** / non-string **`action_type`**).
+- **`action`** must be a **`Dictionary`** with string **`action_type`** **`move_unit`**, **`attack_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`set_current_research`**, or **`complete_progress`**; otherwise **`unknown_action_type`** (also **`null`** / non-dict / missing **`action_type`** / non-string **`action_type`**).
 - **Common gate** (these action types): **`actor_id`** must be present and **`TYPE_INT`**; **`actor_id == turn_state.current_player_id()`** or **`malformed_action`** / **`not_current_player`**.
 - **`move_unit`**: **`MoveUnit.validate` → apply →** log entry as in Phase 1.6.
+- **`attack_unit`**: **`AttackUnit.validate` → `CombatRules.resolve_attack` → `AttackUnit.apply_with_result` →** log entry with **`CombatResult`** fields (see **AttackUnit** above); **`PlayerVisibilityState.recompute_for_actor`** for the actor matches **`move_unit`**.
 - **`found_city`**: **`FoundCity.validate` →** read **`created_city_id = scenario.peek_next_city_id()`** **before** **`apply`** (deterministic log) **`→ FoundCity.apply →`** log entry includes **`city_id`**, **`position`** (duplicate), **`unit_id`**, **`result: "accepted"`**.
 - **`set_city_production`**: **`SetCityProduction.validate` →** (optional **`project_not_unlocked`** from **`GameState`**) **`→ apply →`** log entry includes **`city_id`**, **`project_id`**, **`result: "accepted"`** (**no** **`project_type`** on the action log row in **Phase 3.3**).
 - **`set_city_worked_tiles`**: **`SetCityWorkedTiles.validate` → apply →** log entry includes **`city_id`**, **`tiles`**, **`result: "accepted"`**.
@@ -306,11 +347,11 @@ For **`complete_progress`**, after the **common** **`actor_id`** / **`current_pl
 
 On **reject**: **`accepted: false`**, **`index: -1`**, no log append, **`scenario` / `turn_state` / `progress_state` / `log`** unchanged (except where only validation failed after gate — still no mutation).
 
-On **accept**: updates **`scenario`** and/or **`turn_state`** and/or **`progress_state`**, appends **deep-copied** log entries; for **`end_turn`**, **`production_progress`** entries, then **`end_turn`**, then **`unit_produced`** entries; returns **`index`** for **`move_unit`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`complete_progress`**, **`set_current_research`** as that entry’s index; for **`end_turn`**, **`index`** is always the **`end_turn`** entry.
+On **accept**: updates **`scenario`** and/or **`turn_state`** and/or **`progress_state`**, appends **deep-copied** log entries; for **`end_turn`**, **`production_progress`** entries, then **`end_turn`**, then **`unit_produced`** entries; returns **`index`** for **`move_unit`**, **`attack_unit`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`complete_progress`**, **`set_current_research`** as that entry’s index; for **`end_turn`**, **`index`** is always the **`end_turn`** entry.
 
 ## ActionLog
 
-**[action_log.gd](../game/domain/action_log.gd)** stores **accepted** player **actions** (**`move_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`set_current_research`**, **`complete_progress`**) **and** engine **`production_progress`** / **`unit_produced`** entries (Phase 2.4a+)).
+**[action_log.gd](../game/domain/action_log.gd)** stores **accepted** player **actions** (**`move_unit`**, **`attack_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`set_current_research`**, **`complete_progress`**) **and** engine **`production_progress`** / **`unit_produced`** entries (Phase 2.4a+)).
 
 - **`append(entry)`** stores **`entry.duplicate(true)`** and sets **`index`** on the stored copy.
 - **`get_entry`** and **`entries()`** each return **duplicates** so callers cannot corrupt history.
@@ -321,7 +362,7 @@ On **accept**: updates **`scenario`** and/or **`turn_state`** and/or **`progress
 
 ## Presentation boundary
 
-- **[selection_controller.gd](../game/presentation/selection_controller.gd)** submits **`MoveUnit`** via **`try_apply`** on **left-click** and **`FoundCity`** on **`F`** when a unit is selected; **`KEY_P`** is a **debug** hook that submits **`SetCityProduction.make(..., PROJECT_ID_PRODUCE_UNIT_WARRIOR)`** for the **lowest-id** **current-player** city with **`current_project == null`**; **`KEY_G`** submits **`CompleteProgress.make(current_player_id, "foraging_systems")`**; **`KEY_H`** calls **`ProgressCandidateFilter.for_current_player`** and **`try_apply`** on the **first** candidate (detector-driven **`controlled_fire`** when eligible) — all **presentation / debug** only (**still** **outside** **`LegalActions`** / **AI**; see [RENDERING.md](RENDERING.md)). **[end_turn_controller.gd](../game/presentation/end_turn_controller.gd)** submits **`EndTurn`** on **Space**. **[ai_turn_controller.gd](../game/presentation/ai_turn_controller.gd)** drives **one** **`try_apply`** per **`A`** key press using **`LegalActions`** + **`RuleBasedAIPlayer.decide`**. None assign **`unit.position`** or re-build **`Scenario`** outside **`try_apply`**.
+- **[selection_controller.gd](../game/presentation/selection_controller.gd)** submits **`MoveUnit`** via **`try_apply`** on **left-click** (or **`AttackUnit`** when a **Warrior** is selected and the click targets an **adjacent** enemy **Warrior**) and **`FoundCity`** on **`F`** when a unit is selected; **`KEY_P`** is a **debug** hook that submits **`SetCityProduction.make(..., PROJECT_ID_PRODUCE_UNIT_WARRIOR)`** for the **lowest-id** **current-player** city with **`current_project == null`**; **`KEY_G`** submits **`CompleteProgress.make(current_player_id, "foraging_systems")`**; **`KEY_H`** calls **`ProgressCandidateFilter.for_current_player`** and **`try_apply`** on the **first** candidate (detector-driven **`controlled_fire`** when eligible) — all **presentation / debug** only (**still** **outside** **`LegalActions`** / **AI**; see [RENDERING.md](RENDERING.md)). **[end_turn_controller.gd](../game/presentation/end_turn_controller.gd)** submits **`EndTurn`** on **Space**. **[ai_turn_controller.gd](../game/presentation/ai_turn_controller.gd)** drives **one** **`try_apply`** per **`A`** key press using **`LegalActions`** + **`RuleBasedAIPlayer.decide`**. None assign **`unit.position`** or re-build **`Scenario`** outside **`try_apply`**.
 - After an **accepted** **`MoveUnit`**, **`SelectionController`** re-points **`selection_view.scenario`**, **`units_view.scenario`**, and its optional **`scenario`** mirror to **`game_state.scenario`**, **clears selection**, **`queue_redraw()`**, **`turn_label.refresh()`** / **`log_view.refresh()`** when wired ( **`cities_view`** unchanged on move in this phase).
 - After an **accepted** **`FoundCity`**, **`SelectionController`** also re-points **`cities_view.scenario`** when **`cities_view`** is wired, **`queue_redraw()`** on **`cities_view`**, **`log_view.refresh()`**, and **clears selection**.
 - After an **accepted** **`SetCityProduction`** via **`KEY_P`**, **`SelectionController`** re-points **`cities_view`** and **`scenario`** mirror when wired, **`queue_redraw()`** **`cities_view`**, **`turn_label.refresh()`**, **`log_view.refresh()`**; **does not** change **selection**.
@@ -335,7 +376,7 @@ On **accept**: updates **`scenario`** and/or **`turn_state`** and/or **`progress
 - Broader **AI** (LLM, planners, multi-action plans per turn, auto-run) — later phases; every submitted action still uses **`try_apply`**.
 - **Save/load**, JSON/binary serialization, network transport — later phases.
 - **Animation** of movement; units **teleport** in Phase 1.6.
-- **Combat**, **economy/yields**, multi-hex pathfinding, movement points, stacking **enforcement** beyond **`found_city`** placement rules (multiple units per hex are **allowed** after engine delivery at cities).
+- **Combat** beyond **Local Combat 0.1** (Warrior vs adjacent Warrior only): terrain, RNG, ranged, stacking combat rules, UI polish — **deferred**. **economy/yields**, multi-hex pathfinding, movement points, stacking **enforcement** beyond **`found_city`** placement rules (multiple units per hex are **allowed** after engine delivery at cities).
 - **`SetCityProduction`** — enumerated for **`PROJECT_ID_PRODUCE_UNIT_WARRIOR`** only when **`LegalActions`** + **`SetCityProduction.validate`** pass and (**`game_state.progress_state == null`** or the **current player** has the **`city_project`** unlock for that **`project_id`**); **`RuleBasedAIPlayer`** / **`decide`** unchanged (**Phase 3.4c**).
 - A **`ProduceUnit`** **player** action — **not** used; **`produce_unit`** uses **`ready`** + **`ProductionDelivery`** (**Phase 2.4c**).
 - **`FoundCity`** in **`LegalActions`** / **AI** — deferred to Phase **2.6**; **settler-only** founding — **Phase 3.1** unit definitions.

@@ -6,6 +6,8 @@ extends RefCounted
 const ScenarioScript = preload("res://domain/scenario.gd")
 const ActionLogScript = preload("res://domain/action_log.gd")
 const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
+const AttackUnitScript = preload("res://domain/actions/attack_unit.gd")
+const CombatRulesScript = preload("res://domain/combat_rules.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
@@ -69,6 +71,7 @@ func try_apply(action) -> Dictionary:
 		return {"accepted": false, "reason": "unknown_action_type", "index": -1}
 	if (
 		at != MoveUnitScript.ACTION_TYPE
+		and at != AttackUnitScript.ACTION_TYPE
 		and at != EndTurnScript.ACTION_TYPE
 		and at != FoundCityScript.ACTION_TYPE
 		and at != SetCityProductionScript.ACTION_TYPE
@@ -114,6 +117,44 @@ func try_apply(action) -> Dictionary:
 			int(action["actor_id"]),
 		)
 		return {"accepted": true, "reason": "", "index": idx}
+	if at == AttackUnitScript.ACTION_TYPE:
+		var ar = AttackUnitScript.validate(scenario, action)
+		if not ar["ok"]:
+			return {"accepted": false, "reason": ar["reason"], "index": -1}
+		var att_u = scenario.unit_by_id(int(action["attacker_id"]))
+		var def_u = scenario.unit_by_id(int(action["defender_id"]))
+		var atk_pos = [int(att_u.position.q), int(att_u.position.r)]
+		var def_pos = [int(def_u.position.q), int(def_u.position.r)]
+		var combat_result = CombatRulesScript.resolve_attack(scenario, action)
+		scenario = AttackUnitScript.apply_with_result(scenario, action, combat_result)
+		var atk_entry = {
+			"schema_version": action["schema_version"],
+			"action_type": action["action_type"],
+			"actor_id": action["actor_id"],
+			"attacker_id": combat_result["attacker_id"],
+			"defender_id": combat_result["defender_id"],
+			"attacker_position": atk_pos,
+			"defender_position": def_pos,
+			"attacker_strength": combat_result["attacker_strength"],
+			"defender_strength": combat_result["defender_strength"],
+			"attacker_damage_taken": combat_result["attacker_damage_taken"],
+			"defender_damage_taken": combat_result["defender_damage_taken"],
+			"attacker_hp_before": combat_result["attacker_hp_before"],
+			"defender_hp_before": combat_result["defender_hp_before"],
+			"attacker_hp_after": combat_result["attacker_hp_after"],
+			"defender_hp_after": combat_result["defender_hp_after"],
+			"attacker_killed": combat_result["attacker_killed"],
+			"defender_killed": combat_result["defender_killed"],
+			"retaliated": combat_result["retaliated"],
+			"result": "accepted",
+		}
+		var atk_idx = log.append(atk_entry)
+		visibility_state = PlayerVisibilityStateScript.recompute_for_actor(
+			visibility_state,
+			scenario,
+			int(action["actor_id"]),
+		)
+		return {"accepted": true, "reason": "", "index": atk_idx}
 	if at == FoundCityScript.ACTION_TYPE:
 		var fr = FoundCityScript.validate(scenario, action)
 		if not fr["ok"]:

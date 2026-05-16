@@ -27,6 +27,11 @@ func _init() -> void:
 	_check(int(dw["max_movement"]) == 2, "warrior max_movement v0")
 	_check(not bool(dw["can_found_city"]), "warrior can_found_city")
 	_check(dw["role"] == "basic_melee", "warrior role")
+	_check(int(dw["combat_strength"]) == 20, "warrior combat_strength")
+	_check(int(dw["max_hp"]) == 100, "warrior max_hp row")
+
+	_check(int(ds["combat_strength"]) == 0, "settler combat_strength")
+	_check(int(ds["max_hp"]) == 100, "settler max_hp")
 
 	_check(UnitDefinitionsScript.get_definition("nope") == null, "unknown null")
 
@@ -52,6 +57,13 @@ func _init() -> void:
 	_check(UnitDefinitionsScript.max_movement_for_type("settler") == 2, "api settler MP")
 	_check(UnitDefinitionsScript.max_movement_for_type("warrior") == 2, "api warrior MP")
 	_check(UnitDefinitionsScript.max_movement_for_type("nope") == 0, "unknown type 0 MP")
+
+	_check(UnitDefinitionsScript.max_hp_for_type("warrior") == 100, "api warrior max_hp")
+	_check(UnitDefinitionsScript.max_hp_for_type("settler") == 100, "api settler max_hp")
+	_check(UnitDefinitionsScript.max_hp_for_type("nope") == 0, "unknown type 0 max_hp")
+	_check(UnitDefinitionsScript.combat_strength_for_type("warrior") == 20, "api warrior str")
+	_check(UnitDefinitionsScript.combat_strength_for_type("settler") == 0, "api settler str")
+	_check(UnitDefinitionsScript.combat_strength_for_type("nope") == 0, "unknown type 0 str")
 
 	if _any_fail:
 		call_deferred("quit", 1)

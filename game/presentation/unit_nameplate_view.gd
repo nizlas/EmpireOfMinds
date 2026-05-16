@@ -1,4 +1,5 @@
 # Phase 5.1.11 — Compact code-drawn nameplates above unit markers (type + owner accent).
+# Phase **Local Combat 0.1a:** compact HP bar under each banner (**Unit.current_hp** / **max_hp**); presentation-only.
 # Presentation-only; no input, no hit-testing. See docs/RENDERING.md
 class_name UnitNameplateView
 extends Node2D
@@ -17,6 +18,11 @@ const _OWNER_STRIP_WIDTH_PX: float = 25.0
 const _PAD_AFTER_STRIP_PX: float = 8.0
 const _PAD_TEXT_END_PX: float = 8.0
 const _PAD_Y_PX: float = 3.0
+
+
+## Gap between nameplate bottom and unit marker top (**presentation px**); must fit **HP bar** (**Local Combat 0.1a**).
+const _HP_BAR_MARGIN_UNDER_BANNER_PX: float = 2.0
+const _HP_BAR_BORDER_PX: float = 1.0
 
 
 ## Width of the **left** owner-color strip (screen-space px in map layer coordinates).
@@ -84,6 +90,24 @@ static func owner_nameplate_accent_color(owner_id: int) -> Color:
 	return Color.from_hsv(hue, 0.35, 0.55, 1.0)
 
 
+## **0..1** for HP bar fill; safe if **`max_hp`** is missing or zero.
+static func hp_ratio_for_unit(u) -> float:
+	if u == null:
+		return 1.0
+	var denom: int = maxi(int(u.max_hp), 1)
+	return clampf(float(u.current_hp) / float(denom), 0.0, 1.0)
+
+
+## **Local Combat 0.1a** thresholds: green **`> 0.66`**, yellow **`0.33 .. 0.66`**, red **`< 0.33`**.
+static func hp_bar_fill_color(hp_ratio: float) -> Color:
+	var r: float = clampf(hp_ratio, 0.0, 1.0)
+	if r > 0.66:
+		return Color(0.22, 0.78, 0.38, 0.96)
+	if r >= 0.33:
+		return Color(0.92, 0.78, 0.18, 0.96)
+	return Color(0.92, 0.28, 0.22, 0.96)
+
+
 static func _marker_top_presentation_y(
 	anchor_pres: Vector2,
 	pscale: float,
@@ -110,7 +134,7 @@ static func compute_nameplate_rect(
 	font: Font,
 	font_size: int
 ) -> Rect2:
-	var gap: float = 6.0 + 2.0 * clamp(pscale, 0.8, 1.25)
+	var gap: float = 12.0 + 2.0 * clamp(pscale, 0.8, 1.25)
 	var bw: float = _BANNER_BORDER_PX
 	var strip_w: float = owner_strip_width_px()
 	var sz: Vector2 = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
@@ -217,4 +241,18 @@ func _draw() -> void:
 			fs,
 			Color(0.12, 0.10, 0.09, 0.95)
 		)
+		var hp_ratio: float = hp_ratio_for_unit(u)
+		var bar_fill: Color = hp_bar_fill_color(hp_ratio)
+		var bar_h: float = clampf(6.0 * pscale, 5.0, 10.0)
+		var bar_w: float = banner_r.size.x
+		var bar_x: float = banner_r.position.x
+		var bar_y: float = banner_r.position.y + banner_r.size.y + _HP_BAR_MARGIN_UNDER_BANNER_PX
+		var bar_outer := Rect2(bar_x, bar_y, bar_w, bar_h)
+		draw_rect(bar_outer, Color(0.12, 0.10, 0.08, 0.94))
+		var inset: float = _HP_BAR_BORDER_PX
+		var inner_bar_h: float = maxf(0.0, bar_h - 2.0 * inset)
+		var inner_bar_w: float = maxf(0.0, bar_w - 2.0 * inset)
+		var fill_w: float = inner_bar_w * hp_ratio
+		if fill_w > 0.0 and inner_bar_h > 0.0:
+			draw_rect(Rect2(bar_x + inset, bar_y + inset, fill_w, inner_bar_h), bar_fill)
 		i = i + 1

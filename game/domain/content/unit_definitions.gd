@@ -15,6 +15,8 @@ const _DEFINITIONS: Dictionary = {
 		"production_cost": 2,
 		"role": "founder",
 		"max_movement": 2,
+		"combat_strength": 0,
+		"max_hp": 100,
 	},
 	"warrior":
 	{
@@ -24,6 +26,8 @@ const _DEFINITIONS: Dictionary = {
 		"production_cost": 2,
 		"role": "basic_melee",
 		"max_movement": 2,
+		"combat_strength": 20,
+		"max_hp": 100,
 	},
 }
 
@@ -54,3 +58,19 @@ static func max_movement_for_type(type_id: String) -> int:
 	if d == null:
 		return 0
 	return int(d.get("max_movement", 0))
+
+
+## Local Combat 0.1 — HP cap from definition rows (`Unit.current_hp` is runtime state).
+static func max_hp_for_type(type_id: String) -> int:
+	var d = get_definition(type_id)
+	if d == null:
+		return 0
+	return int(d.get("max_hp", 0))
+
+
+## Local Combat 0.1 — base **combat_strength** from definitions; `CombatRules.effective_strength` may extend later.
+static func combat_strength_for_type(type_id: String) -> int:
+	var d = get_definition(type_id)
+	if d == null:
+		return 0
+	return int(d.get("combat_strength", 0))

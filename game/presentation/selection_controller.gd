@@ -10,6 +10,7 @@ const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
 const GameStateScript = preload("res://domain/game_state.gd")
 const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
+const AttackUnitScript = preload("res://domain/actions/attack_unit.gd")
 const MovementRulesScript = preload("res://domain/movement_rules.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
@@ -59,6 +60,8 @@ var science_panel
 var discovery_popup
 var science_completed_popup
 var city_view_state = null
+## Phase **Local Combat 0.1b:** transient melee **CLASH** burst (presentation-only).
+var combat_clash_burst_view
 @export var marker_hit_radius_ratio: float = 0.35
 
 ## Sentinels for **shared city / own-unit hex** click alternation (see **plan_shared_hex_pick**).
@@ -409,6 +412,67 @@ func _unhandled_input(event):
 				camera = mc
 			var local_point = to_local(get_global_mouse_position())
 			if not selection.is_empty():
+				var pid_atk: int = game_state.turn_state.current_player_id()
+				var atk_u = scen.unit_by_id(selection.unit_id)
+				if (
+					atk_u != null
+					and str(atk_u.type_id) == AttackUnitScript.WARRIOR_TYPE
+					and int(atk_u.owner_id) == pid_atk
+				):
+					var def_candidates: Array = []
+					var u_all_atk = scen.units()
+					var ua: int = 0
+					while ua < u_all_atk.size():
+						var ux = u_all_atk[ua]
+						if SelectionController.projected_hex_contains(
+							layout, camera, ux.position.q, ux.position.r, local_point
+						):
+							if (
+								int(ux.owner_id) != pid_atk
+								and str(ux.type_id) == AttackUnitScript.WARRIOR_TYPE
+								and HexCoordScript.axial_distance(atk_u.position, ux.position) == 1
+							):
+								def_candidates.append(int(ux.id))
+						ua = ua + 1
+					_sort_city_ids_asc(def_candidates)
+					if def_candidates.size() > 0:
+						var def_id: int = int(def_candidates[0])
+						var def_u_pre = scen.unit_by_id(def_id)
+						if def_u_pre == null:
+							return
+						var atk_q: int = int(atk_u.position.q)
+						var atk_r: int = int(atk_u.position.r)
+						var def_q: int = int(def_u_pre.position.q)
+						var def_r: int = int(def_u_pre.position.r)
+						var atk_act = AttackUnitScript.make(pid_atk, int(atk_u.id), def_id)
+						var prev_log_atk = game_state.log.size()
+						var atk_res = game_state.try_apply(atk_act)
+						if atk_res["accepted"]:
+							if combat_clash_burst_view != null:
+								combat_clash_burst_view.show_burst_hex_centers(atk_q, atk_r, def_q, def_r)
+							scenario = game_state.scenario
+							if selection_view != null:
+								selection_view.scenario = game_state.scenario
+							if units_view != null:
+								units_view.scenario = game_state.scenario
+							_sync_terrain_foreground_from_game_state()
+							_reset_shared_hex_cycle()
+							var prev_c_atk = selection.city_id
+							selection.clear()
+							if selection_view != null:
+								selection_view.queue_redraw()
+							if units_view != null:
+								units_view.queue_redraw()
+							_sync_city_view_state_after_selection_change(prev_c_atk)
+							if turn_label != null:
+								turn_label.refresh()
+							if log_view != null:
+								log_view.refresh()
+							_refresh_city_production_panel()
+							_after_accepted(prev_log_atk)
+						else:
+							push_warning("AttackUnit rejected: %s" % atk_res["reason"])
+						return
 				var dests = MovementRulesScript.legal_destinations(scen, selection.unit_id)
 				var dest_hit = null
 				var di = 0

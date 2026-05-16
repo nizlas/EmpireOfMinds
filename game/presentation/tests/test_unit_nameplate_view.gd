@@ -6,6 +6,8 @@ const ScenarioScript = preload("res://domain/scenario.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
+const UnitScript = preload("res://domain/unit.gd")
+const HexCoordScript = preload("res://domain/hex_coord.gd")
 
 var _total = 0
 var _any_fail = false
@@ -39,6 +41,30 @@ func _init() -> void:
 	_check(c1.r > 0.5 and c1.g < 0.4, "player 1 biased burgundy")
 	var sw: float = UnitNameplateViewScript.owner_strip_width_px()
 	_check(sw >= 22.0 and sw <= 28.0, "owner strip width in 22–28 px band")
+	_check(
+		UnitNameplateViewScript.hp_bar_fill_color(1.0).g > 0.65,
+		"hp color full green channel"
+	)
+	_check(
+		UnitNameplateViewScript.hp_bar_fill_color(0.9).r < UnitNameplateViewScript.hp_bar_fill_color(0.5).r,
+		"hp color green lower red channel than yellow"
+	)
+	_check(
+		UnitNameplateViewScript.hp_bar_fill_color(0.5).g > UnitNameplateViewScript.hp_bar_fill_color(0.2).g,
+		"hp color yellow higher green than red"
+	)
+	_check(
+		abs(UnitNameplateViewScript.hp_bar_fill_color(0.66).g - 0.78) < 0.02,
+		"boundary 0.66 yellow"
+	)
+	_check(UnitNameplateViewScript.hp_bar_fill_color(0.67).g > 0.35, "boundary 0.67 green")
+	_check(UnitNameplateViewScript.hp_bar_fill_color(0.33).g > 0.5, "boundary 0.33 yellow")
+	_check(UnitNameplateViewScript.hp_bar_fill_color(0.32).r > 0.85, "boundary 0.32 red")
+	var uw = UnitScript.new(1, 0, HexCoordScript.new(0, 0), "warrior", -1, 50)
+	_check(abs(UnitNameplateViewScript.hp_ratio_for_unit(uw) - 0.5) < 0.001, "ratio half")
+	var ux = UnitScript.new(2, 0, HexCoordScript.new(0, 0), "warrior", -1, 0)
+	_check(abs(UnitNameplateViewScript.hp_ratio_for_unit(ux) - 0.0) < 0.001, "ratio zero")
+	_check(abs(UnitNameplateViewScript.hp_ratio_for_unit(null) - 1.0) < 0.001, "ratio null unit")
 	var font = ThemeDB.fallback_font
 	var fs: int = 12
 	var anchor = Vector2(200.0, 400.0)

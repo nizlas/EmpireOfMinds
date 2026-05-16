@@ -37,6 +37,7 @@ func _redraw_map_layers() -> void:
 	$CityWorkedTilesView.queue_redraw()
 	$CityNameplateView.queue_redraw()
 	$UnitNameplateView.queue_redraw()
+	$CombatClashBurstView.queue_redraw()
 
 
 func _refresh_turn_hud_after_turn_label() -> void:
@@ -63,6 +64,7 @@ func _ready() -> void:
 		$CityWorkedTilesView,
 		$CityNameplateView,
 		$UnitNameplateView,
+		$CombatClashBurstView,
 		$SelectionController,
 	]:
 		n.position = MAP_LAYER_ORIGIN
@@ -108,6 +110,9 @@ func _ready() -> void:
 	$CityNameplateView.scale = Vector2.ONE
 	$CityNameplateView.camera = _map_camera
 	$CityNameplateView.z_index = 2
+	$CombatClashBurstView.scale = Vector2.ONE
+	$CombatClashBurstView.camera = _map_camera
+	$CombatClashBurstView.z_index = 3
 	$SelectionController.scale = Vector2.ONE
 	$SelectionController.camera = _map_camera
 	var scenario = ScenarioScript.make_prototype_play_scenario()
@@ -179,6 +184,9 @@ func _ready() -> void:
 	units_view.terrain_foreground_view = terrain_foreground
 	var unit_nameplate_view = $UnitNameplateView
 	unit_nameplate_view.scenario = scenario
+	var combat_clash_burst = $CombatClashBurstView
+	combat_clash_burst.layout = layout
+	combat_clash_burst.camera = _map_camera
 	unit_nameplate_view.layout = layout
 	unit_nameplate_view.units_view = units_view
 	unit_nameplate_view.game_state = game_state
@@ -207,6 +215,7 @@ func _ready() -> void:
 	selection_controller.empire_border_view = empire_border_view
 	selection_controller.city_worked_tiles_view = city_worked_tiles_view
 	selection_controller.city_view_state = city_view_state
+	selection_controller.combat_clash_burst_view = combat_clash_burst
 	selection_controller.yield_overlay_view = tile_yield_overlay
 	selection_controller.terrain_edge_blend_view = terrain_edge_blend
 	selection_controller.map_visibility_view = map_visibility_view

@@ -10,13 +10,14 @@
 - **`type_id`**: **`String`** — stable id of the unit’s **content row** (see [CONTENT_MODEL.md](CONTENT_MODEL.md)). **`Unit._init`** defaults **`type_id`** to **`"warrior"`** so older **three-argument** call sites stay valid.
 - **`max_movement`**: **`int`** — per-turn cap from **`UnitDefinitions`** (**5.2.5**).
 - **`remaining_movement`**: **`int`** — how many **`MoveUnit`** steps (**cost 1** each in **5.2.5**) the unit may still take this turn; refilled when its owner **becomes** **`current_player_id`** (see **`Scenario.with_refreshed_movement_for_owner`**, **`GameState.try_apply`**).
+- **`current_hp`** / **`max_hp`**: **`int`** — hit points; **`max_hp`** is **`UnitDefinitions.max_hp_for_type(type_id)`** at construction. **`Unit.new(..., p_current_hp := -1)`**: **`-1`** means full HP from definitions; explicit HP is carried through **`MoveUnit`**, movement refresh, and **`AttackUnit.apply_with_result`**.
 
 ## Unit definitions (Phase 3.1)
 
-**`UnitDefinitions`** ([unit_definitions.gd](../game/domain/content/unit_definitions.gd)) is a **static registry** ( **`class_name`**, **`RefCounted`**, **no** autoload): **`has`**, **`get_definition`** (deep **`Dictionary`** copy of one row — named this way because **`RefCounted`** cannot define **`get`** without clashing with **`Object.get`**), **`ids`** (fixed order **`["settler", "warrior"]`**), **`can_found_city(type_id)`**, and **`max_movement_for_type(type_id)`** (**5.2.5**). Real rows today:
+**`UnitDefinitions`** ([unit_definitions.gd](../game/domain/content/unit_definitions.gd)) is a **static registry** ( **`class_name`**, **`RefCounted`**, **no** autoload): **`has`**, **`get_definition`** (deep **`Dictionary`** copy of one row — named this way because **`RefCounted`** cannot define **`get`** without clashing with **`Object.get`**), **`ids`** (fixed order **`["settler", "warrior"]`**), **`can_found_city(type_id)`**, **`max_movement_for_type(type_id)`** (**5.2.5**), **`max_hp_for_type(type_id)`**, **`combat_strength_for_type(type_id)`** (melee strength for **`CombatRules`**; **`0`** means non-combatant for future expansion). **Combat strength** and **max HP** are registry fields; **current HP** is **`Unit`** instance state. Real rows today:
 
-- **`settler`** — **`can_found_city: true`**, **`max_movement: 2`**
-- **`warrior`** — **`can_found_city: false`**, **`max_movement: 2`**
+- **`settler`** — **`can_found_city: true`**, **`max_movement: 2`**, **`combat_strength: 0`**, **`max_hp: 100`**
+- **`warrior`** — **`can_found_city: false`**, **`max_movement: 2`**, **`combat_strength: 20`**, **`max_hp: 100`**
 
 Only types with **`can_found_city`** may **`FoundCity`** ([ACTIONS.md](ACTIONS.md)). Longer unit lists and flavor belong in [CONTENT_BACKLOG.md](CONTENT_BACKLOG.md); this file stays limited to **shipped** domain behavior.
 
@@ -54,7 +55,7 @@ Simple **unit markers** (drawn circles, placeholder owner colors) are implemente
 
 **Presentation-only** unit focus and **legal-movement overlays** (ring + destination tints) live in [selection_state.gd](../game/presentation/selection_state.gd), [selection_controller.gd](../game/presentation/selection_controller.gd), and [selection_view.gd](../game/presentation/selection_view.gd). **`SelectionState` holds a `unit_id` only**; it does **not** mutate **`Unit`** or **`Scenario`**. Legal destinations come from [movement_rules.gd](../game/domain/movement_rules.gd).
 
-**Phase 1.6:** when a unit is selected, clicking a **legal destination** submits a **`MoveUnit`** Dictionary through **`GameState.try_apply`** (see [ACTIONS.md](ACTIONS.md)). On accept, **`UnitsView`** and **`SelectionView`** are re-pointed to **`game_state.scenario`**; selection is **cleared**. The controller does **not** move units directly.
+**Phase 1.6:** when a unit is selected, clicking a **legal destination** submits a **`MoveUnit`** Dictionary through **`GameState.try_apply`** (see [ACTIONS.md](ACTIONS.md)). **Local Combat 0.1:** with a **Warrior** selected, clicking an **adjacent** enemy **Warrior** submits **`AttackUnit`** first (before move / reselect handling). On accept, **`UnitsView`** and **`SelectionView`** are re-pointed to **`game_state.scenario`**; selection is **cleared**. The controller does **not** move units or resolve combat directly.
 
 See [SELECTION.md](SELECTION.md) and [MOVEMENT_RULES.md](MOVEMENT_RULES.md).
 
@@ -76,7 +77,7 @@ The following are **out of scope** for Phase 1.4 and must not be assumed from th
 - Turn state machine subtleties **beyond** shipped **`TurnState`** + **5.2.5** MP refresh
 - **Non-move** player actions not yet modeled as first-class **`LegalActions`** rows
 - AI and automation
-- Combat resolution
+- **Combat** beyond **Local Combat 0.1** (adjacent Warrior vs Warrior, deterministic melee — see [ACTIONS.md](ACTIONS.md))
 - Save/load
 - Ownership transfer, renaming, and rich `Player` modeling
 - A final **owner color palette** (placeholders in presentation only for 1.4b)

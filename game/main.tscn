@@ -28,6 +28,7 @@
 [ext_resource type="Script" path="res://presentation/player_contact_strip.gd" id="26_player_contact"]
 [ext_resource type="Script" path="res://presentation/map_visibility_view.gd" id="27_map_visibility"]
 [ext_resource type="Script" path="res://presentation/turn_start_banner_view.gd" id="28_turn_banner"]
+[ext_resource type="Script" path="res://presentation/combat_clash_burst_view.gd" id="29_combat_clash"]
 
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
@@ -235,6 +236,11 @@ script = ExtResource("19_city_nameplates")
 [node name="UnitNameplateView" type="Node2D" parent="." unique_id=1063845023]
 position = Vector2(400, 428)
 script = ExtResource("17_nameplates")
+
+[node name="CombatClashBurstView" type="Node2D" parent="."]
+position = Vector2(400, 428)
+z_index = 3
+script = ExtResource("29_combat_clash")
 
 [node name="SelectionController" type="Node2D" parent="." unique_id=293165801]
 position = Vector2(400, 428)

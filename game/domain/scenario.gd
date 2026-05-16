@@ -248,7 +248,7 @@ static func with_refreshed_movement_for_owner(a_scenario, owner_id: int):
 	while i < ulist.size():
 		var u = ulist[i]
 		if u.owner_id == owner_id:
-			new_units.append(UnitScript.new(u.id, u.owner_id, u.position, u.type_id, -1))
+			new_units.append(UnitScript.new(u.id, u.owner_id, u.position, u.type_id, -1, u.current_hp))
 		else:
 			new_units.append(u)
 		i = i + 1

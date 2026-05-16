@@ -1,6 +1,5 @@
 # Headless: **main.tscn** map **Node2D** siblings under **Main** preserve **Main** subtree order contract:
-# MapView → TerrainEdgeBlendView → EmpireBorderView → CityTerritoryView → CitiesView → SelectionView → UnitsView → TerrainForegroundView →
-# MapVisibilityView → LightningTreeView → TileYieldOverlayView → CityWorkedTilesView → CityNameplateView → UnitNameplateView → SelectionController,
+# MapView → … → UnitNameplateView → CombatClashBurstView → SelectionController,
 # ignoring other **Main** children (HudCanvas, labels, controllers after SelectionController).
 # **EmpireBorderView** (**5.1.17h**, strength **5.1.17h.1**): **`z_index` 0**, sibling **after** **`TerrainEdgeBlendView`**, **before** **`CityTerritoryView`** — always-on owner **union** realm outline (**dual** **`Line2D`** rim). **`CityTerritoryView`** stays **later** sibling but **dormant** (**no** selected-city border rim; forward UX uses **citizen/head** markers on tiles, not a second **`Line2D`** perimeter).
 # **CityWorkedTilesView** (**5.1.17e**): **`z_index` 1**, **after** **`TileYieldOverlayView`** (same **`z_index`**) — **PLANNING** citizen markers **above** yield icons; **before** nameplates (**`z_index` 2**). Layering set in **[main.gd](../game/main.gd)** **`_ready`**.
@@ -28,6 +27,7 @@ var _map_layer_names: Array[String] = [
 	"CityWorkedTilesView",
 	"CityNameplateView",
 	"UnitNameplateView",
+	"CombatClashBurstView",
 	"SelectionController",
 ]
 
@@ -119,6 +119,7 @@ func _run() -> void:
 	var tyo = main_root.get_node(NodePath("TileYieldOverlayView")) as CanvasItem
 	var cnv = main_root.get_node(NodePath("CityNameplateView")) as CanvasItem
 	var unp = main_root.get_node(NodePath("UnitNameplateView")) as CanvasItem
+	var clash = main_root.get_node(NodePath("CombatClashBurstView")) as CanvasItem
 	if tyo.get_index() >= cwv.get_index():
 		main_root.free()
 		_fail("FAIL: TileYieldOverlayView must be before CityWorkedTilesView (sibling order)")
@@ -126,6 +127,18 @@ func _run() -> void:
 	if cwv.get_index() >= cnv.get_index() or cwv.get_index() >= unp.get_index():
 		main_root.free()
 		_fail("FAIL: CityWorkedTilesView must be before CityNameplateView and UnitNameplateView")
+		return
+	if unp.get_index() >= clash.get_index() or clash.get_index() >= main_root.get_node(
+		NodePath("SelectionController")
+	).get_index():
+		main_root.free()
+		_fail(
+			"FAIL: CombatClashBurstView must be after UnitNameplateView and before SelectionController"
+		)
+		return
+	if int(clash.z_index) != 3:
+		main_root.free()
+		_fail("FAIL: CombatClashBurstView z_index expected 3 in scene (PackedScene.instantiate)")
 		return
 	if int(tyo.z_index) != 1:
 		main_root.free()

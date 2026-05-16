@@ -179,6 +179,18 @@ Manual check in **`main.tscn`** (**local hotseat**).
 
 Validation: **`scripts/run-godot-tests.ps1`** — **`test_unit_movement_points_v0.gd`**, **`test_move_unit.gd`**, **`test_movement_rules.gd`**, **`test_unit.gd`**, **`test_move_unit_preserves_scenario_state.gd`**, **`test_player_visibility_reveal.gd`** (or existing visibility suite as regression).
 
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_combat_rules.gd`**, **`test_attack_unit.gd`**, **`test_attack_unit_flow.gd`**, **`test_unit.gd`**, **`test_unit_definitions.gd`**.
+
+## Local Combat 0.1 — Warrior vs adjacent Warrior (manual)
+
+Manual check in **`main.tscn`** (**deterministic melee**; no combat UI polish).
+
+- [ ] **Player 0** turn: select a **Warrior**, click an **adjacent** enemy **Warrior** — attack applies (**30** damage each when both full and equal strength), attacker **cannot move** again same turn.
+- [ ] Click same attacker again at another adjacent enemy (or same after refresh): rejected (**movement_exhausted** / no effect) or no illegal submit.
+- [ ] **Own** adjacent Warrior: click does **not** attack ally (**warning** / no HP change).
+- [ ] Non-adjacent enemy Warrior: normal **move** / selection behavior, **not** an attack.
+- [ ] **End Turn** / movement refresh: **wounded** unit keeps **HP** after turn rollover (see domain tests).
+
 ## Phase 5.2.5a — Keep unit selected while movement remains (presentation)
 
 Manual check in **`main.tscn`** (**local hotseat**).

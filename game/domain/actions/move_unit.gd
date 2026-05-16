@@ -92,6 +92,7 @@ static func apply(a_scenario, action):
 					HexCoordScript.new(to_a[0] as int, to_a[1] as int),
 					u.type_id,
 					u.remaining_movement - MOVEMENT_COST_PER_STEP,
+					u.current_hp,
 				)
 			)
 		else:
