@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+_tests_dir = Path(__file__).resolve().parent
+if str(_tests_dir) not in sys.path:
+    sys.path.insert(0, str(_tests_dir))
+
 import pytest
 from fastapi.testclient import TestClient
 

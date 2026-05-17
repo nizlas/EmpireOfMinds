@@ -32,6 +32,54 @@ class Scenario:
     def cities(self) -> tuple[City, ...]:
         return self._cities
 
+    def unit_by_id(self, unit_id: int) -> Unit | None:
+        for u in self._units:
+            if u.id == unit_id:
+                return u
+        return None
+
+    def units_at(self, coord: HexCoord) -> tuple[Unit, ...]:
+        return tuple(u for u in self._units if u.position == coord)
+
+    def with_units(self, units: tuple[Unit, ...]) -> Scenario:
+        return Scenario(
+            map=self.map,
+            _units=units,
+            _cities=self._cities,
+            next_unit_id=self.next_unit_id,
+            next_city_id=self.next_city_id,
+            lightning_tree_hex=self.lightning_tree_hex,
+        )
+
+    def city_by_id(self, city_id: int) -> City | None:
+        for c in self._cities:
+            if c.id == city_id:
+                return c
+        return None
+
+    def cities_at(self, coord: HexCoord) -> tuple[City, ...]:
+        return tuple(c for c in self._cities if c.position == coord)
+
+    def cities_owned_by(self, owner_id: int) -> tuple[City, ...]:
+        return tuple(c for c in self._cities if c.owner_id == owner_id)
+
+    def tile_is_owned(self, coord: HexCoord) -> bool:
+        for c in self._cities:
+            for ot in c.owned_tiles:
+                if ot == coord:
+                    return True
+        return False
+
+    def with_cities(self, cities: tuple[City, ...]) -> Scenario:
+        return Scenario(
+            map=self.map,
+            _units=self._units,
+            _cities=cities,
+            next_unit_id=self.next_unit_id,
+            next_city_id=self.next_city_id,
+            lightning_tree_hex=self.lightning_tree_hex,
+        )
+
 
 def make_tiny_test_scenario() -> Scenario:
     m = make_tiny_test_map()

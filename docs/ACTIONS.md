@@ -36,7 +36,7 @@ Enumeration is a **read-only query**: it does not mutate **`GameState`**, call *
 
 ## MoveUnit schema (Dictionary)
 
-Actions are plain **`Dictionary`** values with **primitive** fields so they stay **easy to serialize** later for save/load and cloud.
+Actions are plain **`Dictionary`** values with **primitive** fields so they stay **easy to serialize** later for save/load and cloud. **Server (Cloud / Slice C1):** the HTTP authority accepts **`move_unit`** as documented in [CLOUD_API_V0.md](CLOUD_API_V0.md): one adjacent step, flat cost **1**, **`actor_id`** / **`schema_version`** **`1`**, same field names as below. Rejection reasons for illegal destinations are **more specific** on the server than Godot’s umbrella **`destination_not_legal`** (see Cloud API doc).
 
 | Field | Type | Meaning |
 |--------|------|--------|
@@ -125,15 +125,21 @@ Built with **`EndTurn.make(actor_id)`** in [end_turn.gd](../game/domain/actions/
 
 **`production_progress`** and **`unit_produced`** are **not** player **`action_type`** values and **may not** be submitted through **`try_apply`**.
 
-**On accepted `end_turn`, in order:**
+**On accepted `end_turn`, in order (authoritative: [game_state.gd](../game/domain/game_state.gd)):**
 
 1. **`ProductionTick.apply_for_player(scenario, ending_player_id)`** ([production_tick.gd](../game/domain/production_tick.gd)) runs **after** **`EndTurn.validate` succeeds** and **before** **`TurnState.advance`**. It emits only **`production_progress`** events. It **does not** spawn units or emit **`unit_produced`**.
 
-2. **`TurnState`** is updated with **`EndTurn.apply`**.
+2. **`FoodGrowthTick.apply_for_player(scenario, ending_player_id)`** ([food_growth_tick.gd](../game/domain/food_growth_tick.gd)) runs next. It may emit **`food_growth_progress`** and **`city_grew`** engine entries. It **does not** change **`current_project`**.
 
-3. The **`end_turn`** log entry is appended. **`try_apply(end_turn)`** returns this entry’s **`index`** (not any following **`unit_produced`** indices).
+3. **`ScienceTick.apply_for_player(progress_state, scenario, ending_player_id)`** ( **[science_tick.gd](../game/domain/science_tick.gd)** ) runs next; it may append **`science_no_target`**, **`science_progress`**, **`science_completed`** rows and mutate **`progress_state`**. **`ScienceTick.add_observation_bonus_if_eligible`** (move + **`ActionLog`**) is **Godot-only** for now — **not** on Cloud 0.1.
 
-4. **`ProductionDelivery.deliver_pending_for_player(scenario, turn_state.current_player_id())`** ([production_delivery.gd](../game/domain/production_delivery.gd)) runs with the **new** current player. **`unit_produced`** events are appended **after** the **`end_turn`** entry.
+4. **`TurnState`** is updated with **`EndTurn.apply`**.
+
+5. The **`end_turn`** log entry is appended. **`try_apply(end_turn)`** returns this entry’s **`index`** (not any following **`unit_produced`** indices).
+
+6. **`ProductionDelivery.deliver_pending_for_player(scenario, turn_state.current_player_id())`** ([production_delivery.gd](../game/domain/production_delivery.gd)) runs with the **new** current player. **`unit_produced`** events are appended **after** the **`end_turn`** entry.
+
+**Cloud 0.1 (Slice C6):** **`POST /v1/matches/{id}/actions`** **`end_turn`** mirrors Godot steps **1–7** for production, food, **`ScienceTick.apply_for_player`** (**not** **`add_observation_bonus_if_eligible`**), **`end_turn`**, delivery, and movement refresh — see **`CLOUD_API_V0.md`**.
 
 **`GameState._init`** may run **`ProductionDelivery`** for the **opening** **`current_player_id`** when the initial **`Scenario`** already has **`ready`** **`produce_unit`** projects, appending **`unit_produced`** to a fresh **`ActionLog`** (**no** **`ProductionTick`** in **`_init`**).
 
@@ -185,6 +191,8 @@ Built with **`EndTurn.make(actor_id)`** in [end_turn.gd](../game/domain/actions/
 | `unit_id` | `int` | Founder unit; **removed** from the returned **`Scenario`**. |
 | `position` | `Array` of two `int` | `[q, r]` must match the unit’s current **`HexCoord`**. |
 
+**Server (Cloud / Slice C2):** `POST /v1/matches/{id}/actions` accepts **`found_city`** with the same fields as **`FoundCity.make`**: **`schema_version` `1`**, **`action_type`**, **`actor_id`**, **`unit_id`**, **`position`** (no separate **`at`** or **`name`** on the wire). The founding unit is **removed** from **`scenario.units`**; **`city_name`** follows **`FoundCity.default_city_name_for_owner`**. HTTP responses map **`actor_not_owner`** → **`unit_not_owned_by_player`** and **`unit_type_cannot_found`** → **`unit_cannot_found_city`** (see [CLOUD_API_V0.md](CLOUD_API_V0.md)).
+
 Built with **`FoundCity.make(actor_id, unit_id, q, r)`** in [found_city.gd](../game/domain/actions/found_city.gd).
 
 ### FoundCity validation order
@@ -202,8 +210,7 @@ Built with **`FoundCity.make(actor_id, unit_id, q, r)`** in [found_city.gd](../g
 9. `tile_not_on_map`
 10. `tile_is_water`
 11. `tile_already_has_city`
-
-**`FoundCity`** **`Dictionary`** shape and **`schema_version`** are **unchanged** in Phase **3.1**. **`LegalActions`** does **not** need a special case: **`found_city`** entries are **omitted** when **`FoundCity.validate`** fails, including this rule.
+12. **`tile_already_owned`** — **`ProgressState` / culture growth** does **not** gate this in v0; any coordinate present in **`City.owned_tiles`** of **any** city blocks founding (see **`FoundCity.validate`** in [found_city.gd](../game/domain/actions/found_city.gd)).
 
 ### FoundCity application
 
@@ -226,6 +233,8 @@ Built with **`FoundCity.make(actor_id, unit_id, q, r)`** in [found_city.gd](../g
 | `project_id` | `String` | **`SetCityProduction.PROJECT_ID_PRODUCE_UNIT_WARRIOR`** (**`"produce_unit:warrior"`**) to start that project; **`SetCityProduction.PROJECT_ID_NONE`** (**`"none"`**) to clear **`current_project`**. |
 
 Built with **`SetCityProduction.make(actor_id, city_id, project_id)`** in [set_city_production.gd](../game/domain/actions/set_city_production.gd). **`cost`** is **not** part of the action payload: for a supported project, **`apply`** copies **`cost`** from **`CityProjectDefinitions`** into **`current_project`**.
+
+**Server (Cloud / Slice C3):** `POST /v1/matches/{id}/actions` accepts **`set_city_production`** with **`schema_version` `2`** and the same fields as **`SetCityProduction.make`**. The unlock step is enforced server-side: responses use **`city_project_not_unlocked`** where Godot **`GameState.try_apply`** returns **`project_not_unlocked`**; **`unsupported_project_id`** is surfaced as **`unknown_city_project`**; **`actor_not_owner`** as **`city_not_owned_by_player`**. **`"none"`** clears **`current_project`** and is **not** unlock-gated.
 
 ### SetCityProduction validation order
 
@@ -343,15 +352,15 @@ For **`complete_progress`**, after the **common** **`actor_id`** / **`current_pl
 - **`set_city_production`**: **`SetCityProduction.validate` →** (optional **`project_not_unlocked`** from **`GameState`**) **`→ apply →`** log entry includes **`city_id`**, **`project_id`**, **`result: "accepted"`** (**no** **`project_type`** on the action log row in **Phase 3.3**).
 - **`set_city_worked_tiles`**: **`SetCityWorkedTiles.validate` → apply →** log entry includes **`city_id`**, **`tiles`**, **`result: "accepted"`**.
 - **`complete_progress`**: **`CompleteProgress.validate(progress_state, action)`** **`→`** **`ProgressUnlockResolver.complete_progress`** **`→`** replace **`progress_state`** **`→`** log entry includes **`progress_id`**, **`unlocked_targets`**, **`result: "accepted"`**.
-- **`end_turn`**: **`EndTurn.validate` →** **`ProductionTick.apply_for_player`** (optional **`production_progress`** **0..N**) **→** **`EndTurn.apply` (`turn_state`)** **→** append **`end_turn`** **→** **`ProductionDelivery.deliver_pending_for_player`** (optional **`unit_produced`** **0..M**) **after** **`end_turn`**. Returned **`index`** is the **`end_turn`** entry only.
+- **`end_turn`**: **`EndTurn.validate` →** **`ProductionTick.apply_for_player`** (optional **`production_progress`** **0..N**) **→** **`FoodGrowthTick.apply_for_player`** (optional **`food_growth_progress`** / **`city_grew`** **0..K**) **→** **`ScienceTick.apply_for_player`** (optional **`science_no_target`**, **`science_progress`**, **`science_completed`** **0..R**; **`add_observation_bonus_if_eligible`** is Godot-only today) **→** **`EndTurn.apply` (`turn_state`)** **→** append **`end_turn`** **→** **`ProductionDelivery.deliver_pending_for_player`** (optional **`unit_produced`** **0..M**) **after** **`end_turn`**. Returned **`index`** is the **`end_turn`** entry only. **Cloud 0.1 (Slice C6):** **`science_tick_rules.apply_science_tick_for_player`** mirrors **`ScienceTick.apply_for_player`**; observation-bonus path **omitted** — see **`CLOUD_API_V0.md`**.
 
 On **reject**: **`accepted: false`**, **`index: -1`**, no log append, **`scenario` / `turn_state` / `progress_state` / `log`** unchanged (except where only validation failed after gate — still no mutation).
 
-On **accept**: updates **`scenario`** and/or **`turn_state`** and/or **`progress_state`**, appends **deep-copied** log entries; for **`end_turn`**, **`production_progress`** entries, then **`end_turn`**, then **`unit_produced`** entries; returns **`index`** for **`move_unit`**, **`attack_unit`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`complete_progress`**, **`set_current_research`** as that entry’s index; for **`end_turn`**, **`index`** is always the **`end_turn`** entry.
+On **accept**: updates **`scenario`** and/or **`turn_state`** and/or **`progress_state`**, appends **deep-copied** log entries; for **`end_turn`**, **`production_progress`** entries, then **`food_growth_progress`** / **`city_grew`**, then **`science_no_target`** / **`science_progress`** / **`science_completed`** ( **`ScienceTick.apply_for_player`** ), then **`end_turn`**, then **`unit_produced`** entries; returns **`index`** for **`move_unit`**, **`attack_unit`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`complete_progress`**, **`set_current_research`** as that entry’s index; for **`end_turn`**, **`index`** is always the **`end_turn`** entry.
 
 ## ActionLog
 
-**[action_log.gd](../game/domain/action_log.gd)** stores **accepted** player **actions** (**`move_unit`**, **`attack_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`set_current_research`**, **`complete_progress`**) **and** engine **`production_progress`** / **`unit_produced`** entries (Phase 2.4a+)).
+**[action_log.gd](../game/domain/action_log.gd)** stores **accepted** player **actions** (**`move_unit`**, **`attack_unit`**, **`end_turn`**, **`found_city`**, **`set_city_production`**, **`set_city_worked_tiles`**, **`set_current_research`**, **`complete_progress`**) **and** engine **`production_progress`**, **`food_growth_progress`**, **`city_grew`**, **`science_no_target`**, **`science_progress`**, **`science_completed`**, **`science_bonus`** (Godot observation path), **`unit_produced`**, etc. (Phase 2.4a+ / 5.1.19b+).
 
 - **`append(entry)`** stores **`entry.duplicate(true)`** and sets **`index`** on the stored copy.
 - **`get_entry`** and **`entries()`** each return **duplicates** so callers cannot corrupt history.

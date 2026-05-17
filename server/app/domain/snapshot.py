@@ -5,11 +5,71 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from app.domain.city import City
+from app.domain.city import WORKED_TILES_MODE_AUTO, City
 from app.domain.progress_state import ProgressState
+from app.domain.hex_coord import HexCoord
+from app.domain.hex_map import HexMap
 from app.domain.scenario import Scenario, scenario_for_id
 from app.domain.turn_state import turn_state_from_players
 from app.domain.unit import Unit
+
+
+def scenario_from_snapshot_dict(d: dict[str, Any]) -> Scenario:
+    """Rebuild Scenario from snapshot v2 `scenario` object (round-trip with serialize_scenario)."""
+    m = HexMap.from_json_cells(list(d["map"]["cells"]))
+    units = tuple(
+        Unit.make(
+            int(u["id"]),
+            int(u["owner_id"]),
+            HexCoord(int(u["position"][0]), int(u["position"][1])),
+            str(u["type_id"]),
+            int(u["remaining_movement"]),
+            int(u["current_hp"]),
+        )
+        for u in sorted(d["units"], key=lambda x: int(x["id"]))
+    )
+    cities = tuple(
+        _city_from_snapshot_row(c) for c in sorted(d["cities"], key=lambda x: int(x["id"]))
+    )
+    lt_raw = d.get("lightning_tree_hex")
+    lt: HexCoord | None
+    if lt_raw is None:
+        lt = None
+    else:
+        lt = HexCoord(int(lt_raw[0]), int(lt_raw[1]))
+    return Scenario(
+        map=m,
+        _units=units,
+        _cities=cities,
+        next_unit_id=int(d["next_unit_id"]),
+        next_city_id=int(d["next_city_id"]),
+        lightning_tree_hex=lt,
+    )
+
+
+def _city_from_snapshot_row(c: dict[str, Any]) -> City:
+    owned = tuple(
+        HexCoord(int(t[0]), int(t[1])) for t in c.get("owned_tiles", []) if len(t) >= 2
+    )
+    manual = tuple(
+        HexCoord(int(t[0]), int(t[1])) for t in c.get("manual_worked_tiles", []) if len(t) >= 2
+    )
+    proj = c.get("current_project")
+    proj_copy = None if proj is None else copy.deepcopy(proj)
+    return City(
+        id=int(c["id"]),
+        owner_id=int(c["owner_id"]),
+        position=HexCoord(int(c["position"][0]), int(c["position"][1])),
+        current_project=proj_copy,
+        city_name=str(c.get("city_name", "")),
+        is_capital=bool(c.get("is_capital", False)),
+        building_ids=tuple(str(x) for x in c.get("building_ids", [])),
+        owned_tiles=owned,
+        population=int(c.get("population", 1)),
+        manual_worked_tiles=manual,
+        food_stored=int(c.get("food_stored", 0)),
+        worked_tiles_mode=str(c.get("worked_tiles_mode", WORKED_TILES_MODE_AUTO)),
+    )
 
 
 def serialize_scenario(scenario: Scenario) -> dict[str, Any]:

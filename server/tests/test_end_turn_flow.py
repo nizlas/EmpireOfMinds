@@ -95,11 +95,10 @@ def test_unknown_action_type_rejects(client: TestClient) -> None:
         f"/v1/matches/{mid}/actions",
         json={
             "schema_version": 1,
-            "action_type": "move_unit",
+            "action_type": "attack_unit",
             "actor_id": 0,
-            "unit_id": 1,
-            "from": [0, 0],
-            "to": [1, 0],
+            "attacker_id": 2,
+            "defender_id": 3,
         },
     )
     assert r.status_code == 200
@@ -114,7 +113,7 @@ def test_event_log_only_accepted_actions(client: TestClient) -> None:
         f"/v1/matches/{mid}/actions",
         json={
             "schema_version": 1,
-            "action_type": "move_unit",
+            "action_type": "not_a_real_action",
             "actor_id": 0,
         },
     )

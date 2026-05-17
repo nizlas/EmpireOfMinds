@@ -8,7 +8,7 @@ HTTP contract for the **local authority** prototype under `server/`. This is a *
 
 ## Principles
 
-- Clients submit **actions** mirroring [ACTIONS.md](ACTIONS.md) / `GameState.try_apply` shape. **Shipped Cloud 0.1** accepts **`end_turn` only**; additional player actions arrive with the pivot slices (see **Out of scope** / [AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md)).
+- Clients submit **actions** mirroring [ACTIONS.md](ACTIONS.md) / `GameState.try_apply` shape. **Cloud 0.1+ (Authority pivot)** accepts **`end_turn`**, **`move_unit`**, **`found_city`**, and **`set_city_production`** on **`POST /v1/matches/{id}/actions`**; other `action_type` values return **`unknown_action_type`** until their slices land.
 - **Rejected** actions are **not** logged; responses use **HTTP 200** with `accepted: false` to mirror GDScript `try_apply` (not REST error semantics).
 - **`state_hash`** is **never** stored inside `snapshot`; it is derived with `sha256(canonical_json(snapshot))` and returned by the API.
 
@@ -82,7 +82,11 @@ Initial snapshots use **`schema_version`: `2`**. Top-level fields include the Cl
 
 **`next_city_id`:** matches Godot **`Scenario`** with no cities: **`peek_next_city_id()`** is **`_max_city_id([]) + 1` → `1`**.
 
-**Slice B `end_turn` semantics (unchanged from Cloud 0.1):** an accepted **`end_turn`** only advances **`turn_state`** and **`revision`**. It does **not** refresh movement, run **`ProductionTick`**, **`FoodGrowthTick`**, **`ScienceTick`**, mutate **`progress_state`**, or change **`scenario`** — those come in later pivot slices.
+**Slice C6 — `end_turn` production, food, **ScienceTick**, delivery, movement:** On an accepted **`end_turn`**, order matches Godot **`GameState.try_apply(end_turn)`** through **`ScienceTick`** ( **`ScienceTick.add_observation_bonus_if_eligible`** is **not** implemented on Cloud — lightning / move_unit log coupling only in Godot): (1) **`ProductionTick`**; (2) **`FoodGrowthTick`**; (3) **`ScienceTick`**: resolve target via **`current_research_id`** if set and **ScienceAvailability** says available, else first **`ScienceAvailability.available_for`** (lexicographic); if none, emit **`science_no_target`**; **`delta`** = sum of **`CityYields.city_total_yield` → `science`** over the ending player’s cities; if **`delta == 0`**, no science rows; else emit **`science_progress`** and maybe **`science_completed`** with **`unlocked_targets`** per **`ProgressUnlockResolver.complete_progress`** ( **`progress_definitions`** concrete_unlocks + systemic_effects only); (4) **`turn_state`** advance; (5) **`end_turn`** row (response **`index`**); (6) **`ProductionDelivery`**; (7) movement refresh. **`progress_state`** updates **only** in step (3). No combat, **`attack_unit`**, AI, roads, terrain move costs, or city automation.
+
+**`found_city` (Slice C2):** matches Godot **`FoundCity`**: founding **`position`** must match the settler’s tile; **water** and **already-owned** tiles (any city’s **`owned_tiles`**) and tiles that **already have a city center** are rejected; the **founding unit is removed**; **`next_city_id`** increments; initial **`owned_tiles`** are **center-first** plus passable neighbors on the map not already owned (see `game/domain/actions/found_city.gd`). **`progress_state`** is unchanged; **no** production / food / science tick.
+
+**`set_city_production` (Slice C3):** matches **[ACTIONS.md](ACTIONS.md)** — action **`schema_version` must be `2`**; **`project_id`** is **`"produce_unit:warrior"`**, **`"produce_unit:settler"`**, or **`"none"`** to clear. Non-**`none`** **`project_id`** values require **`progress_state`** unlock (**`city_project`** / **`project_id`**) like Godot **`GameState.try_apply`**. **`apply`** writes **`current_project`** with **`progress: 0`** and **`cost`** from **`CityProjectDefinitions`**; **no** production, food, science, or delivery **on that action** (**Slice C6** runs those ticks on **`end_turn`** only).
 
 ### Snapshot schema v1 (historical)
 
@@ -106,15 +110,66 @@ Early Cloud 0.1 prototypes used **`schema_version`: `1`** with only **`turn_stat
 }
 ```
 
-## Submit action (v0: `end_turn` only)
+## Submit action (`end_turn`, `move_unit`, `found_city`, `set_city_production`)
 
-**Body:**
+Use the same **`actor_id`** field as Godot actions (not `actor_player_id`).
+
+**`schema_version` per action:** **`1`** for **`end_turn`**, **`move_unit`**, and **`found_city`**; **`2`** for **`set_city_production`** (see [ACTIONS.md](ACTIONS.md)).
+
+For **`found_city`**, the wire field is **`position`**: **`[q, r]`** (not `at`). Optional client-only names are **not** read by the server; **`city_name`** is **`Capital`** for a player’s first city, then **`Settlement 2`**, …, matching Godot **`FoundCity.default_city_name_for_owner`**.
+
+### `end_turn`
+
+Snapshots remain **`schema_version`: `2`**; request shape unchanged. **`end_turn`** triggers **Slice C6** side effects (see snapshot section above).
 
 ```json
 {
   "schema_version": 1,
   "action_type": "end_turn",
   "actor_id": 0
+}
+```
+
+### `move_unit`
+
+Matches [ACTIONS.md](ACTIONS.md) **MoveUnit** dictionary: **`from`** / **`to`** are **`[q, r]`** and must match the unit’s current tile and a legal adjacent destination.
+
+```json
+{
+  "schema_version": 1,
+  "action_type": "move_unit",
+  "actor_id": 0,
+  "unit_id": 1,
+  "from": [0, 0],
+  "to": [1, 0]
+}
+```
+
+### `found_city`
+
+Same shape as [ACTIONS.md](ACTIONS.md) / **`FoundCity.make`**: **`position`** only (no **`name`** / **`at`** in the authoritative schema).
+
+```json
+{
+  "schema_version": 1,
+  "action_type": "found_city",
+  "actor_id": 0,
+  "unit_id": 1,
+  "position": [0, 0]
+}
+```
+
+### `set_city_production`
+
+**`schema_version` `2`** only.
+
+```json
+{
+  "schema_version": 2,
+  "action_type": "set_city_production",
+  "actor_id": 0,
+  "city_id": 1,
+  "project_id": "produce_unit:warrior"
 }
 ```
 
@@ -131,26 +186,165 @@ Early Cloud 0.1 prototypes used **`schema_version`: `1`** with only **`turn_stat
 }
 ```
 
-**Rejected** (HTTP **200**):
+**Rejected** (HTTP **200**; **`index`** is **`-1`**; **no** snapshot or event updates):
 
-```json
-{
-  "accepted": false,
-  "reason": "not_current_player | unknown_action_type | malformed_action | unsupported_schema_version",
-  "index": -1
-}
-```
+- Common / routing: **`not_current_player`**, **`unknown_action_type`**, **`malformed_action`**, **`unsupported_schema_version`**.
+- **`move_unit`**: **`unknown_unit`**, **`unit_not_owned_by_player`**, **`from_does_not_match_unit_position`**, **`movement_exhausted`**, **`destination_not_on_map`**, **`destination_not_adjacent`**, **`destination_not_passable`**, **`destination_occupied`**.
+- **`found_city`**: **`unknown_unit`**, **`unit_not_owned_by_player`** (Godot: **`actor_not_owner`**), **`unit_cannot_found_city`** (Godot: **`unit_type_cannot_found`**), **`unit_not_at_position`**, **`tile_not_on_map`**, **`tile_is_water`**, **`tile_already_has_city`**, **`tile_already_owned`**.
+- **`set_city_production`**: **`unknown_city`**, **`city_not_owned_by_player`** (Godot: **`actor_not_owner`**), **`unknown_city_project`** (Godot: **`unsupported_project_id`**), **`city_project_not_unlocked`** (Godot **`GameState`**: **`project_not_unlocked`**), **`project_already_set`**.
 
-Validation order matches `GameState.try_apply`: `action_type` / `actor_id` gate, **then** `EndTurn`-style structural checks (see `server/app/domain/actions/end_turn.py`).
+**`end_turn`** structural rejections remain **`malformed_action`** / **`unsupported_schema_version`** / **`unknown_action_type`** as implemented in `server/app/domain/actions/end_turn.py`.
 
 ## Event log (JSONL line shape)
 
-Append one JSON object per accepted action to `events.jsonl`:
+Append one JSON object per **accepted player action** and per **engine-generated `end_turn` follow-up** (`production_progress`, `food_growth_progress`, `city_grew`, `science_no_target`, `science_progress`, `science_completed`, `unit_produced`) to `events.jsonl`.
+
+Example — **`food_growth_progress`** (engine):
+
+```json
+{
+  "index": 1,
+  "revision": 2,
+  "schema_version": 1,
+  "action_type": "food_growth_progress",
+  "actor_id": 0,
+  "city_id": 1,
+  "food_stored_before": 0,
+  "food_stored_after": 1,
+  "population_before": 1,
+  "population_after": 1,
+  "total_food": 3,
+  "consumption": 2,
+  "surplus": 1,
+  "growth_threshold": 15,
+  "source": "engine",
+  "result": "accepted",
+  "accepted_at": "2026-05-16T19:00:03Z"
+}
+```
+
+Example — **`city_grew`** (engine):
+
+```json
+{
+  "index": 2,
+  "revision": 2,
+  "schema_version": 1,
+  "action_type": "city_grew",
+  "actor_id": 0,
+  "city_id": 1,
+  "population_before": 1,
+  "population_after": 2,
+  "food_stored_after": 0,
+  "source": "engine",
+  "result": "accepted",
+  "accepted_at": "2026-05-16T19:00:04Z"
+}
+```
+
+Example — **`science_no_target`** (engine; no eligible science left for auto-routing):
+
+```json
+{
+  "index": 1,
+  "revision": 2,
+  "schema_version": 1,
+  "action_type": "science_no_target",
+  "actor_id": 0,
+  "source": "engine",
+  "result": "accepted",
+  "accepted_at": "2026-05-16T19:00:04Z"
+}
+```
+
+Example — **`science_progress`** (engine):
+
+```json
+{
+  "index": 2,
+  "revision": 2,
+  "schema_version": 1,
+  "action_type": "science_progress",
+  "actor_id": 0,
+  "progress_id": "controlled_fire",
+  "delta": 1,
+  "total": 3,
+  "cost": 6,
+  "source": "engine",
+  "result": "accepted",
+  "accepted_at": "2026-05-16T19:00:04Z"
+}
+```
+
+Example — **`science_completed`** (engine):
+
+```json
+{
+  "index": 3,
+  "revision": 2,
+  "schema_version": 1,
+  "action_type": "science_completed",
+  "actor_id": 0,
+  "progress_id": "controlled_fire",
+  "unlocked_targets": [
+    { "target_type": "building", "target_id": "hearth" }
+  ],
+  "total": 6,
+  "cost": 6,
+  "source": "engine",
+  "result": "accepted",
+  "accepted_at": "2026-05-16T19:00:04Z"
+}
+```
+
+Example — **`production_progress`** (engine, **`schema_version` `1`**; optional **`project_id`** when present on the city project):
 
 ```json
 {
   "index": 0,
-  "revision": 1,
+  "revision": 2,
+  "schema_version": 1,
+  "action_type": "production_progress",
+  "actor_id": 0,
+  "city_id": 1,
+  "project_type": "produce_unit",
+  "project_id": "produce_unit:warrior",
+  "progress_before": 0,
+  "progress_after": 2,
+  "cost": 2,
+  "source": "engine",
+  "result": "accepted",
+  "accepted_at": "2026-05-16T19:00:05Z"
+}
+```
+
+Example — **`unit_produced`** (engine; Cloud adds **`project_id`** and **`unit_type_id`** for wire clarity; **`position`** is the city center / spawn hex `[q, r]`):
+
+```json
+{
+  "index": 2,
+  "revision": 3,
+  "schema_version": 1,
+  "action_type": "unit_produced",
+  "actor_id": 0,
+  "city_id": 1,
+  "unit_id": 4,
+  "unit_type_id": "warrior",
+  "position": [0, 0],
+  "project_type": "produce_unit",
+  "project_id": "produce_unit:warrior",
+  "source": "engine",
+  "result": "accepted",
+  "accepted_at": "2026-05-16T19:00:10Z"
+}
+```
+
+Example — **`end_turn`**:
+
+```json
+{
+  "index": 1,
+  "revision": 2,
   "schema_version": 1,
   "action_type": "end_turn",
   "actor_id": 0,
@@ -158,6 +352,60 @@ Append one JSON object per accepted action to `events.jsonl`:
   "next_player_id": 1,
   "result": "accepted",
   "accepted_at": "2026-05-16T19:00:00Z"
+}
+```
+
+Example — **`move_unit`**:
+
+```json
+{
+  "index": 1,
+  "revision": 2,
+  "schema_version": 1,
+  "action_type": "move_unit",
+  "actor_id": 0,
+  "unit_id": 1,
+  "from": [0, 0],
+  "to": [1, 0],
+  "remaining_movement": 1,
+  "result": "accepted",
+  "accepted_at": "2026-05-16T19:00:15Z"
+}
+```
+
+Example — **`found_city`**:
+
+```json
+{
+  "index": 2,
+  "revision": 3,
+  "schema_version": 1,
+  "action_type": "found_city",
+  "actor_id": 0,
+  "unit_id": 1,
+  "city_id": 1,
+  "city_name": "Capital",
+  "at": [0, 0],
+  "settler_consumed": true,
+  "result": "accepted",
+  "accepted_at": "2026-05-16T19:00:30Z"
+}
+```
+
+Example — **`set_city_production`**:
+
+```json
+{
+  "index": 3,
+  "revision": 4,
+  "schema_version": 2,
+  "action_type": "set_city_production",
+  "actor_id": 0,
+  "city_id": 1,
+  "project_id": "produce_unit:warrior",
+  "project_progress": 0,
+  "result": "accepted",
+  "accepted_at": "2026-05-16T19:00:45Z"
 }
 ```
 
@@ -170,8 +418,8 @@ Under `server/data/matches/<match_id>/` (or `EMPIRE_SERVER_DATA_DIR/matches/...`
 - `snapshot.json` — latest snapshot (overwritten each accept).
 - `events.jsonl` — append-only accepted events.
 
-## Out of scope (v0 wire as originally shipped)
+## Out of scope (not yet on server)
 
-Auth, lobby, WebSockets, Godot client harness, **`move_unit`**, combat, deployment, database.
+Auth, lobby, WebSockets, Godot client harness, **`attack_unit`**, **`ScienceTick.add_observation_bonus_if_eligible`** (lightning tree / move_unit log coupling), combat, deployment, database.
 
-**Note:** The **Authority pivot** explicitly adds these to **`server/`** in later slices; when a capability is implemented server-side, update this document’s examples and tables for that **schema version**—the **`/v1`** endpoint family and **`try_apply`-mirroring rejection behavior** stay stable.
+**Note:** The **Authority pivot** adds capabilities to **`server/`** slice by slice; the **`/v1`** endpoint family and **`try_apply`-mirroring rejection behavior** stay stable as actions are added.
