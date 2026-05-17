@@ -10,6 +10,7 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from app.domain import match_state
 from app.domain.actions import end_turn
 from app.domain.state_hash import state_hash
+from app.domain.turn_state import advance_turn_state
 from app.storage import file_store
 
 router = APIRouter(tags=["matches"])
@@ -47,8 +48,12 @@ def create_match(
         if not isinstance(pid, int):
             raise HTTPException(status_code=400, detail="player_ids must be integers")
 
+    scenario_id = body.get("scenario_id", "prototype_play")
+    if scenario_id not in ("prototype_play", "tiny_test"):
+        raise HTTPException(status_code=400, detail="unknown scenario_id")
+
     mid = match_state.make_match_id()
-    snap = match_state.initial_snapshot(mid, player_ids)
+    snap = match_state.initial_snapshot(mid, player_ids, str(scenario_id))
     file_store.write_snapshot(mid, snap)
     return {
         "match_id": mid,
@@ -93,7 +98,7 @@ def post_action(match_id: str, action: dict[str, Any] = Body(...)) -> dict[str, 
         return _reject(_map_validate_reason(str(vr["reason"])))
 
     prev_turn_number = int(snap["turn_state"]["turn_number"])
-    new_turn = match_state.advance_turn_state(snap["turn_state"])
+    new_turn = advance_turn_state(snap["turn_state"])
     new_revision = int(snap["revision"]) + 1
     new_snap = {
         **snap,

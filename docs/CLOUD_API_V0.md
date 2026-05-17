@@ -22,7 +22,7 @@ HTTP contract for the **local authority** prototype under `server/`. This is a *
 | Method | Path | Notes |
 |--------|------|--------|
 | `GET` | `/v1/healthz` | `{ "ok": true }` |
-| `POST` | `/v1/matches` | Optional body: `{ "player_ids": [0, 1] }`. Default `[0, 1]`. |
+| `POST` | `/v1/matches` | Optional body: `{ "player_ids": [0, 1], "scenario_id": "prototype_play" }`. Default players `[0, 1]`; default **`scenario_id`** **`"prototype_play"`**. Allowed: **`"prototype_play"`**, **`"tiny_test"`** (smaller map for tests). Unknown `scenario_id` → **HTTP 400**. |
 | `GET` | `/v1/matches/{match_id}` | Latest snapshot; **404** if missing. |
 | `POST` | `/v1/matches/{match_id}/actions` | Action body below; **404** if match missing. |
 | `GET` | `/v1/matches/{match_id}/events` | All events. |
@@ -32,7 +32,61 @@ HTTP contract for the **local authority** prototype under `server/`. This is a *
 
 **Response** includes `match_id`, `snapshot`, `revision`, `state_hash`.
 
-Initial `snapshot`:
+### Snapshot schema v2 (Authority pivot Slice B — current)
+
+Initial snapshots use **`schema_version`: `2`**. Top-level fields include the Cloud 0.1 envelope plus world model data for the **current playable loop** (map, starting units, default progress unlocks). **`action_log` is not embedded**; use **`GET /v1/matches/{id}/events`** for the append-only accepted-action log.
+
+**Hex / coordinates in JSON**
+
+- Unit/city **positions** and similar fields use **`[q, r]`** integer arrays (axial), not objects with string keys.
+- Map **`cells`** are a sorted array of objects: `{ "q", "r", "terrain", "landform", "woods" }` with **`terrain`** ∈ `plains` | `water` | `grassland`, **`landform`** ∈ `flat` | `hills`, **`woods`** boolean.
+- **`cells`** are sorted by **`(q, r)`**; **`units`** and **`cities`** by **`id`**; **`progress_state.by_owner`** by **`owner_id`**.
+
+**Illustrative `snapshot` (trimmed; full map elided):**
+
+```json
+{
+  "match_id": "...",
+  "schema_version": 2,
+  "revision": 0,
+  "ruleset": { "id": "stub_v0", "content_hash": "stub", "schema_version": 0 },
+  "scenario_id": "prototype_play",
+  "scenario": {
+    "next_unit_id": 4,
+    "next_city_id": 1,
+    "lightning_tree_hex": [3, 0],
+    "map": { "cells": [{ "q": -6, "r": 0, "terrain": "plains", "landform": "flat", "woods": false }] },
+    "units": [
+      { "id": 1, "owner_id": 0, "position": [0, 0], "type_id": "settler", "remaining_movement": 2, "current_hp": 100 }
+    ],
+    "cities": []
+  },
+  "turn_state": { "players": [0, 1], "current_index": 0, "turn_number": 1 },
+  "progress_state": {
+    "by_owner": [
+      {
+        "owner_id": 0,
+        "unlocked_targets": [
+          { "target_type": "city_project", "target_id": "produce_unit:settler" },
+          { "target_type": "city_project", "target_id": "produce_unit:warrior" }
+        ],
+        "completed_progress_ids": [],
+        "science_progress": {},
+        "science_observation_flags": {},
+        "current_research_id": ""
+      }
+    ]
+  }
+}
+```
+
+**`next_city_id`:** matches Godot **`Scenario`** with no cities: **`peek_next_city_id()`** is **`_max_city_id([]) + 1` → `1`**.
+
+**Slice B `end_turn` semantics (unchanged from Cloud 0.1):** an accepted **`end_turn`** only advances **`turn_state`** and **`revision`**. It does **not** refresh movement, run **`ProductionTick`**, **`FoodGrowthTick`**, **`ScienceTick`**, mutate **`progress_state`**, or change **`scenario`** — those come in later pivot slices.
+
+### Snapshot schema v1 (historical)
+
+Early Cloud 0.1 prototypes used **`schema_version`: `1`** with only **`turn_state`** and a stub **`ruleset`**:
 
 ```json
 {

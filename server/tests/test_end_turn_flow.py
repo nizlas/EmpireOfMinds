@@ -18,6 +18,7 @@ def test_create_match_default_players(client: TestClient) -> None:
     assert "match_id" in data
     snap = data["snapshot"]
     assert snap["revision"] == 0
+    assert snap["schema_version"] == 2
     assert snap["turn_state"]["players"] == [0, 1]
     assert snap["turn_state"]["current_index"] == 0
     assert data["state_hash"]

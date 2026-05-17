@@ -1,0 +1,151 @@
+{
+  "match_id": "m_golden_tiny_fixture",
+  "schema_version": 2,
+  "revision": 0,
+  "ruleset": {
+    "id": "stub_v0",
+    "content_hash": "stub",
+    "schema_version": 0
+  },
+  "scenario_id": "tiny_test",
+  "scenario": {
+    "next_unit_id": 4,
+    "next_city_id": 1,
+    "lightning_tree_hex": null,
+    "map": {
+      "cells": [
+        {
+          "q": -1,
+          "r": 0,
+          "terrain": "water",
+          "landform": "flat",
+          "woods": false
+        },
+        {
+          "q": -1,
+          "r": 1,
+          "terrain": "plains",
+          "landform": "flat",
+          "woods": false
+        },
+        {
+          "q": 0,
+          "r": -1,
+          "terrain": "plains",
+          "landform": "flat",
+          "woods": false
+        },
+        {
+          "q": 0,
+          "r": 0,
+          "terrain": "plains",
+          "landform": "flat",
+          "woods": false
+        },
+        {
+          "q": 0,
+          "r": 1,
+          "terrain": "plains",
+          "landform": "flat",
+          "woods": false
+        },
+        {
+          "q": 1,
+          "r": -1,
+          "terrain": "plains",
+          "landform": "flat",
+          "woods": false
+        },
+        {
+          "q": 1,
+          "r": 0,
+          "terrain": "plains",
+          "landform": "flat",
+          "woods": false
+        }
+      ]
+    },
+    "units": [
+      {
+        "id": 1,
+        "owner_id": 0,
+        "position": [
+          0,
+          0
+        ],
+        "type_id": "settler",
+        "remaining_movement": 2,
+        "current_hp": 100
+      },
+      {
+        "id": 2,
+        "owner_id": 0,
+        "position": [
+          1,
+          0
+        ],
+        "type_id": "warrior",
+        "remaining_movement": 2,
+        "current_hp": 100
+      },
+      {
+        "id": 3,
+        "owner_id": 1,
+        "position": [
+          0,
+          -1
+        ],
+        "type_id": "settler",
+        "remaining_movement": 2,
+        "current_hp": 100
+      }
+    ],
+    "cities": []
+  },
+  "turn_state": {
+    "players": [
+      0,
+      1
+    ],
+    "current_index": 0,
+    "turn_number": 1
+  },
+  "progress_state": {
+    "by_owner": [
+      {
+        "owner_id": 0,
+        "unlocked_targets": [
+          {
+            "target_type": "city_project",
+            "target_id": "produce_unit:settler"
+          },
+          {
+            "target_type": "city_project",
+            "target_id": "produce_unit:warrior"
+          }
+        ],
+        "completed_progress_ids": [],
+        "science_progress": {},
+        "science_observation_flags": {},
+        "current_research_id": ""
+      },
+      {
+        "owner_id": 1,
+        "unlocked_targets": [
+          {
+            "target_type": "city_project",
+            "target_id": "produce_unit:settler"
+          },
+          {
+            "target_type": "city_project",
+            "target_id": "produce_unit:warrior"
+          }
+        ],
+        "completed_progress_ids": [],
+        "science_progress": {},
+        "science_observation_flags": {},
+        "current_research_id": ""
+      }
+    ]
+  }
+}
