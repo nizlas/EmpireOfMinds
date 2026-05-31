@@ -32,11 +32,15 @@ var discovery_popup
 var map_visibility_view
 var lightning_tree_view
 var turn_start_banner
+## Slice C8: when true, KEY_A AI submit is disabled (server-authoritative cloud prototype).
+var skip_for_cloud: bool = false
 
 func _unhandled_input(event: InputEvent) -> void:
 	assert(GameStateScript != null)
 	assert(LegalActionsScript != null)
 	assert(RuleBasedAIPlayerScript != null)
+	if skip_for_cloud:
+		return
 	if (
 		game_state == null
 		or selection == null

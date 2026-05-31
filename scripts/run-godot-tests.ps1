@@ -55,6 +55,7 @@ $Tests = @(
 	"res://domain/tests/test_prototype_play_map_distribution.gd",
 	"res://domain/tests/test_prototype_rectangular_water_shell.gd",
 	"res://domain/tests/test_prototype_lightning_tree_hex.gd",
+	"res://domain/tests/test_dump_prototype_play_map_script_loads.gd",
 	"res://domain/tests/test_unit.gd",
 	"res://domain/tests/test_unit_definitions.gd",
 	"res://domain/tests/test_terrain_rule_definitions.gd",
@@ -170,7 +171,13 @@ $Tests = @(
 	"res://presentation/tests/test_city_worked_tiles_view.gd",
 	"res://presentation/tests/test_tile_yield_overlay_view.gd",
 	"res://presentation/tests/test_city_territory_view.gd",
-	"res://presentation/tests/test_city_territory_main_wiring.gd"
+	"res://presentation/tests/test_city_territory_main_wiring.gd",
+	"res://cloud/tests/test_server_snapshot_adapter.gd",
+	"res://cloud/tests/test_cloud_client_payloads.gd",
+	"res://cloud/tests/test_cloud_routing_pick.gd",
+	"res://cloud/tests/test_cloud_turn_banner.gd",
+	"res://cloud/tests/test_main_default_cloud_base_url.gd",
+	"res://cloud/tests/test_main_cloud_boot_no_local_session_before_server.gd"
 )
 
 if (-not (Test-Path -LiteralPath $GamePath)) {

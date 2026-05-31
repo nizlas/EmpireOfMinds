@@ -63,6 +63,31 @@ if ($Failed -or -not $matchId) {
     exit 1
 }
 
+# 2b) legal-actions (read-only, C7)
+try {
+    $la = Invoke-RestMethod -Uri "$BaseUrl/v1/matches/$matchId/legal-actions?actor_id=0" -Method Get
+    $actA = @($la.actions)
+    if ($la.is_current_player -eq $true -and $actA.Count -ge 1) {
+        $et0 = @($actA | Where-Object { $_.action_type -eq "end_turn" })
+        if ($et0.Count -eq 1) {
+            Write-Pass "GET legal-actions?actor_id=0 -> is_current_player, includes end_turn"
+        }
+        else {
+            Write-Fail "legal-actions: expected exactly one end_turn in summary actions"
+        }
+    }
+    else {
+        Write-Fail "legal-actions: unexpected response $( $la | ConvertTo-Json -Compress -Depth 5 )"
+    }
+}
+catch {
+    Write-Fail "GET legal-actions: $($_.Exception.Message)"
+}
+
+if ($Failed) {
+    exit 1
+}
+
 # 3) P0 end_turn - accepted, revision 1, current_index 1
 try {
     $a0 = @{ schema_version = 1; action_type = "end_turn"; actor_id = 0 } | ConvertTo-Json -Compress

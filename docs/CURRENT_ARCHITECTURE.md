@@ -4,7 +4,7 @@ Concise map of **what exists in code today**. For phased history and decisions u
 
 ## Authority pivot (in progress)
 
-**Charter:** [AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md). **Target:** Python/FastAPI under `server/` owns canonical gameplay; Godot becomes client/presentation for **localhost** (hotseat) and **remote** (cloud) by address only. **Today (pre–Slice F):** the runnable game still uses **`GameState.try_apply`** + `game/domain/` as described below; the Python server is **Cloud 0.1**-shaped and will grow per the pivot slices. **Legacy Godot domain is kept** until cutover survives playtesting.
+**Charter:** [AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md). **Target:** Python/FastAPI under `server/` owns canonical gameplay; Godot becomes client/presentation for **localhost** (hotseat) and **remote** (cloud) by address only. **Today (pre–Slice F):** the runnable game still uses **`GameState.try_apply`** + `game/domain/` as described below; the Python server is **Cloud 0.1**-shaped and will grow per the pivot slices. **Slice C8 (opt-in):** [`main.gd`](../game/main.gd) can run a **prototype cloud client** (`use_cloud_server` or `EOM_CLOUD_CLIENT=1`) that creates a match, reads **`GET .../legal-actions`**, and posts **`end_turn` / `move_unit` / `found_city` / `set_city_production`**, then rebuilds presentation from the **server snapshot** via [`server_snapshot_adapter.gd`](../game/cloud/server_snapshot_adapter.gd) (see [CLOUD_PLAY.md](CLOUD_PLAY.md)). **Legacy Godot domain is kept** until cutover survives playtesting.
 
 ---
 
@@ -18,7 +18,7 @@ Concise map of **what exists in code today**. For phased history and decisions u
 
 ## Runtime flow
 
-1. **Local run:** [main.gd](../game/main.gd) constructs **Scenario**, **HexLayout**, **SelectionState**, **GameState**, wires map layers, HUD panels, [SelectionController](../game/presentation/selection_controller.gd), [EndTurnController](../game/presentation/end_turn_controller.gd), [AITurnController](../game/presentation/ai_turn_controller.gd). It is **wiring-only** — not authoritative gameplay logic.
+1. **Local run (default):** [main.gd](../game/main.gd) constructs **Scenario**, **HexLayout**, **SelectionState**, **GameState**, wires map layers, HUD panels, [SelectionController](../game/presentation/selection_controller.gd), [EndTurnController](../game/presentation/end_turn_controller.gd), [AITurnController](../game/presentation/ai_turn_controller.gd). It is **wiring-only** — not authoritative gameplay logic. **Cloud prototype (Slice C8, opt-in):** the same wiring is fed a **GameState** built from the server **snapshot v2** (skip local **ProductionDelivery** / movement refresh at init); input branches **`POST .../actions`** and **`GET .../legal-actions`** instead of **`try_apply`** for supported actions.
 2. **Every gameplay change:** an action **dictionary** enters **[`GameState.try_apply`](../game/domain/game_state.gd)** (`RefCounted`).
 3. **Validation + apply:** `try_apply` dispatches by `action_type` to modules under **`game/domain/actions/`** ([MoveUnit](../game/domain/actions/move_unit.gd), [AttackUnit](../game/domain/actions/attack_unit.gd), [FoundCity](../game/domain/actions/found_city.gd), [SetCityProduction](../game/domain/actions/set_city_production.gd), [EndTurn](../game/domain/actions/end_turn.gd), [CompleteProgress](../game/domain/actions/complete_progress.gd), [SetCurrentResearch](../game/domain/actions/set_current_research.gd), …). **`CombatRules`** ([combat_rules.gd](../game/domain/combat_rules.gd)) resolves **`attack_unit`** once; **`AttackUnit.apply_with_result`** applies that snapshot only.
 4. **Domain transition pattern:** validated actions rebuild an immutable **[Scenario](../game/domain/scenario.gd)** snapshot (units, cities, **`HexMap`, id counters**, **`lightning_tree_hex`**). **[ActionLog](../game/domain/action_log.gd)** gains an accepted entry where applicable.
@@ -89,7 +89,7 @@ Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative 
 ## Test architecture
 
 - **Runner:** from repo root, [scripts/run-godot-tests.ps1](../scripts/run-godot-tests.ps1) runs a **fixed ordered list** of Godot headless scripts (**`-s res://…`**); count grows with new phases (see script array — includes **5.2.3** visibility tests, **5.2.4k** presentation gating tests, **5.2.4l** prototype sea-shell tests, **5.2.5** movement-points tests, **5.2.6** turn-start banner test, **5.2.6a** playtest display-name test).
-- **Layout:** **`game/domain/tests/`**, **`game/presentation/tests/`**, **`game/ai/tests/`** — mix of invariant tests and tighter draw/UI harnesses.
+- **Layout:** **`game/domain/tests/`**, **`game/presentation/tests/`**, **`game/ai/tests/`** — mix of invariant tests and tighter draw/UI harnesses; **`game/cloud/tests/`** (Slice C8) — snapshot adapter + HTTP URL/payload helpers (**no** live server in CI).
 
 ---
 

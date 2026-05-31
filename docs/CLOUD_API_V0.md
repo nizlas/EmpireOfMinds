@@ -27,6 +27,47 @@ HTTP contract for the **local authority** prototype under `server/`. This is a *
 | `POST` | `/v1/matches/{match_id}/actions` | Action body below; **404** if match missing. |
 | `GET` | `/v1/matches/{match_id}/events` | All events. |
 | `GET` | `/v1/matches/{match_id}/events?since=<index>` | Events with **`index > since`**. |
+| `GET` | `/v1/matches/{match_id}/legal-actions` | **Slice C7 — read-only:** legal **submit-ready** action payloads for **`actor_id`**; optional **`selected_unit_id`**, **`selected_city_id`**. Does **not** mutate snapshot, revision, events, or **`state_hash`**. **404** if match missing. |
+
+## Legal actions query (Slice C7)
+
+**Path:** `GET /v1/matches/{match_id}/legal-actions`
+
+**Query parameters (required / optional):**
+
+| Param | Required | Meaning |
+|--------|----------|---------|
+| `actor_id` | **yes** | Same role as action **`actor_id`** (usually UI’s “acting” seat). |
+| `selected_unit_id` | no | If set, **`actions`** contain only **this unit’s** legal **`move_unit`** and **`found_city`** rows (if any). |
+| `selected_city_id` | no | If set (and selection valid), **`actions`** include **`set_city_production`** rows for **this city**. May be combined with **`selected_unit_id`** when both are valid. |
+
+**Traffic:** Intended for **selection change** and **after accepted actions**, not per-frame polling. Actor summary mode (no selection params) returns **`end_turn`** plus compact **`unit_summaries`** / **`city_summaries`** counts only — not every possible move.
+
+**Current player:** If **`actor_id`** is **not** the snapshot’s current player, the response has **`is_current_player`: `false`** and **`actions`: `[]`** (HTTP **200**, not 400).
+
+**Selection errors:** If a **`selected_unit_id`** or **`selected_city_id`** is invalid or not owned by **`actor_id`**, **`actions`** is empty and **`selection_error`** is one of: **`unknown_unit`**, **`selection_not_owned`**, **`unknown_city`**, **`selection_not_owned_city`**.
+
+**Response shape (illustrative):**
+
+```json
+{
+  "match_id": "...",
+  "revision": 0,
+  "schema_version": 1,
+  "actor_id": 0,
+  "is_current_player": true,
+  "selected_unit_id": null,
+  "selected_city_id": null,
+  "selection_error": null,
+  "actions": [
+    { "schema_version": 1, "action_type": "end_turn", "actor_id": 0 }
+  ],
+  "unit_summaries": [{ "unit_id": 1, "legal_action_count": 4 }],
+  "city_summaries": []
+}
+```
+
+**Supported action types in C7:** **`end_turn`** (summary mode only), **`move_unit`**, **`found_city`**, **`set_city_production`**. Payloads match **`POST /v1/matches/{id}/actions`** field names and schema versions ( **`1`** vs **`2`** for production) so clients can submit them directly after filling **`actor_id`** where needed.
 
 ## Create match
 

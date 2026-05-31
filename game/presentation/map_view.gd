@@ -542,10 +542,9 @@ func _load_hills_overlay_family(stem: String, legacy_path: String) -> Array[Text
 
 
 func _ready() -> void:
-	if map == null:
-		map = HexMapScript.make_tiny_test_map()
-	if layout == null:
-		layout = HexLayoutScript.new()
+	# **`map`** / **`layout`** are wired by **`main.gd`** after **`_ready`** (local or cloud). Do not
+	# install **`make_tiny_test_map()`** here — cloud bootstrap must not paint local fallback terrain.
+	# Headless tests that need a map set **`map`** / **`layout`** on **`MapView`** explicitly.
 	_plains_terrain_tex = MapView._try_load_terrain_tex(_PLAINS_TERRAIN_TEX_PATH)
 	_grassland_terrain_tex = MapView._try_load_terrain_tex(_GRASSLAND_TERRAIN_TEX_PATH)
 	_plains_hills_overlay_textures = _load_hills_overlay_family(

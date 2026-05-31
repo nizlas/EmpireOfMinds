@@ -76,10 +76,8 @@ static func _load_rgba_marker_texture(path: String) -> Texture2D:
 func _ready() -> void:
 	# Phase 4.3h/4.3i — downscale: linear + mipmaps (marker imports only).
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	if scenario == null:
-		scenario = ScenarioScript.make_tiny_test_scenario()
-	if layout == null:
-		layout = HexLayoutScript.new()
+	# **`scenario`** / **`layout`** wired by **`main.gd`** or tests — not **`make_tiny_test_scenario()`** here
+	# (cloud boot must not render local placeholder cities).
 	_city_icon_tex = CitiesView._load_rgba_marker_texture(_CITY_MARKER_PATH)
 	if _city_icon_tex == null:
 		push_warning("CitiesView: failed to load city_marker.png, using diamond fallback")

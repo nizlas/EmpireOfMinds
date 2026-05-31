@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.domain.hex_coord import HexCoord
-from app.domain.movement_rules import MOVEMENT_COST_PER_STEP
+from app.domain.movement_rules import MOVEMENT_COST_PER_STEP, one_step_move_destination_rejection
 from app.domain.scenario import Scenario
 from app.domain.unit import Unit
 
@@ -58,26 +58,11 @@ def validate(scenario: Scenario | None, action: dict[str, Any] | None) -> dict[s
         return {"ok": False, "reason": "movement_exhausted"}
 
     to_c = HexCoord(int(to_a[0]), int(to_a[1]))
-    vr_dest = _validate_destination(scenario, u, to_c)
+    vr_dest = one_step_move_destination_rejection(scenario, u, to_c)
     if vr_dest is not None:
         return {"ok": False, "reason": vr_dest}
 
     return {"ok": True, "reason": ""}
-
-
-def _validate_destination(scenario: Scenario, unit: Unit, to_c: HexCoord) -> str | None:
-    if not scenario.map.has(to_c):
-        return "destination_not_on_map"
-    if HexCoord.axial_distance(unit.position, to_c) != 1:
-        return "destination_not_adjacent"
-    t = scenario.map.terrain_at(to_c)
-    from app.domain.content import terrain_rule_definitions as trd
-
-    if not trd.is_passable_hex_map_value(int(t)):
-        return "destination_not_passable"
-    if len(scenario.units_at(to_c)) != 0:
-        return "destination_occupied"
-    return None
 
 
 def apply_move(scenario: Scenario, action: dict[str, Any]) -> Scenario:

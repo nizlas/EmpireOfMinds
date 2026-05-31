@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
-from app.domain import match_state, snapshot
+from app.domain import legal_actions, match_state, snapshot
 from app.domain.actions import end_turn, found_city, move_unit, set_city_production
 from app.domain.food_growth_rules import apply_food_growth_for_player
 from app.domain.movement_rules import refresh_movement_for_owner
@@ -371,6 +371,25 @@ def post_action(match_id: str, action: dict[str, Any] = Body(...)) -> dict[str, 
     if at == set_city_production.ACTION_TYPE:
         return _handle_set_city_production(match_id, snap, action)
     return _reject("unknown_action_type")
+
+
+@router.get("/matches/{match_id}/legal-actions")
+def get_legal_actions(
+    match_id: str,
+    actor_id: int = Query(..., description="Player requesting legality (mirrors action actor_id)."),
+    selected_unit_id: int | None = Query(default=None),
+    selected_city_id: int | None = Query(default=None),
+) -> dict[str, Any]:
+    """Read-only: submit-ready legal actions for C7 (no snapshot or revision change)."""
+    snap = file_store.read_snapshot(match_id)
+    if snap is None:
+        raise HTTPException(status_code=404, detail="match not found")
+    return legal_actions.compute_legal_actions_payload(
+        snap,
+        actor_id,
+        selected_unit_id,
+        selected_city_id,
+    )
 
 
 @router.get("/matches/{match_id}/events")

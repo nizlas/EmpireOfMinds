@@ -10,6 +10,20 @@ from app.domain.unit import Unit
 MOVEMENT_COST_PER_STEP: int = 1
 
 
+def one_step_move_destination_rejection(scenario: Scenario, unit: Unit, to_c: HexCoord) -> str | None:
+    """If moving `unit` onto `to_c` in one step is illegal, return reason (MoveUnit.validate parity); else None."""
+    if not scenario.map.has(to_c):
+        return "destination_not_on_map"
+    if HexCoord.axial_distance(unit.position, to_c) != 1:
+        return "destination_not_adjacent"
+    t = scenario.map.terrain_at(to_c)
+    if not terrain_rule_definitions.is_passable_hex_map_value(int(t)):
+        return "destination_not_passable"
+    if len(scenario.units_at(to_c)) != 0:
+        return "destination_occupied"
+    return None
+
+
 def legal_move_destinations(scenario: Scenario, unit_id: int) -> list[HexCoord]:
     """Returns passable, empty adjacent hexes if the unit exists and has movement; sorted by (q, r)."""
     u = scenario.unit_by_id(unit_id)
@@ -19,14 +33,8 @@ def legal_move_destinations(scenario: Scenario, unit_id: int) -> list[HexCoord]:
         return []
     out: list[HexCoord] = []
     for n in u.position.neighbors():
-        if not scenario.map.has(n):
-            continue
-        t = scenario.map.terrain_at(n)
-        if not terrain_rule_definitions.is_passable_hex_map_value(int(t)):
-            continue
-        if len(scenario.units_at(n)) != 0:
-            continue
-        out.append(n)
+        if one_step_move_destination_rejection(scenario, u, n) is None:
+            out.append(n)
     out.sort(key=lambda c: (c.q, c.r))
     return out
 

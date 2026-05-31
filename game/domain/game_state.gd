@@ -30,28 +30,32 @@ var turn_state
 var progress_state
 var visibility_state
 
-func _init(initial_scenario, p_progress_state = null) -> void:
+func _init(initial_scenario, p_progress_state = null, p_turn_state = null, p_skip_delivery_refresh: bool = false) -> void:
 	scenario = initial_scenario
 	log = ActionLogScript.new()
-	turn_state = TurnStateScript.new([0, 1], 0, 1)
+	if p_turn_state != null:
+		turn_state = p_turn_state
+	else:
+		turn_state = TurnStateScript.new([0, 1], 0, 1)
 	if p_progress_state == null:
 		progress_state = ProgressStateScript.with_default_unlocks_for_players(turn_state.players)
 	else:
 		progress_state = p_progress_state
-	var init_delivery = ProductionDeliveryScript.deliver_pending_for_player(
-		scenario,
-		turn_state.current_player_id()
-	)
-	scenario = init_delivery["scenario"]
-	scenario = ScenarioScript.with_refreshed_movement_for_owner(
-		scenario,
-		turn_state.current_player_id(),
-	)
-	var init_ev = init_delivery["events"] as Array
-	var iv = 0
-	while iv < init_ev.size():
-		log.append(init_ev[iv])
-		iv = iv + 1
+	if not p_skip_delivery_refresh:
+		var init_delivery = ProductionDeliveryScript.deliver_pending_for_player(
+			scenario,
+			turn_state.current_player_id()
+		)
+		scenario = init_delivery["scenario"]
+		scenario = ScenarioScript.with_refreshed_movement_for_owner(
+			scenario,
+			turn_state.current_player_id(),
+		)
+		var init_ev = init_delivery["events"] as Array
+		var iv = 0
+		while iv < init_ev.size():
+			log.append(init_ev[iv])
+			iv = iv + 1
 	visibility_state = PlayerVisibilityStateScript.empty_for_players(turn_state.players)
 	visibility_state = PlayerVisibilityStateScript.seed_all_players(
 		visibility_state,

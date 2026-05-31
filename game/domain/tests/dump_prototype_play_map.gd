@@ -33,7 +33,7 @@ func _run() -> void:
 
 	var cells: Array = []
 	for c in coords:
-		var lf := m.landform_at(c)
+		var lf: int = m.landform_at(c)
 		var lf_s := "flat"
 		if lf == _HexMap.Landform.HILLS:
 			lf_s = "hills"

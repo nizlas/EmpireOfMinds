@@ -3,7 +3,6 @@
 class_name SelectionView
 extends Node2D
 
-const ScenarioScript = preload("res://domain/scenario.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MovementRulesScript = preload("res://domain/movement_rules.gd")
@@ -16,8 +15,10 @@ var layout
 var selection
 ## Phase 4.5m: **MapCamera** shared with MapView / main.
 var camera
+## Slice C8: optional server-provided move destinations (HexCoord list); see compute_overlay_items.
+var cloud_destination_coords: Array = []
 
-static func compute_overlay_items(a_scenario, a_layout, a_selection) -> Array:
+static func compute_overlay_items(a_scenario, a_layout, a_selection, cloud_dests: Array = []) -> Array:
 	assert(HexCoordScript != null)
 	assert(MovementRulesScript != null)
 	assert(SelectionStateScript != null)
@@ -37,7 +38,11 @@ static func compute_overlay_items(a_scenario, a_layout, a_selection) -> Array:
 		"world": wu,
 		"corners": cu,
 	})
-	var dests = MovementRulesScript.legal_destinations(a_scenario, a_selection.unit_id)
+	var dests: Array = []
+	if cloud_dests.size() > 0:
+		dests = cloud_dests.duplicate()
+	else:
+		dests = MovementRulesScript.legal_destinations(a_scenario, a_selection.unit_id)
 	var j = 0
 	while j < dests.size():
 		var d = dests[j]
@@ -51,15 +56,6 @@ static func compute_overlay_items(a_scenario, a_layout, a_selection) -> Array:
 		j = j + 1
 	return out
 
-func _ready() -> void:
-	if scenario == null:
-		scenario = ScenarioScript.make_tiny_test_scenario()
-	if layout == null:
-		layout = HexLayoutScript.new()
-	if selection == null:
-		selection = SelectionStateScript.new()
-	queue_redraw()
-
 func _draw() -> void:
 	if camera == null:
 		var cam = MapCameraScript.new()
@@ -67,7 +63,7 @@ func _draw() -> void:
 		camera = cam
 	var fill_col = Color(1.0, 1.0, 1.0, 0.20)
 	var ring_col = Color(1.0, 1.0, 1.0, 0.95)
-	var items = compute_overlay_items(scenario, layout, selection)
+	var items = compute_overlay_items(scenario, layout, selection, cloud_destination_coords)
 	var k = 0
 	while k < items.size():
 		var item = items[k]

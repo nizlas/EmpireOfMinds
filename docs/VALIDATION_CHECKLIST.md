@@ -222,3 +222,21 @@ Manual check in **`main.tscn`** (names from **`FactionDefinitions`** debug rows 
 - [ ] Turn-advance order is unchanged (**Player 0** → **Player 1** → …).
 
 Validation: **`scripts/run-godot-tests.ps1`** — **`test_playtest_player_display.gd`**, **`test_turn_label.gd`**, **`test_turn_status_panel.gd`**, **`test_player_contact_strip.gd`**.
+
+## Slice C8 — Godot cloud-client prototype (local FastAPI, opt-in)
+
+Manual validation (**no** auth, **no** websocket, **no** combat parity; server remains authoritative). **Local hotseat** is unchanged when cloud is **off** (default).
+
+1. Start server: `cd server` then `python -m uvicorn app.main:app --reload --port 8000` (or your venv Python).
+2. Enable cloud in Godot: set **`Main.use_cloud_server`** in the inspector **or** set env **`EOM_CLOUD_CLIENT=1`**; optional **`EOM_CLOUD_BASE_URL`** overrides **`cloud_base_url`** (default `http://localhost:8000`).
+3. Before the first server-backed frame is ready, a **full-screen dimmed overlay** shows **Connecting to cloud match…** then **Loading cloud match…**; map zoom/pan, selection, **Y**, and other gameplay shortcuts are blocked (**Esc** / **F1** still work). If **create-match** or snapshot wiring fails, the overlay stays up with an **error** message and the client does **not** fall back to local hotseat.
+4. **Play:** **`POST /v1/matches`** runs once; note **`match_id`** in the console.
+5. Select a **unit** belonging to the current player: move highlights follow **`GET .../legal-actions`** **`move_unit`** list; **found city** via **F** uses the server-listed action.
+6. Select a **city**: **City Hub** production buttons use **`set_city_production`** entries from legal-actions where applicable.
+7. **Space**: **`end_turn`** posts to the server; HUD / turn banner refresh from the response snapshot.
+8. Confirm **production / growth / science / movement** advance after end turn when exercising the server loop.
+9. Disable cloud and confirm **local hotseat** still uses **`try_apply`** only (AI **A**, combat, **P**/**G**/**H**, **Manage Citizens** planning, etc.).
+
+**Diagnostics:** set **`EOM_CLOUD_DEBUG=1`** for compact **`SliceC8DBG`** lines (**`cloud_bootstrap`** logs **`effective_url`**, **`url_source`** (`EOM_CLOUD_BASE_URL` vs **`Main.cloud_base_url`**), **`cloud_scenario_id`**) and other cloud routing lines, plus **`SliceC8TIME`** milestones (**`cloud_init_start`** … **`first_cloud_snapshot_ready`**). Create-match lines include **`base_url`**, **`path`**, **`full_url`**, **`scenario_id`**, and response **`elapsed_ms`** / snapshot **`scenario_id`** / **`map_cells`**. On boot failure, **`cloud_boot_failed`** includes URL metadata. No full snapshots in logs by default.
+
+Validation: **`scripts/run-godot-tests.ps1`** includes **`cloud/tests/test_server_snapshot_adapter.gd`**, **`cloud/tests/test_cloud_client_payloads.gd`**, **`cloud/tests/test_cloud_routing_pick.gd`**, **`cloud/tests/test_main_default_cloud_base_url.gd`**, **`cloud/tests/test_main_cloud_boot_no_local_session_before_server.gd`**, and **`domain/tests/test_dump_prototype_play_map_script_loads.gd`**. Server: **`pytest -q`** in **`server/`**.

@@ -32,7 +32,6 @@ var map_visibility_view
 var lightning_tree_view
 var turn_start_banner
 
-
 ## Phase **5.2.1** hotseat: after accepted **`EndTurn`**, clear unit + city selection and exit **PLANNING** so the next **current** player does not inherit hub focus. Presentation-only.
 static func apply_hotseat_clear_after_accepted_end_turn(selection, city_production_panel) -> void:
 	if selection != null:
@@ -93,3 +92,4 @@ func _unhandled_input(event: InputEvent) -> void:
 					turn_start_banner.show_for_current_player(game_state)
 			else:
 				push_warning("EndTurn rejected: %s" % result["reason"])
+			return

@@ -22,6 +22,7 @@ const MapPlaneProjectionScript = preload("res://presentation/map_plane_projectio
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const DiscoveryPopupScript = preload("res://presentation/discovery_popup.gd")
 const TurnViewSyncScript = preload("res://presentation/turn_view_sync.gd")
+const CloudClientScript = preload("res://cloud/cloud_client.gd")
 
 var scenario
 var game_state
@@ -62,6 +63,11 @@ var science_completed_popup
 var city_view_state = null
 ## Phase **Local Combat 0.1b:** transient melee **CLASH** burst (presentation-only).
 var combat_clash_burst_view
+## Slice C8: server-authoritative cloud prototype (see **main.gd**).
+var use_cloud_server: bool = false
+var cloud_play_host = null
+## Keys `"q,r"` -> submit-ready **move_unit** dict from last server legal-actions.
+var cloud_move_action_by_hex: Dictionary = {}
 @export var marker_hit_radius_ratio: float = 0.35
 
 ## Sentinels for **shared city / own-unit hex** click alternation (see **plan_shared_hex_pick**).
@@ -83,6 +89,22 @@ static func projected_hex_contains(layout, camera, q: int, r: int, pres_pt: Vect
 		poly[i] = camera.to_presentation(corners[i])
 		i = i + 1
 	return Geometry2D.is_point_in_polygon(pres_pt, poly)
+
+
+## Pick the first **map** hex (centers iterated in scenario order) whose **projected** polygon contains **local_point** (Slice C8 cloud move hit-test; shared with overlay geometry).
+static func pick_map_hex_at_point(scen, layout, camera, local_point: Vector2):
+	if scen == null or scen.map == null or layout == null or camera == null:
+		return null
+	var coords = scen.map.coords()
+	var hi = 0
+	while hi < coords.size():
+		var h = coords[hi]
+		hi += 1
+		if h == null:
+			continue
+		if projected_hex_contains(layout, camera, int(h.q), int(h.r), local_point):
+			return h
+	return null
 
 
 ## Phase **5.1.19d** — PLANNING click: toggle/add/replace **manual_worked_tiles** (order preserved; append at end; at capacity replace **last** slot).
@@ -268,6 +290,12 @@ func _sync_terrain_foreground_from_game_state() -> void:
 		lightning_tree_view,
 	)
 
+
+func _cloud_schedule_legal_refresh() -> void:
+	if use_cloud_server and cloud_play_host != null:
+		cloud_play_host.call_deferred("cloud_refresh_legal_async_entry")
+
+
 func _unhandled_input(event):
 	assert(HexCoordScript != null)
 	assert(MoveUnitScript != null)
@@ -278,10 +306,19 @@ func _unhandled_input(event):
 	assert(CompleteProgressScript != null)
 	assert(ProgressCandidateFilterScript != null)
 	assert(CityYieldsScript != null)
+	if (
+		cloud_play_host != null
+		and cloud_play_host.has_method("cloud_session_blocks_map_input")
+		and cloud_play_host.cloud_session_blocks_map_input()
+	):
+		return
 	if game_state == null or layout == null or selection == null or selection_view == null or units_view == null:
 		return
 	if event is InputEventKey:
 		var ek = event as InputEventKey
+		if use_cloud_server:
+			if ek.pressed and not ek.echo and (ek.keycode == KEY_P or ek.keycode == KEY_G or ek.keycode == KEY_H):
+				return
 		if ek.pressed and not ek.echo and ek.keycode == KEY_ESCAPE:
 			if city_view_state != null and city_view_state.is_planning():
 				city_view_state.exit_planning()
@@ -289,8 +326,21 @@ func _unhandled_input(event):
 				if city_production_panel != null:
 					city_production_panel.refresh()
 				get_viewport().set_input_as_handled()
+				_cloud_schedule_legal_refresh()
 				return
 		if ek.pressed and not ek.echo and ek.keycode == KEY_F:
+			if use_cloud_server:
+				if selection.is_empty() or cloud_play_host == null:
+					return
+				var u_check = game_state.scenario.unit_by_id(selection.unit_id)
+				if u_check == null:
+					return
+				var fc_cloud = cloud_play_host.cloud_pick_found_city_action()
+				if fc_cloud.is_empty():
+					push_warning("Cloud: no legal found_city on server list (refresh legal-actions)")
+					return
+				cloud_play_host.call_deferred("cloud_post_action_async_entry", fc_cloud)
+				return
 			if selection.is_empty():
 				return
 			var u_fc = game_state.scenario.unit_by_id(selection.unit_id)
@@ -414,109 +464,151 @@ func _unhandled_input(event):
 			if not selection.is_empty():
 				var pid_atk: int = game_state.turn_state.current_player_id()
 				var atk_u = scen.unit_by_id(selection.unit_id)
-				if (
-					atk_u != null
-					and str(atk_u.type_id) == AttackUnitScript.WARRIOR_TYPE
-					and int(atk_u.owner_id) == pid_atk
-				):
-					var def_candidates: Array = []
-					var u_all_atk = scen.units()
-					var ua: int = 0
-					while ua < u_all_atk.size():
-						var ux = u_all_atk[ua]
-						if SelectionController.projected_hex_contains(
-							layout, camera, ux.position.q, ux.position.r, local_point
-						):
-							if (
-								int(ux.owner_id) != pid_atk
-								and str(ux.type_id) == AttackUnitScript.WARRIOR_TYPE
-								and HexCoordScript.axial_distance(atk_u.position, ux.position) == 1
+				if not use_cloud_server:
+					if (
+						atk_u != null
+						and str(atk_u.type_id) == AttackUnitScript.WARRIOR_TYPE
+						and int(atk_u.owner_id) == pid_atk
+					):
+						var def_candidates: Array = []
+						var u_all_atk = scen.units()
+						var ua: int = 0
+						while ua < u_all_atk.size():
+							var ux = u_all_atk[ua]
+							if SelectionController.projected_hex_contains(
+								layout, camera, ux.position.q, ux.position.r, local_point
 							):
-								def_candidates.append(int(ux.id))
-						ua = ua + 1
-					_sort_city_ids_asc(def_candidates)
-					if def_candidates.size() > 0:
-						var def_id: int = int(def_candidates[0])
-						var def_u_pre = scen.unit_by_id(def_id)
-						if def_u_pre == null:
+								if (
+									int(ux.owner_id) != pid_atk
+									and str(ux.type_id) == AttackUnitScript.WARRIOR_TYPE
+									and HexCoordScript.axial_distance(atk_u.position, ux.position) == 1
+								):
+									def_candidates.append(int(ux.id))
+							ua = ua + 1
+						_sort_city_ids_asc(def_candidates)
+						if def_candidates.size() > 0:
+							var def_id: int = int(def_candidates[0])
+							var def_u_pre = scen.unit_by_id(def_id)
+							if def_u_pre == null:
+								return
+							var atk_q: int = int(atk_u.position.q)
+							var atk_r: int = int(atk_u.position.r)
+							var def_q: int = int(def_u_pre.position.q)
+							var def_r: int = int(def_u_pre.position.r)
+							var atk_act = AttackUnitScript.make(pid_atk, int(atk_u.id), def_id)
+							var prev_log_atk = game_state.log.size()
+							var atk_res = game_state.try_apply(atk_act)
+							if atk_res["accepted"]:
+								if combat_clash_burst_view != null:
+									combat_clash_burst_view.show_burst_hex_centers(atk_q, atk_r, def_q, def_r)
+								scenario = game_state.scenario
+								if selection_view != null:
+									selection_view.scenario = game_state.scenario
+								if units_view != null:
+									units_view.scenario = game_state.scenario
+								_sync_terrain_foreground_from_game_state()
+								_reset_shared_hex_cycle()
+								var prev_c_atk = selection.city_id
+								selection.clear()
+								if selection_view != null:
+									selection_view.queue_redraw()
+								if units_view != null:
+									units_view.queue_redraw()
+								_sync_city_view_state_after_selection_change(prev_c_atk)
+								if turn_label != null:
+									turn_label.refresh()
+								if log_view != null:
+									log_view.refresh()
+								_refresh_city_production_panel()
+								_after_accepted(prev_log_atk)
+							else:
+								push_warning("AttackUnit rejected: %s" % atk_res["reason"])
 							return
-						var atk_q: int = int(atk_u.position.q)
-						var atk_r: int = int(atk_u.position.r)
-						var def_q: int = int(def_u_pre.position.q)
-						var def_r: int = int(def_u_pre.position.r)
-						var atk_act = AttackUnitScript.make(pid_atk, int(atk_u.id), def_id)
-						var prev_log_atk = game_state.log.size()
-						var atk_res = game_state.try_apply(atk_act)
-						if atk_res["accepted"]:
-							if combat_clash_burst_view != null:
-								combat_clash_burst_view.show_burst_hex_centers(atk_q, atk_r, def_q, def_r)
+				if use_cloud_server:
+					var picked_hex = pick_map_hex_at_point(scen, layout, camera, local_point)
+					var dest_key = ""
+					if picked_hex != null:
+						dest_key = CloudClientScript.hex_action_key(int(picked_hex.q), int(picked_hex.r))
+					var act_cloud: Dictionary = {}
+					if dest_key.length() > 0:
+						var raw_act = cloud_move_action_by_hex.get(dest_key, null)
+						if raw_act != null and typeof(raw_act) == TYPE_DICTIONARY:
+							act_cloud = raw_act as Dictionary
+					var ok_cloud_move: bool = not act_cloud.is_empty()
+					if cloud_play_host != null:
+						cloud_play_host.cloud_input_diag_log(
+							"click_cloud_move",
+							{
+								"unit_id": selection.unit_id,
+								"dest_key_clicked": dest_key,
+								"hex_keys_in_map": cloud_move_action_by_hex.keys(),
+								"found_action": ok_cloud_move,
+							}
+						)
+					if ok_cloud_move and cloud_play_host != null:
+						cloud_play_host.cloud_input_diag_log(
+							"click_cloud_move_action_before_post",
+							{"action_json": JSON.stringify(act_cloud)}
+						)
+						cloud_play_host.call_deferred("cloud_post_action_async_entry", act_cloud.duplicate(true))
+						get_viewport().set_input_as_handled()
+						return
+					var pending = cloud_play_host != null and cloud_play_host.cloud_legal_actions_pending()
+					var has_highlights = selection_view != null and selection_view.cloud_destination_coords.size() > 0
+					if pending and not has_highlights and not selection.is_empty():
+						if cloud_play_host != null:
+							cloud_play_host.cloud_input_diag_log(
+								"cloud_legal_actions_pending_skip_clear",
+								{"unit_id": selection.unit_id}
+							)
+						get_viewport().set_input_as_handled()
+						return
+				if not use_cloud_server:
+					var dests = MovementRulesScript.legal_destinations(scen, selection.unit_id)
+					var dest_hit = null
+					var di = 0
+					while di < dests.size():
+						var dcell = dests[di]
+						if SelectionController.projected_hex_contains(layout, camera, dcell.q, dcell.r, local_point):
+							dest_hit = dcell
+							break
+						di = di + 1
+					if dest_hit != null:
+						var u = scen.unit_by_id(selection.unit_id)
+						var action = MoveUnitScript.make(
+							u.owner_id,
+							u.id,
+							u.position.q,
+							u.position.r,
+							dest_hit.q,
+							dest_hit.r
+						)
+						var prev_log_mv = game_state.log.size()
+						var moved_unit_id: int = int(u.id)
+						var result = game_state.try_apply(action)
+						if result["accepted"]:
 							scenario = game_state.scenario
-							if selection_view != null:
-								selection_view.scenario = game_state.scenario
-							if units_view != null:
-								units_view.scenario = game_state.scenario
+							selection_view.scenario = game_state.scenario
+							units_view.scenario = game_state.scenario
 							_sync_terrain_foreground_from_game_state()
 							_reset_shared_hex_cycle()
-							var prev_c_atk = selection.city_id
-							selection.clear()
-							if selection_view != null:
-								selection_view.queue_redraw()
-							if units_view != null:
-								units_view.queue_redraw()
-							_sync_city_view_state_after_selection_change(prev_c_atk)
+							var prev_c_mv = selection.city_id
+							apply_post_accepted_move_unit_selection(selection, game_state.scenario, moved_unit_id)
+							selection_view.queue_redraw()
+							units_view.queue_redraw()
+							_sync_city_view_state_after_selection_change(prev_c_mv)
 							if turn_label != null:
 								turn_label.refresh()
 							if log_view != null:
 								log_view.refresh()
 							_refresh_city_production_panel()
-							_after_accepted(prev_log_atk)
+							_after_accepted(prev_log_mv)
 						else:
-							push_warning("AttackUnit rejected: %s" % atk_res["reason"])
+							push_warning("MoveUnit rejected: %s" % result["reason"])
 						return
-				var dests = MovementRulesScript.legal_destinations(scen, selection.unit_id)
-				var dest_hit = null
-				var di = 0
-				while di < dests.size():
-					var dcell = dests[di]
-					if SelectionController.projected_hex_contains(layout, camera, dcell.q, dcell.r, local_point):
-						dest_hit = dcell
-						break
-					di = di + 1
-				if dest_hit != null:
-					var u = scen.unit_by_id(selection.unit_id)
-					var action = MoveUnitScript.make(
-						u.owner_id,
-						u.id,
-						u.position.q,
-						u.position.r,
-						dest_hit.q,
-						dest_hit.r
-					)
-					var prev_log_mv = game_state.log.size()
-					var moved_unit_id: int = int(u.id)
-					var result = game_state.try_apply(action)
-					if result["accepted"]:
-						scenario = game_state.scenario
-						selection_view.scenario = game_state.scenario
-						units_view.scenario = game_state.scenario
-						_sync_terrain_foreground_from_game_state()
-						_reset_shared_hex_cycle()
-						var prev_c_mv = selection.city_id
-						apply_post_accepted_move_unit_selection(selection, game_state.scenario, moved_unit_id)
-						selection_view.queue_redraw()
-						units_view.queue_redraw()
-						_sync_city_view_state_after_selection_change(prev_c_mv)
-						if turn_label != null:
-							turn_label.refresh()
-						if log_view != null:
-							log_view.refresh()
-						_refresh_city_production_panel()
-						_after_accepted(prev_log_mv)
-					else:
-						push_warning("MoveUnit rejected: %s" % result["reason"])
-					return
 			if (
-				city_view_state != null
+				not use_cloud_server
+				and city_view_state != null
 				and city_view_state.is_planning()
 				and selection.has_city()
 			):
@@ -632,6 +724,7 @@ func _unhandled_input(event):
 					if units_view != null:
 						units_view.queue_redraw()
 					_refresh_city_production_panel()
+					_cloud_schedule_legal_refresh()
 					return
 				_reset_shared_hex_cycle()
 				var prev_c_pb = selection.city_id
@@ -641,6 +734,7 @@ func _unhandled_input(event):
 				if units_view != null:
 					units_view.queue_redraw()
 				_refresh_city_production_panel()
+				_cloud_schedule_legal_refresh()
 				return
 			_reset_shared_hex_cycle()
 			var ulist = scen.units()
@@ -661,6 +755,7 @@ func _unhandled_input(event):
 				if units_view != null:
 					units_view.queue_redraw()
 				_refresh_city_production_panel()
+				_cloud_schedule_legal_refresh()
 				return
 			var prev_c_bg = selection.city_id
 			selection.clear()
@@ -670,3 +765,4 @@ func _unhandled_input(event):
 			if units_view != null:
 				units_view.queue_redraw()
 			_refresh_city_production_panel()
+			_cloud_schedule_legal_refresh()

@@ -30,6 +30,11 @@ var city_nameplate_view
 var selection_view
 var city_territory_view
 var city_worked_tiles_view
+## Slice C8: **CityProductionPanel** applies **set_city_production** via FastAPI when true.
+var use_cloud_server: bool = false
+var cloud_play_host = null
+## Entries: `{ "city_id": int, "label": String, "action": Dictionary }` from server legal-actions.
+var cloud_production_options: Array = []
 
 var _root_vbox: VBoxContainer
 var _title_label: Label
@@ -349,6 +354,29 @@ func refresh() -> void:
 	if _title_label == null:
 		return
 	var vm = compute_view_model(game_state, selection, city_view_state)
+	if use_cloud_server:
+		vm["manage_citizens_disabled"] = true
+		vm["done_planning_visible"] = false
+		vm["planning_active"] = false
+		vm["planning_banner_text"] = ""
+		if bool(vm.get("show_production_section", false)) and selection.has_city() and cloud_production_options.size() > 0:
+			var cid = selection.city_id
+			var opts_cloud: Array = []
+			var pi = 0
+			while pi < cloud_production_options.size():
+				var row = cloud_production_options[pi]
+				pi += 1
+				if typeof(row) != TYPE_DICTIONARY:
+					continue
+				var rd = row as Dictionary
+				if int(rd.get("city_id", -2)) != cid:
+					continue
+				opts_cloud.append(
+					{"label": str(rd.get("label", "")), "action": rd.get("action", {})}
+				)
+			if opts_cloud.size() > 0:
+				vm["options"] = opts_cloud
+				vm["actions_empty"] = ""
 	var show_panel = bool(vm.get("visible", false))
 	visible = show_panel
 	mouse_filter = Control.MOUSE_FILTER_STOP if show_panel else Control.MOUSE_FILTER_IGNORE
@@ -462,6 +490,9 @@ func _clear_buttons() -> void:
 
 func _on_production_button_pressed(action: Dictionary) -> void:
 	if game_state == null:
+		return
+	if use_cloud_server and cloud_play_host != null:
+		cloud_play_host.call_deferred("cloud_post_action_async_entry", action.duplicate(true))
 		return
 	var result = game_state.try_apply(action)
 	if result["accepted"]:

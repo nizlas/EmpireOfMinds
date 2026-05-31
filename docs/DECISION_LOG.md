@@ -1690,3 +1690,18 @@ Rationale:
 Caveat:
 
 - **Single-target** prototype — **no** **`SelectScience`**, **no** multi-science tree UI.
+
+## 2026-05-17 — Slice C8 cloud boot: loading gate + no silent hotseat fallback
+
+Decision:
+
+- When cloud client mode is active, **`Main`** shows a **blocking overlay** from bootstrap until the **first** server snapshot is **adapted**, **`_wire_play_session`** completes, and **`_refresh_presentation_after_cloud_snap`** runs; gameplay input is suppressed (**Esc** / **F1** allowed). If **`POST /v1/matches`** or snapshot wiring fails, the overlay shows an **error** and the scene does **not** automatically re-run **local hotseat** wiring ( **`main.tscn`** defaults **`use_cloud_server`** to **off** so editor/tests complete **`_ready`** synchronously).
+
+Rationale:
+
+- Avoids presenting **local prototype** map as **interactable** while the server session is still starting, and avoids **misleading** recovery when the authority backend is down.
+
+Caveat:
+
+- **Retry / quit** from the stranded overlay is **not** implemented; player relaunches the scene or project.
+

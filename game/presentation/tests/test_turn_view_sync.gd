@@ -1,7 +1,6 @@
 # Headless: godot --headless --path game -s res://presentation/tests/test_turn_view_sync.gd
 extends SceneTree
 
-const TurnViewSyncScript = preload("res://presentation/turn_view_sync.gd")
 const GameStateScript = preload("res://domain/game_state.gd")
 
 
@@ -84,6 +83,13 @@ var _any_fail := false
 
 
 func _init() -> void:
+	# Load at runtime + Callable avoids editor parse cyclic reference on
+	# **`TurnViewSync.refresh_map_views_and_hud_after_try_apply_turn_controllers`** (Godot 4.6.x).
+	var turn_view_sync_script: GDScript = load("res://presentation/turn_view_sync.gd") as GDScript
+	var sync_terrain := Callable(turn_view_sync_script, "sync_terrain_related_views")
+	var refresh_hud := Callable(
+		turn_view_sync_script, "refresh_map_views_and_hud_after_try_apply_turn_controllers"
+	)
 	var gs = GameStateScript.make_tiny_test_state()
 	var scen = gs.scenario
 	_check(scen != null, "scenario from tiny GameState")
@@ -98,7 +104,7 @@ func _init() -> void:
 	var teb = TerrainViewStub.new()
 	var mvis = MapVisibilityStub.new()
 	var lt = LightningTreeStub.new()
-	TurnViewSyncScript.sync_terrain_related_views(scen, tf, un, cn, yo, ct, null, eb, teb, gs, mvis, lt)
+	sync_terrain.call(scen, tf, un, cn, yo, ct, null, eb, teb, gs, mvis, lt)
 	_check(tf.map_writes == 1, "terrain map assignment once")
 	_check(tf.redraws == 1 and un.redraws == 1 and cn.redraws == 1, "terrain+name redraws once each")
 	_check(yo.redraws == 1 and ct.redraws == 1 and eb.redraws == 1, "yield+territory+empire redraw once")
@@ -130,7 +136,7 @@ func _init() -> void:
 	var mvis2 = MapVisibilityStub.new()
 	var lt2 = LightningTreeStub.new()
 
-	TurnViewSyncScript.refresh_map_views_and_hud_after_try_apply_turn_controllers(
+	refresh_hud.call(
 		gs,
 		sel,
 		uv,
@@ -183,7 +189,7 @@ func _init() -> void:
 		+ mvis2.redraws
 		+ lt2.redraws
 	)
-	TurnViewSyncScript.refresh_map_views_and_hud_after_try_apply_turn_controllers(
+	refresh_hud.call(
 		null,
 		sel,
 		uv,

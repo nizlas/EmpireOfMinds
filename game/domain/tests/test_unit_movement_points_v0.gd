@@ -4,21 +4,10 @@ extends SceneTree
 const GameStateScript = preload("res://domain/game_state.gd")
 const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
-const LegalActionsScript = preload("res://domain/legal_actions.gd")
+const MovementRulesScript = preload("res://domain/movement_rules.gd")
 
 var _total: int = 0
 var _any_fail: bool = false
-
-
-func _count_move_actions_for_unit(actions: Array, unit_id: int) -> int:
-	var n: int = 0
-	var i: int = 0
-	while i < actions.size():
-		var a = actions[i] as Dictionary
-		if a.get("action_type", "") == MoveUnitScript.ACTION_TYPE and int(a.get("unit_id", -1)) == unit_id:
-			n += 1
-		i += 1
-	return n
 
 
 func _init() -> void:
@@ -46,9 +35,10 @@ func _init() -> void:
 	_check(gs.scenario.unit_by_id(1).remaining_movement == 0, "MP zero")
 	var bad = gs.try_apply(MoveUnitScript.make(0, 1, 0, 0, 1, -1))
 	_check(not bad["accepted"] and bad["reason"] == "movement_exhausted", "third move rejected")
-	var leg0 = LegalActionsScript.for_current_player(gs)
-	_check(_count_move_actions_for_unit(leg0, 1) == 0, "no legal moves for exhausted unit 1")
-	_check(_count_move_actions_for_unit(leg0, 2) >= 1, "warrior still has legal moves")
+	var dests_exhausted = MovementRulesScript.legal_destinations(gs.scenario, 1)
+	_check(dests_exhausted.size() == 0, "no legal move destinations for exhausted unit 1")
+	var dests_warrior = MovementRulesScript.legal_destinations(gs.scenario, 2)
+	_check(dests_warrior.size() >= 1, "warrior still has legal move destinations")
 	_check(gs.try_apply(EndTurnScript.make(0))["accepted"], "P0 end turn")
 	_check(gs.turn_state.current_player_id() == 1, "now P1")
 	_check(
