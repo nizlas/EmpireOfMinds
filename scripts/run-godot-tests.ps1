@@ -145,6 +145,7 @@ $Tests = @(
 	"res://presentation/tests/test_turn_status_panel.gd",
 	"res://presentation/tests/test_turn_view_sync.gd",
 	"res://presentation/tests/test_map_visibility_view.gd",
+	"res://presentation/tests/test_map_visibility_boundary_feather.gd",
 	"res://presentation/tests/test_presentation_visibility.gd",
 	"res://presentation/tests/test_tile_yield_overlay_view_visibility.gd",
 	"res://presentation/tests/test_lightning_tree_view_visibility.gd",

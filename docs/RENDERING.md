@@ -65,6 +65,14 @@
 - **Preserved:** all **land** keys keep the same **(q,r)**, **terrain**, **landform**, **cities**, **units**, **ownership**, **resources/yields** as before the shell. New cells are **WATER** only (default **FLAT** landform, no woods).
 - **Fog / parchment:** **`PlayerVisibilityState`** and **`MapVisibilityView`** apply to **every** coord in **`Scenario.map`** — unexplored **outer** water uses the same parchment as unexplored land-adjacent water.
 
+## Phase 5.2.4m — Soft unexplored boundary feather (`MapVisibilityView`)
+
+- **Problem:** Parchment **5.2.3** + source culling **5.2.4k** hide unexplored content, but **tall/large** presentation objects (forest clumps, decorations) may **protrude** across hex boundaries into explored tiles; the **hard** parchment hex edge can look like a **chop** on explored-side art.
+- **Not changed:** forest placement, sprite size, domain **`PlayerVisibilityState`** rules, z-index stack, or “draw above fog” workarounds. Objects stay where they are; **visibility overlay** handles the transition.
+- **Feather rule (presentation-only):** for **current_player_id**, each on-map **unexplored** coord **U** with an on-map **explored** neighbor **E** gets one **shared-edge** feather strip drawn on the **explored side** of that edge (not into unrevealed content). No feather between two explored, two unexplored, or off-map neighbors unless the on-map explored neighbor rule applies.
+- **Implementation:** [map_visibility_view.gd](../game/presentation/map_visibility_view.gd) — **`_draw_boundary_feather()`** runs **before** the solid parchment fill so inner overlap into unexplored is covered by the fill; **N** perspective-scaled **strip quads** span **[-inner_overlap, +width]** from the shared edge along **`outward`** (U→E), with **smoothstep** alpha from solid overlay opacity at the edge to **0** at **+width**. Pure helpers **`compute_unexplored_boundary_edges_for_current_player`**, **`feather_strip_distance_range_world`**, **`feather_alpha_at_outward_distance`**. Optional **deterministic** irregularity via export.
+- **Tunables (exports on `MapVisibilityView`):** `unexplored_edge_feather_enabled` (**true**), `unexplored_edge_feather_width_px` (**20**), `unexplored_edge_feather_steps` (**6**), `unexplored_edge_feather_alpha_scale` (**0.75**), `unexplored_edge_feather_inner_overlap_px` (**4**), `unexplored_edge_feather_noise_px` (**2**), `unexplored_edge_feather_irregularity_enabled` (**false**). Hotseat / cloud: same view once **`game_state`** is bound; feather follows **`current_player_id`** explored set.
+
 ## Optional labels (Phase 1.3)
 
 - Coordinate text on tiles is **optional**; the first implementation may draw **polygons only** to stay robust across Godot versions. If labels are added later, they remain presentation-only and must not become gameplay state.

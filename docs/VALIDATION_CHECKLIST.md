@@ -165,7 +165,18 @@ Manual check in **`main.tscn`**.
 - [ ] **Unexplored parchment** covers unexplored **outer** water (real map cells).
 - [ ] Yields, decorations, and labels **do not** leak over parchment in unexplored areas (**5.2.4k** gating still holds).
 
-Validation: **`scripts/run-godot-tests.ps1`** — **`test_prototype_rectangular_water_shell.gd`**, **`test_prototype_play_map_distribution.gd`**, **`test_map_visibility_view.gd`**, **`test_main_tscn_map_layer_sibling_order.gd`**, **`test_turn_view_sync.gd`**, **`test_presentation_visibility.gd`**.
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_prototype_rectangular_water_shell.gd`**, **`test_prototype_play_map_distribution.gd`**, **`test_map_visibility_view.gd`**, **`test_map_visibility_boundary_feather.gd`**, **`test_main_tscn_map_layer_sibling_order.gd`**, **`test_turn_view_sync.gd`**, **`test_presentation_visibility.gd`**.
+
+## Phase 5.2.4m — Soft unexplored boundary feather (presentation)
+
+Manual check in **`main.tscn`** (local hotseat; same **`MapVisibilityView`** in cloud once **`game_state`** is wired).
+
+- [ ] Find a **forest clump** or other **tall decoration** near the **explored/unexplored** line: explored-side art **fades** under parchment at the boundary — **no separate line, rim, or detached strip**; feather **attaches** to the unexplored parchment.
+- [ ] **Unexplored** tiles remain fully covered; **no** yields, labels, or hidden terrain leak through parchment.
+- [ ] **Space** (hotseat): feather boundary **updates** with the **current player’s** explored set (same as parchment holes).
+- [ ] **Cloud mode:** map visibility + feather draw normally after server snapshot (no server changes).
+
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_map_visibility_boundary_feather.gd`**, plus **`test_map_visibility_view.gd`** / **`test_presentation_visibility.gd`** regression.
 
 ## Phase 5.2.5 — Per-turn movement points v0 (warrior / settler)
 
