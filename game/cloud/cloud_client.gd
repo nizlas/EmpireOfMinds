@@ -93,8 +93,83 @@ static func normalize_api_action_for_post(action: Dictionary) -> Dictionary:
 				out["city_id"] = int(out["city_id"])
 			if out.has("project_id"):
 				out["project_id"] = str(out["project_id"])
+		"attack_unit":
+			if out.has("attacker_id"):
+				out["attacker_id"] = int(out["attacker_id"])
+			if out.has("defender_id"):
+				out["defender_id"] = int(out["defender_id"])
 		_:
 			pass
+	return out
+
+
+## Slice C10: build defender-hex attack target map from legal-actions rows + scenario lookup.
+static func build_attack_maps_from_legal_actions(actions: Array, scenario) -> Dictionary:
+	var attack_targets: Array = []
+	var attack_map: Dictionary = {}
+	var ai: int = 0
+	while ai < actions.size():
+		var row = actions[ai]
+		ai += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var ad: Dictionary = row as Dictionary
+		if str(ad.get("action_type", "")) != "attack_unit":
+			continue
+		if scenario == null:
+			continue
+		var def_id: int = int(ad.get("defender_id", -1))
+		var def_u = scenario.unit_by_id(def_id)
+		if def_u == null:
+			continue
+		var hk: String = hex_action_key(int(def_u.position.q), int(def_u.position.r))
+		if not attack_map.has(hk):
+			attack_targets.append(def_u.position)
+			attack_map[hk] = ad.duplicate(true)
+		else:
+			var existing: Dictionary = attack_map[hk] as Dictionary
+			if def_id < int(existing.get("defender_id", 999999)):
+				attack_map[hk] = ad.duplicate(true)
+	return {"attack_targets": attack_targets, "attack_map": attack_map}
+
+
+## Slice C11: cloud combat presentation — extract animation targets from accepted **attack_unit** POST response.
+## Returns **should_animate** only when **event** has valid pre-combat hex positions; never infers damage/outcome.
+static func combat_animation_request_from_response(response: Dictionary, action: Dictionary) -> Dictionary:
+	var out := {
+		"should_animate": false,
+		"attacker_q": 0,
+		"attacker_r": 0,
+		"defender_q": 0,
+		"defender_r": 0,
+		"defender_damage_taken": 0,
+		"retaliated": false,
+	}
+	if response == null or typeof(response) != TYPE_DICTIONARY:
+		return out
+	if typeof(action) != TYPE_DICTIONARY:
+		return out
+	if not bool(response.get("accepted", false)):
+		return out
+	if str(action.get("action_type", "")) != "attack_unit":
+		return out
+	var ev = response.get("event", null)
+	if typeof(ev) != TYPE_DICTIONARY:
+		return out
+	var ed: Dictionary = ev as Dictionary
+	if str(ed.get("action_type", "")) != "attack_unit":
+		return out
+	var atk_pos = _normalize_qr_array(ed.get("attacker_position"))
+	var def_pos = _normalize_qr_array(ed.get("defender_position"))
+	if atk_pos.size() < 2 or def_pos.size() < 2:
+		return out
+	out["should_animate"] = true
+	out["attacker_q"] = int(atk_pos[0])
+	out["attacker_r"] = int(atk_pos[1])
+	out["defender_q"] = int(def_pos[0])
+	out["defender_r"] = int(def_pos[1])
+	out["defender_damage_taken"] = int(ed.get("defender_damage_taken", 0))
+	out["retaliated"] = bool(ed.get("retaliated", false))
 	return out
 
 

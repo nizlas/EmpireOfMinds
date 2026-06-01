@@ -53,6 +53,7 @@ def test_accepted_move_updates_position_revision_hash_and_event(client: TestClie
     assert ev[0]["from"] == [0, 0]
     assert ev[0]["to"] == [1, -1]
     assert ev[0]["remaining_movement"] == 1
+    assert body["event"] == ev[0]
 
 
 def test_second_move_reduces_movement_to_zero(client: TestClient) -> None:

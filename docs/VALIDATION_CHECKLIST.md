@@ -265,3 +265,32 @@ Manual validation (**Godot client only**; reuses existing server GET — **no** 
 7. Unset match id env and disable cloud → **local hotseat** unchanged.
 
 Validation: **`scripts/run-godot-tests.ps1`** — **`test_main_cloud_reconnect_get_match.gd`**, **`test_cloud_client_payloads.gd`** ( **`should_create_match`**, **`get_match_path`** ), plus C8 regression tests.
+
+## Slice C10 — Server-authoritative `attack_unit` (Local Combat 0.1 cloud parity)
+
+Manual validation (**no** clash animation, **no** city/ranged combat, **no** event replay/polling). **Local hotseat** unchanged when cloud is **off**.
+
+1. Start server: `cd server && uvicorn app.main:app --reload` (or existing C8 command).
+2. Enable cloud (`EOM_CLOUD_CLIENT=1` or **`Main.use_cloud_server`**). Use **`tiny_test`** or move adjacent enemy **Warriors** into range on **`prototype_play`** (server legal-actions only lists valid adjacent **Warrior** vs **Warrior** attacks).
+3. Select your **Warrior** with movement remaining → adjacent enemy hex shows **attack-target** highlight (distinct from move destinations).
+4. Click enemy hex → **`POST .../actions`** with **`attack_unit`** (`attacker_id`, `defender_id` only); HP updates from **response snapshot**; attacker **`remaining_movement`** becomes **0**; selection clears.
+5. Equal-strength warriors: expect **30** damage each way if both survive; lethal strike skips retaliation.
+6. **End turn** still works; combat state persists after **C9 reconnect** (`EOM_CLOUD_MATCH_ID`).
+7. Disable cloud → local hotseat combat (**click enemy**, clash animation, **`try_apply`**) unchanged.
+
+Validation: **`pytest -q`** in **`server/`** — **`test_combat_rules.py`**, **`test_attack_unit_flow.py`**. **`scripts/run-godot-tests.ps1`** — **`test_cloud_client_payloads.gd`** (attack float→int coercion, **`build_attack_maps_from_legal_actions`**), plus C8/C9 regression tests.
+
+## Slice C11 — Cloud combat presentation v0
+
+Manual validation (**presentation-only**; server remains authoritative). **Local hotseat** unchanged when cloud is **off**.
+
+1. Start server; enable cloud (C8/C10 setup).
+2. Get adjacent **Warriors**; select attacker; click highlighted enemy.
+3. Confirm **`POST .../actions`** returns **`accepted=true`** with **`event.action_type == attack_unit`**.
+4. Confirm short **`CombatClashBurstView`** plays **before** HP/state updates on screen.
+5. Confirm post-animation HP/death matches **`response.snapshot`** (and **`GET .../events`** row).
+6. Confirm map input works again after ~0.6s (no permanent block).
+7. **Reconnect** shows final combat state only (no animation replay).
+8. Disable cloud → local hotseat combat unchanged (clash burst via **`try_apply`** path).
+
+Validation: **`pytest -q`** — **`test_attack_unit_flow.py`** (`event` in response matches log). **`scripts/run-godot-tests.ps1`** — **`test_cloud_combat_animation.gd`**, plus C8/C9/C10 regression tests.

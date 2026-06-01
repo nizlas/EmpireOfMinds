@@ -24,7 +24,7 @@ Single machine. Useful for Phase 1 and early testing.
 
 ### Current state as of Phase 5.2.0
 
-The **shipping playable embryo** today is a **local hotseat prototype**: **one** client process, **no** network multiplayer, **no** lobby, **no** accounts, and **no** **remote-seat** concept in code. **All** gameplay changes still go through **`GameState.try_apply`** with the usual **`actor_id == current_player_id()`** gate **until** the **Authority pivot** cutover ([AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md)); after cutover, the same actions go through **`POST /v1/matches/.../actions`** on the **localhost** or **remote** authority. **Slice C8 (opt-in)** adds a **Godot cloud-client prototype**: **`Main.use_cloud_server`** or **`EOM_CLOUD_CLIENT=1`** boots **`POST /v1/matches`**, **`GET .../legal-actions`**, and **`POST .../actions`** for **`end_turn` / `move_unit` / `found_city` / `set_city_production`**, then replaces presentation from the **response snapshot** — **no** auth, **no** websocket/SSE, **no** **`attack_unit`** parity yet, **no** AI driving server turns. **Slice C9** adds **reconnect**: when **`Main.cloud_match_id`** or env **`EOM_CLOUD_MATCH_ID`** is set, the client skips create and loads the match via **`GET /v1/matches/{id}`** (same snapshot envelope as create); on failure the **error overlay** stays up with **no** silent hotseat fallback. When create succeeds, the console logs the **`match_id`** with a reconnect hint. By default, **`Main.cloud_base_url`** is **`http://127.0.0.1:8000`** (not **`http://localhost:8000`**) so Windows Godot builds are less likely to stall on IPv6 **`::1`** before falling back to IPv4; **`EOM_CLOUD_BASE_URL`** and the inspector export still override. Until the first snapshot is applied, the client shows a **loading overlay** and **does not** treat local prototype state as playable; **`create-match`** or **reconnect GET** failure surfaces an **error** instead of silently reverting to hotseat. Default editor play remains **local try_apply**. A **FastAPI** authority prototype (`server/`, [CLOUD_API_V0.md](CLOUD_API_V0.md)) exists today with a **minimal** snapshot (`end_turn` only in the shipped v0 wire); it will grow to hold the full loop. UI copy such as **“Waiting for remote Player N”** belongs to a **future** slice, **not** to the current **local hotseat prototype** (the HUD uses **`Player N's turn`** instead).
+The **shipping playable embryo** today is a **local hotseat prototype**: **one** client process, **no** network multiplayer, **no** lobby, **no** accounts, and **no** **remote-seat** concept in code. **All** gameplay changes still go through **`GameState.try_apply`** with the usual **`actor_id == current_player_id()`** gate **until** the **Authority pivot** cutover ([AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md)); after cutover, the same actions go through **`POST /v1/matches/.../actions`** on the **localhost** or **remote** authority. **Slice C8 (opt-in)** adds a **Godot cloud-client prototype**: **`Main.use_cloud_server`** or **`EOM_CLOUD_CLIENT=1`** boots **`POST /v1/matches`**, **`GET .../legal-actions`**, and **`POST .../actions`** for **`end_turn` / `move_unit` / `found_city` / `set_city_production`**, then replaces presentation from the **response snapshot** — **no** auth, **no** websocket/SSE, **no** AI driving server turns. **Slice C9** adds **reconnect** via **`EOM_CLOUD_MATCH_ID`** / **`cloud_match_id`** and **`GET /v1/matches/{id}`**. **Slice C10** adds server-authoritative **`attack_unit`** (Local Combat 0.1 parity): cloud client posts **`attacker_id` / `defender_id`** only, highlights adjacent enemy warriors from **`GET .../legal-actions`**, and applies the returned snapshot — **no** clash animation (C11), **no** city/ranged combat, **no** event replay or polling. When create succeeds, the console logs the **`match_id`** with a reconnect hint. By default, **`Main.cloud_base_url`** is **`http://127.0.0.1:8000`** (not **`http://localhost:8000`**) so Windows Godot builds are less likely to stall on IPv6 **`::1`** before falling back to IPv4; **`EOM_CLOUD_BASE_URL`** and the inspector export still override. Until the first snapshot is applied, the client shows a **loading overlay** and **does not** treat local prototype state as playable; **`create-match`** or **reconnect GET** failure surfaces an **error** instead of silently reverting to hotseat. Default editor play remains **local try_apply**. A **FastAPI** authority prototype (`server/`, [CLOUD_API_V0.md](CLOUD_API_V0.md)) exists today with a **minimal** snapshot (`end_turn` only in the shipped v0 wire); it will grow to hold the full loop. UI copy such as **“Waiting for remote Player N”** belongs to a **future** slice, **not** to the current **local hotseat prototype** (the HUD uses **`Player N's turn`** instead).
 
 ### Reconnect to an existing match (Slice C9)
 
@@ -36,6 +36,27 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 6. After reconnect, **`GET .../legal-actions`**, **`POST .../actions`**, and turn-banner gating behave the same as after create.
 
 **Out of scope for C9:** event replay, polling, websocket/SSE, state-hash/desync recovery beyond the GET snapshot, new server endpoints.
+
+### Server-authoritative combat (Slice C10)
+
+1. Same cloud bootstrap as C8/C9.
+2. Select a **Warrior** with movement → **`GET .../legal-actions?selected_unit_id=...`** includes **`attack_unit`** rows for adjacent enemy **Warriors**.
+3. Click highlighted enemy hex → client posts **`attack_unit`**; server resolves combat; snapshot shows updated HP / removed units.
+4. Reconnect preserves post-combat state (C9 + C10).
+5. Local hotseat (cloud off) still uses **`GameState.try_apply`** and existing combat UX.
+
+**Out of scope for C10:** clash animation (landed in **C11**), AI combat, city/ranged combat, event replay, polling, schema v3, endpoints beyond **`/actions`** and **`/legal-actions`**.
+
+### Cloud combat presentation (Slice C11)
+
+1. Same cloud bootstrap as C8/C9/C10.
+2. Accepted **`attack_unit`** POST response includes additive **`event`** (same row as **`GET .../events`**).
+3. Godot fires **`CombatClashBurstView`** at **`event.attacker_position`** / **`defender_position`** **before** applying the authoritative snapshot (~0.6s); map input blocked via **`cloud_session_blocks_map_input()`** during the burst.
+4. If **`event`** is missing or invalid, snapshot applies immediately (no animation).
+5. Other accepted actions (**`move_unit`**, etc.) still apply snapshot immediately; only cloud **`attack_unit`** uses the animation path.
+6. **No** client-side damage math, death fade, sound, or replay-after-reconnect. Local hotseat unchanged.
+
+**Out of scope for C11:** damage popups, sprite hit flash, death fade, sound, event polling, combat replay on reconnect.
 
 ### Connect to Existing Server
 

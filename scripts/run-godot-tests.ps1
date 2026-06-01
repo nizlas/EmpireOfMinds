@@ -177,6 +177,7 @@ $Tests = @(
 	"res://cloud/tests/test_cloud_client_payloads.gd",
 	"res://cloud/tests/test_cloud_routing_pick.gd",
 	"res://cloud/tests/test_cloud_turn_banner.gd",
+	"res://cloud/tests/test_cloud_combat_animation.gd",
 	"res://cloud/tests/test_main_default_cloud_base_url.gd",
 	"res://cloud/tests/test_main_cloud_boot_no_local_session_before_server.gd",
 	"res://cloud/tests/test_main_cloud_reconnect_get_match.gd"

@@ -17,8 +17,16 @@ var selection
 var camera
 ## Slice C8: optional server-provided move destinations (HexCoord list); see compute_overlay_items.
 var cloud_destination_coords: Array = []
+## Slice C10: optional server-provided attack targets (defender hexes).
+var cloud_attack_target_coords: Array = []
 
-static func compute_overlay_items(a_scenario, a_layout, a_selection, cloud_dests: Array = []) -> Array:
+static func compute_overlay_items(
+	a_scenario,
+	a_layout,
+	a_selection,
+	cloud_dests: Array = [],
+	cloud_attack_dests: Array = [],
+) -> Array:
 	assert(HexCoordScript != null)
 	assert(MovementRulesScript != null)
 	assert(SelectionStateScript != null)
@@ -54,6 +62,20 @@ static func compute_overlay_items(a_scenario, a_layout, a_selection, cloud_dests
 			"corners": a_layout.hex_corners(w),
 		})
 		j = j + 1
+	var atk_dests: Array = []
+	if cloud_attack_dests.size() > 0:
+		atk_dests = cloud_attack_dests.duplicate()
+	var aj = 0
+	while aj < atk_dests.size():
+		var ad = atk_dests[aj]
+		var aw = a_layout.hex_to_world(ad.q, ad.r)
+		out.append({
+			"kind": "attack_target_fill",
+			"coord": ad,
+			"world": aw,
+			"corners": a_layout.hex_corners(aw),
+		})
+		aj = aj + 1
 	return out
 
 func _draw() -> void:
@@ -62,8 +84,15 @@ func _draw() -> void:
 		cam.projection = MapPlaneProjectionScript.new()
 		camera = cam
 	var fill_col = Color(1.0, 1.0, 1.0, 0.20)
+	var attack_fill_col = Color(0.95, 0.35, 0.30, 0.28)
 	var ring_col = Color(1.0, 1.0, 1.0, 0.95)
-	var items = compute_overlay_items(scenario, layout, selection, cloud_destination_coords)
+	var items = compute_overlay_items(
+		scenario,
+		layout,
+		selection,
+		cloud_destination_coords,
+		cloud_attack_target_coords,
+	)
 	var k = 0
 	while k < items.size():
 		var item = items[k]
@@ -76,6 +105,8 @@ func _draw() -> void:
 			cidx2 = cidx2 + 1
 		if item["kind"] == "destination_fill":
 			draw_colored_polygon(corners_p, fill_col)
+		elif item["kind"] == "attack_target_fill":
+			draw_colored_polygon(corners_p, attack_fill_col)
 		elif item["kind"] == "selected_ring":
 			var ring_pts = PackedVector2Array()
 			var cidx = 0

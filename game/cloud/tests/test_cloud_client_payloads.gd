@@ -4,6 +4,10 @@ extends SceneTree
 const CloudClientScript = preload("res://cloud/cloud_client.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
+const ScenarioScript = preload("res://domain/scenario.gd")
+const UnitScript = preload("res://domain/unit.gd")
+const HexCoordScript = preload("res://domain/hex_coord.gd")
+const HexMapScript = preload("res://domain/hex_map.gd")
 
 var _total = 0
 var _any_fail = false
@@ -84,6 +88,40 @@ func _init() -> void:
 		typeof((norm_move["to"] as Array)[1]) == TYPE_INT,
 		"move to[1] int",
 	)
+	var from_server_attack_floats = {
+		"schema_version": 1.0,
+		"action_type": "attack_unit",
+		"actor_id": 0.0,
+		"attacker_id": 2.0,
+		"defender_id": 3.0,
+	}
+	var norm_attack = CloudClientScript.normalize_api_action_for_post(from_server_attack_floats)
+	_check(typeof(norm_attack["attacker_id"]) == TYPE_INT, "attack attacker_id coerced to int")
+	_check(typeof(norm_attack["defender_id"]) == TYPE_INT, "attack defender_id coerced to int")
+	_check(not norm_attack.has("from"), "attack POST has no from/to")
+	_check(not norm_attack.has("to"), "attack POST has no to")
+	var combat_map = HexMapScript.make_tiny_test_map()
+	var combat_units = [
+		UnitScript.new(2, 0, HexCoordScript.new(1, 0), "warrior"),
+		UnitScript.new(3, 1, HexCoordScript.new(0, -1), "warrior"),
+	]
+	var combat_scen = ScenarioScript.new(combat_map, combat_units)
+	var legal_attacks: Array = [
+		{
+			"schema_version": 1,
+			"action_type": "attack_unit",
+			"actor_id": 0,
+			"attacker_id": 2,
+			"defender_id": 3,
+		},
+	]
+	var atk_pack: Dictionary = CloudClientScript.build_attack_maps_from_legal_actions(
+		legal_attacks,
+		combat_scen,
+	)
+	var atk_map: Dictionary = atk_pack["attack_map"] as Dictionary
+	_check(atk_map.has(CloudClientScript.hex_action_key(0, -1)), "attack map keyed by defender hex")
+	_check((atk_pack["attack_targets"] as Array).size() == 1, "one attack target coord")
 	var j_move = JSON.new()
 	var mv_wire = JSON.stringify(norm_move)
 	_check(j_move.parse(mv_wire) == OK, "move normalized json parses")

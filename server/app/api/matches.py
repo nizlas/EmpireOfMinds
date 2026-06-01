@@ -8,7 +8,8 @@ from typing import Any
 from fastapi import APIRouter, Body, HTTPException, Query
 
 from app.domain import legal_actions, match_state, snapshot
-from app.domain.actions import end_turn, found_city, move_unit, set_city_production
+from app.domain.actions import attack_unit, end_turn, found_city, move_unit, set_city_production
+from app.domain.combat_rules import resolve_attack
 from app.domain.food_growth_rules import apply_food_growth_for_player
 from app.domain.movement_rules import refresh_movement_for_owner
 from app.domain.production_rules import apply_production_tick_for_player, deliver_pending_for_player
@@ -56,6 +57,14 @@ def _map_set_city_production_reason(vr_reason: str) -> str:
         return "city_not_owned_by_player"
     if vr_reason == "unsupported_project_id":
         return "unknown_city_project"
+    return vr_reason
+
+
+def _map_attack_unit_validate_reason(vr_reason: str) -> str:
+    if vr_reason == "wrong_action_type":
+        return "unknown_action_type"
+    if vr_reason == "scenario_null":
+        return "malformed_action"
     return vr_reason
 
 
@@ -194,6 +203,7 @@ def _handle_end_turn(match_id: str, snap: dict[str, Any], action: dict[str, Any]
         "revision": new_revision,
         "snapshot": new_snap,
         "state_hash": state_hash(new_snap),
+        "event": end_turn_event,
     }
 
 
@@ -242,6 +252,7 @@ def _handle_move_unit(match_id: str, snap: dict[str, Any], action: dict[str, Any
         "revision": new_revision,
         "snapshot": new_snap,
         "state_hash": state_hash(new_snap),
+        "event": event,
     }
 
 
@@ -293,6 +304,7 @@ def _handle_found_city(match_id: str, snap: dict[str, Any], action: dict[str, An
         "revision": new_revision,
         "snapshot": new_snap,
         "state_hash": state_hash(new_snap),
+        "event": event,
     }
 
 
@@ -347,6 +359,72 @@ def _handle_set_city_production(match_id: str, snap: dict[str, Any], action: dic
         "revision": new_revision,
         "snapshot": new_snap,
         "state_hash": state_hash(new_snap),
+        "event": event,
+    }
+
+
+def _handle_attack_unit(match_id: str, snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:
+    gate = _actor_gate(snap, action)
+    if gate is not None:
+        return _reject(gate)
+
+    scenario = snapshot.scenario_from_snapshot_dict(snap["scenario"])
+    vr = attack_unit.validate(scenario, action)
+    if not vr["ok"]:
+        return _reject(_map_attack_unit_validate_reason(str(vr["reason"])))
+
+    att_u = scenario.unit_by_id(int(action["attacker_id"]))
+    def_u = scenario.unit_by_id(int(action["defender_id"]))
+    if att_u is None or def_u is None:
+        return _reject("malformed_action")
+    atk_pos = [int(att_u.position.q), int(att_u.position.r)]
+    def_pos = [int(def_u.position.q), int(def_u.position.r)]
+
+    combat_result = resolve_attack(scenario, action)
+    new_scenario = attack_unit.apply_with_result(scenario, action, combat_result)
+    new_revision = int(snap["revision"]) + 1
+    new_snap: dict[str, Any] = {
+        **snap,
+        "revision": new_revision,
+        "scenario": snapshot.serialize_scenario(new_scenario),
+    }
+
+    log_index = len(file_store.read_events(match_id))
+    accepted_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    event: dict[str, Any] = {
+        "index": log_index,
+        "revision": new_revision,
+        "schema_version": int(action["schema_version"]),
+        "action_type": attack_unit.ACTION_TYPE,
+        "actor_id": int(action["actor_id"]),
+        "attacker_id": int(combat_result["attacker_id"]),
+        "defender_id": int(combat_result["defender_id"]),
+        "attacker_position": atk_pos,
+        "defender_position": def_pos,
+        "attacker_strength": int(combat_result["attacker_strength"]),
+        "defender_strength": int(combat_result["defender_strength"]),
+        "attacker_damage_taken": int(combat_result["attacker_damage_taken"]),
+        "defender_damage_taken": int(combat_result["defender_damage_taken"]),
+        "attacker_hp_before": int(combat_result["attacker_hp_before"]),
+        "defender_hp_before": int(combat_result["defender_hp_before"]),
+        "attacker_hp_after": int(combat_result["attacker_hp_after"]),
+        "defender_hp_after": int(combat_result["defender_hp_after"]),
+        "attacker_killed": bool(combat_result["attacker_killed"]),
+        "defender_killed": bool(combat_result["defender_killed"]),
+        "retaliated": bool(combat_result["retaliated"]),
+        "result": "accepted",
+        "accepted_at": accepted_at,
+    }
+    file_store.write_snapshot(match_id, new_snap)
+    file_store.append_event(match_id, event)
+    return {
+        "accepted": True,
+        "reason": "",
+        "index": log_index,
+        "revision": new_revision,
+        "snapshot": new_snap,
+        "state_hash": state_hash(new_snap),
+        "event": event,
     }
 
 
@@ -370,6 +448,8 @@ def post_action(match_id: str, action: dict[str, Any] = Body(...)) -> dict[str, 
         return _handle_found_city(match_id, snap, action)
     if at == set_city_production.ACTION_TYPE:
         return _handle_set_city_production(match_id, snap, action)
+    if at == attack_unit.ACTION_TYPE:
+        return _handle_attack_unit(match_id, snap, action)
     return _reject("unknown_action_type")
 
 

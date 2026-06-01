@@ -68,6 +68,8 @@ var use_cloud_server: bool = false
 var cloud_play_host = null
 ## Keys `"q,r"` -> submit-ready **move_unit** dict from last server legal-actions.
 var cloud_move_action_by_hex: Dictionary = {}
+## Slice C10: keys `"q,r"` -> submit-ready **attack_unit** dict (defender hex).
+var cloud_attack_action_by_hex: Dictionary = {}
 @export var marker_hit_radius_ratio: float = 0.35
 
 ## Sentinels for **shared city / own-unit hex** click alternation (see **plan_shared_hex_pick**).
@@ -529,6 +531,19 @@ func _unhandled_input(event):
 					var dest_key = ""
 					if picked_hex != null:
 						dest_key = CloudClientScript.hex_action_key(int(picked_hex.q), int(picked_hex.r))
+					var act_attack: Dictionary = {}
+					if dest_key.length() > 0:
+						var raw_atk = cloud_attack_action_by_hex.get(dest_key, null)
+						if raw_atk != null and typeof(raw_atk) == TYPE_DICTIONARY:
+							act_attack = raw_atk as Dictionary
+					if not act_attack.is_empty() and cloud_play_host != null:
+						cloud_play_host.cloud_input_diag_log(
+							"click_cloud_attack_action_before_post",
+							{"action_json": JSON.stringify(act_attack)}
+						)
+						cloud_play_host.call_deferred("cloud_post_action_async_entry", act_attack.duplicate(true))
+						get_viewport().set_input_as_handled()
+						return
 					var act_cloud: Dictionary = {}
 					if dest_key.length() > 0:
 						var raw_act = cloud_move_action_by_hex.get(dest_key, null)
@@ -554,7 +569,10 @@ func _unhandled_input(event):
 						get_viewport().set_input_as_handled()
 						return
 					var pending = cloud_play_host != null and cloud_play_host.cloud_legal_actions_pending()
-					var has_highlights = selection_view != null and selection_view.cloud_destination_coords.size() > 0
+					var has_highlights = selection_view != null and (
+						selection_view.cloud_destination_coords.size() > 0
+						or selection_view.cloud_attack_target_coords.size() > 0
+					)
 					if pending and not has_highlights and not selection.is_empty():
 						if cloud_play_host != null:
 							cloud_play_host.cloud_input_diag_log(

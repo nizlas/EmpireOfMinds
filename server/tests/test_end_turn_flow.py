@@ -95,7 +95,7 @@ def test_unknown_action_type_rejects(client: TestClient) -> None:
         f"/v1/matches/{mid}/actions",
         json={
             "schema_version": 1,
-            "action_type": "attack_unit",
+            "action_type": "teleport_unit",
             "actor_id": 0,
             "attacker_id": 2,
             "defender_id": 3,

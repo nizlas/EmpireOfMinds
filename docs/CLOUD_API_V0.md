@@ -8,7 +8,7 @@ HTTP contract for the **local authority** prototype under `server/`. This is a *
 
 ## Principles
 
-- Clients submit **actions** mirroring [ACTIONS.md](ACTIONS.md) / `GameState.try_apply` shape. **Cloud 0.1+ (Authority pivot)** accepts **`end_turn`**, **`move_unit`**, **`found_city`**, and **`set_city_production`** on **`POST /v1/matches/{id}/actions`**; other `action_type` values return **`unknown_action_type`** until their slices land.
+- Clients submit **actions** mirroring [ACTIONS.md](ACTIONS.md) / `GameState.try_apply` shape. **Cloud 0.1+ (Authority pivot)** accepts **`end_turn`**, **`move_unit`**, **`found_city`**, **`set_city_production`**, and **`attack_unit`** on **`POST /v1/matches/{id}/actions`**; other `action_type` values return **`unknown_action_type`** until their slices land.
 - **Rejected** actions are **not** logged; responses use **HTTP 200** with `accepted: false` to mirror GDScript `try_apply` (not REST error semantics).
 - **`state_hash`** is **never** stored inside `snapshot`; it is derived with `sha256(canonical_json(snapshot))` and returned by the API.
 
@@ -38,7 +38,7 @@ HTTP contract for the **local authority** prototype under `server/`. This is a *
 | Param | Required | Meaning |
 |--------|----------|---------|
 | `actor_id` | **yes** | Same role as action **`actor_id`** (usually UI’s “acting” seat). |
-| `selected_unit_id` | no | If set, **`actions`** contain only **this unit’s** legal **`move_unit`** and **`found_city`** rows (if any). |
+| `selected_unit_id` | no | If set, **`actions`** contain only **this unit’s** legal **`attack_unit`**, **`move_unit`**, and **`found_city`** rows (if any). |
 | `selected_city_id` | no | If set (and selection valid), **`actions`** include **`set_city_production`** rows for **this city**. May be combined with **`selected_unit_id`** when both are valid. |
 
 **Traffic:** Intended for **selection change** and **after accepted actions**, not per-frame polling. Actor summary mode (no selection params) returns **`end_turn`** plus compact **`unit_summaries`** / **`city_summaries`** counts only — not every possible move.
@@ -67,7 +67,7 @@ HTTP contract for the **local authority** prototype under `server/`. This is a *
 }
 ```
 
-**Supported action types in C7:** **`end_turn`** (summary mode only), **`move_unit`**, **`found_city`**, **`set_city_production`**. Payloads match **`POST /v1/matches/{id}/actions`** field names and schema versions ( **`1`** vs **`2`** for production) so clients can submit them directly after filling **`actor_id`** where needed.
+**Supported action types in C7–C10:** **`end_turn`** (summary mode only), **`move_unit`**, **`found_city`**, **`set_city_production`**, **`attack_unit`**. Payloads match **`POST /v1/matches/{id}/actions`** field names and schema versions ( **`1`** vs **`2`** for production) so clients can submit them directly after filling **`actor_id`** where needed.
 
 ## Create match
 
@@ -151,11 +151,11 @@ Early Cloud 0.1 prototypes used **`schema_version`: `1`** with only **`turn_stat
 }
 ```
 
-## Submit action (`end_turn`, `move_unit`, `found_city`, `set_city_production`)
+## Submit action (`end_turn`, `move_unit`, `found_city`, `set_city_production`, `attack_unit`)
 
 Use the same **`actor_id`** field as Godot actions (not `actor_player_id`).
 
-**`schema_version` per action:** **`1`** for **`end_turn`**, **`move_unit`**, and **`found_city`**; **`2`** for **`set_city_production`** (see [ACTIONS.md](ACTIONS.md)).
+**`schema_version` per action:** **`1`** for **`end_turn`**, **`move_unit`**, **`found_city`**, and **`attack_unit`**; **`2`** for **`set_city_production`** (see [ACTIONS.md](ACTIONS.md)).
 
 For **`found_city`**, the wire field is **`position`**: **`[q, r]`** (not `at`). Optional client-only names are **not** read by the server; **`city_name`** is **`Capital`** for a player’s first city, then **`Settlement 2`**, …, matching Godot **`FoundCity.default_city_name_for_owner`**.
 
@@ -214,7 +214,21 @@ Same shape as [ACTIONS.md](ACTIONS.md) / **`FoundCity.make`**: **`position`** on
 }
 ```
 
-**Accepted:**
+### `attack_unit` (Slice C10)
+
+Matches [ACTIONS.md](ACTIONS.md) **AttackUnit** dictionary: **`attacker_id`** and **`defender_id`** only — **no** **`from`** / **`to`**. Server resolves combat via **`CombatRules.resolve_attack`** (Local Combat 0.1 parity: adjacent **Warrior** vs **Warrior**, deterministic damage, retaliation if defender survives, attacker **`remaining_movement`** set to **`0`**).
+
+```json
+{
+  "schema_version": 1,
+  "action_type": "attack_unit",
+  "actor_id": 0,
+  "attacker_id": 2,
+  "defender_id": 3
+}
+```
+
+**Accepted** (Slice **C11** adds additive **`event`** — the accepted log row, identical to **`GET .../events`** at **`index`**):
 
 ```json
 {
@@ -223,9 +237,12 @@ Same shape as [ACTIONS.md](ACTIONS.md) / **`FoundCity.make`**: **`position`** on
   "index": 0,
   "revision": 1,
   "snapshot": { "...": "..." },
-  "state_hash": "..."
+  "state_hash": "...",
+  "event": { "...": "accepted action or end_turn row ..." }
 }
 ```
+
+Rejected responses omit **`event`**, **`snapshot`**, and **`state_hash`**.
 
 **Rejected** (HTTP **200**; **`index`** is **`-1`**; **no** snapshot or event updates):
 
@@ -233,6 +250,7 @@ Same shape as [ACTIONS.md](ACTIONS.md) / **`FoundCity.make`**: **`position`** on
 - **`move_unit`**: **`unknown_unit`**, **`unit_not_owned_by_player`**, **`from_does_not_match_unit_position`**, **`movement_exhausted`**, **`destination_not_on_map`**, **`destination_not_adjacent`**, **`destination_not_passable`**, **`destination_occupied`**.
 - **`found_city`**: **`unknown_unit`**, **`unit_not_owned_by_player`** (Godot: **`actor_not_owner`**), **`unit_cannot_found_city`** (Godot: **`unit_type_cannot_found`**), **`unit_not_at_position`**, **`tile_not_on_map`**, **`tile_is_water`**, **`tile_already_has_city`**, **`tile_already_owned`**.
 - **`set_city_production`**: **`unknown_city`**, **`city_not_owned_by_player`** (Godot: **`actor_not_owner`**), **`unknown_city_project`** (Godot: **`unsupported_project_id`**), **`city_project_not_unlocked`** (Godot **`GameState`**: **`project_not_unlocked`**), **`project_already_set`**.
+- **`attack_unit`**: **`unknown_attacker`**, **`unknown_defender`**, **`actor_not_owner`**, **`attacker_not_warrior`**, **`defender_not_warrior`**, **`cannot_attack_own_unit`**, **`defender_not_adjacent`**, **`movement_exhausted`**.
 
 **`end_turn`** structural rejections remain **`malformed_action`** / **`unsupported_schema_version`** / **`unknown_action_type`** as implemented in `server/app/domain/actions/end_turn.py`.
 
@@ -414,6 +432,35 @@ Example — **`move_unit`**:
 }
 ```
 
+Example — **`attack_unit`** (Slice C10):
+
+```json
+{
+  "index": 1,
+  "revision": 2,
+  "schema_version": 1,
+  "action_type": "attack_unit",
+  "actor_id": 0,
+  "attacker_id": 2,
+  "defender_id": 3,
+  "attacker_position": [1, 0],
+  "defender_position": [0, -1],
+  "attacker_strength": 10,
+  "defender_strength": 10,
+  "attacker_damage_taken": 30,
+  "defender_damage_taken": 30,
+  "attacker_hp_before": 100,
+  "defender_hp_before": 100,
+  "attacker_hp_after": 70,
+  "defender_hp_after": 70,
+  "attacker_killed": false,
+  "defender_killed": false,
+  "retaliated": true,
+  "result": "accepted",
+  "accepted_at": "2026-05-16T19:00:20Z"
+}
+```
+
 Example — **`found_city`**:
 
 ```json
@@ -461,6 +508,6 @@ Under `server/data/matches/<match_id>/` (or `EMPIRE_SERVER_DATA_DIR/matches/...`
 
 ## Out of scope (not yet on server)
 
-Auth, lobby, WebSockets, Godot client harness, **`attack_unit`**, **`ScienceTick.add_observation_bonus_if_eligible`** (lightning tree / move_unit log coupling), combat, deployment, database.
+Auth, lobby, WebSockets, Godot client harness beyond C10, **`ScienceTick.add_observation_bonus_if_eligible`** (lightning tree / move_unit log coupling), city combat, ranged combat, combat animation (C11), deployment, database.
 
 **Note:** The **Authority pivot** adds capabilities to **`server/`** slice by slice; the **`/v1`** endpoint family and **`try_apply`-mirroring rejection behavior** stay stable as actions are added.

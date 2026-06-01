@@ -1,3 +1,13 @@
+## 2026-06-02 — Slice **C11** — cloud combat presentation v0 (additive **`event`** in action response)
+
+- **Decision:** Accepted **`POST /v1/matches/{id}/actions`** responses include additive **`event`** (same object appended to **`events.jsonl`**). Godot cloud client uses **`event.attacker_position`** / **`defender_position`** to fire **`CombatClashBurstView`** before applying the authoritative snapshot; **`combat_animation_request_from_response`** never infers damage/outcome. Missing/invalid **`event`** → immediate snapshot apply. Only cloud **`attack_unit`** uses the animation path; other actions unchanged. **Out of scope:** damage popups, death fade, sound, polling, replay-on-reconnect, local hotseat changes.
+- **Local hotseat:** unchanged — still **`GameState.try_apply`** + existing **`CombatClashBurstView`** in **`SelectionController`**.
+
+## 2026-06-01 — Slice **C10** — server-authoritative **`attack_unit`** (Local Combat 0.1 cloud parity)
+
+- **Decision:** **`POST /v1/matches/{id}/actions`** accepts **`attack_unit`** with **`attacker_id`** + **`defender_id`** only (no client-supplied **`from`**/**`to`**). Server **`combat_rules.py`** resolves damage/retaliation/death deterministically (Godot **`CombatRules`** parity); **`attack_unit.apply_with_result`** sets attacker **`remaining_movement = 0`**. **`GET .../legal-actions`** selection mode enumerates adjacent enemy **Warrior** attacks; Godot cloud client highlights defender hexes and posts normalized payloads. **Out of scope:** clash animation (C11), city/ranged combat, AI combat, event replay, polling, schema v3, new endpoints.
+- **Local hotseat:** unchanged — still **`GameState.try_apply`** + existing combat presentation.
+
 ## 2026-05-17 — Authority Pivot — Python/FastAPI canonical gameplay authority
 
 - **Decision:** Commit to **`server/`** (Python/FastAPI) as the **canonical** target for **rules, validation, state mutation, action log, snapshots, and `state_hash`**. Godot’s **`game/domain/`** + **`GameState.try_apply`** remain **legacy** until **cutover is proven**; **do not delete** legacy domain until post–playtest cleanup. **Local hotseat** will run against **localhost authority**; **cloud** uses the **same** authority codepaths with **different base URL/transport**. Unrelated feature work **pauses** until the **current playable loop** runs through the server path (see [AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md) slices **B–F**).

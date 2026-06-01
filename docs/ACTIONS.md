@@ -30,7 +30,7 @@ intent
 
 Enumeration is a **read-only query**: it does not mutate **`GameState`**, call **`try_apply`**, or filter by AI taste. **AI and debug UI** pick one entry from this list (or pass it to **`RuleBasedAIPlayer.decide`**) and still submit only through **`GameState.try_apply`**.
 
-**Cloud / Slice C7:** the HTTP authority exposes **`GET /v1/matches/{match_id}/legal-actions`** (see [CLOUD_API_V0.md](CLOUD_API_V0.md)) returning **submit-ready** **`Dictionary`**-shaped JSON for **`end_turn`**, **`move_unit`**, **`found_city`**, and **`set_city_production`** only — no new authority semantics; it reuses the same validators as **`POST .../actions`**.
+**Cloud / Slice C7–C10:** the HTTP authority exposes **`GET /v1/matches/{match_id}/legal-actions`** (see [CLOUD_API_V0.md](CLOUD_API_V0.md)) returning **submit-ready** **`Dictionary`**-shaped JSON for **`end_turn`**, **`move_unit`**, **`found_city`**, **`set_city_production`**, and **`attack_unit`** — no new authority semantics; it reuses the same validators as **`POST .../actions`**.
 
 **Phase 1.8b:** AI turn length for **movement** is still gated by **`RuleBasedAIPolicy.has_actor_moved_this_turn`** ([rule_based_ai_policy.gd](../game/ai/rule_based_ai_policy.gd)). **Phase 2.5:** **`found_city`**, **`set_city_production`**, and **`set_city_worked_tiles`** do **not** count as **`move_unit`** for that policy (see [AI_LAYER.md](AI_LAYER.md)).
 
@@ -110,6 +110,8 @@ Built with **`AttackUnit.make(actor_id, attacker_id, defender_id)`** in [attack_
 ### Accepted log entry shape
 
 Append **`result: "accepted"`** plus combat snapshot fields (from **`CombatRules`** / resolve step), including: **`attacker_id`**, **`defender_id`**, **`attacker_position`**, **`defender_position`** (`[q,r]` arrays), **`attacker_strength`**, **`defender_strength`**, **`attacker_damage_taken`**, **`defender_damage_taken`**, **`attacker_hp_before`**, **`defender_hp_before`**, **`attacker_hp_after`**, **`defender_hp_after`**, **`attacker_killed`**, **`defender_killed`**, **`retaliated`**.
+
+**Server (Cloud / Slice C10):** `POST /v1/matches/{id}/actions` accepts **`attack_unit`** with the same fields as **`AttackUnit.make`**: **`schema_version` `1`**, **`action_type`**, **`actor_id`**, **`attacker_id`**, **`defender_id`** only (no **`from`** / **`to`**). Server **`combat_rules.resolve_attack`** mirrors Godot **`CombatRules.resolve_attack`**; **`attack_unit.apply_with_result`** sets attacker **`remaining_movement = 0`**. Accepted events include the combat snapshot fields above (see [CLOUD_API_V0.md](CLOUD_API_V0.md)). Selection-mode **`GET .../legal-actions`** lists adjacent enemy **Warrior** attacks for the selected unit; summary mode omits per-unit attacks.
 
 ## EndTurn schema (Phase 1.7)
 

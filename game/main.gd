@@ -45,6 +45,9 @@ var _cloud_legal_stale: bool = false
 var _cloud_last_legal_actions: Array = []
 ## Slice C8: true from cloud bootstrap until first server snapshot is applied and presentation refreshed.
 var _cloud_loading: bool = false
+## Slice C11: blocks map input during cloud combat presentation (presentation-only; snapshot applies after).
+var _cloud_combat_anim_busy: bool = false
+const CLOUD_COMBAT_ANIM_SEC: float = 0.6
 ## After create-match / snapshot failure: keep overlay + block play (no silent hotseat fallback).
 var _cloud_boot_stranded: bool = false
 var _cloud_loading_overlay_root: CanvasLayer = null
@@ -245,7 +248,7 @@ func _cloud_debug_enabled() -> bool:
 
 
 func cloud_session_blocks_map_input() -> bool:
-	return _cloud_loading or _cloud_boot_stranded
+	return _cloud_loading or _cloud_boot_stranded or _cloud_combat_anim_busy
 
 
 func _cloud_debug_timing(tag: String) -> void:
@@ -730,9 +733,18 @@ func _cloud_fetch_and_apply_legal() -> void:
 	)
 	var sv = $SelectionView
 	sv.cloud_destination_coords = dests
+	sv.cloud_attack_target_coords = []
 	sv.queue_redraw()
 	var selc = $SelectionController
 	selc.cloud_move_action_by_hex = move_map
+	selc.cloud_attack_action_by_hex = {}
+	var attack_pack: Dictionary = CloudClientScript.build_attack_maps_from_legal_actions(
+		_cloud_last_legal_actions,
+		_play_game_state.scenario if _play_game_state != null else null,
+	)
+	sv.cloud_attack_target_coords = attack_pack["attack_targets"] as Array
+	selc.cloud_attack_action_by_hex = attack_pack["attack_map"] as Dictionary
+	sv.queue_redraw()
 	var prod_opts: Array = []
 	var pi = 0
 	while pi < _cloud_last_legal_actions.size():
@@ -765,10 +777,12 @@ func cloud_post_end_turn_async_entry() -> void:
 
 
 func cloud_post_action_async_entry(action: Dictionary) -> void:
-	if cloud_session_blocks_map_input() or not _cloud_mode or _cloud_session == null:
+	if _cloud_loading or _cloud_boot_stranded or _cloud_combat_anim_busy:
+		return
+	if not _cloud_mode or _cloud_session == null:
 		return
 	var r = await _cloud_session.post_action(action)
-	_handle_cloud_post_response(r, action)
+	await _handle_cloud_post_response(r, action)
 
 
 func _handle_cloud_post_response(r: Dictionary, action: Dictionary) -> void:
@@ -792,6 +806,29 @@ func _handle_cloud_post_response(r: Dictionary, action: Dictionary) -> void:
 			"action_type": str(action.get("action_type", "")),
 		}
 	)
+	var anim_req: Dictionary = CloudClientScript.combat_animation_request_from_response(r, action)
+	if bool(anim_req.get("should_animate", false)):
+		await _play_cloud_combat_then_apply(r, action, anim_req)
+	else:
+		_apply_cloud_post_snapshot(r, action)
+
+
+func _play_cloud_combat_then_apply(r: Dictionary, action: Dictionary, anim_req: Dictionary) -> void:
+	_cloud_combat_anim_busy = true
+	var burst = $CombatClashBurstView
+	if burst != null:
+		burst.show_burst_hex_centers(
+			int(anim_req.get("attacker_q", 0)),
+			int(anim_req.get("attacker_r", 0)),
+			int(anim_req.get("defender_q", 0)),
+			int(anim_req.get("defender_r", 0)),
+		)
+	await get_tree().create_timer(CLOUD_COMBAT_ANIM_SEC).timeout
+	_cloud_combat_anim_busy = false
+	_apply_cloud_post_snapshot(r, action)
+
+
+func _apply_cloud_post_snapshot(r: Dictionary, action: Dictionary) -> void:
 	var snap = r["snapshot"] as Dictionary
 	var gs_new = ServerSnapshotAdapterScript.build_game_state_from_api_snapshot(snap)
 	if gs_new == null:
@@ -899,6 +936,8 @@ func _adjust_selection_after_cloud_action(action: Dictionary, gs) -> void:
 	elif at == "move_unit":
 		var uid = int(action.get("unit_id", -1))
 		SelectionController.apply_post_accepted_move_unit_selection(_play_selection, gs.scenario, uid)
+	elif at == "attack_unit":
+		_play_selection.clear()
 
 
 func _refresh_presentation_after_cloud_snap() -> void:

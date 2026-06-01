@@ -1,7 +1,8 @@
 """Read-only legal action enumeration for Cloud Slice C7 (query-only, no mutation).
 
 Deterministic ordering:
-- action_type buckets: end_turn, found_city, move_unit, set_city_production (lexicographic).
+- action_type buckets: attack_unit, end_turn, found_city, move_unit, set_city_production (lexicographic).
+- attack_unit: attacker_id, then defender_id.
 - move_unit: unit_id, then destination (q, r); destinations from movement_rules.legal_move_destinations
   (already sorted by q, r).
 - found_city: unit_id, then position (q, r).
@@ -13,7 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.domain import snapshot
-from app.domain.actions import end_turn, found_city, move_unit, set_city_production
+from app.domain.actions import attack_unit, end_turn, found_city, move_unit, set_city_production
 from app.domain.content import city_project_definitions as cpd
 from app.domain.match_state import current_player_id
 from app.domain.movement_rules import legal_move_destinations
@@ -23,10 +24,11 @@ from app.domain.scenario import Scenario
 LEGAL_ACTIONS_SCHEMA_VERSION = 1
 
 _TYPE_ORDER = {
-    "end_turn": 0,
-    "found_city": 1,
-    "move_unit": 2,
-    "set_city_production": 3,
+    "attack_unit": 0,
+    "end_turn": 1,
+    "found_city": 2,
+    "move_unit": 3,
+    "set_city_production": 4,
 }
 
 
@@ -36,6 +38,8 @@ def _sort_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         bucket = _TYPE_ORDER[at]
         if at == "end_turn":
             return (bucket, int(a["actor_id"]))
+        if at == "attack_unit":
+            return (bucket, int(a["attacker_id"]), int(a["defender_id"]))
         if at == "found_city":
             pos = a["position"]
             return (bucket, int(a["unit_id"]), int(pos[0]), int(pos[1]))
@@ -53,6 +57,30 @@ def _end_turn_action(actor_id: int) -> dict[str, Any]:
         "action_type": end_turn.ACTION_TYPE,
         "actor_id": actor_id,
     }
+
+
+def _attack_actions_for_unit(scenario: Scenario, actor_id: int, unit_id: int) -> list[dict[str, Any]]:
+    attacker = scenario.unit_by_id(unit_id)
+    if attacker is None or attacker.owner_id != actor_id:
+        return []
+    if str(attacker.type_id) != attack_unit.WARRIOR_TYPE:
+        return []
+    out: list[dict[str, Any]] = []
+    for defender in sorted(scenario.units(), key=lambda u: u.id):
+        if defender.owner_id == actor_id:
+            continue
+        if str(defender.type_id) != attack_unit.WARRIOR_TYPE:
+            continue
+        act = {
+            "schema_version": attack_unit.SCHEMA_VERSION,
+            "action_type": attack_unit.ACTION_TYPE,
+            "actor_id": actor_id,
+            "attacker_id": unit_id,
+            "defender_id": defender.id,
+        }
+        if attack_unit.validate(scenario, act)["ok"]:
+            out.append(act)
+    return out
 
 
 def _move_actions_for_unit(scenario: Scenario, actor_id: int, unit_id: int) -> list[dict[str, Any]]:
@@ -113,8 +141,10 @@ def _set_city_production_actions_for_city(
 
 
 def _unit_action_count(scenario: Scenario, actor_id: int, unit_id: int) -> int:
-    return len(_move_actions_for_unit(scenario, actor_id, unit_id)) + len(
-        _found_city_action_if_legal(scenario, actor_id, unit_id)
+    return (
+        len(_attack_actions_for_unit(scenario, actor_id, unit_id))
+        + len(_move_actions_for_unit(scenario, actor_id, unit_id))
+        + len(_found_city_action_if_legal(scenario, actor_id, unit_id))
     )
 
 
@@ -162,6 +192,7 @@ def compute_legal_actions_payload(
         elif u.owner_id != actor_id:
             selection_error = "selection_not_owned"
         else:
+            actions.extend(_attack_actions_for_unit(scenario, actor_id, selected_unit_id))
             actions.extend(_move_actions_for_unit(scenario, actor_id, selected_unit_id))
             actions.extend(_found_city_action_if_legal(scenario, actor_id, selected_unit_id))
 
