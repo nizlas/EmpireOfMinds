@@ -7,6 +7,15 @@ static func matches_base(base_url: String, path: String) -> String:
 	return str(base_url).rstrip("/") + path
 
 
+## Slice **C9**: empty match id → create; non-empty → reconnect via **GET /v1/matches/{id}**.
+static func should_create_match(match_id: String) -> bool:
+	return str(match_id).strip_edges().is_empty()
+
+
+static func get_match_path(match_id: String) -> String:
+	return "/v1/matches/%s" % str(match_id).strip_edges()
+
+
 ## Stable key for **cloud_move_action_by_hex** / server **move_unit** destination (axial q,r).
 static func hex_action_key(q: int, r: int) -> String:
 	return "%d,%d" % [q, r]

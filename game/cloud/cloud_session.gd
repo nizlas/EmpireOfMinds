@@ -164,7 +164,10 @@ func post_create_match(scenario_id: String) -> Dictionary:
 
 
 func get_match() -> Dictionary:
-	return await http_json_request(HTTPClient.METHOD_GET, "/v1/matches/%s" % match_id)
+	return await http_json_request(
+		HTTPClient.METHOD_GET,
+		CloudClientScript.get_match_path(match_id),
+	)
 
 
 func get_legal_actions(actor_id: int, selected_unit_id: int = -1, selected_city_id: int = -1) -> Dictionary:

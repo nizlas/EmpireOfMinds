@@ -29,6 +29,8 @@ const ZOOM_STEP: float = 1.10
 @export var use_cloud_server: bool = false
 @export var cloud_base_url: String = "http://127.0.0.1:8000"
 @export var cloud_scenario_id: String = "prototype_play"
+## Slice **C9**: reconnect to an existing match via **GET /v1/matches/{id}** (**EOM_CLOUD_MATCH_ID** overrides).
+@export var cloud_match_id: String = ""
 
 var _faction_banner_gallery
 var _map_projection
@@ -227,6 +229,17 @@ func _cloud_resolve_base_url() -> String:
 	return str(_cloud_resolve_base_url_meta()["url"])
 
 
+func _cloud_resolve_match_id_meta() -> Dictionary:
+	var env_m: String = OS.get_environment("EOM_CLOUD_MATCH_ID").strip_edges()
+	if env_m.length() > 0:
+		return {"value": env_m, "source": "EOM_CLOUD_MATCH_ID"}
+	return {"value": cloud_match_id.strip_edges(), "source": "Main.cloud_match_id"}
+
+
+func _cloud_resolve_match_id() -> String:
+	return str(_cloud_resolve_match_id_meta()["value"])
+
+
 func _cloud_debug_enabled() -> bool:
 	return OS.get_environment("EOM_CLOUD_DEBUG").strip_edges() == "1"
 
@@ -333,20 +346,47 @@ func _bootstrap_cloud_session() -> void:
 	add_child(_cloud_session)
 	if _cloud_debug_enabled():
 		var umeta := _cloud_resolve_base_url_meta()
+		var mmeta := _cloud_resolve_match_id_meta()
 		print(
 			(
-				"SliceC8DBG cloud_bootstrap effective_url=%s url_source=%s cloud_scenario_id=%s use_cloud_server_export=%s"
-				% [umeta["url"], umeta["source"], cloud_scenario_id, use_cloud_server]
+				"SliceC8DBG cloud_bootstrap effective_url=%s url_source=%s cloud_scenario_id=%s match_id=%s match_id_source=%s use_cloud_server_export=%s"
+				% [
+					umeta["url"],
+					umeta["source"],
+					cloud_scenario_id,
+					mmeta["value"],
+					mmeta["source"],
+					use_cloud_server,
+				]
 			)
 		)
-	var resp = await _cloud_session.post_create_match(cloud_scenario_id)
-	if resp.has("_error") or str(resp.get("match_id", "")) == "":
-		_cloud_fail_session_and_strand("Could not start a cloud match. Check the server and try again.", resp)
-		return
-	_cloud_session.match_id = str(resp["match_id"])
+	var reconnect_mid: String = _cloud_resolve_match_id()
+	var reconnecting: bool = not CloudClientScript.should_create_match(reconnect_mid)
+	var resp: Dictionary = {}
+	if reconnecting:
+		_cloud_session.match_id = reconnect_mid
+		_set_cloud_overlay_text("Reconnecting to cloud match…")
+		resp = await _cloud_session.get_match()
+		if resp.has("_error") or typeof(resp.get("snapshot")) != TYPE_DICTIONARY:
+			_cloud_fail_session_and_strand(
+				"Could not reconnect to cloud match %s. Check the match id and server." % reconnect_mid,
+				resp,
+			)
+			return
+	else:
+		resp = await _cloud_session.post_create_match(cloud_scenario_id)
+		if resp.has("_error") or str(resp.get("match_id", "")) == "":
+			_cloud_fail_session_and_strand("Could not start a cloud match. Check the server and try again.", resp)
+			return
+		_cloud_session.match_id = str(resp["match_id"])
 	var snap = resp.get("snapshot")
 	if typeof(snap) != TYPE_DICTIONARY:
-		_cloud_fail_session_and_strand("Cloud match started but the server response was missing a snapshot.", resp)
+		var fail_msg: String = (
+			"Cloud match reconnected but the server response was missing a snapshot."
+			if reconnecting
+			else "Cloud match started but the server response was missing a snapshot."
+		)
+		_cloud_fail_session_and_strand(fail_msg, resp)
 		return
 	_set_cloud_overlay_text("Loading cloud match…")
 	_cloud_debug_timing("snapshot_adapter_start")
@@ -366,9 +406,23 @@ func _bootstrap_cloud_session() -> void:
 	_set_cloud_gameplay_presentation_visible(true)
 	_cloud_loading = false
 	_set_cloud_overlay_visible(false)
-	_cloud_maybe_show_turn_start_banner(gs_cloud, null, "cloud_bootstrap")
+	var banner_ctx: String = "cloud_reconnect" if reconnecting else "cloud_bootstrap"
+	_cloud_maybe_show_turn_start_banner(gs_cloud, null, banner_ctx)
 	_cloud_debug_timing("first_cloud_snapshot_ready")
-	print("Slice C8 cloud: match_id=", _cloud_session.match_id, " revision=", snap.get("revision", "?"))
+	if reconnecting:
+		print(
+			"Slice C9 cloud: reconnected match_id=",
+			_cloud_session.match_id,
+			" revision=",
+			snap.get("revision", "?"),
+		)
+	else:
+		print(
+			(
+				"Slice C9 cloud: created match_id=%s (set EOM_CLOUD_MATCH_ID=%s to reconnect) revision=%s"
+				% [_cloud_session.match_id, _cloud_session.match_id, snap.get("revision", "?")]
+			)
+		)
 	call_deferred("cloud_refresh_legal_async_entry")
 
 

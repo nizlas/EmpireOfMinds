@@ -250,4 +250,18 @@ Manual validation (**no** auth, **no** websocket, **no** combat parity; server r
 
 **Diagnostics:** set **`EOM_CLOUD_DEBUG=1`** for compact **`SliceC8DBG`** lines (**`cloud_bootstrap`** logs **`effective_url`**, **`url_source`** (`EOM_CLOUD_BASE_URL` vs **`Main.cloud_base_url`**), **`cloud_scenario_id`**) and other cloud routing lines, plus **`SliceC8TIME`** milestones (**`cloud_init_start`** … **`first_cloud_snapshot_ready`**). Create-match lines include **`base_url`**, **`path`**, **`full_url`**, **`scenario_id`**, and response **`elapsed_ms`** / snapshot **`scenario_id`** / **`map_cells`**. On boot failure, **`cloud_boot_failed`** includes URL metadata. No full snapshots in logs by default.
 
-Validation: **`scripts/run-godot-tests.ps1`** includes **`cloud/tests/test_server_snapshot_adapter.gd`**, **`cloud/tests/test_cloud_client_payloads.gd`**, **`cloud/tests/test_cloud_routing_pick.gd`**, **`cloud/tests/test_main_default_cloud_base_url.gd`**, **`cloud/tests/test_main_cloud_boot_no_local_session_before_server.gd`**, and **`domain/tests/test_dump_prototype_play_map_script_loads.gd`**. Server: **`pytest -q`** in **`server/`**.
+Validation: **`scripts/run-godot-tests.ps1`** includes **`cloud/tests/test_server_snapshot_adapter.gd`**, **`cloud/tests/test_cloud_client_payloads.gd`**, **`cloud/tests/test_cloud_routing_pick.gd`**, **`cloud/tests/test_main_default_cloud_base_url.gd`**, **`cloud/tests/test_main_cloud_boot_no_local_session_before_server.gd`**, **`cloud/tests/test_main_cloud_reconnect_get_match.gd`**, and **`domain/tests/test_dump_prototype_play_map_script_loads.gd`**. Server: **`pytest -q`** in **`server/`**.
+
+## Slice C9 — Cloud reconnect via GET /v1/matches/{id}
+
+Manual validation (**Godot client only**; reuses existing server GET — **no** new endpoint, **no** event replay, **no** polling).
+
+1. Start server (same as Slice C8).
+2. Enable cloud with **no** **`cloud_match_id`** / **`EOM_CLOUD_MATCH_ID`** → match is **created**; note **`match_id`** in console (`Slice C9 cloud: created match_id=… (set EOM_CLOUD_MATCH_ID=… to reconnect)`).
+3. Make a server-visible change (e.g. **move_unit** or **end_turn**); note **revision** / **current player** / unit positions.
+4. Quit Godot; relaunch with **`EOM_CLOUD_MATCH_ID=<that id>`** (or inspector **`cloud_match_id`**) → overlay shows **Reconnecting to cloud match…** then gameplay; **revision**, **current player**, and positions match the saved server state (**GET**, not **POST /v1/matches**).
+5. After reconnect: **move_unit**, **end_turn**, and **legal-actions** refresh still work; turn banner shows on bootstrap/reconnect once and again only when **current player** changes.
+6. Set **`EOM_CLOUD_MATCH_ID=m_bad_id`** with server running → **error overlay**, **no** local hotseat fallback, **`MapView.map`** stays unwired.
+7. Unset match id env and disable cloud → **local hotseat** unchanged.
+
+Validation: **`scripts/run-godot-tests.ps1`** — **`test_main_cloud_reconnect_get_match.gd`**, **`test_cloud_client_payloads.gd`** ( **`should_create_match`**, **`get_match_path`** ), plus C8 regression tests.

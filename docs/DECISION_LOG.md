@@ -1705,3 +1705,17 @@ Caveat:
 
 - **Retry / quit** from the stranded overlay is **not** implemented; player relaunches the scene or project.
 
+## 2026-06-01 — Slice C9 cloud reconnect via GET /v1/matches/{id}
+
+Decision:
+
+- When **`Main.cloud_match_id`** or env **`EOM_CLOUD_MATCH_ID`** is non-empty, the Godot cloud client **skips** **`POST /v1/matches`**, binds **`CloudSession.match_id`**, and loads state via existing **`GET /v1/matches/{id}`** (same **`{match_id, snapshot, revision, state_hash}`** envelope as create). Empty match id preserves create-on-boot. Reconnect failure uses the same **stranded overlay** as create failure — **no** silent local hotseat fallback. Successful create logs **`match_id`** with a reconnect hint.
+
+Rationale:
+
+- Lets developers resume an in-progress authority match without new server endpoints, event replay, or polling.
+
+Caveat:
+
+- **No** desync recovery beyond the GET snapshot; **no** live presence or websocket refresh in this slice.
+

@@ -33,6 +33,13 @@ func _init() -> void:
 	)
 	var mb = CloudClientScript.matches_base("http://127.0.0.1:8000", "/v1/matches")
 	_check(mb == "http://127.0.0.1:8000/v1/matches", "matches_base strips slash")
+	_check(CloudClientScript.should_create_match(""), "empty match_id -> create")
+	_check(CloudClientScript.should_create_match("  "), "whitespace match_id -> create")
+	_check(not CloudClientScript.should_create_match("m_abc"), "non-empty match_id -> reconnect")
+	_check(
+		CloudClientScript.get_match_path("m_abc") == "/v1/matches/m_abc",
+		"get_match_path",
+	)
 	_check(not CloudClientScript.should_apply_snapshot({}), "reject empty")
 	_check(
 		not CloudClientScript.should_apply_snapshot({"accepted": false, "reason": "x"}),
