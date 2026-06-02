@@ -1,3 +1,9 @@
+## 2026-06-02 — Slice **C12a** — Cloud Alpha deploy foundation (Hetzner + Docker + Caddy)
+
+- **Decision:** Add repo-tracked **`server/Dockerfile`**, **`deploy/hetzner/docker-compose.yml`**, and **`deploy/hetzner/Caddyfile`** for **empire-cloud-01** (`62.238.44.6`). **Caddy** serves **only** **`cloud.thewizardsapprentice.org`** with automatic HTTPS; **FastAPI** stays on the internal Docker network (**`expose: 8000`**, no host **`ports`** for the API). Match persistence reuses existing **`EMPIRE_SERVER_DATA_DIR=/app/data`** (writes under **`/app/data/matches/`**) on named volume **`empire_match_store`** — **no** new env var and **no** server code change. **Out of scope:** Postgres, auth/seats/accounts, polling/realtime, AI/LLM, new endpoints, gameplay/schema changes, SiteGround SSL for the subdomain, CI/CD automation.
+- **Local dev:** unchanged — **`uvicorn`** from **`server/`**; Godot default **`http://127.0.0.1:8000`** when cloud is off or unset.
+- **Docs:** [DEPLOY_HETZNER.md](DEPLOY_HETZNER.md); updates to [CLOUD_PLAY.md](CLOUD_PLAY.md), [VALIDATION_CHECKLIST.md](VALIDATION_CHECKLIST.md).
+
 ## 2026-06-02 — Slice **C11** — cloud combat presentation v0 (additive **`event`** in action response)
 
 - **Decision:** Accepted **`POST /v1/matches/{id}/actions`** responses include additive **`event`** (same object appended to **`events.jsonl`**). Godot cloud client uses **`event.attacker_position`** / **`defender_position`** to fire **`CombatClashBurstView`** before applying the authoritative snapshot; **`combat_animation_request_from_response`** never infers damage/outcome. Missing/invalid **`event`** → immediate snapshot apply. Only cloud **`attack_unit`** uses the animation path; other actions unchanged. **Out of scope:** damage popups, death fade, sound, polling, replay-on-reconnect, local hotseat changes.

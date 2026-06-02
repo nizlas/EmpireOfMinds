@@ -1,0 +1,8 @@
+# Local match data and caches (not needed in runtime image)
+data/
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+tests/
+scripts/
+*.md

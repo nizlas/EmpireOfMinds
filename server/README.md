@@ -27,6 +27,23 @@ pip install -r requirements.txt
 pytest -q
 ```
 
+## Run in Docker (local smoke)
+
+From the **repository root** (build context is `server/`):
+
+```powershell
+docker build -t empire-server ./server
+docker run --rm -p 8000:8000 empire-server
+```
+
+In another terminal:
+
+```powershell
+curl http://127.0.0.1:8000/v1/healthz
+```
+
+Expected: `{"ok":true}`. For Hetzner production (Caddy + internal API only), see [DEPLOY_HETZNER.md](../docs/DEPLOY_HETZNER.md).
+
 ## Smoke test (manual HTTP check)
 
 Use this to repeat the Cloud 0.1 HTTP flow from PowerShell. The script **does not** start the server; run uvicorn first in another terminal.

@@ -294,3 +294,18 @@ Manual validation (**presentation-only**; server remains authoritative). **Local
 8. Disable cloud → local hotseat combat unchanged (clash burst via **`try_apply`** path).
 
 Validation: **`pytest -q`** — **`test_attack_unit_flow.py`** (`event` in response matches log). **`scripts/run-godot-tests.ps1`** — **`test_cloud_combat_animation.gd`**, plus C8/C9/C10 regression tests.
+
+## Slice C12a — Hetzner deploy foundation (Docker + Caddy)
+
+Deploy-only validation; **no** gameplay, schema, auth, Postgres, polling, or AI changes. See [DEPLOY_HETZNER.md](DEPLOY_HETZNER.md).
+
+- [ ] DNS: `cloud.thewizardsapprentice.org` resolves to **62.238.44.6** (`dig +short` or equivalent).
+- [ ] On Hetzner: `cd deploy/hetzner` then `docker compose up --build -d` starts **caddy** + **empire-server**.
+- [ ] `curl -fsS https://cloud.thewizardsapprentice.org/v1/healthz` returns **`{"ok":true}`**.
+- [ ] From outside: `curl http://62.238.44.6:8000/v1/healthz` **fails** (no public FastAPI port).
+- [ ] Match data survives **`docker compose restart empire-server`** (GET same `match_id` after restart).
+- [ ] Godot with **`EOM_CLOUD_CLIENT=1`** and **`EOM_CLOUD_BASE_URL=https://cloud.thewizardsapprentice.org`**: create match, move, attack, end turn, reconnect via **`EOM_CLOUD_MATCH_ID`**.
+- [ ] **`thewizardsapprentice.org`** / **`www`** WordPress site unchanged (DNS not pointed at Hetzner for root/www).
+- [ ] Local dev unchanged: `cd server` + `uvicorn app.main:app --reload --port 8000`; cloud off → hotseat only.
+
+**Local pre-deploy checks:** `docker build -t empire-server ./server`; `docker compose -f deploy/hetzner/docker-compose.yml config`; **`pytest -q`** in **`server/`**; **`scripts/run-godot-tests.ps1`** (no Godot code changes in C12a).

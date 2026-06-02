@@ -58,6 +58,14 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 
 **Out of scope for C11:** damage popups, sprite hit flash, death fade, sound, event polling, combat replay on reconnect.
 
+### Remote alpha deploy foundation (Slice C12a)
+
+- **Deploy-only:** repo-tracked Docker Compose + Caddy on Hetzner; **no** gameplay or authority semantics change.
+- **Remote base URL:** `https://cloud.thewizardsapprentice.org` — set **`EOM_CLOUD_BASE_URL`** (or inspector **`Main.cloud_base_url`**) when testing against the alpha host.
+- **Path:** Caddy terminates HTTPS on **80/443** and reverse-proxies to the FastAPI container on the internal Docker network (**port 8000 not published** on the host).
+- **Persistence:** match snapshots/events use **`EMPIRE_SERVER_DATA_DIR`** on a named Docker volume (see [DEPLOY_HETZNER.md](DEPLOY_HETZNER.md)).
+- **Local hotseat** and default **`http://127.0.0.1:8000`** cloud dev are unchanged when cloud mode is off or when pointing at localhost.
+
 ### Connect to Existing Server
 
 Client connects to a backend URL.

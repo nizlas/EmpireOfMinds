@@ -1,0 +1,34 @@
+# Empire of Minds — Hetzner Cloud Alpha (C12a)
+# Deploy from repo: cd deploy/hetzner && docker compose up --build -d
+# Requires full repo clone (build context ../../server).
+
+services:
+  empire-server:
+    build:
+      context: ../../server
+    restart: unless-stopped
+    environment:
+      - EOM_ENV=hetzner-alpha
+      - EMPIRE_SERVER_DATA_DIR=/app/data
+    volumes:
+      - empire_match_store:/app/data
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - empire-server
+
+volumes:
+  empire_match_store:
+  caddy_data:
+  caddy_config:
