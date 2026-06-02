@@ -6,6 +6,7 @@
 #   .\scripts\run-godot-tests.ps1 cloud
 #   .\scripts\run-godot-tests.ps1 presentation
 #   .\scripts\run-godot-tests.ps1 slice c13a
+#   .\scripts\run-godot-tests.ps1 slice c14a
 # Requires: GODOT_EXE, Godot on PATH, or install at the known path below.
 
 $ErrorActionPreference = "Stop"
@@ -15,11 +16,14 @@ $GamePath = Join-Path $RepoRoot "game"
 
 $KnownGodotPath = "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"
 
-$Script:SupportedSlices = @("c13a")
+$Script:SupportedSlices = @("c13a", "c14a")
 
 $Script:SliceTests = @{
 	"c13a" = @(
 		"res://cloud/tests/test_cloud_seat_token.gd"
+	)
+	"c14a" = @(
+		"res://cloud/tests/test_cloud_credential_store.gd"
 	)
 }
 
@@ -166,6 +170,7 @@ $Script:AllTests = @(
 	"res://cloud/tests/test_server_snapshot_adapter_visibility.gd",
 	"res://cloud/tests/test_cloud_client_payloads.gd",
 	"res://cloud/tests/test_cloud_seat_token.gd",
+	"res://cloud/tests/test_cloud_credential_store.gd",
 	"res://cloud/tests/test_cloud_routing_pick.gd",
 	"res://cloud/tests/test_cloud_turn_banner.gd",
 	"res://cloud/tests/test_cloud_combat_animation.gd",

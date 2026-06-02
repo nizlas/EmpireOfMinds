@@ -1744,3 +1744,19 @@ Caveat:
 
 - **No** desync recovery beyond the GET snapshot; **no** live presence or websocket refresh in this slice.
 
+## 2026-06-02 — Slice C14a local cloud credential store (Godot client only)
+
+Decision:
+
+- Cloud match credentials are persisted in **`user://cloud_matches.json`** as plaintext JSON (**version 1**, array of `{server_url, match_id, actor_id, seat_token, is_host, last_seen_status, last_seen_revision, label, updated_at}`). Helper: **`game/cloud/cloud_credential_store.gd`**.
+- **Conservative resolution:** **`EOM_CLOUD_SEAT_TOKEN`** / inspector token override saved store; saved token is used only when a **known `match_id`** is provided (env/inspector/export) and token is empty. **No** auto-resume of the latest saved match without explicit match id or future lobby selection.
+- **`Main`** saves credentials after successful create/reconnect bootstrap and updates **`last_seen_revision`** after snapshot apply / accepted POST responses. **`last_seen_status`** remains **`unknown`** until C14b server staging metadata exists.
+
+Rationale:
+
+- Removes dev friction for reconnect while keeping C13a authority and hotseat paths unchanged; foundation for C14c lobby without server or API changes in this slice.
+
+Caveat:
+
+- **Alpha-grade local plaintext** — not suitable for production secrecy; no keychain/encryption in C14a.
+

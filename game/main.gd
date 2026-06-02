@@ -21,6 +21,7 @@ const HexCoordScript = preload("res://domain/hex_coord.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const TurnViewSyncScript = preload("res://presentation/turn_view_sync.gd")
 const CloudClientScript = preload("res://cloud/cloud_client.gd")
+const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.gd")
 const CityProductionPanelScript = preload("res://presentation/city_production_panel.gd")
 ## Phase 4.5n: mouse-wheel zoom multiplier (center-anchored in layer-local space; not cursor-anchored).
 const ZOOM_STEP: float = 1.10
@@ -246,14 +247,55 @@ func _cloud_resolve_match_id() -> String:
 
 
 func _cloud_resolve_seat_token_meta() -> Dictionary:
-	var env_t: String = OS.get_environment("EOM_CLOUD_SEAT_TOKEN").strip_edges()
-	if env_t.length() > 0:
-		return {"value": env_t, "source": "EOM_CLOUD_SEAT_TOKEN"}
-	return {"value": cloud_seat_token.strip_edges(), "source": "Main.cloud_seat_token"}
+	return CloudCredentialStoreScript.resolve_seat_token_for_boot(
+		_cloud_resolve_base_url(),
+		_cloud_resolve_match_id(),
+		OS.get_environment("EOM_CLOUD_SEAT_TOKEN"),
+		cloud_seat_token,
+	)
 
 
 func _cloud_resolve_seat_token() -> String:
 	return str(_cloud_resolve_seat_token_meta()["value"])
+
+
+func _cloud_persist_credential_after_bootstrap(resp: Dictionary, reconnecting: bool) -> void:
+	if _cloud_session == null:
+		return
+	var tok: String = _cloud_session.seat_token.strip_edges()
+	if tok.is_empty():
+		return
+	var is_host: bool = not reconnecting
+	if reconnecting:
+		var existing: Dictionary = CloudCredentialStoreScript.find(
+			CloudCredentialStoreScript.DEFAULT_PATH,
+			_cloud_resolve_base_url(),
+			_cloud_session.match_id,
+		)
+		if not existing.is_empty():
+			is_host = bool(existing.get("is_host", false))
+		else:
+			is_host = tok.begins_with("ht_")
+	CloudCredentialStoreScript.persist_after_bootstrap(
+		CloudCredentialStoreScript.DEFAULT_PATH,
+		_cloud_resolve_base_url(),
+		_cloud_session.match_id,
+		tok,
+		is_host,
+		resp,
+	)
+
+
+func _cloud_touch_credential_revision(revision: int) -> void:
+	if not _cloud_mode or _cloud_session == null:
+		return
+	CloudCredentialStoreScript.touch_revision(
+		CloudCredentialStoreScript.DEFAULT_PATH,
+		_cloud_resolve_base_url(),
+		_cloud_session.match_id,
+		_cloud_session.seat_token,
+		revision,
+	)
 
 
 func _cloud_debug_enabled() -> bool:
@@ -359,20 +401,22 @@ func _bootstrap_cloud_session() -> void:
 		yields_boot.focus_mode = Control.FOCUS_NONE
 	_cloud_session = CloudSessionScript.new()
 	_cloud_session.base_url = _cloud_resolve_base_url()
-	_cloud_session.seat_token = _cloud_resolve_seat_token()
+	var seat_meta: Dictionary = _cloud_resolve_seat_token_meta()
+	_cloud_session.seat_token = str(seat_meta.get("value", ""))
 	add_child(_cloud_session)
 	if _cloud_debug_enabled():
 		var umeta := _cloud_resolve_base_url_meta()
 		var mmeta := _cloud_resolve_match_id_meta()
 		print(
 			(
-				"SliceC8DBG cloud_bootstrap effective_url=%s url_source=%s cloud_scenario_id=%s match_id=%s match_id_source=%s use_cloud_server_export=%s"
+				"SliceC8DBG cloud_bootstrap effective_url=%s url_source=%s cloud_scenario_id=%s match_id=%s match_id_source=%s seat_token_source=%s use_cloud_server_export=%s"
 				% [
 					umeta["url"],
 					umeta["source"],
 					cloud_scenario_id,
 					mmeta["value"],
 					mmeta["source"],
+					seat_meta.get("source", ""),
 					use_cloud_server,
 				]
 			)
@@ -448,10 +492,12 @@ func _bootstrap_cloud_session() -> void:
 		else:
 			print(
 				(
-					"Slice C13 cloud: created match_id=%s (set EOM_CLOUD_MATCH_ID and EOM_CLOUD_SEAT_TOKEN to reconnect) revision=%s"
+					"Slice C14 cloud: created match_id=%s (credentials saved; set EOM_CLOUD_MATCH_ID to reconnect) revision=%s"
 					% [_cloud_session.match_id, snap.get("revision", "?")]
 				)
 			)
+	_cloud_persist_credential_after_bootstrap(resp, reconnecting)
+	_cloud_touch_credential_revision(CloudCredentialStoreScript.revision_from_response(resp))
 	call_deferred("cloud_refresh_legal_async_entry")
 
 
@@ -867,6 +913,7 @@ func _apply_cloud_post_snapshot(r: Dictionary, action: Dictionary) -> void:
 	_adjust_selection_after_cloud_action(action, gs_new)
 	_refresh_presentation_after_cloud_snap()
 	_cloud_maybe_show_turn_start_banner(gs_new, prev_pid, str(action.get("action_type", "")))
+	_cloud_touch_credential_revision(CloudCredentialStoreScript.revision_from_response(r))
 	call_deferred("cloud_refresh_legal_async_entry")
 
 

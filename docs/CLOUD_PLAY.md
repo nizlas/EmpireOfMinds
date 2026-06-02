@@ -58,6 +58,15 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 
 **Out of scope for C11:** damage popups, sprite hit flash, death fade, sound, event polling, combat replay on reconnect.
 
+### Local cloud credentials (Slice C14a)
+
+- **Client-only:** match credentials are persisted in **`user://cloud_matches.json`** (plaintext JSON for alpha; not encrypted).
+- **Fields:** `server_url`, `match_id`, `actor_id`, `seat_token`, `is_host`, `last_seen_revision`, `last_seen_status` ( **`unknown`** until server exposes staging/ongoing in C14b), optional `label`, `updated_at`.
+- **After create:** host token and `match_id` are saved automatically; reconnect no longer requires **`EOM_CLOUD_SEAT_TOKEN`** when **`EOM_CLOUD_MATCH_ID`** is set.
+- **Resolution (conservative):** env/inspector **`EOM_CLOUD_SEAT_TOKEN`** wins; else if **`EOM_CLOUD_MATCH_ID`** / **`cloud_match_id`** is set but token is empty, load token from the store for that **`server_url` + `match_id`**; else create-new-match when match id is empty. **No** auto-resume of “latest” saved match without an explicit match id (lobby UI in C14c).
+- **Dev overrides unchanged:** **`EOM_CLOUD_CLIENT`**, **`EOM_CLOUD_BASE_URL`**, **`EOM_CLOUD_MATCH_ID`**, **`EOM_CLOUD_SEAT_TOKEN`**, **`EOM_CLOUD_DEBUG`**.
+- **Out of scope:** lobby/front-door UI, server list/claim/start, encryption/keychain.
+
 ### Seat tokens / host credential (Slice C13a)
 
 - **Access model:** new matches get **`meta.json`** with per-seat **`st_…`** tokens and a **host **`ht_…`** token** (can act for any seat in that match; dev/single-client full-match flow).
