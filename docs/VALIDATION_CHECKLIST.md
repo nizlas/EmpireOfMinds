@@ -309,3 +309,11 @@ Deploy-only validation; **no** gameplay, schema, auth, Postgres, polling, or AI 
 - [ ] Local dev unchanged: `cd server` + `uvicorn app.main:app --reload --port 8000`; cloud off → hotseat only.
 
 **Local pre-deploy checks:** `docker build -t empire-server ./server`; `docker compose -f deploy/hetzner/docker-compose.yml config`; **`pytest -q`** in **`server/`**; **`scripts/run-godot-tests.ps1`** (no Godot code changes in C12a).
+
+## Slice C12b — Cloud explored-map memory (reconnect / server restart)
+
+- [ ] Cloud: move unit to reveal new tiles; **GET** same match (or reconnect Godot with **`EOM_CLOUD_MATCH_ID`**) — previously visited tiles outside current sight stay clear (parchment does not return over them).
+- [ ] Remote or local FastAPI: **`docker compose restart empire-server`** (or restart uvicorn) — explored memory still restored from snapshot file.
+- [ ] Local hotseat (cloud off): fog memory unchanged after **End Turn** / long play.
+
+Validation: **`pytest -q`** — **`test_player_visibility_flow.py`**. **`scripts/run-godot-tests.ps1`** — **`test_server_snapshot_adapter_visibility.gd`**.

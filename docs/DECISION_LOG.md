@@ -1,3 +1,8 @@
+## 2026-06-02 — Slice **C12b** — Cloud explored-map memory in snapshot v2
+
+- **Decision:** Persist per-player **explored** tiles in authoritative snapshot **`visibility_state`** (`by_owner` + `explored` coord pairs). Server updates visibility on **`move_unit`**, **`found_city`**, and **`attack_unit`** (same radii/rules as Godot **`PlayerVisibilityState`**). Godot cloud adapter restores **`visibility_state`** from snapshot instead of re-seeding from current unit/city sight only. Legacy snapshots without the field seed on read (same as pre-fix reconnect). **Out of scope:** fog privacy, cross-player reveal, presentation-only caches, hotseat path changes.
+- **Local hotseat:** unchanged — still client **`GameState.visibility_state`** via **`try_apply`**.
+
 ## 2026-06-02 — Slice **C12a** — Cloud Alpha deploy foundation (Hetzner + Docker + Caddy)
 
 - **Decision:** Add repo-tracked **`server/Dockerfile`**, **`deploy/hetzner/docker-compose.yml`**, and **`deploy/hetzner/Caddyfile`** for **empire-cloud-01** (`62.238.44.6`). **Caddy** serves **only** **`cloud.thewizardsapprentice.org`** with automatic HTTPS; **FastAPI** stays on the internal Docker network (**`expose: 8000`**, no host **`ports`** for the API). Match persistence reuses existing **`EMPIRE_SERVER_DATA_DIR=/app/data`** (writes under **`/app/data/matches/`**) on named volume **`empire_match_store`** — **no** new env var and **no** server code change. **Out of scope:** Postgres, auth/seats/accounts, polling/realtime, AI/LLM, new endpoints, gameplay/schema changes, SiteGround SSL for the subdomain, CI/CD automation.

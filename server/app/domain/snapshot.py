@@ -9,6 +9,7 @@ from app.domain.city import WORKED_TILES_MODE_AUTO, City
 from app.domain.progress_state import ProgressState
 from app.domain.hex_coord import HexCoord
 from app.domain.hex_map import HexMap
+from app.domain import player_visibility
 from app.domain.scenario import Scenario, scenario_for_id
 from app.domain.turn_state import turn_state_from_players
 from app.domain.unit import Unit
@@ -149,6 +150,8 @@ def build_initial_snapshot(
 ) -> dict[str, Any]:
     scenario = scenario_for_id(scenario_id)
     progress = ProgressState.with_default_unlocks_for_players(player_ids)
+    vis = player_visibility.empty_for_players(player_ids)
+    vis = player_visibility.seed_all_players(vis, scenario, player_ids)
     return {
         "match_id": match_id,
         "schema_version": 2,
@@ -162,4 +165,5 @@ def build_initial_snapshot(
         "scenario": serialize_scenario(scenario),
         "turn_state": turn_state_from_players(player_ids),
         "progress_state": serialize_progress_state(progress),
+        "visibility_state": player_visibility.serialize_visibility(vis),
     }

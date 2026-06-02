@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
-from app.domain import legal_actions, match_state, snapshot
+from app.domain import legal_actions, match_state, player_visibility, snapshot
 from app.domain.actions import attack_unit, end_turn, found_city, move_unit, set_city_production
 from app.domain.combat_rules import resolve_attack
 from app.domain.food_growth_rules import apply_food_growth_for_player
@@ -224,6 +224,9 @@ def _handle_move_unit(match_id: str, snap: dict[str, Any], action: dict[str, Any
         "revision": new_revision,
         "scenario": snapshot.serialize_scenario(new_scenario),
     }
+    new_snap = player_visibility.apply_visibility_for_actor(
+        new_snap, new_scenario, int(action["actor_id"])
+    )
 
     moved = new_scenario.unit_by_id(int(action["unit_id"]))
     if moved is None:
@@ -273,6 +276,9 @@ def _handle_found_city(match_id: str, snap: dict[str, Any], action: dict[str, An
         "revision": new_revision,
         "scenario": snapshot.serialize_scenario(new_scenario),
     }
+    new_snap = player_visibility.apply_visibility_for_actor(
+        new_snap, new_scenario, int(action["actor_id"])
+    )
 
     new_city_id = new_scenario.peek_next_city_id() - 1
     city = new_scenario.city_by_id(new_city_id)
@@ -388,6 +394,9 @@ def _handle_attack_unit(match_id: str, snap: dict[str, Any], action: dict[str, A
         "revision": new_revision,
         "scenario": snapshot.serialize_scenario(new_scenario),
     }
+    new_snap = player_visibility.apply_visibility_for_actor(
+        new_snap, new_scenario, int(action["actor_id"])
+    )
 
     log_index = len(file_store.read_events(match_id))
     accepted_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
