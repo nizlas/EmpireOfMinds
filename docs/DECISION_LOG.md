@@ -1760,3 +1760,19 @@ Caveat:
 
 - **Alpha-grade local plaintext** — not suitable for production secrecy; no keychain/encryption in C14a.
 
+## 2026-06-02 — Slice C14b server lobby list + open seat claim
+
+Decision:
+
+- New matches write **`meta.json` schema_version 2** with **`status: staging`**, **`created_at`**, **`scenario_id`**, and **`seats[].claimed`**. **`GET /v1/matches`** lists token-free summaries (directory scan); **`POST .../seats/{actor_id}/claim`** returns only the claimed seat token.
+- **C14b does not** add **`POST /start`** or reject **`POST /actions`** while staging — preserves create-then-play and C13a token gate until **C14d**.
+- **Legacy:** no-**`meta.json`** dirs omitted from list; permissive actions unchanged. **C13 meta v1** treated as **`ongoing`**; claim returns **`match_not_in_staging`**.
+
+Rationale:
+
+- Open alpha lobby discovery without accounts or invite codes; Godot lobby UI deferred to **C14c**.
+
+Caveat:
+
+- Public staging matches are joinable by any client with server access; no rate limiting or private matches.
+

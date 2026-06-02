@@ -15,6 +15,12 @@ uvicorn app.main:app --reload --port 8000
 
 New matches write **`meta.json`** with per-seat and host tokens. **`POST /v1/matches/{id}/actions`** on those matches requires header **`X-Empire-Seat-Token`**. Create response includes **`seats`** and **`host_token`**; **`GET /v1/matches/{id}`** does not. Legacy matches without **`meta.json`** stay permissive.
 
+## Lobby (C14b)
+
+- **`GET /v1/matches`** — token-free lobby summaries; optional **`?status=staging`**.
+- **`POST /v1/matches/{id}/seats/{actor_id}/claim`** — claim open seat in staging; returns that seat token only.
+- New matches use **`meta.json` schema_version 2** (`status`, `created_at`, `scenario_id`, `claimed`). **`POST /start`** and action status gating are **not** implemented until C14d.
+
 Override data directory (e.g. for tests):
 
 ```powershell
@@ -31,7 +37,7 @@ pip install -r requirements.txt
 pytest -q
 ```
 
-From the **repository root**, profiles: `.\scripts\run-server-tests.ps1` (full), `smoke`, `cloud`, `slice c13a` — see [TESTING.md](../docs/TESTING.md).
+From the **repository root**, profiles: `.\scripts\run-server-tests.ps1` (full), `smoke`, `cloud`, `slice c13a`, `slice c14b` — see [TESTING.md](../docs/TESTING.md).
 
 ## Run in Docker (local smoke)
 

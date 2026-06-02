@@ -67,7 +67,10 @@ def read_meta(match_id: str) -> dict[str, Any] | None:
     p = meta_path(match_id)
     if not p.is_file():
         return None
-    return json.loads(p.read_text(encoding="utf-8"))
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 def append_event(match_id: str, event: dict[str, Any]) -> None:
@@ -75,6 +78,18 @@ def append_event(match_id: str, event: dict[str, Any]) -> None:
     line = json.dumps(event, separators=(",", ":"), ensure_ascii=False)
     with events_path(match_id).open("a", encoding="utf-8") as f:
         f.write(line + _LINE_SEP)
+
+
+def list_match_ids() -> list[str]:
+    """Match directory names under matches_root (unordered scan)."""
+    root = matches_root()
+    if not root.is_dir():
+        return []
+    out: list[str] = []
+    for entry in root.iterdir():
+        if entry.is_dir():
+            out.append(entry.name)
+    return sorted(out)
 
 
 def read_events(match_id: str) -> list[dict[str, Any]]:

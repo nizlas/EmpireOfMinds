@@ -24,6 +24,7 @@ From the **repository root** (requires `pytest` on PATH; install deps under `ser
 .\scripts\run-server-tests.ps1 smoke
 .\scripts\run-server-tests.ps1 cloud
 .\scripts\run-server-tests.ps1 slice c13a
+.\scripts\run-server-tests.ps1 slice c14b
 .\scripts\run-server-tests.ps1 presentation   # prints Godot-only notice, exit 0
 ```
 
@@ -35,6 +36,7 @@ Equivalent manual full run: `cd server` then `pytest -q`.
 - **smoke** — `test_end_turn_flow.py` (health, create match, end turn), `test_legal_actions_endpoint.py`.
 - **cloud** — API/action flows: create match, move, end turn, found city, production, attack, combat rules, legal-actions, production/food/science ticks, snapshot v2, player visibility, seats / seat-token flow.
 - **slice c13a** — `test_seats.py`, `test_seat_token_flow.py`.
+- **slice c14b** — `test_lobby_list.py`, `test_seat_claim.py`, `test_seats.py`.
 
 Unknown slice ids print supported ids and exit non-zero.
 

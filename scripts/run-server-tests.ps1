@@ -12,12 +12,17 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $ServerDir = Join-Path $RepoRoot "server"
 
-$Script:SupportedSlices = @("c13a")
+$Script:SupportedSlices = @("c13a", "c14b")
 
 $Script:SliceTests = @{
 	"c13a" = @(
 		"tests/test_seats.py"
 		"tests/test_seat_token_flow.py"
+	)
+	"c14b" = @(
+		"tests/test_lobby_list.py"
+		"tests/test_seat_claim.py"
+		"tests/test_seats.py"
 	)
 }
 
@@ -43,6 +48,8 @@ $Script:CloudTests = @(
 	"tests/test_player_visibility_flow.py"
 	"tests/test_seats.py"
 	"tests/test_seat_token_flow.py"
+	"tests/test_lobby_list.py"
+	"tests/test_seat_claim.py"
 )
 
 function Show-ServerTestUsage {

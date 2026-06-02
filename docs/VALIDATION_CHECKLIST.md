@@ -330,3 +330,14 @@ Validation: **`pytest -q`** — **`test_player_visibility_flow.py`**. **`scripts
 - [ ] Garbled/missing token on seated match → actions rejected; cloud off → hotseat unchanged.
 
 Validation: **`pytest -q`** — **`test_seats.py`**, **`test_seat_token_flow.py`**. **`scripts/run-godot-tests.ps1`** — **`test_cloud_seat_token.gd`**. **`server/scripts/smoke_cloud_01.ps1`** (with server running).
+
+## Slice C14b — Lobby list + seat claim (server)
+
+- [ ] **`POST /v1/matches`** writes **`meta.json` v2** with **`status: staging`**, **`claimed: false`** on seats; create response still includes **`seats`** + **`host_token`**.
+- [ ] **`GET /v1/matches`** returns summaries with **no** token fields; **`?status=staging`** filters v2 staging matches.
+- [ ] **`POST /v1/matches/{id}/seats/{actor_id}/claim`** returns only that **`seat_token`**; **`meta.json`** shows **`claimed: true`**.
+- [ ] Claim rejects: unknown match, non-staging (v1/ongoing), already claimed, missing seat.
+- [ ] **`POST /actions`** with host token still accepted on staging match (no status gate until C14d).
+- [ ] Legacy no-meta dirs do not appear in list; actions still permissive.
+
+Validation: **`scripts/run-server-tests.ps1 slice c14b`** — **`test_lobby_list.py`**, **`test_seat_claim.py`**, **`test_seats.py`**. Full/cloud profiles include new tests.

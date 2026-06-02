@@ -126,7 +126,7 @@ def create_match(
     mid = match_state.make_match_id()
     snap = match_state.initial_snapshot(mid, player_ids, str(scenario_id))
     file_store.write_snapshot(mid, snap)
-    meta = seats.build_meta(mid, player_ids)
+    meta = seats.build_meta(mid, player_ids, str(scenario_id))
     file_store.write_meta(mid, meta)
     return {
         "match_id": mid,
@@ -135,6 +135,55 @@ def create_match(
         "state_hash": state_hash(snap),
         "seats": seats.public_seats_from_meta(meta),
         "host_token": meta["host_token"],
+    }
+
+
+@router.get("/matches")
+def list_matches(
+    status: str | None = Query(default=None, description="Filter by meta status (e.g. staging)."),
+) -> dict[str, Any]:
+    """Token-free lobby summaries for matches with meta.json (C14b)."""
+    summaries: list[dict[str, Any]] = []
+    status_filter = status.strip() if isinstance(status, str) and status.strip() else None
+    for match_id in file_store.list_match_ids():
+        meta = file_store.read_meta(match_id)
+        if meta is None:
+            continue
+        snap = file_store.read_snapshot(match_id)
+        if snap is None:
+            continue
+        st = seats.match_status(meta)
+        if status_filter is not None and st != status_filter:
+            continue
+        summaries.append(seats.lobby_summary(match_id, meta, snap))
+    return {"matches": summaries}
+
+
+@router.post("/matches/{match_id}/seats/{actor_id}/claim")
+def claim_match_seat(match_id: str, actor_id: int) -> dict[str, Any]:
+    """Claim an open seat in a staging match; returns only that seat's token (C14b)."""
+    snap = file_store.read_snapshot(match_id)
+    if snap is None:
+        raise HTTPException(status_code=404, detail="match_not_found")
+    meta = file_store.read_meta(match_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="match_not_found")
+    result = seats.try_claim_seat(meta, actor_id)
+    if not result.ok:
+        if result.reason == "match_not_in_staging":
+            raise HTTPException(status_code=409, detail=result.reason)
+        if result.reason == "seat_already_claimed":
+            raise HTTPException(status_code=409, detail=result.reason)
+        if result.reason == "seat_not_found":
+            raise HTTPException(status_code=404, detail=result.reason)
+        raise HTTPException(status_code=400, detail=result.reason)
+    assert result.meta is not None
+    file_store.write_meta(match_id, result.meta)
+    return {
+        "match_id": match_id,
+        "actor_id": actor_id,
+        "seat_token": result.seat_token,
+        "status": seats.match_status(result.meta),
     }
 
 
