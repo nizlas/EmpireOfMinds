@@ -22,29 +22,36 @@ from app.domain import snapshot as snapshot_mod
 from app.storage import file_store
 
 from tick_test_helpers import inject_p1_city_for_tick_tests
+from match_helpers import create_seated_match, post_match_action
 
 
-def _tiny_founded(client: TestClient) -> str:
-    r_m = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()
-    mid = r_m["match_id"]
-    r_f = client.post(
-        f"/v1/matches/{mid}/actions",
-        json={
+
+def _tiny_founded(client: TestClient) -> tuple[str, dict[str, str]]:
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    hdr = m["headers"]
+    r_f = post_match_action(
+        client,
+        mid,
+        {
             "schema_version": 1,
             "action_type": "found_city",
             "actor_id": 0,
             "unit_id": 1,
             "position": [0, 0],
         },
+        headers=hdr,
     ).json()
     assert r_f.get("accepted") is True, json.dumps(r_f)
-    return mid
+    return mid, hdr
 
 
-def _end(client: TestClient, mid: str, actor_id: int) -> dict:
-    return client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": actor_id},
+def _end(client: TestClient, mid: str, actor_id: int, headers: dict[str, str]) -> dict:
+    return post_match_action(
+        client,
+        mid,
+        {"schema_version": 1, "action_type": "end_turn", "actor_id": actor_id},
+        headers=headers,
     ).json()
 
 
@@ -202,9 +209,9 @@ def test_apply_food_growth_godot_fixtures() -> None:
 
 def test_end_turn_food_only_for_ending_player(client: TestClient) -> None:
     """FoodGrowthTick runs only for the ending player; the other owner's city is unchanged."""
-    mid = _tiny_founded(client)
+    mid, action_headers = _tiny_founded(client)
     fs0 = client.get(f"/v1/matches/{mid}").json()["snapshot"]["scenario"]["cities"][0]["food_stored"]
-    r_e0 = _end(client, mid, 0)
+    r_e0 = _end(client, mid, 0, action_headers)
     assert r_e0.get("accepted") is True, json.dumps(r_e0)
     snap0 = client.get(f"/v1/matches/{mid}").json()["snapshot"]
     by0 = {c["id"]: c for c in snap0["scenario"]["cities"]}
@@ -236,7 +243,7 @@ def test_end_turn_food_only_for_ending_player(client: TestClient) -> None:
             "yield": y2,
         }
     )
-    r_e1 = _end(client, mid, 1)
+    r_e1 = _end(client, mid, 1, action_headers)
     assert r_e1.get("accepted") is True, json.dumps(r_e1)
     snap2 = client.get(f"/v1/matches/{mid}").json()["snapshot"]
     by2 = {c["id"]: c for c in snap2["scenario"]["cities"]}
@@ -245,19 +252,16 @@ def test_end_turn_food_only_for_ending_player(client: TestClient) -> None:
 
 
 def test_food_growth_independent_of_current_project(client: TestClient) -> None:
-    mid = _tiny_founded(client)
-    client.post(
-        f"/v1/matches/{mid}/actions",
-        json={
+    mid, action_headers = _tiny_founded(client)
+    post_match_action(client, mid, {
             "schema_version": 2,
             "action_type": "set_city_production",
             "actor_id": 0,
             "city_id": 1,
             "project_id": "produce_unit:warrior",
-        },
-    )
+        }, headers=action_headers)
     fb = client.get(f"/v1/matches/{mid}").json()["snapshot"]["scenario"]["cities"][0]["food_stored"]
-    body = _end(client, mid, 0)
+    body = _end(client, mid, 0, action_headers)
     assert body["accepted"] is True
     c = body["snapshot"]["scenario"]["cities"][0]
     assert c["current_project"]["progress"] > 0
@@ -265,18 +269,18 @@ def test_food_growth_independent_of_current_project(client: TestClient) -> None:
 
 
 def test_end_turn_no_food_event_when_surplus_not_positive(client: TestClient) -> None:
-    mid = _tiny_founded(client)
+    mid, action_headers = _tiny_founded(client)
     snap = file_store.read_snapshot(mid)
     assert snap is not None
     snap["scenario"]["cities"][0]["population"] = 50
     file_store.write_snapshot(mid, snap)
-    _end(client, mid, 0)
+    _end(client, mid, 0, action_headers)
     ev = client.get(f"/v1/matches/{mid}/events").json()["events"]
     assert not any(e["action_type"] == EVENT_TYPE_PROGRESS for e in ev)
 
 
 def test_city_grew_via_end_turn(client: TestClient) -> None:
-    mid = _tiny_founded(client)
+    mid, action_headers = _tiny_founded(client)
     snap = file_store.read_snapshot(mid)
     assert snap is not None
     snap["scenario"]["cities"][0]["food_stored"] = 14
@@ -297,7 +301,7 @@ def test_city_grew_via_end_turn(client: TestClient) -> None:
     exp_pop = int(city.population) + 1 if new_stored >= thr else int(city.population)
     exp_food = new_stored - thr if new_stored >= thr else new_stored
 
-    _end(client, mid, 0)
+    _end(client, mid, 0, action_headers)
     c = client.get(f"/v1/matches/{mid}").json()["snapshot"]["scenario"]["cities"][0]
     assert c["population"] == exp_pop
     assert c["food_stored"] == exp_food
@@ -307,12 +311,9 @@ def test_city_grew_via_end_turn(client: TestClient) -> None:
 
 
 def test_rejected_end_turn_no_food_change(client: TestClient) -> None:
-    mid = _tiny_founded(client)
+    mid, action_headers = _tiny_founded(client)
     sh = client.get(f"/v1/matches/{mid}").json()["state_hash"]
-    r = client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 1},
-    ).json()
+    r = post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 1}, headers=action_headers).json()
     assert r["accepted"] is False
     snap = client.get(f"/v1/matches/{mid}").json()["snapshot"]
     assert snap["scenario"]["cities"][0]["food_stored"] == 0
@@ -320,18 +321,15 @@ def test_rejected_end_turn_no_food_change(client: TestClient) -> None:
 
 
 def test_engine_event_order_production_then_food_then_end_turn(client: TestClient) -> None:
-    mid = _tiny_founded(client)
-    client.post(
-        f"/v1/matches/{mid}/actions",
-        json={
+    mid, action_headers = _tiny_founded(client)
+    post_match_action(client, mid, {
             "schema_version": 2,
             "action_type": "set_city_production",
             "actor_id": 0,
             "city_id": 1,
             "project_id": "produce_unit:warrior",
-        },
-    )
-    _end(client, mid, 0)
+        }, headers=action_headers)
+    _end(client, mid, 0, action_headers)
     ev = client.get(f"/v1/matches/{mid}/events").json()["events"]
     kinds = [e["action_type"] for e in ev]
     i_pp = kinds.index("production_progress")
@@ -343,19 +341,16 @@ def test_engine_event_order_production_then_food_then_end_turn(client: TestClien
 
 def test_delivery_and_movement_still_after_advance(client: TestClient) -> None:
     """Regression: C4 delivery for new current player after end_turn row."""
-    mid = _tiny_founded(client)
-    client.post(
-        f"/v1/matches/{mid}/actions",
-        json={
+    mid, action_headers = _tiny_founded(client)
+    post_match_action(client, mid, {
             "schema_version": 2,
             "action_type": "set_city_production",
             "actor_id": 0,
             "city_id": 1,
             "project_id": "produce_unit:warrior",
-        },
-    )
-    _end(client, mid, 0)
-    _end(client, mid, 1)
+        }, headers=action_headers)
+    _end(client, mid, 0, action_headers)
+    _end(client, mid, 1, action_headers)
     ev = client.get(f"/v1/matches/{mid}/events").json()["events"]
     kinds = [e["action_type"] for e in ev]
     assert "unit_produced" in kinds
@@ -365,9 +360,9 @@ def test_delivery_and_movement_still_after_advance(client: TestClient) -> None:
 
 
 def test_progress_state_includes_science_after_end_turn(client: TestClient) -> None:
-    mid = _tiny_founded(client)
+    mid, action_headers = _tiny_founded(client)
     before = copy.deepcopy(client.get(f"/v1/matches/{mid}").json()["snapshot"]["progress_state"])
-    _end(client, mid, 0)
+    _end(client, mid, 0, action_headers)
     after = client.get(f"/v1/matches/{mid}").json()["snapshot"]["progress_state"]
     assert after != before
     row0 = next(r for r in after["by_owner"] if r["owner_id"] == 0)
@@ -383,8 +378,8 @@ def test_identical_setup_identical_state_hash(client: TestClient) -> None:
 
     hashes: list[str] = []
     for _ in range(2):
-        m = _tiny_founded(client)
-        _end(client, m, 0)
-        hashes.append(_world_fp(m))
+        mid, action_headers = _tiny_founded(client)
+        _end(client, mid, 0, action_headers)
+        hashes.append(_world_fp(mid))
     assert hashes[0] == hashes[1]
 

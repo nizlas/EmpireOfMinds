@@ -146,8 +146,9 @@ Match files live in the **`empire_match_store`** volume at `/app/data/matches/<m
 1. Start the game with cloud enabled:
    - `EOM_CLOUD_CLIENT=1`
    - `EOM_CLOUD_BASE_URL=https://cloud.thewizardsapprentice.org`
-   - Optional: `EOM_CLOUD_DEBUG=1`
+   - Optional: `EOM_CLOUD_DEBUG=1` (prints full **`host_token`** on create)
    - **Unset** `EOM_CLOUD_MATCH_ID` for a **new** match.
+   - After create, set **`EOM_CLOUD_SEAT_TOKEN=<host_token>`** for reconnect (Slice C13a); Caddy forwards **`X-Empire-Seat-Token`** by default — no proxy change required.
 2. Play: create match, **move**, **attack** (C10/C11), **end turn**.
 3. Copy `match_id` from console; quit; relaunch with `EOM_CLOUD_MATCH_ID=<id>` — reconnect via GET should restore state.
 4. Disable cloud (`EOM_CLOUD_CLIENT` unset) — local hotseat unchanged.

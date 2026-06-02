@@ -42,14 +42,23 @@ if ($Failed) {
 
 # 2) create match
 $matchId = $null
+$hostToken = $null
+$seatHeaders = @{}
 try {
     # Literal empty JSON object (avoid PS 5.1 oddities with @{} | ConvertTo-Json)
     $createBody = "{}"
     $created = Invoke-RestMethod -Uri "$BaseUrl/v1/matches" -Method Post -Body $createBody -ContentType "application/json"
     $matchId = $created.match_id
+    $hostToken = $created.host_token
+    if ($hostToken) {
+        $seatHeaders = @{ "X-Empire-Seat-Token" = $hostToken }
+    }
     if ($matchId) {
         Write-Pass "POST /v1/matches -> match_id=$matchId"
         Write-Host ('       match_id (for inspection): {0}' -f $matchId) -ForegroundColor Yellow
+        if ($hostToken) {
+            Write-Host ('       host_token (EOM_CLOUD_SEAT_TOKEN): {0}' -f $hostToken) -ForegroundColor Yellow
+        }
     }
     else {
         Write-Fail "POST /v1/matches: missing match_id"
@@ -91,7 +100,7 @@ if ($Failed) {
 # 3) P0 end_turn - accepted, revision 1, current_index 1
 try {
     $a0 = @{ schema_version = 1; action_type = "end_turn"; actor_id = 0 } | ConvertTo-Json -Compress
-    $r1 = Invoke-RestMethod -Uri "$BaseUrl/v1/matches/$matchId/actions" -Method Post -Body $a0 -ContentType "application/json"
+    $r1 = Invoke-RestMethod -Uri "$BaseUrl/v1/matches/$matchId/actions" -Method Post -Body $a0 -ContentType "application/json" -Headers $seatHeaders
     if (
         $r1.accepted -eq $true -and
         $r1.revision -eq 1 -and
@@ -114,7 +123,7 @@ if ($Failed) {
 # 4) P0 again - not_current_player
 try {
     $a0b = @{ schema_version = 1; action_type = "end_turn"; actor_id = 0 } | ConvertTo-Json -Compress
-    $r1b = Invoke-RestMethod -Uri "$BaseUrl/v1/matches/$matchId/actions" -Method Post -Body $a0b -ContentType "application/json"
+    $r1b = Invoke-RestMethod -Uri "$BaseUrl/v1/matches/$matchId/actions" -Method Post -Body $a0b -ContentType "application/json" -Headers $seatHeaders
     if (
         $r1b.accepted -eq $false -and
         $r1b.reason -eq "not_current_player" -and
@@ -137,7 +146,7 @@ if ($Failed) {
 # 5) P1 end_turn - accepted, revision 2, current_index 0, turn_number 2
 try {
     $a1 = @{ schema_version = 1; action_type = "end_turn"; actor_id = 1 } | ConvertTo-Json -Compress
-    $r2 = Invoke-RestMethod -Uri "$BaseUrl/v1/matches/$matchId/actions" -Method Post -Body $a1 -ContentType "application/json"
+    $r2 = Invoke-RestMethod -Uri "$BaseUrl/v1/matches/$matchId/actions" -Method Post -Body $a1 -ContentType "application/json" -Headers $seatHeaders
     if (
         $r2.accepted -eq $true -and
         $r2.revision -eq 2 -and

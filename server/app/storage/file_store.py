@@ -34,6 +34,10 @@ def events_path(match_id: str) -> Path:
     return match_dir(match_id) / "events.jsonl"
 
 
+def meta_path(match_id: str) -> Path:
+    return match_dir(match_id) / "meta.json"
+
+
 def ensure_match_dir(match_id: str) -> Path:
     d = match_dir(match_id)
     d.mkdir(parents=True, exist_ok=True)
@@ -48,6 +52,19 @@ def write_snapshot(match_id: str, snapshot: dict[str, Any]) -> None:
 
 def read_snapshot(match_id: str) -> dict[str, Any] | None:
     p = snapshot_path(match_id)
+    if not p.is_file():
+        return None
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def write_meta(match_id: str, meta: dict[str, Any]) -> None:
+    ensure_match_dir(match_id)
+    p = meta_path(match_id)
+    p.write_text(json.dumps(meta, indent=2) + _LINE_SEP, encoding="utf-8")
+
+
+def read_meta(match_id: str) -> dict[str, Any] | None:
+    p = meta_path(match_id)
     if not p.is_file():
         return None
     return json.loads(p.read_text(encoding="utf-8"))

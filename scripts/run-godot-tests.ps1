@@ -176,6 +176,7 @@ $Tests = @(
 	"res://cloud/tests/test_server_snapshot_adapter.gd",
 	"res://cloud/tests/test_server_snapshot_adapter_visibility.gd",
 	"res://cloud/tests/test_cloud_client_payloads.gd",
+	"res://cloud/tests/test_cloud_seat_token.gd",
 	"res://cloud/tests/test_cloud_routing_pick.gd",
 	"res://cloud/tests/test_cloud_turn_banner.gd",
 	"res://cloud/tests/test_cloud_combat_animation.gd",

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from match_helpers import create_seated_match, post_match_action
+
 
 
 def test_healthz(client: TestClient) -> None:
@@ -36,11 +38,10 @@ def test_load_match(client: TestClient) -> None:
 
 
 def test_p0_end_turn_advances_to_p1(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={}).json()["match_id"]
-    r = client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 0},
-    )
+    m = create_seated_match(client, {})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    r = post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 0}, headers=action_headers)
     assert r.status_code == 200
     body = r.json()
     assert body["accepted"] is True
@@ -53,15 +54,11 @@ def test_p0_end_turn_advances_to_p1(client: TestClient) -> None:
 
 
 def test_repeated_p0_end_turn_rejects(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={}).json()["match_id"]
-    client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 0},
-    )
-    r = client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 0},
-    )
+    m = create_seated_match(client, {})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 0}, headers=action_headers)
+    r = post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 0}, headers=action_headers)
     assert r.status_code == 200
     assert r.json() == {
         "accepted": False,
@@ -71,15 +68,11 @@ def test_repeated_p0_end_turn_rejects(client: TestClient) -> None:
 
 
 def test_p1_end_turn_wraps_turn_number(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={}).json()["match_id"]
-    client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 0},
-    )
-    r = client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 1},
-    )
+    m = create_seated_match(client, {})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 0}, headers=action_headers)
+    r = post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 1}, headers=action_headers)
     assert r.status_code == 200
     body = r.json()
     assert body["accepted"] is True
@@ -90,17 +83,16 @@ def test_p1_end_turn_wraps_turn_number(client: TestClient) -> None:
 
 
 def test_unknown_action_type_rejects(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={}).json()["match_id"]
-    r = client.post(
-        f"/v1/matches/{mid}/actions",
-        json={
+    m = create_seated_match(client, {})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    r = post_match_action(client, mid, {
             "schema_version": 1,
             "action_type": "teleport_unit",
             "actor_id": 0,
             "attacker_id": 2,
             "defender_id": 3,
-        },
-    )
+        }, headers=action_headers)
     assert r.status_code == 200
     assert r.json()["accepted"] is False
     assert r.json()["reason"] == "unknown_action_type"
@@ -108,49 +100,40 @@ def test_unknown_action_type_rejects(client: TestClient) -> None:
 
 
 def test_event_log_only_accepted_actions(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={}).json()["match_id"]
-    client.post(
-        f"/v1/matches/{mid}/actions",
-        json={
+    m = create_seated_match(client, {})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    post_match_action(client, mid, {
             "schema_version": 1,
             "action_type": "not_a_real_action",
             "actor_id": 0,
-        },
-    )
-    client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 0},
-    )
+        }, headers=action_headers)
+    post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 0}, headers=action_headers)
     ev = client.get(f"/v1/matches/{mid}/events").json()["events"]
     assert len(ev) == 1
     assert ev[0]["action_type"] == "end_turn"
 
 
 def test_events_since_filters(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={}).json()["match_id"]
-    client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 0},
-    )
-    client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 1},
-    )
+    m = create_seated_match(client, {})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 0}, headers=action_headers)
+    post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 1}, headers=action_headers)
     tail = client.get(f"/v1/matches/{mid}/events", params={"since": 0}).json()["events"]
     assert len(tail) == 1
     assert tail[0]["index"] == 1
 
 
 def test_state_hash_stable_and_changes_on_accept(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={}).json()["match_id"]
+    m = create_seated_match(client, {})
+    mid = m["match_id"]
+    action_headers = m["headers"]
     g1 = client.get(f"/v1/matches/{mid}").json()
     g2 = client.get(f"/v1/matches/{mid}").json()
     assert g1["state_hash"] == g2["state_hash"]
 
-    after = client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 0},
-    ).json()
+    after = post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 0}, headers=action_headers).json()
     assert after["state_hash"] != g1["state_hash"]
 
     g3 = client.get(f"/v1/matches/{mid}").json()

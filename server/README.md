@@ -11,6 +11,10 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
+## Seat tokens (C13a)
+
+New matches write **`meta.json`** with per-seat and host tokens. **`POST /v1/matches/{id}/actions`** on those matches requires header **`X-Empire-Seat-Token`**. Create response includes **`seats`** and **`host_token`**; **`GET /v1/matches/{id}`** does not. Legacy matches without **`meta.json`** stay permissive.
+
 Override data directory (e.g. for tests):
 
 ```powershell

@@ -58,6 +58,16 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 
 **Out of scope for C11:** damage popups, sprite hit flash, death fade, sound, event polling, combat replay on reconnect.
 
+### Seat tokens / host credential (Slice C13a)
+
+- **Access model:** new matches get **`meta.json`** with per-seat **`st_…`** tokens and a **host **`ht_…`** token** (can act for any seat in that match; dev/single-client full-match flow).
+- **`POST /v1/matches/{id}/actions`:** header **`X-Empire-Seat-Token`** required when **`meta.json`** exists; server checks token allows **`action.actor_id`**, then existing rules apply. Reject reasons: **`missing_seat_token`**, **`invalid_seat_token`**, **`seat_not_allowed`**.
+- **`GET /v1/matches/{id}`** and **`GET .../legal-actions`:** unchanged in C13a (no token gate).
+- **Create response** includes additive **`seats`** + **`host_token`** (not in GET snapshot).
+- **Godot:** **`EOM_CLOUD_SEAT_TOKEN`** (or inspector **`cloud_seat_token`**); on create, client uses **`host_token`** if none set. Reconnect: set **`EOM_CLOUD_MATCH_ID`** + **`EOM_CLOUD_SEAT_TOKEN`**. Full tokens print only with **`EOM_CLOUD_DEBUG=1`**.
+- **Legacy** matches without **`meta.json`:** permissive (no header required).
+- **Out of scope:** accounts/login, Postgres, polling, legal-actions gating, invite UI/email.
+
 ### Remote alpha deploy foundation (Slice C12a)
 
 - **Deploy-only:** repo-tracked Docker Compose + Caddy on Hetzner; **no** gameplay or authority semantics change.

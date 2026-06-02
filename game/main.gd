@@ -31,6 +31,8 @@ const ZOOM_STEP: float = 1.10
 @export var cloud_scenario_id: String = "prototype_play"
 ## Slice **C9**: reconnect to an existing match via **GET /v1/matches/{id}** (**EOM_CLOUD_MATCH_ID** overrides).
 @export var cloud_match_id: String = ""
+## Slice **C13a**: seat or host token for **POST /actions** (**EOM_CLOUD_SEAT_TOKEN** overrides).
+@export var cloud_seat_token: String = ""
 
 var _faction_banner_gallery
 var _map_projection
@@ -243,6 +245,17 @@ func _cloud_resolve_match_id() -> String:
 	return str(_cloud_resolve_match_id_meta()["value"])
 
 
+func _cloud_resolve_seat_token_meta() -> Dictionary:
+	var env_t: String = OS.get_environment("EOM_CLOUD_SEAT_TOKEN").strip_edges()
+	if env_t.length() > 0:
+		return {"value": env_t, "source": "EOM_CLOUD_SEAT_TOKEN"}
+	return {"value": cloud_seat_token.strip_edges(), "source": "Main.cloud_seat_token"}
+
+
+func _cloud_resolve_seat_token() -> String:
+	return str(_cloud_resolve_seat_token_meta()["value"])
+
+
 func _cloud_debug_enabled() -> bool:
 	return OS.get_environment("EOM_CLOUD_DEBUG").strip_edges() == "1"
 
@@ -346,6 +359,7 @@ func _bootstrap_cloud_session() -> void:
 		yields_boot.focus_mode = Control.FOCUS_NONE
 	_cloud_session = CloudSessionScript.new()
 	_cloud_session.base_url = _cloud_resolve_base_url()
+	_cloud_session.seat_token = _cloud_resolve_seat_token()
 	add_child(_cloud_session)
 	if _cloud_debug_enabled():
 		var umeta := _cloud_resolve_base_url_meta()
@@ -382,6 +396,9 @@ func _bootstrap_cloud_session() -> void:
 			_cloud_fail_session_and_strand("Could not start a cloud match. Check the server and try again.", resp)
 			return
 		_cloud_session.match_id = str(resp["match_id"])
+		var host_tok: String = CloudClientScript.host_token_from_create_response(resp)
+		if host_tok.length() > 0 and _cloud_session.seat_token.strip_edges().is_empty():
+			_cloud_session.seat_token = host_tok
 	var snap = resp.get("snapshot")
 	if typeof(snap) != TYPE_DICTIONARY:
 		var fail_msg: String = (
@@ -420,12 +437,21 @@ func _bootstrap_cloud_session() -> void:
 			snap.get("revision", "?"),
 		)
 	else:
-		print(
-			(
-				"Slice C9 cloud: created match_id=%s (set EOM_CLOUD_MATCH_ID=%s to reconnect) revision=%s"
-				% [_cloud_session.match_id, _cloud_session.match_id, snap.get("revision", "?")]
+		if _cloud_debug_enabled():
+			var ht_dbg: String = _cloud_session.seat_token.strip_edges()
+			print(
+				(
+					"Slice C13 cloud: created match_id=%s EOM_CLOUD_MATCH_ID=%s EOM_CLOUD_SEAT_TOKEN=%s revision=%s"
+					% [_cloud_session.match_id, _cloud_session.match_id, ht_dbg, snap.get("revision", "?")]
+				)
 			)
-		)
+		else:
+			print(
+				(
+					"Slice C13 cloud: created match_id=%s (set EOM_CLOUD_MATCH_ID and EOM_CLOUD_SEAT_TOKEN to reconnect) revision=%s"
+					% [_cloud_session.match_id, snap.get("revision", "?")]
+				)
+			)
 	call_deferred("cloud_refresh_legal_async_entry")
 
 

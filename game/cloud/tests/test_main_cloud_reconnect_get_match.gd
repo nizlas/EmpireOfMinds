@@ -21,6 +21,7 @@ func _run() -> void:
 		return
 	var main: Node = packed.instantiate()
 	main.set("use_cloud_server", true)
+	# Invalid URL: **`request()`** fails immediately (engine logs parse ERROR; see test comment).
 	main.set("cloud_base_url", "::not-a-url::")
 	main.set("cloud_match_id", "m_does_not_exist")
 	main.set("cloud_scenario_id", "prototype_play")

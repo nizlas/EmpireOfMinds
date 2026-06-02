@@ -1,3 +1,7 @@
+## 2026-06-02 — Slice **C13a** — Player seats / invite tokens (cloud-alpha access)
+
+- **Decision:** New matches write **`meta.json`** (beside **`snapshot.json`**) with per-seat tokens (**`st_`**) and optional **host token** (**`ht_`**, acts for all seats in that match — alpha/dev convenience, not accounts). **`POST /v1/matches/{id}/actions`** on seated matches requires header **`X-Empire-Seat-Token`**; server verifies **`action.actor_id`** is allowed by the token, then runs existing gameplay gates unchanged. **`GET /v1/matches/{id}`** and **`GET .../legal-actions`** stay ungated in C13a. Tokens are **not** in snapshot/events/**GET** response. Legacy matches without **`meta.json`** remain permissive. Godot: **`EOM_CLOUD_SEAT_TOKEN`** / **`Main.cloud_seat_token`**; create auto-uses **`host_token`** when unset; full tokens logged only when **`EOM_CLOUD_DEBUG=1`**.
+
 ## 2026-06-02 — Slice **C12b** — Cloud explored-map memory in snapshot v2
 
 - **Decision:** Persist per-player **explored** tiles in authoritative snapshot **`visibility_state`** (`by_owner` + `explored` coord pairs). Server updates visibility on **`move_unit`**, **`found_city`**, and **`attack_unit`** (same radii/rules as Godot **`PlayerVisibilityState`**). Godot cloud adapter restores **`visibility_state`** from snapshot instead of re-seeding from current unit/city sight only. Legacy snapshots without the field seed on read (same as pre-fix reconnect). **Out of scope:** fog privacy, cross-player reveal, presentation-only caches, hotseat path changes.

@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 from app.domain.hex_coord import HexCoord
 from app.domain.player_visibility import visibility_from_snapshot_dict
 from app.domain.snapshot import scenario_from_snapshot_dict
+from match_helpers import create_seated_match, post_match_action
+
 
 
 def _explored_pairs(snap: dict, owner_id: int) -> set[tuple[int, int]]:
@@ -17,7 +19,9 @@ def _explored_pairs(snap: dict, owner_id: int) -> set[tuple[int, int]]:
 
 
 def test_initial_snapshot_includes_visibility_state(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()["match_id"]
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    action_headers = m["headers"]
     snap = client.get(f"/v1/matches/{mid}").json()["snapshot"]
     assert "visibility_state" in snap
     assert isinstance(snap["visibility_state"].get("by_owner"), list)
@@ -26,18 +30,17 @@ def test_initial_snapshot_includes_visibility_state(client: TestClient) -> None:
 
 
 def test_move_persists_visibility_state_in_snapshot_and_get(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()["match_id"]
-    r = client.post(
-        f"/v1/matches/{mid}/actions",
-        json={
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    r = post_match_action(client, mid, {
             "schema_version": 1,
             "action_type": "move_unit",
             "actor_id": 0,
             "unit_id": 1,
             "from": [0, 0],
             "to": [1, -1],
-        },
-    )
+        }, headers=action_headers)
     assert r.json()["accepted"] is True
     vis_after = r.json()["snapshot"]["visibility_state"]
     assert vis_after is not None

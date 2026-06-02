@@ -317,3 +317,14 @@ Deploy-only validation; **no** gameplay, schema, auth, Postgres, polling, or AI 
 - [ ] Local hotseat (cloud off): fog memory unchanged after **End Turn** / long play.
 
 Validation: **`pytest -q`** — **`test_player_visibility_flow.py`**. **`scripts/run-godot-tests.ps1`** — **`test_server_snapshot_adapter_visibility.gd`**.
+
+## Slice C13a — Player seats / invite tokens
+
+- [ ] **`POST /v1/matches`** returns additive **`seats`** + **`host_token`**; **`GET /v1/matches/{id}`** has neither in body or snapshot.
+- [ ] Seated match: **`POST .../actions`** without **`X-Empire-Seat-Token`** → **`missing_seat_token`**.
+- [ ] Invalid token → **`invalid_seat_token`**; seat0 acting as actor 1 → **`seat_not_allowed`**; host token + valid **`actor_id`** → accepted when gameplay allows.
+- [ ] Legacy match (no **`meta.json`**) still accepts actions without header.
+- [ ] Godot create + reconnect with **`EOM_CLOUD_SEAT_TOKEN=<host_token>`**; move/attack/end-turn work locally and on **`https://cloud.thewizardsapprentice.org`**.
+- [ ] Garbled/missing token on seated match → actions rejected; cloud off → hotseat unchanged.
+
+Validation: **`pytest -q`** — **`test_seats.py`**, **`test_seat_token_flow.py`**. **`scripts/run-godot-tests.ps1`** — **`test_cloud_seat_token.gd`**. **`server/scripts/smoke_cloud_01.ps1`** (with server running).

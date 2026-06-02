@@ -11,11 +11,14 @@ from app.domain.hex_coord import HexCoord
 from app.domain.hex_map import HexMap, Terrain
 from app.domain.scenario import Scenario
 from app.domain.unit import Unit
+from match_helpers import create_seated_match, post_match_action
+
 
 
 def _post_fc(
     client: TestClient,
     mid: str,
+    headers: dict[str, str],
     *,
     actor_id: int = 0,
     unit_id: int = 1,
@@ -23,23 +26,27 @@ def _post_fc(
 ) -> dict:
     if position is None:
         position = [0, 0]
-    return client.post(
-        f"/v1/matches/{mid}/actions",
-        json={
+    return post_match_action(
+        client,
+        mid,
+        {
             "schema_version": 1,
             "action_type": "found_city",
             "actor_id": actor_id,
             "unit_id": unit_id,
             "position": position,
         },
+        headers=headers,
     ).json()
 
 
 def test_accepted_found_city_tiny_test(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()["match_id"]
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    action_headers = m["headers"]
     g0 = client.get(f"/v1/matches/{mid}").json()
     h0 = g0["state_hash"]
-    body = _post_fc(client, mid)
+    body = _post_fc(client, mid, action_headers)
     assert body["accepted"] is True
     assert body["revision"] == 1
     assert body["state_hash"] != h0
@@ -63,8 +70,10 @@ def test_accepted_found_city_tiny_test(client: TestClient) -> None:
 
 
 def test_found_city_event_shape(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()["match_id"]
-    _post_fc(client, mid)
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    _post_fc(client, mid, action_headers)
     ev = client.get(f"/v1/matches/{mid}/events").json()["events"]
     assert len(ev) == 1
     e = ev[0]
@@ -78,59 +87,65 @@ def test_found_city_event_shape(client: TestClient) -> None:
 
 
 def test_found_city_not_current_player(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()["match_id"]
-    r = _post_fc(client, mid, actor_id=1, unit_id=3, position=[0, -1])
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    r = _post_fc(client, mid, action_headers, actor_id=1, unit_id=3, position=[0, -1])
     assert r == {"accepted": False, "reason": "not_current_player", "index": -1}
 
 
 def test_found_city_unit_not_owned_by_player(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()["match_id"]
-    r = _post_fc(client, mid, unit_id=3, position=[0, -1])
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    r = _post_fc(client, mid, action_headers, unit_id=3, position=[0, -1])
     assert r["accepted"] is False
     assert r["reason"] == "unit_not_owned_by_player"
     assert r["index"] == -1
 
 
 def test_found_city_warrior_cannot_found(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()["match_id"]
-    r = _post_fc(client, mid, unit_id=2, position=[1, 0])
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    r = _post_fc(client, mid, action_headers, unit_id=2, position=[1, 0])
     assert r["reason"] == "unit_cannot_found_city"
 
 
 def test_found_city_unknown_unit(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()["match_id"]
-    r = _post_fc(client, mid, unit_id=99, position=[0, 0])
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    r = _post_fc(client, mid, action_headers, unit_id=99, position=[0, 0])
     assert r["reason"] == "unknown_unit"
 
 
 def test_found_city_unit_not_at_position(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()["match_id"]
-    r = _post_fc(client, mid, position=[1, 0])
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    r = _post_fc(client, mid, action_headers, position=[1, 0])
     assert r["reason"] == "unit_not_at_position"
     snap = client.get(f"/v1/matches/{mid}").json()["snapshot"]
     assert snap["revision"] == 0
 
 
 def test_found_city_tile_already_has_city(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()["match_id"]
-    _post_fc(client, mid)
-    client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 0},
-    )
-    client.post(
-        f"/v1/matches/{mid}/actions",
-        json={
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    _post_fc(client, mid, action_headers)
+    post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 0}, headers=action_headers)
+    post_match_action(client, mid, {
             "schema_version": 1,
             "action_type": "move_unit",
             "actor_id": 1,
             "unit_id": 3,
             "from": [0, -1],
             "to": [0, 0],
-        },
-    )
+        }, headers=action_headers)
     rev_before = client.get(f"/v1/matches/{mid}").json()["snapshot"]["revision"]
-    r = _post_fc(client, mid, actor_id=1, unit_id=3, position=[0, 0])
+    r = _post_fc(client, mid, action_headers, actor_id=1, unit_id=3, position=[0, 0])
     assert r["accepted"] is False
     assert r["reason"] == "tile_already_has_city"
     assert r["index"] == -1
@@ -138,13 +153,12 @@ def test_found_city_tile_already_has_city(client: TestClient) -> None:
 
 
 def test_found_city_tile_already_owned(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()["match_id"]
-    _post_fc(client, mid)
-    client.post(
-        f"/v1/matches/{mid}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 0},
-    )
-    r = _post_fc(client, mid, actor_id=1, unit_id=3, position=[0, -1])
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    action_headers = m["headers"]
+    _post_fc(client, mid, action_headers)
+    post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 0}, headers=action_headers)
+    r = _post_fc(client, mid, action_headers, actor_id=1, unit_id=3, position=[0, -1])
     assert r["accepted"] is False
     assert r["reason"] == "tile_already_owned"
 
@@ -166,8 +180,10 @@ def test_found_city_tile_is_water_domain() -> None:
 
 
 def test_found_city_progress_unchanged(client: TestClient) -> None:
-    mid = client.post("/v1/matches", json={"scenario_id": "tiny_test"}).json()["match_id"]
+    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    mid = m["match_id"]
+    action_headers = m["headers"]
     prog = copy.deepcopy(client.get(f"/v1/matches/{mid}").json()["snapshot"]["progress_state"])
-    _post_fc(client, mid)
+    _post_fc(client, mid, action_headers)
     after = client.get(f"/v1/matches/{mid}").json()["snapshot"]["progress_state"]
     assert after == prog

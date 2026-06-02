@@ -1,0 +1,356 @@
+﻿Using Godot: C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe
+Project path:  C:\Users\nicla\development\EmpireOfMinds\game
+
+--- Running: res://domain/tests/test_hex_coord.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 15/15
+
+--- Running: res://domain/tests/test_player_visibility_state.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 16/16
+
+--- Running: res://domain/tests/test_player_visibility_reveal.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 97/97
+
+--- Running: res://domain/tests/test_hex_map.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 33/33
+
+--- Running: res://domain/tests/test_hex_map_landform.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 2/2
+
+--- Running: res://domain/tests/test_hex_map_woods.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 4/4
+
+--- Running: res://domain/tests/test_city_yields.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 8/8
+
+--- Running: res://domain/tests/test_city_population.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 9/9
+
+--- Running: res://domain/tests/test_city_yields_worked_tiles.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 23/23
+
+--- Running: res://domain/tests/test_city_yields_breakdown.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 15/15
+
+--- Running: res://domain/tests/test_prototype_play_map_distribution.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 2211/2211
+
+--- Running: res://domain/tests/test_prototype_rectangular_water_shell.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 14/14
+
+--- Running: res://domain/tests/test_prototype_lightning_tree_hex.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 12/12
+
+--- Running: res://domain/tests/test_dump_prototype_play_map_script_loads.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS test_dump_prototype_play_map_script_loads
+
+--- Running: res://domain/tests/test_unit.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 17/17
+
+--- Running: res://domain/tests/test_unit_definitions.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 35/35
+
+--- Running: res://domain/tests/test_terrain_rule_definitions.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 39/39
+
+--- Running: res://domain/tests/test_city_project_definitions.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 32/32
+
+--- Running: res://domain/tests/test_progress_definitions.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 172/172
+
+--- Running: res://domain/tests/test_science_availability.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 18/18
+
+--- Running: res://domain/tests/test_faction_definitions.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 132/132
+
+--- Running: res://domain/tests/test_progress_state.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 35/35
+
+--- Running: res://domain/tests/test_progress_state_science_progress.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 9/9
+
+--- Running: res://domain/tests/test_progress_state_current_research.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 4/4
+
+--- Running: res://domain/tests/test_set_current_research.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 15/15
+
+--- Running: res://domain/tests/test_progress_unlock_resolver.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 52/52
+
+--- Running: res://domain/tests/test_game_state_progress_state.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 23/23
+
+--- Running: res://domain/tests/test_legal_actions_progress_gating.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 10/10
+
+--- Running: res://domain/tests/test_effective_rules.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 7/7
+
+--- Running: res://domain/tests/test_legal_actions_effective_rules.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 7/7
+
+--- Running: res://domain/tests/test_settler_unlock_flow.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 11/11
+
+--- Running: res://domain/tests/test_settler_production_flow.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 35/35
+
+--- Running: res://domain/tests/test_complete_progress.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 24/24
+
+--- Running: res://domain/tests/test_complete_progress_flow.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 46/46
+
+--- Running: res://domain/tests/test_progress_detector.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 35/35
+
+--- Running: res://domain/tests/test_progress_candidate_filter.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 27/27
+
+--- Running: res://domain/tests/test_lightning_tree_trigger.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 13/13
+
+--- Running: res://domain/tests/test_scenario.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 16/16
+
+--- Running: res://domain/tests/test_movement_rules.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 37/37
+
+--- Running: res://domain/tests/test_combat_rules.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 11/11
+
+--- Running: res://domain/tests/test_attack_unit.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 18/18
+
+--- Running: res://domain/tests/test_attack_unit_flow.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 17/17
+
+--- Running: res://domain/tests/test_move_unit.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 30/30
+
+--- Running: res://domain/tests/test_unit_movement_points_v0.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 18/18
+
+--- Running: res://domain/tests/test_move_unit_science_observation_bonus.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 8/8
+
+--- Running: res://domain/tests/test_move_unit_preserves_scenario_state.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 16/16
+
+--- Running: res://domain/tests/test_found_city.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 60/60
+
+--- Running: res://domain/tests/test_found_city_flow.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 14/14
+
+--- Running: res://domain/tests/test_set_city_production.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 42/42
+
+--- Running: res://domain/tests/test_set_city_production_flow.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 17/17
+
+--- Running: res://domain/tests/test_set_city_worked_tiles.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 30/30
+
+--- Running: res://domain/tests/test_production_tick.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 55/55
+
+--- Running: res://domain/tests/test_production_delivery.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 31/31
+
+--- Running: res://domain/tests/test_end_turn_production_flow.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 52/52
+
+--- Running: res://domain/tests/test_end_turn_growth_flow.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 7/7
+
+--- Running: res://domain/tests/test_growth_play_loop_smoke.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 106/106
+
+--- Running: res://domain/tests/test_end_turn_science_flow.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 18/18
+
+--- Running: res://domain/tests/test_science_tick.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 33/33
+
+--- Running: res://domain/tests/test_action_log.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 12/12
+
+--- Running: res://domain/tests/test_game_state.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 19/19
+
+--- Running: res://domain/tests/test_turn_state.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 9/9
+
+--- Running: res://domain/tests/test_end_turn.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 14/14
+
+--- Running: res://domain/tests/test_turn_flow.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 17/17
+
+--- Running: res://presentation/tests/test_map_view_draw.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 127/127
+
+--- Running: res://presentation/tests/test_prototype_forest_clusters.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 127/127 component_sizes=[1, 1, 1, 2, 2, 2, 3, 3, 4, 4, 8, 9]
+
+--- Running: res://presentation/tests/test_prototype_woods_presentation_domain_agreement.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 9/9
+
+--- Running: res://presentation/tests/test_map_plane_projection.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 9/9
+
+--- Running: res://presentation/tests/test_map_camera.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 39/39
+
+--- Running: res://presentation/tests/test_units_view_draw.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 25/25
+
+--- Running: res://presentation/tests/test_unit_nameplate_view.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+PASS 27/27
+
+--- Running: res://presentation/tests/test_combat_clash_burst_view.gd ---
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+

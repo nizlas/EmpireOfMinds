@@ -2,6 +2,31 @@
 extends RefCounted
 class_name CloudClient
 
+const SEAT_TOKEN_HEADER: String = "X-Empire-Seat-Token"
+
+
+static func host_token_from_create_response(response: Dictionary) -> String:
+	if typeof(response) != TYPE_DICTIONARY:
+		return ""
+	return str(response.get("host_token", "")).strip_edges()
+
+
+static func seat_token_for_actor(response: Dictionary, actor_id: int) -> String:
+	var seats = response.get("seats", null)
+	if typeof(seats) != TYPE_ARRAY:
+		return ""
+	var sa: Array = seats as Array
+	var i: int = 0
+	while i < sa.size():
+		var row = sa[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row as Dictionary
+		if int(d.get("actor_id", -1)) == actor_id:
+			return str(d.get("token", "")).strip_edges()
+	return ""
+
 
 static func matches_base(base_url: String, path: String) -> String:
 	return str(base_url).rstrip("/") + path

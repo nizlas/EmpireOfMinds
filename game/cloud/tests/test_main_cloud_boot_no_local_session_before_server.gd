@@ -1,5 +1,5 @@
 # Headless: cloud **`Main`** path must not **`_wire_play_session`** with local prototype state before a server snapshot.
-# Fails **`post_create_match`** fast via **discard port 9**; asserts no **GameState** / **MapView.map** / **SelectionView.scenario**.
+# Fails **`post_create_match`** via invalid base URL (**`request()`** rejects parse); asserts no local wire before snapshot.
 # Usage: godot --headless --path game -s res://cloud/tests/test_main_cloud_boot_no_local_session_before_server.gd
 extends SceneTree
 
@@ -23,7 +23,7 @@ func _run() -> void:
 		return
 	var main: Node = packed.instantiate()
 	main.set("use_cloud_server", true)
-	# Force **`CloudSession.http_json_request`** to fail without waiting on TCP (**`request()`** rejects URL).
+	# Invalid URL: **`request()`** fails immediately (engine logs parse ERROR; see test comment).
 	main.set("cloud_base_url", "::not-a-url::")
 	main.set("cloud_scenario_id", "prototype_play")
 	get_root().add_child(main)

@@ -6,6 +6,8 @@ const CloudClientScript = preload("res://cloud/cloud_client.gd")
 
 var base_url: String = "http://127.0.0.1:8000"
 var match_id: String = ""
+## Slice C13a: seat or host credential for POST /actions (X-Empire-Seat-Token).
+var seat_token: String = ""
 var _http: HTTPRequest
 
 
@@ -64,6 +66,9 @@ func http_json_request(method: int, path: String, body: String = "") -> Dictiona
 	var headers := PackedStringArray()
 	if method == HTTPClient.METHOD_POST:
 		headers.append("Content-Type: application/json")
+	var tok := str(seat_token).strip_edges()
+	if tok.length() > 0:
+		headers.append("%s: %s" % [CloudClientScript.SEAT_TOKEN_HEADER, tok])
 	var err := _http.request(full_url, headers, method, body)
 	if err != OK:
 		var el := Time.get_ticks_msec() - t0

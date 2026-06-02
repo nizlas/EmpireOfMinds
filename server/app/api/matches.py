@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, Header, HTTPException, Query
 
-from app.domain import legal_actions, match_state, player_visibility, snapshot
+from app.domain import legal_actions, match_state, player_visibility, seats, snapshot
 from app.domain.actions import attack_unit, end_turn, found_city, move_unit, set_city_production
 from app.domain.combat_rules import resolve_attack
 from app.domain.food_growth_rules import apply_food_growth_for_player
@@ -20,6 +20,8 @@ from app.domain.turn_state import advance_turn_state
 from app.storage import file_store
 
 router = APIRouter(tags=["matches"])
+
+SEAT_TOKEN_HEADER = "X-Empire-Seat-Token"
 
 
 def _reject(reason: str) -> dict[str, Any]:
@@ -68,6 +70,27 @@ def _map_attack_unit_validate_reason(vr_reason: str) -> str:
     return vr_reason
 
 
+def _credential_gate(
+    match_id: str,
+    action: dict[str, Any],
+    seat_token: str | None,
+) -> dict[str, Any] | None:
+    """Reject dict if seated match requires token; None if gate passes or match is legacy."""
+    meta = file_store.read_meta(match_id)
+    if meta is None:
+        return None
+    if not seat_token or not str(seat_token).strip():
+        return _reject("missing_seat_token")
+    allowed = seats.allowed_actor_ids(meta, str(seat_token).strip())
+    if allowed is None:
+        return _reject("invalid_seat_token")
+    if "actor_id" not in action or not isinstance(action["actor_id"], int):
+        return _reject("malformed_action")
+    if int(action["actor_id"]) not in allowed:
+        return _reject("seat_not_allowed")
+    return None
+
+
 def _actor_gate(snap: dict[str, Any], action: dict[str, Any]) -> str | None:
     if "actor_id" not in action or not isinstance(action["actor_id"], int):
         return "malformed_action"
@@ -103,11 +126,15 @@ def create_match(
     mid = match_state.make_match_id()
     snap = match_state.initial_snapshot(mid, player_ids, str(scenario_id))
     file_store.write_snapshot(mid, snap)
+    meta = seats.build_meta(mid, player_ids)
+    file_store.write_meta(mid, meta)
     return {
         "match_id": mid,
         "snapshot": snap,
         "revision": snap["revision"],
         "state_hash": state_hash(snap),
+        "seats": seats.public_seats_from_meta(meta),
+        "host_token": meta["host_token"],
     }
 
 
@@ -438,10 +465,18 @@ def _handle_attack_unit(match_id: str, snap: dict[str, Any], action: dict[str, A
 
 
 @router.post("/matches/{match_id}/actions")
-def post_action(match_id: str, action: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def post_action(
+    match_id: str,
+    action: dict[str, Any] = Body(...),
+    x_empire_seat_token: str | None = Header(default=None, alias=SEAT_TOKEN_HEADER),
+) -> dict[str, Any]:
     snap = file_store.read_snapshot(match_id)
     if snap is None:
         raise HTTPException(status_code=404, detail="match not found")
+
+    cred_reject = _credential_gate(match_id, action, x_empire_seat_token)
+    if cred_reject is not None:
+        return cred_reject
 
     if action is None or not isinstance(action, dict):
         return _reject("unknown_action_type")
