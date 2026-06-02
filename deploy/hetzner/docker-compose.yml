@@ -1,6 +1,8 @@
-# Empire of Minds — Hetzner Cloud Alpha (C12a)
+# Empire of Minds — Cloud Alpha (C12a)
 # Deploy from repo: cd deploy/hetzner && docker compose up --build -d
 # Requires full repo clone (build context ../../server).
+
+name: empire-cloud-alpha
 
 services:
   empire-server:
@@ -8,7 +10,7 @@ services:
       context: ../../server
     restart: unless-stopped
     environment:
-      - EOM_ENV=hetzner-alpha
+      - EOM_ENV=cloud-alpha
       - EMPIRE_SERVER_DATA_DIR=/app/data
     volumes:
       - empire_match_store:/app/data
