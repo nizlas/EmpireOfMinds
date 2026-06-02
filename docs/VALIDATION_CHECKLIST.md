@@ -2,6 +2,8 @@
 
 This checklist is used after each implementation step.
 
+**Test profiles (T1):** For day-to-day runs use **`docs/TESTING.md`** — `scripts/run-server-tests.ps1` and `scripts/run-godot-tests.ps1` with profiles `smoke`, `slice <id>`, `cloud`, `presentation` (Godot), and `full` (default when no args).
+
 ## Architecture Boundary Validation
 
 - [ ] Game rules are not owned by Godot rendering nodes.

@@ -1,6 +1,12 @@
-# Runs all Empire of Minds Godot headless tests. Non-zero exit if any test fails.
-# Usage (from repo root): .\scripts\run-godot-tests.ps1
-# Requires: set GODOT_EXE, or Godot on PATH, or install at the known path below.
+# Runs Empire of Minds Godot headless tests. Non-zero exit if any test fails.
+# Usage (from repo root):
+#   .\scripts\run-godot-tests.ps1              # full suite (default)
+#   .\scripts\run-godot-tests.ps1 full
+#   .\scripts\run-godot-tests.ps1 smoke
+#   .\scripts\run-godot-tests.ps1 cloud
+#   .\scripts\run-godot-tests.ps1 presentation
+#   .\scripts\run-godot-tests.ps1 slice c13a
+# Requires: GODOT_EXE, Godot on PATH, or install at the known path below.
 
 $ErrorActionPreference = "Stop"
 
@@ -9,39 +15,22 @@ $GamePath = Join-Path $RepoRoot "game"
 
 $KnownGodotPath = "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"
 
-function Get-GodotExecutable {
-	if ($env:GODOT_EXE -and $env:GODOT_EXE.Trim().Length -gt 0) {
-		$p = $env:GODOT_EXE.Trim()
-		if (Test-Path -LiteralPath $p) {
-			return (Resolve-Path -LiteralPath $p).Path
-		}
-		Write-Host "GODOT_EXE is set but file not found: $p" -ForegroundColor Red
-		exit 2
-	}
-	if (Test-Path -LiteralPath $KnownGodotPath) {
-		return (Resolve-Path -LiteralPath $KnownGodotPath).Path
-	}
-	$cmd = Get-Command godot -ErrorAction SilentlyContinue
-	if ($cmd -and $cmd.Source) {
-		return $cmd.Source
-	}
-	Write-Host @"
-ERROR: Godot executable not found.
+$Script:SupportedSlices = @("c13a")
 
-Do one of the following:
-  - Set environment variable GODOT_EXE to the full path of Godot (console build recommended for headless), or
-  - Add Godot to your PATH as 'godot', or
-  - Install or extract Godot to:
-      $KnownGodotPath
-
-Then run this script again.
-"@ -ForegroundColor Red
-	exit 2
+$Script:SliceTests = @{
+	"c13a" = @(
+		"res://cloud/tests/test_cloud_seat_token.gd"
+	)
 }
 
-$GodotExe = Get-GodotExecutable
+$Script:SmokeTests = @(
+	"res://cloud/tests/test_cloud_client_payloads.gd"
+	"res://cloud/tests/test_main_default_cloud_base_url.gd"
+	"res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd"
+)
 
-$Tests = @(
+# Full regression order (unchanged from pre-profile runner).
+$Script:AllTests = @(
 	"res://domain/tests/test_hex_coord.gd",
 	"res://domain/tests/test_player_visibility_state.gd",
 	"res://domain/tests/test_player_visibility_reveal.gd",
@@ -185,13 +174,118 @@ $Tests = @(
 	"res://cloud/tests/test_main_cloud_reconnect_get_match.gd"
 )
 
+function Get-GodotExecutable {
+	if ($env:GODOT_EXE -and $env:GODOT_EXE.Trim().Length -gt 0) {
+		$p = $env:GODOT_EXE.Trim()
+		if (Test-Path -LiteralPath $p) {
+			return (Resolve-Path -LiteralPath $p).Path
+		}
+		Write-Host "GODOT_EXE is set but file not found: $p" -ForegroundColor Red
+		exit 2
+	}
+	if (Test-Path -LiteralPath $KnownGodotPath) {
+		return (Resolve-Path -LiteralPath $KnownGodotPath).Path
+	}
+	$cmd = Get-Command godot -ErrorAction SilentlyContinue
+	if ($cmd -and $cmd.Source) {
+		return $cmd.Source
+	}
+	Write-Host @"
+ERROR: Godot executable not found.
+
+Do one of the following:
+  - Set environment variable GODOT_EXE to the full path of Godot (console build recommended for headless), or
+  - Add Godot to your PATH as 'godot', or
+  - Install or extract Godot to:
+      $KnownGodotPath
+
+Then run this script again.
+"@ -ForegroundColor Red
+	exit 2
+}
+
+function Show-GodotTestUsage {
+	Write-Host @"
+Usage (from repo root):
+  .\scripts\run-godot-tests.ps1 [profile] [slice_id]
+
+Profiles:
+  full          Run all headless tests (default when no args)
+  smoke         Fast sanity: cloud payloads, cloud URL default, main scene wiring
+  cloud         All tests under res://cloud/tests/
+  presentation  All tests under res://presentation/tests/
+  slice <id>    Focused slice tests (supported: $($Script:SupportedSlices -join ', '))
+"@
+}
+
+function Resolve-GodotProfile {
+	param([string[]]$Argv)
+
+	if ($Argv.Count -eq 0) {
+		return @{ Name = "full"; Tests = $Script:AllTests }
+	}
+	if ($Argv.Count -eq 1) {
+		$name = $Argv[0].ToLowerInvariant()
+		switch ($name) {
+			"full" { return @{ Name = "full"; Tests = $Script:AllTests } }
+			"smoke" { return @{ Name = "smoke"; Tests = $Script:SmokeTests } }
+			"cloud" {
+				$cloud = @($Script:AllTests | Where-Object { $_ -like "res://cloud/tests/*" })
+				return @{ Name = "cloud"; Tests = $cloud }
+			}
+			"presentation" {
+				$pres = @($Script:AllTests | Where-Object { $_ -like "res://presentation/tests/*" })
+				return @{ Name = "presentation"; Tests = $pres }
+			}
+			"slice" {
+				Write-Host "ERROR: slice profile requires a slice id (e.g. slice c13a)." -ForegroundColor Red
+				Show-GodotTestUsage
+				exit 2
+			}
+			default {
+				Write-Host "ERROR: unknown profile '$($Argv[0])'." -ForegroundColor Red
+				Show-GodotTestUsage
+				exit 2
+			}
+		}
+	}
+	if ($Argv.Count -eq 2 -and $Argv[0].ToLowerInvariant() -eq "slice") {
+		$id = $Argv[1].ToLowerInvariant()
+		if (-not $Script:SliceTests.ContainsKey($id)) {
+			Write-Host "ERROR: unknown slice id '$id'. Supported: $($Script:SupportedSlices -join ', ')" -ForegroundColor Red
+			exit 2
+		}
+		return @{ Name = "slice"; SliceId = $id; Tests = $Script:SliceTests[$id] }
+	}
+
+	Write-Host "ERROR: invalid arguments." -ForegroundColor Red
+	Show-GodotTestUsage
+	exit 2
+}
+
+$resolved = Resolve-GodotProfile -Argv $args
+if ($resolved.SliceId) {
+	$profileLabel = "slice $($resolved.SliceId)"
+} else {
+	$profileLabel = $resolved.Name
+}
+
+$Tests = $resolved.Tests
+
 if (-not (Test-Path -LiteralPath $GamePath)) {
 	Write-Host "Game project folder not found: $GamePath" -ForegroundColor Red
 	exit 2
 }
 
+$GodotExe = Get-GodotExecutable
+
+Write-Host "=== Empire of Minds Godot tests - profile: $profileLabel ===" -ForegroundColor Cyan
 Write-Host "Using Godot: $GodotExe"
 Write-Host "Project path:  $GamePath"
+Write-Host "Resolved tests ($($Tests.Count)):" -ForegroundColor DarkGray
+foreach ($t in $Tests) {
+	Write-Host "  $t"
+}
 Write-Host ""
 
 foreach ($test in $Tests) {
@@ -205,5 +299,5 @@ foreach ($test in $Tests) {
 	Write-Host ""
 }
 
-Write-Host "All $($Tests.Count) headless tests passed." -ForegroundColor Green
+Write-Host "All $($Tests.Count) headless tests passed (profile: $profileLabel)." -ForegroundColor Green
 exit 0

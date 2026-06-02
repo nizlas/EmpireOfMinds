@@ -31,6 +31,8 @@ pip install -r requirements.txt
 pytest -q
 ```
 
+From the **repository root**, profiles: `.\scripts\run-server-tests.ps1` (full), `smoke`, `cloud`, `slice c13a` — see [TESTING.md](../docs/TESTING.md).
+
 ## Run in Docker (local smoke)
 
 From the **repository root** (build context is `server/`):
