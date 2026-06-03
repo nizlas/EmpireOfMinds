@@ -52,7 +52,7 @@ func _test_create_response_boot_intent() -> void:
 	_check(BootIntentScript.seat_token == "ht_created", "create response host_token")
 	_check(
 		BootIntentScript.cloud_load_status_message(BootIntentScript.MODE_CLOUD_ENTER_CREATED)
-			== "Loading created cloud match…",
+			== "Connecting to new cloud match…",
 		"enter-created status message",
 	)
 	_check(

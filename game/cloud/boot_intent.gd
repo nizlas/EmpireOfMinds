@@ -82,7 +82,7 @@ static func is_cloud_enter_created(boot_mode: String) -> bool:
 
 static func cloud_load_status_message(boot_mode: String) -> String:
 	if is_cloud_enter_created(boot_mode):
-		return "Loading created cloud match…"
+		return "Connecting to new cloud match…"
 	if str(boot_mode) == MODE_CLOUD_RECONNECT:
 		return "Reconnecting to cloud match…"
 	return "Connecting to cloud match…"

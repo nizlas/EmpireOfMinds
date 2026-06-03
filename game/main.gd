@@ -459,7 +459,7 @@ func _bootstrap_cloud_session() -> void:
 	if reconnecting:
 		_cloud_session.match_id = reconnect_mid
 		if _boot_cloud_enter_created:
-			_set_cloud_overlay_text("Loading created cloud match…")
+			_set_cloud_overlay_text("Connecting to new cloud match…")
 		else:
 			_set_cloud_overlay_text("Reconnecting to cloud match…")
 		resp = await _cloud_session.get_match()
