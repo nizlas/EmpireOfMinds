@@ -16,7 +16,7 @@ $GamePath = Join-Path $RepoRoot "game"
 
 $KnownGodotPath = "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"
 
-$Script:SupportedSlices = @("c13a", "c14a")
+$Script:SupportedSlices = @("c13a", "c14a", "c14c")
 
 $Script:SliceTests = @{
 	"c13a" = @(
@@ -24,6 +24,10 @@ $Script:SliceTests = @{
 	)
 	"c14a" = @(
 		"res://cloud/tests/test_cloud_credential_store.gd"
+	)
+	"c14c" = @(
+		"res://cloud/tests/test_cloud_lobby_parsers.gd"
+		"res://cloud/tests/test_cloud_front_door_boot_intent.gd"
 	)
 }
 
@@ -171,6 +175,8 @@ $Script:AllTests = @(
 	"res://cloud/tests/test_cloud_client_payloads.gd",
 	"res://cloud/tests/test_cloud_seat_token.gd",
 	"res://cloud/tests/test_cloud_credential_store.gd",
+	"res://cloud/tests/test_cloud_lobby_parsers.gd",
+	"res://cloud/tests/test_cloud_front_door_boot_intent.gd",
 	"res://cloud/tests/test_cloud_routing_pick.gd",
 	"res://cloud/tests/test_cloud_turn_banner.gd",
 	"res://cloud/tests/test_cloud_combat_animation.gd",

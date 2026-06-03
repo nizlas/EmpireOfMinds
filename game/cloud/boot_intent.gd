@@ -1,0 +1,95 @@
+# Slice C14c: one-shot boot parameters from front door into main.tscn (no autoload).
+extends RefCounted
+class_name BootIntent
+
+const CloudClientScript = preload("res://cloud/cloud_client.gd")
+
+const MODE_NONE: String = ""
+const MODE_LOCAL_HOTSEAT: String = "local_hotseat"
+const MODE_CLOUD_CREATE: String = "cloud_create"
+const MODE_CLOUD_RECONNECT: String = "cloud_reconnect"
+
+static var mode: String = MODE_NONE
+static var server_url: String = ""
+static var match_id: String = ""
+static var seat_token: String = ""
+static var actor_id: int = 0
+static var scenario_id: String = "prototype_play"
+
+
+static func clear() -> void:
+	mode = MODE_NONE
+	server_url = ""
+	match_id = ""
+	seat_token = ""
+	actor_id = 0
+	scenario_id = "prototype_play"
+
+
+static func set_local_hotseat() -> void:
+	clear()
+	mode = MODE_LOCAL_HOTSEAT
+
+
+static func set_cloud_create(url: String, host_token: String, scen: String = "prototype_play") -> void:
+	clear()
+	mode = MODE_CLOUD_CREATE
+	server_url = str(url).rstrip("/")
+	match_id = ""
+	seat_token = str(host_token).strip_edges()
+	actor_id = 0
+	scenario_id = scen
+
+
+static func set_cloud_reconnect(
+	url: String,
+	mid: String,
+	token: String,
+	act_id: int,
+	scen: String = "prototype_play",
+) -> void:
+	clear()
+	mode = MODE_CLOUD_RECONNECT
+	server_url = str(url).rstrip("/")
+	match_id = str(mid).strip_edges()
+	seat_token = str(token).strip_edges()
+	actor_id = int(act_id)
+	scenario_id = scen
+
+
+## Dev/test: skip front door when **EOM_CLOUD_CLIENT** is set (same as Main cloud gate).
+static func should_skip_front_door_for_env() -> bool:
+	var flg: String = OS.get_environment("EOM_CLOUD_CLIENT").strip_edges()
+	return flg == "1" or flg.to_lower() == "true"
+
+
+static func apply_env_cloud_to_boot_intent() -> void:
+	var url: String = OS.get_environment("EOM_CLOUD_BASE_URL").strip_edges()
+	if url.is_empty():
+		url = "http://127.0.0.1:8000"
+	var mid: String = OS.get_environment("EOM_CLOUD_MATCH_ID").strip_edges()
+	var tok: String = OS.get_environment("EOM_CLOUD_SEAT_TOKEN").strip_edges()
+	var scen: String = OS.get_environment("EOM_CLOUD_SCENARIO_ID").strip_edges()
+	if scen.is_empty():
+		scen = "prototype_play"
+	if CloudClientScript.should_create_match(mid):
+		set_cloud_create(url, tok, scen)
+	else:
+		set_cloud_reconnect(url, mid, tok, 0, scen)
+
+
+static func consume_for_main() -> Dictionary:
+	var snap := {
+		"mode": mode,
+		"server_url": server_url,
+		"match_id": match_id,
+		"seat_token": seat_token,
+		"actor_id": actor_id,
+		"scenario_id": scenario_id,
+	}
+	clear()
+	return snap
+
+
+static func has_pending() -> bool:
+	return mode != MODE_NONE

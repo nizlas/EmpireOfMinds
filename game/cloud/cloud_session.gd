@@ -175,6 +175,20 @@ func get_match() -> Dictionary:
 	)
 
 
+func get_matches_list(status_filter: String = "") -> Dictionary:
+	return await http_json_request(
+		HTTPClient.METHOD_GET,
+		CloudClientScript.list_matches_path(status_filter),
+	)
+
+
+func post_claim_seat(actor_id: int) -> Dictionary:
+	return await http_json_request(
+		HTTPClient.METHOD_POST,
+		CloudClientScript.claim_seat_path(match_id, actor_id),
+	)
+
+
 func get_legal_actions(actor_id: int, selected_unit_id: int = -1, selected_city_id: int = -1) -> Dictionary:
 	var q = "?actor_id=%d" % actor_id
 	if selected_unit_id >= 0:

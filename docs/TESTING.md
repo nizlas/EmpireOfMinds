@@ -45,23 +45,25 @@ Unknown slice ids print supported ids and exit non-zero.
 From the **repository root** (requires Godot console build; see script header for `GODOT_EXE` / PATH).
 
 ```powershell
-.\scripts\run-godot-tests.ps1              # full (142 tests, same order as before T1 + C14a)
+.\scripts\run-godot-tests.ps1              # full (144 tests, same order as before T1 + C14a/C14c)
 .\scripts\run-godot-tests.ps1 full
 .\scripts\run-godot-tests.ps1 smoke
 .\scripts\run-godot-tests.ps1 cloud
 .\scripts\run-godot-tests.ps1 presentation
 .\scripts\run-godot-tests.ps1 slice c13a
 .\scripts\run-godot-tests.ps1 slice c14a
+.\scripts\run-godot-tests.ps1 slice c14c
 ```
 
 ### What each profile runs
 
 - **full** — entire ordered list in `scripts/run-godot-tests.ps1` (domain, presentation, AI, cloud).
 - **smoke** — `test_cloud_client_payloads.gd`, `test_main_default_cloud_base_url.gd`, `test_main_tscn_map_layer_sibling_order.gd`.
-- **cloud** — all `res://cloud/tests/*.gd` entries in the full list (currently 11 files).
+- **cloud** — all `res://cloud/tests/*.gd` entries in the full list (currently 13 files).
 - **presentation** — all `res://presentation/tests/*.gd` entries in the full list.
 - **slice c13a** — `test_cloud_seat_token.gd`.
 - **slice c14a** — `test_cloud_credential_store.gd`.
+- **slice c14c** — `test_cloud_lobby_parsers.gd`, `test_cloud_front_door_boot_intent.gd`.
 
 ## Known noisy output (not hidden)
 

@@ -58,6 +58,15 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 
 **Out of scope for C11:** damage popups, sprite hit flash, death fade, sound, event polling, combat replay on reconnect.
 
+### Cloud front door / lobby UI (Slice C14c)
+
+- **Launch:** `run/main_scene` is **`res://cloud/cloud_front_door.tscn`** — choose **Local Hotseat**, **Create Cloud Match**, refresh **Cloud Matches** (staging list), or **Resume** a saved entry for the current server URL.
+- **Join:** select **Join {match_id} as Player N** to **`POST .../claim`**; credential saved; gameplay loads **`main.tscn`** with that seat token.
+- **Create:** host token saved to **`user://cloud_matches.json`**; same create-then-play flow as before (no **`/start`** until C14d).
+- **Resume:** uses C14a store; reconnect via **`GET /v1/matches/{id}`**.
+- **Dev skip:** **`EOM_CLOUD_CLIENT=1`** still jumps straight to **`main.tscn`** with env-based cloud boot (headless tests unchanged).
+- **Lobby list** never displays tokens; only claim/create responses store tokens locally.
+
 ### Lobby discovery and seat claim (Slice C14b)
 
 - **Server-only:** new matches write **`meta.json` schema_version 2** with **`status: "staging"`**, **`created_at`**, **`scenario_id`**, and per-seat **`claimed: false`** (tokens remain in meta only).

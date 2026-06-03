@@ -22,6 +22,7 @@ const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const TurnViewSyncScript = preload("res://presentation/turn_view_sync.gd")
 const CloudClientScript = preload("res://cloud/cloud_client.gd")
 const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.gd")
+const BootIntentScript = preload("res://cloud/boot_intent.gd")
 const CityProductionPanelScript = preload("res://presentation/city_production_panel.gd")
 ## Phase 4.5n: mouse-wheel zoom multiplier (center-anchored in layer-local space; not cursor-anchored).
 const ZOOM_STEP: float = 1.10
@@ -177,7 +178,18 @@ func _ready() -> void:
 	$SelectionController.scale = Vector2.ONE
 	$SelectionController.camera = _map_camera
 	_install_ui_chrome_once()
-	if _should_use_cloud():
+	var boot: Dictionary = BootIntentScript.consume_for_main()
+	var boot_mode: String = str(boot.get("mode", ""))
+	if boot_mode == BootIntentScript.MODE_LOCAL_HOTSEAT:
+		_start_local_hotseat_session()
+	elif boot_mode == BootIntentScript.MODE_CLOUD_CREATE or boot_mode == BootIntentScript.MODE_CLOUD_RECONNECT:
+		use_cloud_server = true
+		cloud_base_url = str(boot.get("server_url", cloud_base_url))
+		cloud_match_id = str(boot.get("match_id", ""))
+		cloud_seat_token = str(boot.get("seat_token", ""))
+		cloud_scenario_id = str(boot.get("scenario_id", cloud_scenario_id))
+		await _start_cloud_client_session()
+	elif _should_use_cloud():
 		await _start_cloud_client_session()
 	else:
 		_start_local_hotseat_session()

@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Empire of Minds"
-run/main_scene="res://main.tscn"
+run/main_scene="res://cloud/cloud_front_door.tscn"
 config/features=PackedStringArray("4.6")
 config/icon="res://icon.svg"
 

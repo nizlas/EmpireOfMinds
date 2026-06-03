@@ -1776,3 +1776,18 @@ Caveat:
 
 - Public staging matches are joinable by any client with server access; no rate limiting or private matches.
 
+## 2026-06-02 — Slice C14c Godot cloud front door / lobby UI
+
+Decision:
+
+- **`run/main_scene`** is **`cloud_front_door.tscn`**. **`BootIntent`** (static RefCounted, not autoload) passes mode/url/match/token into **`main.tscn`**. **`EOM_CLOUD_CLIENT=1`** skips the front door for dev/headless tests that load **`main.tscn`** directly.
+- Front door uses C14b **`GET /v1/matches`** + **`POST .../claim`** and C14a credential store; lobby rows are token-free in the UI.
+
+Rationale:
+
+- Replaces env-var-only cloud entry for normal play while preserving test and dev override paths.
+
+Caveat:
+
+- No **`POST /start`**, no staging action gate, minimal layout only; lifecycle enforcement deferred to **C14d**.
+

@@ -2,6 +2,8 @@
 extends RefCounted
 class_name CloudClient
 
+const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.gd")
+
 const SEAT_TOKEN_HEADER: String = "X-Empire-Seat-Token"
 
 
@@ -39,6 +41,107 @@ static func should_create_match(match_id: String) -> bool:
 
 static func get_match_path(match_id: String) -> String:
 	return "/v1/matches/%s" % str(match_id).strip_edges()
+
+
+static func list_matches_path(status_filter: String = "") -> String:
+	var st: String = str(status_filter).strip_edges()
+	if st.is_empty():
+		return "/v1/matches"
+	return "/v1/matches?status=%s" % st
+
+
+static func claim_seat_path(match_id: String, actor_id: int) -> String:
+	return "/v1/matches/%s/seats/%d/claim" % [str(match_id).strip_edges(), int(actor_id)]
+
+
+static func _forbidden_token_keys() -> Array:
+	return ["host_token", "seat_token", "token"]
+
+
+static func lobby_row_has_no_tokens(row: Dictionary) -> bool:
+	if typeof(row) != TYPE_DICTIONARY:
+		return false
+	for key in row.keys():
+		var ks: String = str(key)
+		if ks in _forbidden_token_keys() or ks.find("token") >= 0:
+			return false
+	var seats = row.get("seats")
+	if typeof(seats) == TYPE_ARRAY:
+		var i: int = 0
+		while i < (seats as Array).size():
+			var seat = (seats as Array)[i]
+			i += 1
+			if typeof(seat) != TYPE_DICTIONARY:
+				continue
+			for sk in (seat as Dictionary).keys():
+				var sks: String = str(sk)
+				if sks in _forbidden_token_keys() or sks.find("token") >= 0:
+					return false
+	return true
+
+
+static func parse_lobby_list_response(resp: Dictionary) -> Dictionary:
+	if typeof(resp) != TYPE_DICTIONARY:
+		return {"matches": [], "_error": "invalid_response"}
+	if resp.has("_error"):
+		return {"matches": [], "_error": resp["_error"]}
+	var raw = resp.get("matches")
+	if typeof(raw) != TYPE_ARRAY:
+		return {"matches": [], "_error": "invalid_response"}
+	var out: Array = []
+	var i: int = 0
+	while i < (raw as Array).size():
+		var row = (raw as Array)[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = (row as Dictionary).duplicate(true)
+		if lobby_row_has_no_tokens(d):
+			out.append(d)
+	return {"matches": out}
+
+
+static func parse_claim_response(resp: Dictionary) -> Dictionary:
+	if typeof(resp) != TYPE_DICTIONARY:
+		return {"ok": false, "_error": "invalid_response"}
+	if resp.has("_error"):
+		return {"ok": false, "_error": resp["_error"]}
+	var tok: String = str(resp.get("seat_token", "")).strip_edges()
+	if tok.is_empty():
+		return {"ok": false, "_error": "missing_seat_token"}
+	return {
+		"ok": true,
+		"match_id": str(resp.get("match_id", "")).strip_edges(),
+		"actor_id": int(resp.get("actor_id", -1)),
+		"seat_token": tok,
+		"status": str(resp.get("status", "")).strip_edges(),
+	}
+
+
+static func credential_from_create_response(server_url: String, resp: Dictionary) -> Dictionary:
+	var mid: String = str(resp.get("match_id", "")).strip_edges()
+	var host_tok: String = host_token_from_create_response(resp)
+	return CloudCredentialStoreScript.make_entry(
+		server_url,
+		mid,
+		CloudCredentialStoreScript.HOST_ACTOR_ID,
+		host_tok,
+		true,
+		CloudCredentialStoreScript.revision_from_response(resp),
+		CloudCredentialStoreScript.STATUS_STAGING,
+	)
+
+
+static func credential_from_claim_response(server_url: String, parsed: Dictionary) -> Dictionary:
+	return CloudCredentialStoreScript.make_entry(
+		server_url,
+		str(parsed.get("match_id", "")),
+		int(parsed.get("actor_id", 0)),
+		str(parsed.get("seat_token", "")),
+		false,
+		-1,
+		str(parsed.get("status", CloudCredentialStoreScript.STATUS_STAGING)),
+	)
 
 
 ## Stable key for **cloud_move_action_by_hex** / server **move_unit** destination (axial q,r).

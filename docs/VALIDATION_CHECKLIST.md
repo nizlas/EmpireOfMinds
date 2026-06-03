@@ -341,3 +341,15 @@ Validation: **`pytest -q`** — **`test_seats.py`**, **`test_seat_token_flow.py`
 - [ ] Legacy no-meta dirs do not appear in list; actions still permissive.
 
 Validation: **`scripts/run-server-tests.ps1 slice c14b`** — **`test_lobby_list.py`**, **`test_seat_claim.py`**, **`test_seats.py`**. Full/cloud profiles include new tests.
+
+## Slice C14c — Cloud front door / lobby UI (Godot)
+
+- [ ] Normal launch shows front door (not immediate gameplay).
+- [ ] **Local Hotseat** starts unchanged local session.
+- [ ] **Create Cloud Match** stores host credential and starts cloud play.
+- [ ] **Cloud Matches** lists staging rows without tokens; **Join … as Player N** claims and plays.
+- [ ] **Resume** reconnects with saved token; missing match shows error on front door.
+- [ ] **`EOM_CLOUD_CLIENT=1`** (+ optional env ids/tokens) still boots **`main.tscn`** cloud path without front door.
+- [ ] Headless **`main.tscn`** cloud tests still pass.
+
+Validation: **`scripts/run-godot-tests.ps1 slice c14c`** — **`test_cloud_lobby_parsers.gd`**, **`test_cloud_front_door_boot_intent.gd`**. **`scripts/run-godot-tests.ps1 cloud`** / **full**.

@@ -5,6 +5,7 @@ class_name CloudCredentialStore
 const DEFAULT_PATH: String = "user://cloud_matches.json"
 const STORE_VERSION: int = 1
 const STATUS_UNKNOWN: String = "unknown"
+const STATUS_STAGING: String = "staging"
 ## Host/dev single-client flow: actor_id 0 when saving host_token from create.
 const HOST_ACTOR_ID: int = 0
 
@@ -56,6 +57,23 @@ static func save_store(path: String, data: Dictionary) -> void:
 		return
 	f.store_string(JSON.stringify(out))
 	f.close()
+
+
+static func entries_for_server(path: String, server_url: String) -> Array:
+	var store := load_store(path)
+	var su := normalize_server_url(server_url)
+	var out: Array = []
+	var matches: Array = store["matches"] as Array
+	var i: int = 0
+	while i < matches.size():
+		var row = matches[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row as Dictionary
+		if normalize_server_url(str(d.get("server_url", ""))) == su:
+			out.append(d.duplicate(true))
+	return out
 
 
 static func find(path: String, server_url: String, match_id: String) -> Dictionary:
