@@ -122,11 +122,11 @@ static func display_label(entry: Dictionary) -> String:
 	var lbl: String = str(entry.get("label", "")).strip_edges()
 	if lbl.length() > 0:
 		return lbl
-	return short_match_id(entry)
+	return normalize_match_id(str(entry.get("match_id", "")))
 
 
-## Server **display_name** when known; else local label cache; else short match id.
-static func resolved_display_name(entry: Dictionary, server_names: Dictionary = {}) -> String:
+## Full untruncated title: server map → local label → full match_id (never UI ellipsis).
+static func full_display_name(entry: Dictionary, server_names: Dictionary = {}) -> String:
 	if typeof(entry) != TYPE_DICTIONARY:
 		return ""
 	var mid: String = normalize_match_id(str(entry.get("match_id", "")))
@@ -134,26 +134,89 @@ static func resolved_display_name(entry: Dictionary, server_names: Dictionary = 
 		var from_server: String = str(server_names.get(mid, "")).strip_edges()
 		if from_server.length() > 0:
 			return from_server
-	return display_label(entry)
+	var lbl: String = str(entry.get("label", "")).strip_edges()
+	if lbl.length() > 0:
+		return lbl
+	return mid
+
+
+static func resolved_display_name(entry: Dictionary, server_names: Dictionary = {}) -> String:
+	return full_display_name(entry, server_names)
 
 
 static func short_match_id(entry: Dictionary) -> String:
 	var mid: String = normalize_match_id(str(entry.get("match_id", "")))
 	if mid.is_empty():
 		return ""
-	if mid.length() <= 12:
+	if mid.length() <= 24:
 		return mid
-	return mid.substr(0, 12) + "…"
+	return mid.substr(0, 24) + "…"
 
 
 static func format_saved_row_text(entry: Dictionary, server_names: Dictionary = {}) -> String:
-	var host_bit: String = " (host)" if bool(entry.get("is_host", false)) else ""
+	return format_saved_row_text_from_view(build_saved_row_view(entry, "", server_names))
+
+
+## Saved-list row model (rename/prefill must use **display_name**, not **row_text**).
+static func build_saved_row_view(
+	entry: Dictionary,
+	server_url: String,
+	server_names: Dictionary = {},
+) -> Dictionary:
+	var mid: String = normalize_match_id(str(entry.get("match_id", "")))
+	var su: String = normalize_server_url(
+		str(entry.get("server_url", server_url)) if str(entry.get("server_url", "")) else server_url
+	)
+	var server_dn: String = ""
+	if mid.length() > 0 and typeof(server_names) == TYPE_DICTIONARY:
+		server_dn = str(server_names.get(mid, "")).strip_edges()
+	var local_lbl: String = str(entry.get("label", "")).strip_edges()
+	var display_full: String = full_display_name(entry, server_names)
+	var view := {
+		"match_id": mid,
+		"server_url": su,
+		"actor_id": int(entry.get("actor_id", 0)),
+		"is_host": bool(entry.get("is_host", false)),
+		"seat_token": str(entry.get("seat_token", "")).strip_edges(),
+		"display_name": display_full,
+		"label_local": local_lbl,
+		"server_display_name": server_dn,
+		"credential": entry.duplicate(true),
+	}
+	view["row_text"] = format_saved_row_text_from_view(view)
+	return view
+
+
+static func format_saved_row_text_from_view(view: Dictionary) -> String:
+	if typeof(view) != TYPE_DICTIONARY:
+		return ""
+	var host_bit: String = " (host)" if bool(view.get("is_host", false)) else ""
+	var id_hint: String = str(view.get("match_id", ""))
 	return "%s — actor %d%s — %s" % [
-		resolved_display_name(entry, server_names),
-		int(entry.get("actor_id", 0)),
+		str(view.get("display_name", "")),
+		int(view.get("actor_id", 0)),
 		host_bit,
-		short_match_id(entry),
+		id_hint,
 	]
+
+
+static func apply_rename_to_view(view: Dictionary, new_display_name: String) -> Dictionary:
+	var out: Dictionary = view.duplicate(true)
+	var name: String = str(new_display_name).strip_edges()
+	out["display_name"] = name
+	out["server_display_name"] = name
+	out["label_local"] = name
+	var cred = out.get("credential", {})
+	if typeof(cred) == TYPE_DICTIONARY:
+		var c: Dictionary = (cred as Dictionary).duplicate(true)
+		c["label"] = name
+		out["credential"] = c
+	out["row_text"] = format_saved_row_text_from_view(out)
+	return out
+
+
+static func rename_submit_body(user_text: String) -> String:
+	return str(user_text).strip_edges()
 
 
 static func update_label_cache(

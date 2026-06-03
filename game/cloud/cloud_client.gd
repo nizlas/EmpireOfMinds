@@ -33,7 +33,10 @@ static func parse_rename_display_response(resp: Dictionary) -> Dictionary:
 	if typeof(resp) != TYPE_DICTIONARY:
 		return {"ok": false, "_error": "invalid_response"}
 	if resp.has("_error"):
-		return {"ok": false, "_error": resp["_error"]}
+		var out_err := {"ok": false, "_error": resp["_error"]}
+		if resp.has("_http_code"):
+			out_err["_http_code"] = int(resp["_http_code"])
+		return out_err
 	var name: String = str(resp.get("display_name", "")).strip_edges()
 	if name.is_empty():
 		return {"ok": false, "_error": "missing_display_name"}
@@ -47,9 +50,7 @@ static func parse_rename_display_response(resp: Dictionary) -> Dictionary:
 static func lobby_open_row_text(row: Dictionary, actor_id: int) -> String:
 	var title: String = display_name_from_lobby_row(row)
 	if title.is_empty():
-		title = CloudCredentialStoreScript.short_match_id(
-			{"match_id": str(row.get("match_id", ""))}
-		)
+		title = str(row.get("match_id", "")).strip_edges()
 	return "Join %s as Player %d" % [title, int(actor_id)]
 
 

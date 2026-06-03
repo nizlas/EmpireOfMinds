@@ -66,8 +66,8 @@ func _test_resolved_display_name() -> void:
 	)
 	entry["label"] = ""
 	_check(
-		StoreScript.resolved_display_name(entry, {}) == StoreScript.short_match_id(entry),
-		"short id fallback",
+		StoreScript.full_display_name(entry, {}) == "m_x",
+		"full match_id fallback without truncation",
 	)
 
 

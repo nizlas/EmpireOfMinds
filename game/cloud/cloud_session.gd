@@ -3,6 +3,7 @@ extends Node
 class_name CloudSession
 
 const CloudClientScript = preload("res://cloud/cloud_client.gd")
+const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.gd")
 
 var base_url: String = "http://127.0.0.1:8000"
 var match_id: String = ""
@@ -64,6 +65,7 @@ func http_json_request(method: int, path: String, body: String = "") -> Dictiona
 	var full_url := base_norm + path
 	var dbg := _cloud_debug_enabled()
 	var is_cm := _is_create_match_post(method, path)
+	var is_rename := method == HTTPClient.METHOD_PATCH and path.find("/display-name") >= 0
 	var t0 := Time.get_ticks_msec()
 	var headers := PackedStringArray()
 	if method == HTTPClient.METHOD_POST or method == HTTPClient.METHOD_PATCH:
@@ -98,6 +100,11 @@ func http_json_request(method: int, path: String, body: String = "") -> Dictiona
 					"SliceC8TIME create_match_response_http_error t=%d elapsed_ms=%d http=%d path=%s full_url=%s body_snippet=%s"
 					% [Time.get_ticks_msec(), elapsed, code, path, full_url, snippet_err]
 				)
+			)
+		if dbg and is_rename:
+			print(
+				"SliceC14c2 rename_display_name_http_error http=%d path=%s snippet=%s"
+				% [code, path, snippet_err]
 			)
 		return {
 			"_error": "http",
@@ -176,8 +183,31 @@ func post_create_match(scenario_id: String, display_name: String = "") -> Dictio
 
 func patch_display_name(match_id: String, display_name: String) -> Dictionary:
 	var path: String = CloudClientScript.patch_display_name_path(match_id)
-	var body: Dictionary = {"display_name": str(display_name).strip_edges()}
-	return await http_json_request(HTTPClient.METHOD_PATCH, path, JSON.stringify(body))
+	var body: Dictionary = {
+		"display_name": CloudCredentialStoreScript.rename_submit_body(display_name),
+	}
+	if _cloud_debug_enabled():
+		print(
+			"SliceC14c2 rename_display_name_request match_id=%s requested_name=%s path=%s"
+			% [str(match_id).strip_edges(), body["display_name"], path]
+		)
+	var resp: Dictionary = await http_json_request(HTTPClient.METHOD_PATCH, path, JSON.stringify(body))
+	if _cloud_debug_enabled():
+		if resp.has("_error"):
+			print(
+				"SliceC14c2 rename_display_name_failed match_id=%s error=%s http=%s"
+				% [
+					str(match_id).strip_edges(),
+					str(resp.get("_error", "")),
+					str(resp.get("_http_code", "")),
+				]
+			)
+		else:
+			print(
+				"SliceC14c2 rename_display_name_ok match_id=%s response_display_name=%s"
+				% [str(match_id).strip_edges(), str(resp.get("display_name", ""))]
+			)
+	return resp
 
 
 func get_match() -> Dictionary:
