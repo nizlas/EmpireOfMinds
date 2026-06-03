@@ -23,6 +23,7 @@ const TurnViewSyncScript = preload("res://presentation/turn_view_sync.gd")
 const CloudClientScript = preload("res://cloud/cloud_client.gd")
 const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.gd")
 const BootIntentScript = preload("res://cloud/boot_intent.gd")
+const CloudTurnOwnershipScript = preload("res://cloud/cloud_turn_ownership.gd")
 const CityProductionPanelScript = preload("res://presentation/city_production_panel.gd")
 ## Phase 4.5n: mouse-wheel zoom multiplier (center-anchored in layer-local space; not cursor-anchored).
 const ZOOM_STEP: float = 1.10
@@ -52,6 +53,9 @@ var _boot_cloud_from_intent: bool = false
 var _boot_cloud_enter_created: bool = false
 var _boot_cloud_match_id: String = ""
 var _boot_cloud_seat_token: String = ""
+var _boot_cloud_actor_id: int = -1
+## Slice C14d-4b: claimed seat **actor_id** for cloud gameplay (not host-token identity).
+var _cloud_local_actor_id: int = -1
 ## Slice C8: true from cloud bootstrap until first server snapshot is applied and presentation refreshed.
 var _cloud_loading: bool = false
 ## Slice C11: blocks map input during cloud combat presentation (presentation-only; snapshot applies after).
@@ -197,6 +201,7 @@ func _ready() -> void:
 		_boot_cloud_enter_created = BootIntentScript.is_cloud_enter_created(boot_mode)
 		_boot_cloud_match_id = str(boot.get("match_id", ""))
 		_boot_cloud_seat_token = str(boot.get("seat_token", ""))
+		_boot_cloud_actor_id = int(boot.get("actor_id", -1))
 		cloud_base_url = str(boot.get("server_url", cloud_base_url))
 		cloud_match_id = _boot_cloud_match_id
 		cloud_seat_token = _boot_cloud_seat_token
@@ -338,6 +343,110 @@ func cloud_session_blocks_map_input() -> bool:
 	return _cloud_loading or _cloud_boot_stranded or _cloud_combat_anim_busy
 
 
+func cloud_local_actor_id() -> int:
+	return _cloud_local_actor_id
+
+
+func cloud_is_my_turn() -> bool:
+	if not _cloud_mode or _play_game_state == null:
+		return true
+	return CloudTurnOwnershipScript.is_my_cloud_turn(
+		_cloud_local_actor_id,
+		_play_game_state.turn_state,
+	)
+
+
+func cloud_blocks_gameplay_actions() -> bool:
+	if not _cloud_mode:
+		return false
+	return CloudTurnOwnershipScript.is_cloud_waiting_readonly(
+		_cloud_mode,
+		_cloud_local_actor_id,
+		_play_game_state.turn_state if _play_game_state != null else null,
+	)
+
+
+func _cloud_init_local_actor_id() -> void:
+	var aid: int = -1
+	if _boot_cloud_from_intent:
+		aid = CloudTurnOwnershipScript.gameplay_actor_id_from_boot(
+			{
+				"seat_token": _boot_cloud_seat_token,
+				"actor_id": _boot_cloud_actor_id,
+			}
+		)
+	if aid < 0 and _cloud_session != null:
+		var tok: String = _cloud_session.seat_token.strip_edges()
+		if tok.begins_with("st_"):
+			var cred: Dictionary = CloudCredentialStoreScript.find(
+				CloudCredentialStoreScript.resolved_store_path(),
+				_cloud_resolve_base_url(),
+				_cloud_session.match_id,
+			)
+			aid = CloudTurnOwnershipScript.gameplay_actor_id_from_credential(cred)
+	if aid < 0 and _cloud_session != null:
+		var sess_tok: String = _cloud_session.seat_token.strip_edges()
+		if sess_tok.begins_with("st_") and _boot_cloud_actor_id >= 0:
+			aid = _boot_cloud_actor_id
+	_cloud_local_actor_id = aid
+	if _cloud_debug_enabled():
+		var cur: int = -1
+		if _play_game_state != null and _play_game_state.turn_state != null:
+			cur = CloudTurnOwnershipScript.current_actor_id_from_turn_state(_play_game_state.turn_state)
+		print(
+			"SliceC14d4b cloud_actor local_actor_id=%d current_actor_id=%d my_turn=%s"
+			% [_cloud_local_actor_id, cur, str(cloud_is_my_turn())]
+		)
+
+
+func _cloud_clear_legal_action_ui() -> void:
+	_cloud_last_legal_actions = []
+	var sv = $SelectionView
+	if sv != null:
+		sv.cloud_destination_coords = []
+		sv.cloud_attack_target_coords = []
+		sv.queue_redraw()
+	var selc = $SelectionController
+	if selc != null:
+		selc.cloud_move_action_by_hex = {}
+		selc.cloud_attack_action_by_hex = {}
+	var cpp = $HudCanvas/CityProductionPanel
+	if cpp != null:
+		cpp.cloud_production_options = []
+		cpp.refresh()
+
+
+func cloud_refresh_turn_ownership_ui() -> void:
+	if not _cloud_mode:
+		return
+	var strip = $HudCanvas/PlayerContactStrip
+	if strip != null:
+		strip.cloud_waiting_status_text = CloudTurnOwnershipScript.waiting_status_text(
+			_cloud_mode,
+			_cloud_local_actor_id,
+			_play_game_state.turn_state if _play_game_state != null else null,
+		)
+		strip.refresh()
+
+
+func cloud_refresh_match_snapshot_async_entry() -> void:
+	if not _cloud_mode or _cloud_session == null or _cloud_loading or _cloud_boot_stranded:
+		return
+	var resp: Dictionary = await _cloud_session.get_match()
+	if resp.has("_error") or typeof(resp.get("snapshot")) != TYPE_DICTIONARY:
+		return
+	var gs_new = ServerSnapshotAdapterScript.build_game_state_from_api_snapshot(resp["snapshot"])
+	if gs_new == null:
+		return
+	_rebind_session_to_game_state(gs_new)
+	_refresh_presentation_after_cloud_snap()
+	_cloud_touch_credential_revision(CloudCredentialStoreScript.revision_from_response(resp))
+	if cloud_is_my_turn():
+		call_deferred("cloud_refresh_legal_async_entry")
+	else:
+		_cloud_clear_legal_action_ui()
+
+
 func _cloud_debug_timing(tag: String) -> void:
 	if not _cloud_debug_enabled():
 		return
@@ -410,6 +519,7 @@ func _cloud_fail_session_and_strand(msg: String, resp: Dictionary = {}) -> void:
 	$HudCanvas/CityProductionPanel.use_cloud_server = false
 	$HudCanvas/CityProductionPanel.cloud_play_host = null
 	$AITurnController.skip_for_cloud = false
+	$EndTurnController.skip_for_cloud = false
 	var yields_t = $HudCanvas/YieldsToggle as CheckButton
 	if yields_t != null:
 		yields_t.focus_mode = Control.FOCUS_ALL
@@ -533,7 +643,12 @@ func _bootstrap_cloud_session() -> void:
 			)
 	_cloud_persist_credential_after_bootstrap(resp, reconnecting)
 	_cloud_touch_credential_revision(CloudCredentialStoreScript.revision_from_response(resp))
-	call_deferred("cloud_refresh_legal_async_entry")
+	_cloud_init_local_actor_id()
+	cloud_refresh_turn_ownership_ui()
+	if cloud_is_my_turn():
+		call_deferred("cloud_refresh_legal_async_entry")
+	else:
+		_cloud_clear_legal_action_ui()
 
 
 func _apply_cloud_controller_flags(on: bool) -> void:
@@ -545,6 +660,7 @@ func _apply_cloud_controller_flags(on: bool) -> void:
 	$HudCanvas/CityProductionPanel.use_cloud_server = on
 	$HudCanvas/CityProductionPanel.cloud_play_host = self if on else null
 	$AITurnController.skip_for_cloud = on
+	$EndTurnController.skip_for_cloud = on
 
 
 func _wire_play_session(game_state, selection, city_view_state) -> void:
@@ -776,6 +892,10 @@ func cloud_pick_found_city_action() -> Dictionary:
 func cloud_refresh_legal_async_entry() -> void:
 	if not _cloud_mode or _cloud_session == null or _play_game_state == null:
 		return
+	if cloud_blocks_gameplay_actions():
+		_cloud_clear_legal_action_ui()
+		cloud_refresh_turn_ownership_ui()
+		return
 	if _cloud_legal_busy:
 		_cloud_legal_stale = true
 		return
@@ -789,7 +909,10 @@ func cloud_refresh_legal_async_entry() -> void:
 
 
 func _cloud_fetch_and_apply_legal() -> void:
-	var actor = _play_game_state.turn_state.current_player_id()
+	var actor: int = _cloud_local_actor_id
+	if actor < 0:
+		_cloud_clear_legal_action_ui()
+		return
 	var su = -1
 	var sc = -1
 	if _play_selection.has_city():
@@ -879,8 +1002,12 @@ func _cloud_fetch_and_apply_legal() -> void:
 func cloud_post_end_turn_async_entry() -> void:
 	if cloud_session_blocks_map_input() or not _cloud_mode or _play_game_state == null:
 		return
-	var pid = _play_game_state.turn_state.current_player_id()
-	await cloud_post_action_async_entry(EndTurnScript.make(pid))
+	if cloud_blocks_gameplay_actions():
+		cloud_refresh_turn_ownership_ui()
+		return
+	if _cloud_local_actor_id < 0:
+		return
+	await cloud_post_action_async_entry(EndTurnScript.make(_cloud_local_actor_id))
 
 
 func cloud_post_action_async_entry(action: Dictionary) -> void:
@@ -888,17 +1015,27 @@ func cloud_post_action_async_entry(action: Dictionary) -> void:
 		return
 	if not _cloud_mode or _cloud_session == null:
 		return
-	var r = await _cloud_session.post_action(action)
-	await _handle_cloud_post_response(r, action)
+	if cloud_blocks_gameplay_actions():
+		cloud_refresh_turn_ownership_ui()
+		return
+	if _cloud_local_actor_id < 0:
+		return
+	var act: Dictionary = action.duplicate(true)
+	act["actor_id"] = _cloud_local_actor_id
+	var r = await _cloud_session.post_action(act)
+	await _handle_cloud_post_response(r, act)
 
 
 func _handle_cloud_post_response(r: Dictionary, action: Dictionary) -> void:
 	if not CloudClientScript.should_apply_snapshot(r):
+		if CloudTurnOwnershipScript.is_seat_not_allowed_response(r):
+			cloud_refresh_turn_ownership_ui()
+			call_deferred("cloud_refresh_match_snapshot_async_entry")
+			return
 		if r.has("_error"):
 			push_warning("Slice C8 POST transport: %s" % r)
 			cloud_input_diag_log("post_action", {"accepted": false, "transport": r})
 		elif not bool(r.get("accepted", false)):
-			push_warning("Slice C8 POST rejected: %s" % str(r.get("reason", "")))
 			cloud_input_diag_log(
 				"post_action",
 				{"accepted": false, "reason": str(r.get("reason", "")), "action_type": str(action.get("action_type", ""))}
@@ -949,7 +1086,11 @@ func _apply_cloud_post_snapshot(r: Dictionary, action: Dictionary) -> void:
 	_refresh_presentation_after_cloud_snap()
 	_cloud_maybe_show_turn_start_banner(gs_new, prev_pid, str(action.get("action_type", "")))
 	_cloud_touch_credential_revision(CloudCredentialStoreScript.revision_from_response(r))
-	call_deferred("cloud_refresh_legal_async_entry")
+	cloud_refresh_turn_ownership_ui()
+	if cloud_is_my_turn():
+		call_deferred("cloud_refresh_legal_async_entry")
+	else:
+		_cloud_clear_legal_action_ui()
 
 
 func _rebind_session_to_game_state(gs) -> void:
@@ -1073,6 +1214,7 @@ func _refresh_presentation_after_cloud_snap() -> void:
 	$HudCanvas/DiscoveryActionPanel.refresh()
 	$HudCanvas/SciencePanel.refresh()
 	$TurnStartBanner.set_game_state(gs)
+	cloud_refresh_turn_ownership_ui()
 	_redraw_map_layers()
 
 
@@ -1114,6 +1256,12 @@ func _input(event: InputEvent) -> void:
 		call_deferred("cloud_post_end_turn_async_entry")
 		get_viewport().set_input_as_handled()
 		return
+	if _cloud_mode and event is InputEventKey:
+		var ek_r := event as InputEventKey
+		if ek_r.pressed and not ek_r.echo and ek_r.keycode == KEY_R:
+			call_deferred("cloud_refresh_match_snapshot_async_entry")
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if not mb.pressed:

@@ -31,6 +31,8 @@ var discovery_popup
 var map_visibility_view
 var lightning_tree_view
 var turn_start_banner
+## Slice C14d-4b: cloud uses **Main** + seat-token POST; disable local hotseat EndTurn apply.
+var skip_for_cloud: bool = false
 
 ## Phase **5.2.1** hotseat: after accepted **`EndTurn`**, clear unit + city selection and exit **PLANNING** so the next **current** player does not inherit hub focus. Presentation-only.
 static func apply_hotseat_clear_after_accepted_end_turn(selection, city_production_panel) -> void:
@@ -45,6 +47,8 @@ static func apply_hotseat_clear_after_accepted_end_turn(selection, city_producti
 func _unhandled_input(event: InputEvent) -> void:
 	assert(GameStateScript != null)
 	assert(EndTurnScript != null)
+	if skip_for_cloud:
+		return
 	if (
 		game_state == null
 		or selection == null

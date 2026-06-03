@@ -293,8 +293,19 @@ func _sync_terrain_foreground_from_game_state() -> void:
 	)
 
 
+func _cloud_blocks_actions() -> bool:
+	return (
+		use_cloud_server
+		and cloud_play_host != null
+		and cloud_play_host.has_method("cloud_blocks_gameplay_actions")
+		and cloud_play_host.cloud_blocks_gameplay_actions()
+	)
+
+
 func _cloud_schedule_legal_refresh() -> void:
 	if use_cloud_server and cloud_play_host != null:
+		if _cloud_blocks_actions():
+			return
 		cloud_play_host.call_deferred("cloud_refresh_legal_async_entry")
 
 
@@ -341,7 +352,8 @@ func _unhandled_input(event):
 				if fc_cloud.is_empty():
 					push_warning("Cloud: no legal found_city on server list (refresh legal-actions)")
 					return
-				cloud_play_host.call_deferred("cloud_post_action_async_entry", fc_cloud)
+				if not _cloud_blocks_actions():
+					cloud_play_host.call_deferred("cloud_post_action_async_entry", fc_cloud)
 				return
 			if selection.is_empty():
 				return
@@ -536,7 +548,7 @@ func _unhandled_input(event):
 						var raw_atk = cloud_attack_action_by_hex.get(dest_key, null)
 						if raw_atk != null and typeof(raw_atk) == TYPE_DICTIONARY:
 							act_attack = raw_atk as Dictionary
-					if not act_attack.is_empty() and cloud_play_host != null:
+					if not act_attack.is_empty() and cloud_play_host != null and not _cloud_blocks_actions():
 						cloud_play_host.cloud_input_diag_log(
 							"click_cloud_attack_action_before_post",
 							{"action_json": JSON.stringify(act_attack)}
@@ -560,7 +572,7 @@ func _unhandled_input(event):
 								"found_action": ok_cloud_move,
 							}
 						)
-					if ok_cloud_move and cloud_play_host != null:
+					if ok_cloud_move and cloud_play_host != null and not _cloud_blocks_actions():
 						cloud_play_host.cloud_input_diag_log(
 							"click_cloud_move_action_before_post",
 							{"action_json": JSON.stringify(act_cloud)}

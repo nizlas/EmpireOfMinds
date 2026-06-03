@@ -466,3 +466,14 @@ Validation: **`scripts/run-godot-tests.ps1 slice c14d-dev`** (**`test_cloud_cred
 - [ ] No server/API/Docker/gameplay polling/hotseat changes.
 
 Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_lobby_poll_c14d4a.gd`**).
+
+## Slice C14d-4b — Ongoing async waiting/read-only UX (Godot)
+
+- [ ] Local **seat `actor_id`** (not host token) gates actions; legal-actions/POST use local seat identity.
+- [ ] Out-of-turn client: map visible + pan/zoom; **“Other player’s turn”** under top-right player chips; no move/found/attack/end-turn spam.
+- [ ] After local **end turn**, client enters waiting until **`R`** refresh or opponent ends turn.
+- [ ] **`seat_not_allowed`** does not spam warnings; shows waiting state + snapshot refresh.
+- [ ] Local hotseat unchanged.
+- [ ] Two-profile manual flow (C14d-dev): only current seat can act; other sees waiting text.
+
+Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_turn_ownership_c14d4b.gd`**). **`smoke`** if boot plumbing touched.

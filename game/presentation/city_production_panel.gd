@@ -492,6 +492,11 @@ func _on_production_button_pressed(action: Dictionary) -> void:
 	if game_state == null:
 		return
 	if use_cloud_server and cloud_play_host != null:
+		if (
+			cloud_play_host.has_method("cloud_blocks_gameplay_actions")
+			and cloud_play_host.cloud_blocks_gameplay_actions()
+		):
+			return
 		cloud_play_host.call_deferred("cloud_post_action_async_entry", action.duplicate(true))
 		return
 	var result = game_state.try_apply(action)

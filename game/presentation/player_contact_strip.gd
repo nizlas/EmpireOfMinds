@@ -8,7 +8,10 @@ const UnitNameplateViewScript = preload("res://presentation/unit_nameplate_view.
 const PlaytestPlayerDisplayScript = preload("res://presentation/playtest_player_display.gd")
 
 var game_state = null
+## C14d-4b cloud ongoing: small status under player chips (empty when local seat may act).
+var cloud_waiting_status_text: String = ""
 var _hbox: HBoxContainer
+var _waiting_label: Label
 
 
 static func compute_view_model(gs) -> Dictionary:
@@ -69,10 +72,21 @@ func _ready() -> void:
 	margin.add_theme_constant_override("margin_right", 8)
 	margin.add_theme_constant_override("margin_bottom", 6)
 	outer.add_child(margin)
+	var vbox := VBoxContainer.new()
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_theme_constant_override("separation", 4)
+	margin.add_child(vbox)
 	_hbox = HBoxContainer.new()
 	_hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hbox.add_theme_constant_override("separation", 8)
-	margin.add_child(_hbox)
+	vbox.add_child(_hbox)
+	_waiting_label = Label.new()
+	_waiting_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_waiting_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_waiting_label.add_theme_font_size_override("font_size", 12)
+	_waiting_label.modulate = Color(0.78, 0.8, 0.86)
+	_waiting_label.visible = false
+	vbox.add_child(_waiting_label)
 
 
 func refresh() -> void:
@@ -82,9 +96,16 @@ func refresh() -> void:
 		c.free()
 	var vm: Dictionary = compute_view_model(game_state)
 	var entries: Array = vm.get("entries", []) as Array
+	var wait_txt: String = str(cloud_waiting_status_text).strip_edges()
+	if _waiting_label != null:
+		_waiting_label.text = wait_txt
+		_waiting_label.visible = not wait_txt.is_empty()
 	visible = bool(vm.get("visible", false)) and not entries.is_empty()
-	if not visible:
+	if not visible and wait_txt.is_empty():
 		custom_minimum_size = Vector2(48.0, 44.0)
+		return
+	if not visible and not wait_txt.is_empty():
+		custom_minimum_size = Vector2(120.0, 44.0)
 		return
 	var ei: int = 0
 	var total_w: float = 20.0
@@ -95,7 +116,10 @@ func refresh() -> void:
 		if ei < entries.size() - 1:
 			total_w += 8.0
 		ei = ei + 1
-	custom_minimum_size = Vector2(total_w, 52.0)
+	var h: float = 52.0
+	if not wait_txt.is_empty():
+		h += 18.0
+	custom_minimum_size = Vector2(total_w, h)
 
 
 func _make_chip(entry: Dictionary) -> Control:
