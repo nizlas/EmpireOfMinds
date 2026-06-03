@@ -37,7 +37,7 @@ Report:
 
 | Profile | Use when |
 |--------|----------|
-| **slice \<id\>** | **Default** while implementing and reporting on a focused slice (e.g. **c14c**, **c14b**) |
+| **slice \<id\>** | **Default** while implementing and reporting on a focused slice (e.g. **c14c**, **c14b**, **c14d**) |
 | **smoke** | Small change touches **shared** setup/boot/session/helper code; quick sanity without full regression |
 | **cloud** | Broad cloud client/server change; shared **CloudSession** / **CloudClient** behavior across flows; cloud deploy prep; **user explicitly requests** broader cloud validation |
 | **presentation** | Broad map/presentation/rendering changes; UI rendering outside a narrow menu slice; **user explicitly requests** presentation validation |
@@ -51,11 +51,16 @@ Report:
 - If **BootIntent** or **main.gd** boot flow changed: also `.\scripts\run-godot-tests.ps1 smoke`
 - **Do not** run **full**, **cloud**, or **presentation** unless explicitly requested.
 
-**Small server endpoint/model slice (e.g. C14b):**
+**Small server endpoint/model slice (e.g. C14b, C14d-1):**
 
-- Normally: `.\scripts\run-server-tests.ps1 slice <slice_id>`
+- Normally: `.\scripts\run-server-tests.ps1 slice <slice_id>` (e.g. **`c14d`** for staging faction/ready)
 - If shared match/action plumbing changed: also `.\scripts\run-server-tests.ps1 smoke`
 - **Do not** run **full** or broad Godot **cloud** unless explicitly requested or preparing deploy.
+
+**Docs-only / decision checkpoint slice (e.g. C14d-0):**
+
+- **No** runtime suites — the diff touches only `docs/`.
+- If a docs-only task implies code changes, **stop and report** instead of writing code.
 
 ### What not to do
 
@@ -74,6 +79,7 @@ From the **repository root** (requires `pytest` on PATH; install deps under `ser
 .\scripts\run-server-tests.ps1 cloud
 .\scripts\run-server-tests.ps1 slice c13a
 .\scripts\run-server-tests.ps1 slice c14b
+.\scripts\run-server-tests.ps1 slice c14d
 .\scripts\run-server-tests.ps1 presentation   # prints Godot-only notice, exit 0
 ```
 
@@ -86,6 +92,7 @@ Equivalent manual full run: `cd server` then `pytest -q`.
 - **cloud** — API/action flows: create match, move, end turn, found city, production, attack, combat rules, legal-actions, production/food/science ticks, snapshot v2, player visibility, seats / seat-token flow.
 - **slice c13a** — `test_seats.py`, `test_seat_token_flow.py`.
 - **slice c14b** — `test_lobby_list.py`, `test_seat_claim.py`, `test_seats.py`, `test_display_name.py`.
+- **slice c14d** — `test_faction_select.py`, `test_seat_ready.py`, `test_seats.py`, `test_lobby_list.py`.
 
 Unknown slice ids print supported ids and exit non-zero.
 

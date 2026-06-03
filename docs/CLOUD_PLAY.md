@@ -67,6 +67,62 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 - **Dev skip:** **`EOM_CLOUD_CLIENT=1`** still jumps straight to **`main.tscn`** with env-based cloud boot (headless tests unchanged).
 - **Lobby list** never displays tokens; only claim/create responses store tokens locally.
 
+### Cloud staging authority & async lifecycle (Slice C14d-0 — decision checkpoint, docs-only)
+
+**Status:** decision-only. **No** runtime code, schema, or endpoint exists for this yet; it locks the intended model **before** the C14d staging/ready/auto-start implementation slices. Cloud alpha is **async-first and loosely coupled**: players do **not** need to be online at the same time, staging state lives on the **server**, and local clients hold **credentials only**.
+
+**1. Host-token vs seat-token (two distinct credentials).**
+- **Host-token (`ht_…`)** = match **owner/admin** credential, **not** the normal gameplay identity. It may authorize: rename match, manage staging/settings, delete/abandon match, and future admin/debug actions. **Host-as-all-players** stays **only** as an explicit **dev/debug** convenience (where documented), never as normal player UX.
+- **Seat-token (`st_…`)** = **gameplay identity** for **exactly one** seat / `actor_id`. It authorizes: claiming/owning that slot, choosing faction/civ for that slot, setting ready/unready for that slot, and gameplay actions for that `actor_id` once the match is **ongoing**.
+- Normal UI must **not** treat the host-token as “play all players.”
+
+**2. Async staging flow (server-persistent).**
+1. Host creates a match → stored server-side with **`status=staging`**.
+2. Host lands in a **staging area**, **not** directly in gameplay.
+3. Host may claim **one** seat and choose faction/civ.
+4. Host may close the client; the match **remains in staging** on the server.
+5. Another player later opens the cloud lobby, sees the staging match, claims an **open** seat, chooses faction/civ, and readies up.
+6. Players are **never required to be co-present**.
+
+**3. Readiness & auto-start (no manual host-start in normal UX).**
+- There is **no** “host starts match” button in normal UX.
+- Each player: **claims a seat → chooses an available faction/civ → presses Ready**.
+- When **all required seats** are **claimed + faction-selected + ready**, the **server** automatically transitions the match to **`ongoing`** and selects the first player. The host does **not** auto-start first.
+- **Alpha shape:** exactly **2 seats**; initial factions/civs **Malmö** and **Västervik** (add **Paris** if easy, otherwise treat as near-future).
+
+**4. Status model (prefer derived `ready_to_start`, not a separate `ready` status).**
+- **`status=staging`** — players can claim slots, choose faction/civ, ready/unready; in the **final** lifecycle, gameplay actions are **not** accepted while staging.
+- **`ready_to_start` (derived, while staging)** — true when all required seats are claimed, factions selected, and `ready=true`. This is a **computed condition**, not a stored status.
+- **`status=ongoing`** — match started; seats/settings **locked**; gameplay actions enabled per turn/seat authorization.
+- A separate **`status=ready`** is **not** introduced unless a strong repo reason emerges; auto-start moves **staging → ongoing** directly.
+
+**5. First-player selection (server-chosen, deterministic).**
+- The **server** chooses the first player at **staging → ongoing**.
+- First player is **not** implicitly the host.
+- Use **deterministic pseudo-random** selection seeded by match identity so it is random-feeling but reproducible, e.g. principle:
+  `first_player_index = deterministic_hash(match_seed_or_match_id + "first_player") % player_count`.
+- The **client must not** choose the first player.
+
+**6. Ongoing async UX (manual refresh, no realtime required).**
+- Opening an **ongoing** match:
+  - **Your turn** → gameplay with actions enabled.
+  - **Another player’s turn** → read-only/waiting view of the map/state, e.g. “Malmö’s turn”, “You are playing as Västervik”, “Waiting for Malmö to play”, with **Refresh** / **Back** controls.
+- **No** realtime/polling in the first version; **manual Refresh** is acceptable.
+
+**7. Delete/abandon (host-token, future).**
+- Host-token should later authorize **delete/abandon match** (remove or mark deleted/abandoned; clean up broken/unwanted matches).
+- **Early finish/concede** is a **separate future** gameplay/lifecycle feature, **not** part of initial staging.
+
+**Out of scope for C14d-0 (decision-only):** any server endpoint/schema, Godot UI, faction-selection model details, accounts/private matches/invite codes, polling/realtime, AI, and the actual auto-start/lock enforcement (those are later C14d implementation slices).
+
+### Staging seat config — faction & ready (Slice C14d-1 — server-only)
+
+- **`meta.json` v2 (additive):** per-seat **`faction_id`** (default **`null`**), **`ready`** (default **`false`**), optional **`claimed_at`** / **`ready_at`**; match-level **`match_seed`** at create (for future deterministic first-player in C14d-2). Faction registry (lobby metadata only — **no** gameplay effects): **`malmo`** → Malmö, **`vastervik`** → Västervik, **`paris`** → Paris.
+- **Lobby summaries** (`GET /v1/matches` and faction/ready POST responses): **`available_factions`**, per-seat **`faction_id`** / **`ready`**, derived **`ready_to_start`** (true while **`status=staging`** when every seat is claimed, has a faction, and **`ready=true`**). Still **no** tokens in summaries.
+- **`POST /v1/matches/{id}/seats/{actor_id}/faction`** — body **`{"faction_id":"malmo"}`**; **`POST …/ready`** — body **`{"ready":true}`** or **`false`**. Both require **`X-Empire-Seat-Token`** for **that** seat (**seat token only** — host token → **`invalid_seat_token`**). Return updated token-free lobby summary for that match.
+- **Rejects:** **`faction_unknown`**, **`faction_taken`**, **`seat_not_claimed`**, **`faction_required`** (ready without faction), **`match_not_in_staging`**, **`missing_seat_token`** / **`invalid_seat_token`** / **`seat_not_allowed`** (wrong seat token for path `actor_id`).
+- **Not in C14d-1:** auto-start, **`status=ongoing`** transition, first-player selection, staging action lock, Godot UI, Docker/Caddy changes.
+
 ### Server display names (Slice C14b.1 / C14c.2)
 
 - **`meta.json` v2** includes **`display_name`** (public lobby title). **`POST /v1/matches`** accepts optional **`display_name`**; if missing/empty the server sets **`Match {short_match_id}`** (not client-local **Match N** numbering).
@@ -82,7 +138,7 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 ### Lobby discovery and seat claim (Slice C14b)
 
 - **Server-only:** new matches write **`meta.json` schema_version 2** with **`status: "staging"`**, **`created_at`**, **`scenario_id`**, and per-seat **`claimed: false`** (tokens remain in meta only).
-- **`GET /v1/matches`:** token-free lobby summaries (`match_id`, `status`, `scenario_id`, `created_at`, `player_count`, `seats[{actor_id, claimed}]`, `open_seat_count`, `revision`, `turn_number`). Optional **`?status=staging`**. Matches without **`meta.json`** (C12 legacy) are omitted. C13 **`meta` v1** appears as **`ongoing`** with all seats **`claimed: true`** in summaries; excluded from staging filter.
+- **`GET /v1/matches`:** token-free lobby summaries (`match_id`, `status`, `scenario_id`, `created_at`, `player_count`, `seats[{actor_id, claimed, faction_id, ready}]`, `open_seat_count`, `available_factions`, `ready_to_start`, `revision`, `turn_number`). Optional **`?status=staging`**. Matches without **`meta.json`** (C12 legacy) are omitted. C13 **`meta` v1** appears as **`ongoing`** with all seats **`claimed: true`** in summaries; excluded from staging filter.
 - **`POST /v1/matches/{id}/seats/{actor_id}/claim`:** marks seat claimed, returns **`seat_token`** and **`display_name`**. Rejects: **`match_not_found`** (404), **`seat_not_found`** (404), **`match_not_in_staging`** (409), **`seat_already_claimed`** (409).
 - **Alpha:** staging matches are public to anyone who can reach the server; no invite codes or accounts.
 - **Not in C14b:** **`POST /start`**, seat lock enforcement, action rejection while staging (those are **C14d**). **`POST /actions`** still uses the C13a token gate and **allows** actions on staging matches so create-then-play dev flow keeps working.

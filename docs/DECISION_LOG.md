@@ -1,3 +1,24 @@
+## 2026-06-03 — Slice **C14d-1** — Server staging seat config (faction + ready)
+
+- **Decision:** Extend **`meta.json` v2** (additive, not v3) with per-seat **`faction_id`** (default **`null`**), **`ready`** (default **`false`**), optional **`claimed_at`** / **`ready_at`** ISO timestamps, and match-level **`match_seed`** set at create. Staging faction registry (metadata only, no gameplay): **`malmo`** → Malmö, **`vastervik`** → Västervik, **`paris`** → Paris.
+- **API:** **`POST /v1/matches/{id}/seats/{actor_id}/faction`** body **`{"faction_id":"…"}`** and **`POST …/ready`** body **`{"ready":true|false}`** — require **`X-Empire-Seat-Token`** for that seat only (**`seat_token_actor_id`**; host token **`invalid_seat_token`**). Both return token-free **`lobby_summary`** (same fields as **`GET /v1/matches`** row, including **`available_factions`**, per-seat **`faction_id`** / **`ready`**, derived **`ready_to_start`**). Rejects: **`faction_unknown`**, **`faction_taken`**, **`seat_not_claimed`**, **`faction_required`** (ready without faction), **`match_not_in_staging`**, **`missing_seat_token`** / **`invalid_seat_token`** / **`seat_not_allowed`**.
+- **Explicitly not in C14d-1:** auto-start (**staging → ongoing**), first-player selection, action gating while staging, Godot/UI, gameplay/faction effects, Docker/Caddy/deploy.
+- **Tests:** server slice **`c14d`** — **`test_faction_select.py`**, **`test_seat_ready.py`**, extended **`test_seats.py`** / **`test_lobby_list.py`**.
+
+## 2026-06-03 — Slice **C14d-0** — Cloud staging authority decision checkpoint (docs-only)
+
+- **Decision (no runtime code):** Lock the cloud-staging model before implementing C14d. Cloud alpha is **async-first / loosely coupled** — players need **not** be co-present; staging lives on the **server**; clients hold **credentials only**.
+  - **Host-token (`ht_…`) = match owner/admin** (rename / manage staging+settings / delete-abandon / future admin-debug), **not** normal gameplay identity. Host-as-all-players is **dev/debug only**.
+  - **Seat-token (`st_…`) = gameplay identity** for exactly one `actor_id` (claim slot, choose faction/civ, ready/unready, play that actor once ongoing).
+  - **Async staging:** create → `status=staging` (server-persistent) → host lands in **staging area** (not gameplay) → host/other players claim a seat, choose faction/civ, ready up across separate sessions.
+  - **Auto-start, no manual host-start:** when all required seats are **claimed + faction-selected + ready**, the **server** transitions **staging → ongoing** and picks the first player. **Alpha:** exactly **2 seats**; factions **Malmö** + **Västervik** (Paris if easy, else near-future).
+  - **Status model:** prefer **`status=staging`** with a **derived `ready_to_start`** (all seats claimed + faction + ready) → auto-start sets **`status=ongoing`** (seats/settings locked). **No** separate `status=ready` unless a strong reason emerges.
+  - **First player chosen by server**, deterministically (e.g. `deterministic_hash(match_seed_or_match_id + "first_player") % player_count`), **not** implicitly host, **never** client-chosen.
+  - **Ongoing async UX:** read-only/waiting view on others’ turns (“Malmö’s turn” / “You are playing as Västervik” / “Waiting for Malmö”) with **manual Refresh** / **Back**; **no** realtime/polling required in v1.
+  - **Delete/abandon** is a future **host-token** action; **early finish/concede** is a separate future lifecycle feature, not part of initial staging.
+- **Out of scope:** server endpoints/schema, Godot UI, faction-selection details, accounts/private/invite, polling/realtime, AI, and the actual auto-start/lock enforcement (later C14d slices).
+- **Docs:** [CLOUD_PLAY.md](CLOUD_PLAY.md), [CLOUD_PLAY_DIRECTION.md](CLOUD_PLAY_DIRECTION.md), [VALIDATION_CHECKLIST.md](VALIDATION_CHECKLIST.md), [TESTING.md](TESTING.md). **Docs-only:** no Godot/server/test/deploy/gameplay change.
+
 ## 2026-06-02 — Slice **C13a** — Player seats / invite tokens (cloud-alpha access)
 
 - **Decision:** New matches write **`meta.json`** (beside **`snapshot.json`**) with per-seat tokens (**`st_`**) and optional **host token** (**`ht_`**, acts for all seats in that match — alpha/dev convenience, not accounts). **`POST /v1/matches/{id}/actions`** on seated matches requires header **`X-Empire-Seat-Token`**; server verifies **`action.actor_id`** is allowed by the token, then runs existing gameplay gates unchanged. **`GET /v1/matches/{id}`** and **`GET .../legal-actions`** stay ungated in C13a. Tokens are **not** in snapshot/events/**GET** response. Legacy matches without **`meta.json`** remain permissive. Godot: **`EOM_CLOUD_SEAT_TOKEN`** / **`Main.cloud_seat_token`**; create auto-uses **`host_token`** when unset; full tokens logged only when **`EOM_CLOUD_DEBUG=1`**.

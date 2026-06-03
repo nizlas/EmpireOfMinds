@@ -24,6 +24,27 @@ router = APIRouter(tags=["matches"])
 SEAT_TOKEN_HEADER = "X-Empire-Seat-Token"
 
 
+def _enforce_seat_token_for_actor(meta: dict[str, Any], actor_id: int, seat_token: str | None) -> None:
+    """Seat gameplay token only — host token does not authorize staging seat actions (C14d-1)."""
+    if not seat_token or not str(seat_token).strip():
+        raise HTTPException(status_code=403, detail="missing_seat_token")
+    token_actor = seats.seat_token_actor_id(meta, str(seat_token).strip())
+    if token_actor is None:
+        raise HTTPException(status_code=403, detail="invalid_seat_token")
+    if int(token_actor) != int(actor_id):
+        raise HTTPException(status_code=403, detail="seat_not_allowed")
+
+
+def _raise_faction_ready_http(reason: str) -> None:
+    if reason in ("match_not_in_staging", "faction_taken", "seat_not_claimed"):
+        raise HTTPException(status_code=409, detail=reason)
+    if reason == "seat_not_found":
+        raise HTTPException(status_code=404, detail=reason)
+    if reason in ("faction_unknown", "faction_required"):
+        raise HTTPException(status_code=400, detail=reason)
+    raise HTTPException(status_code=400, detail=reason)
+
+
 def _reject(reason: str) -> dict[str, Any]:
     return {"accepted": False, "reason": reason, "index": -1}
 
@@ -216,6 +237,60 @@ def patch_match_display_name(
     assert result.meta is not None
     file_store.write_meta(match_id, result.meta)
     return {"match_id": match_id, "display_name": result.display_name}
+
+
+@router.post("/matches/{match_id}/seats/{actor_id}/faction")
+def post_seat_faction(
+    match_id: str,
+    actor_id: int,
+    body: dict[str, Any] | None = Body(default=None),
+    seat_token: str | None = Header(default=None, alias=SEAT_TOKEN_HEADER),
+) -> dict[str, Any]:
+    """Set faction for a claimed seat in staging; returns token-free lobby summary (C14d-1)."""
+    snap = file_store.read_snapshot(match_id)
+    if snap is None:
+        raise HTTPException(status_code=404, detail="match_not_found")
+    meta = file_store.read_meta(match_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="match_not_found")
+    _enforce_seat_token_for_actor(meta, actor_id, seat_token)
+    payload = body if body is not None else {}
+    result = seats.try_set_seat_faction(meta, actor_id, payload.get("faction_id"))
+    if not result.ok:
+        _raise_faction_ready_http(result.reason)
+    assert result.meta is not None
+    file_store.write_meta(match_id, result.meta)
+    summary = seats.lobby_summary(match_id, result.meta, snap)
+    assert seats.summary_has_no_tokens(summary)
+    return summary
+
+
+@router.post("/matches/{match_id}/seats/{actor_id}/ready")
+def post_seat_ready(
+    match_id: str,
+    actor_id: int,
+    body: dict[str, Any] | None = Body(default=None),
+    seat_token: str | None = Header(default=None, alias=SEAT_TOKEN_HEADER),
+) -> dict[str, Any]:
+    """Set ready flag for a claimed seat in staging; returns token-free lobby summary (C14d-1)."""
+    snap = file_store.read_snapshot(match_id)
+    if snap is None:
+        raise HTTPException(status_code=404, detail="match_not_found")
+    meta = file_store.read_meta(match_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="match_not_found")
+    _enforce_seat_token_for_actor(meta, actor_id, seat_token)
+    payload = body if body is not None else {}
+    if "ready" not in payload or not isinstance(payload["ready"], bool):
+        raise HTTPException(status_code=400, detail="malformed_body")
+    result = seats.try_set_seat_ready(meta, actor_id, bool(payload["ready"]))
+    if not result.ok:
+        _raise_faction_ready_http(result.reason)
+    assert result.meta is not None
+    file_store.write_meta(match_id, result.meta)
+    summary = seats.lobby_summary(match_id, result.meta, snap)
+    assert seats.summary_has_no_tokens(summary)
+    return summary
 
 
 @router.get("/matches/{match_id}")

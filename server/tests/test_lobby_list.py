@@ -40,6 +40,10 @@ def test_create_appears_in_list_without_tokens(client: TestClient) -> None:
     assert hit["turn_number"] == 1
     assert all("token" not in s for s in hit["seats"])
     assert all("claimed" in s and "actor_id" in s for s in hit["seats"])
+    assert "available_factions" in hit
+    assert len(hit["available_factions"]) == 3
+    assert hit["ready_to_start"] is False
+    assert all(s.get("faction_id") is None and s.get("ready") is False for s in hit["seats"])
     assert seats.summary_has_no_tokens(hit)
 
 

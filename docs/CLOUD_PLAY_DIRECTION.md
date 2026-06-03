@@ -29,6 +29,20 @@ Resolution stays inside **domain rules** on the authority side (local process to
 
 ---
 
+## Credentials and authority (direction)
+
+Two distinct cloud credentials with **different** authority (decision checkpoint **C14d-0**; detail in [CLOUD_PLAY.md](CLOUD_PLAY.md)):
+
+- **Host-token** = match **owner/admin** (rename, manage staging/settings, delete/abandon, future admin/debug). It is **not** the normal gameplay identity; “host plays all seats” is **dev/debug only**.
+- **Seat-token** = **gameplay identity** for exactly one seat/`actor_id` (claim slot, choose faction/civ, ready/unready, act for that actor once ongoing).
+
+## Staging and start (direction)
+
+- **Async, server-persistent staging:** a created match lives server-side as **staging**; players claim seats, choose faction/civ, and ready up **across separate sessions** (no co-presence required).
+- **No manual host-start in normal UX:** when all required seats are **claimed + configured + ready**, the **server** auto-transitions staging → **ongoing**.
+- **First player is server-chosen and deterministic** (seeded by match identity), **never** client-chosen and **not** implicitly the host.
+- **Ongoing async UX** tolerates **manual refresh**; realtime is the later **live-feel** direction, not a v1 requirement.
+
 ## Persistence and sync (direction)
 
 - **Action log** + **snapshot** persistence are the supported mental model (versioned; see [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md)).

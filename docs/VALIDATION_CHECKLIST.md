@@ -389,3 +389,31 @@ Validation: **`scripts/run-godot-tests.ps1 slice c14c`** — **`test_cloud_match
 - [ ] Open staging rows use server **`display_name`**.
 
 Validation: **`scripts/run-server-tests.ps1 slice c14b`** (**`test_display_name.py`**), **`scripts/run-godot-tests.ps1 slice c14c`** (**`test_cloud_display_name.gd`**).
+
+## Slice C14d-0 — Cloud staging authority decision checkpoint (docs-only)
+
+**Docs-only slice — no runtime tests.** Verify the documented model only:
+
+- [ ] Host-token documented as **owner/admin** (rename / staging settings / delete-abandon / admin-debug), **not** normal gameplay identity; host-as-all-players is dev/debug only.
+- [ ] Seat-token documented as **gameplay identity** for exactly one `actor_id` (claim, faction/civ, ready, play once ongoing).
+- [ ] Staging documented as **async + server-persistent**; players need not be co-present.
+- [ ] **No manual host-start** in normal UX; all-ready **auto-start** (staging → ongoing) documented.
+- [ ] Status model documented as **`staging`** + derived **`ready_to_start`** → **`ongoing`** (no separate `ready` status unless justified).
+- [ ] First player documented as **server-chosen, deterministic, not host/client**.
+- [ ] Ongoing async UX (read-only on others’ turns, manual Refresh/Back) documented; no realtime required in v1.
+- [ ] Alpha shape documented: 2 seats; factions Malmö + Västervik (Paris if easy).
+- [ ] No server/Godot/test/Docker/gameplay files changed.
+
+Validation: **docs-only** — per [TESTING.md](TESTING.md) T2, **no** runtime suites run; full/cloud/presentation intentionally skipped.
+
+## Slice C14d-1 — Server staging seat config (faction + ready)
+
+- [ ] **`meta.json` v2** on create includes **`match_seed`**; seats default **`faction_id: null`**, **`ready: false`**; claim sets **`claimed_at`**.
+- [ ] **`GET /v1/matches`** summaries include **`available_factions`**, per-seat **`faction_id`** / **`ready`**, **`ready_to_start`**; still no tokens.
+- [ ] **`POST …/faction`** with seat token sets faction; rejects **`faction_unknown`**, **`faction_taken`**, **`seat_not_claimed`**, **`match_not_in_staging`**; host token → **`invalid_seat_token`**.
+- [ ] **`POST …/ready`** requires faction for **`ready: true`** (**`faction_required`**); both endpoints return token-free lobby summary.
+- [ ] All seats claimed + faction + ready → **`ready_to_start: true`** while **`status` stays `staging`** (no auto-start in C14d-1).
+- [ ] **`POST /actions`** on staging match still allowed (no action gate until C14d-2).
+- [ ] No Godot, gameplay faction effects, Docker/Caddy, or **`ongoing`** transition changes.
+
+Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_faction_select.py`**, **`test_seat_ready.py`**, **`test_seats.py`**, **`test_lobby_list.py`**).
