@@ -484,9 +484,19 @@ func _on_cloud_waiting_poll_timeout() -> void:
 	call_deferred("cloud_refresh_match_snapshot_async_entry")
 
 
-func _cloud_after_snapshot_applied(revision_resp: Dictionary = {}) -> void:
+func _cloud_after_snapshot_applied(
+	revision_resp: Dictionary = {},
+	banner_action_type: String = "snapshot_apply",
+	previous_player_id_for_banner = null,
+) -> void:
 	_cloud_sync_viewing_perspective()
 	cloud_refresh_turn_ownership_ui()
+	if _play_game_state != null:
+		_cloud_maybe_show_turn_start_banner(
+			_play_game_state,
+			previous_player_id_for_banner,
+			banner_action_type,
+		)
 	if cloud_is_my_turn():
 		_stop_cloud_waiting_poll()
 		call_deferred("cloud_refresh_legal_async_entry")
@@ -512,9 +522,14 @@ func cloud_refresh_match_snapshot_async_entry() -> void:
 	var gs_new = ServerSnapshotAdapterScript.build_game_state_from_api_snapshot(resp["snapshot"])
 	if gs_new == null:
 		return
+	var prev_banner = null
+	if _cloud_last_seen_current_player_id >= 0:
+		prev_banner = _cloud_last_seen_current_player_id
+	elif _play_game_state != null and _play_game_state.turn_state != null:
+		prev_banner = _play_game_state.turn_state.current_player_id()
 	_rebind_session_to_game_state(gs_new)
 	_refresh_presentation_after_cloud_snap()
-	_cloud_after_snapshot_applied(resp)
+	_cloud_after_snapshot_applied(resp, "waiting_poll", prev_banner)
 
 
 func _cloud_debug_timing(tag: String) -> void:
@@ -687,8 +702,6 @@ func _bootstrap_cloud_session() -> void:
 	_set_cloud_gameplay_presentation_visible(true)
 	_cloud_loading = false
 	_set_cloud_overlay_visible(false)
-	var banner_ctx: String = "cloud_reconnect" if reconnecting else "cloud_bootstrap"
-	_cloud_maybe_show_turn_start_banner(gs_cloud, null, banner_ctx)
 	_cloud_debug_timing("first_cloud_snapshot_ready")
 	if reconnecting:
 		print(
@@ -716,8 +729,8 @@ func _bootstrap_cloud_session() -> void:
 	_cloud_persist_credential_after_bootstrap(resp, reconnecting)
 	_cloud_touch_credential_revision(CloudCredentialStoreScript.revision_from_response(resp))
 	_cloud_init_local_actor_id()
-	_cloud_sync_viewing_perspective()
-	_cloud_after_snapshot_applied(resp)
+	var banner_ctx: String = "cloud_reconnect" if reconnecting else "cloud_bootstrap"
+	_cloud_after_snapshot_applied(resp, banner_ctx, null)
 
 
 func _apply_cloud_controller_flags(on: bool) -> void:
@@ -1153,8 +1166,7 @@ func _apply_cloud_post_snapshot(r: Dictionary, action: Dictionary) -> void:
 	_rebind_session_to_game_state(gs_new)
 	_adjust_selection_after_cloud_action(action, gs_new)
 	_refresh_presentation_after_cloud_snap()
-	_cloud_maybe_show_turn_start_banner(gs_new, prev_pid, str(action.get("action_type", "")))
-	_cloud_after_snapshot_applied(r)
+	_cloud_after_snapshot_applied(r, str(action.get("action_type", "")), prev_pid)
 
 
 func _rebind_session_to_game_state(gs) -> void:
@@ -1286,13 +1298,19 @@ func _cloud_maybe_show_turn_start_banner(gs, previous_player_id, action_type: St
 	if not _cloud_mode or gs == null or gs.turn_state == null:
 		return
 	var new_pid: int = int(gs.turn_state.current_player_id())
-	var show_banner: bool = CloudClientScript.should_show_turn_start_banner(previous_player_id, new_pid)
+	var show_banner: bool = CloudClientScript.should_show_turn_start_banner(
+		previous_player_id,
+		new_pid,
+		_cloud_mode,
+		_cloud_local_actor_id,
+	)
 	if _cloud_debug_enabled():
 		cloud_input_diag_log(
 			"turn_banner_decision",
 			{
 				"previous_current_player_id": previous_player_id,
 				"new_current_player_id": new_pid,
+				"local_actor_id": _cloud_local_actor_id,
 				"action_type": action_type,
 				"show_turn_banner": show_banner,
 			}

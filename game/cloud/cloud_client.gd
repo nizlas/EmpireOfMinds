@@ -589,9 +589,24 @@ static func combat_animation_request_from_response(response: Dictionary, action:
 
 
 ## Slice C8: show turn-start banner only on player change (or initial cloud bootstrap when **previous** is **null**).
-static func should_show_turn_start_banner(previous_player_id, new_player_id: int) -> bool:
+## C14d-4d cloud: also require **local_actor_id == new_player_id** (seat perspective, not snapshot current).
+static func should_show_turn_start_banner(
+	previous_player_id,
+	new_player_id: int,
+	cloud_mode: bool = false,
+	local_actor_id: int = -1,
+) -> bool:
 	if new_player_id < 0:
 		return false
+	var player_changed: bool = false
 	if previous_player_id == null:
-		return true
-	return int(previous_player_id) != new_player_id
+		player_changed = true
+	else:
+		player_changed = int(previous_player_id) != int(new_player_id)
+	if not player_changed:
+		return false
+	if cloud_mode:
+		if int(local_actor_id) < 0:
+			return false
+		return int(local_actor_id) == int(new_player_id)
+	return true

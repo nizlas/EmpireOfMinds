@@ -487,3 +487,13 @@ Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_turn_own
 - [ ] Local hotseat unchanged.
 
 Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_turn_ownership_c14d4c.gd`**).
+
+## Slice C14d-4d — Cloud turn-start banner ownership (Godot)
+
+- [ ] Large **“Your turn …”** banner only on the client whose **seat `actor_id`** matches snapshot **current player** after a turn change.
+- [ ] Client that **ends turn** does **not** get **“Your turn &lt;opponent&gt;”**; shows small **“Other player’s turn”** instead.
+- [ ] Waiting client may get **one** banner when poll/refresh sees their turn; repeated polls with same current player do **not** repeat the banner.
+- [ ] Missing **`local_actor_id`**: no large **“Your turn”** banner.
+- [ ] Local hotseat: turn banners unchanged on every turn transition.
+
+Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_turn_banner.gd`**). **`smoke`** if **`main.gd`** boot/banner plumbing touched.

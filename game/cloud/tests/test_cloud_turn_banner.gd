@@ -61,6 +61,38 @@ func _init() -> void:
 	)
 	_check(str(MoveUnitScript.ACTION_TYPE) == "move_unit", "move_unit type unchanged (no server payload edits)")
 	banner.queue_free()
+	_test_cloud_local_ownership_gating()
+
+
+func _test_cloud_local_ownership_gating() -> void:
+	_check(
+		CloudClientScript.should_show_turn_start_banner(0, 1, true, 1),
+		"cloud local B sees banner when turn becomes B",
+	)
+	_check(
+		not CloudClientScript.should_show_turn_start_banner(0, 1, true, 0),
+		"cloud local A suppressed when turn becomes B",
+	)
+	_check(
+		not CloudClientScript.should_show_turn_start_banner(0, 1, true, -1),
+		"missing local actor suppresses banner",
+	)
+	_check(
+		CloudClientScript.should_show_turn_start_banner(null, 0, true, 0),
+		"cloud bootstrap shows banner only for local opening player",
+	)
+	_check(
+		not CloudClientScript.should_show_turn_start_banner(null, 0, true, 1),
+		"cloud bootstrap suppresses banner for non-local opening player",
+	)
+	_check(
+		not CloudClientScript.should_show_turn_start_banner(1, 1, true, 1),
+		"cloud repeated poll same current does not show",
+	)
+	_check(
+		CloudClientScript.should_show_turn_start_banner(0, 1, false, -1),
+		"hotseat still shows on player change without local gate",
+	)
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:
