@@ -91,8 +91,72 @@ static func ready_enabled_after_dropdown_select(
 	faction_choices: Array,
 	option_index: int,
 ) -> bool:
-	var selected_fid: String = faction_id_for_dropdown_option_index(faction_choices, option_index)
-	return can_press_ready(server_faction_id, selected_fid)
+	var pending: String = faction_id_for_dropdown_option_index(faction_choices, option_index)
+	return compute_slot_can_ready(true, true, false, pending, faction_choices)
+
+
+static func compute_slot_can_ready(
+	owned_by_me: bool,
+	match_staging: bool,
+	seat_ready: bool,
+	pending_faction_id,
+	faction_choices: Array,
+) -> bool:
+	if not owned_by_me or not match_staging or seat_ready:
+		return false
+	var pending: String = normalize_seat_faction_id(pending_faction_id)
+	if pending.is_empty():
+		return false
+	if not is_valid_available_faction(pending, faction_choices):
+		return false
+	if is_faction_taken_for_me(pending, faction_choices):
+		return false
+	return true
+
+
+static func is_valid_available_faction(faction_id: String, faction_choices: Array) -> bool:
+	var fid: String = normalize_seat_faction_id(faction_id)
+	if fid.is_empty():
+		return false
+	var i: int = 0
+	while i < faction_choices.size():
+		var row = faction_choices[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		if str((row as Dictionary).get("id", "")).strip_edges() == fid:
+			return true
+	return false
+
+
+static func is_faction_taken_for_me(faction_id: String, faction_choices: Array) -> bool:
+	var fid: String = normalize_seat_faction_id(faction_id)
+	var i: int = 0
+	while i < faction_choices.size():
+		var row = faction_choices[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row as Dictionary
+		if str(d.get("id", "")).strip_edges() == fid:
+			return bool(d.get("taken", false))
+	return true
+
+
+static func faction_display_name_from_pending(faction_choices: Array, pending_faction_id: String) -> String:
+	var fid: String = normalize_seat_faction_id(pending_faction_id)
+	if fid.is_empty():
+		return ""
+	var i: int = 0
+	while i < faction_choices.size():
+		var row = faction_choices[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row as Dictionary
+		if str(d.get("id", "")).strip_edges() == fid:
+			return str(d.get("display_name", fid)).strip_edges()
+	return fid
 
 
 static func build_faction_post_body(faction_id: String) -> Dictionary:
@@ -103,10 +167,14 @@ static func build_ready_post_body(ready: bool) -> Dictionary:
 	return {"ready": bool(ready)}
 
 
-static func can_press_ready(server_faction_id, selected_faction_id) -> bool:
-	var server_fid: String = normalize_seat_faction_id(server_faction_id)
-	var selected_fid: String = normalize_seat_faction_id(selected_faction_id)
-	return not server_fid.is_empty() or not selected_fid.is_empty()
+static func can_press_ready(server_faction_id, selected_faction_id, faction_choices: Array = []) -> bool:
+	return compute_slot_can_ready(
+		true,
+		true,
+		false,
+		normalize_seat_faction_id(selected_faction_id),
+		faction_choices,
+	)
 
 
 static func plan_ready_commit(server_faction_id, selected_faction_id) -> Dictionary:
@@ -149,7 +217,13 @@ static func build_my_slot_ui_controls(slot: Dictionary, selected_faction_id: Str
 		"ready_button_enabled": (
 			show_mine_controls
 			and not ready
-			and can_press_ready(server_fid, selected_faction_id)
+			and compute_slot_can_ready(
+				is_mine,
+				true,
+				ready,
+				normalize_seat_faction_id(selected_faction_id),
+				slot.get("faction_choices", []) as Array,
+			)
 		),
 	}
 

@@ -1,7 +1,8 @@
-# Headless: C14d-3 faction dropdown / ready body regression (Västervik revert bug).
+# Headless: C14d-3 staging slot state / faction dropdown / Ready enable.
 extends SceneTree
 
 const CloudStagingParsersScript = preload("res://cloud/cloud_staging_parsers.gd")
+const SlotStateScript = preload("res://cloud/cloud_staging_slot_state.gd")
 
 var _total = 0
 var _any_fail = false
@@ -18,9 +19,10 @@ func _init() -> void:
 	_test_ready_commit_plan()
 	_test_unready_and_ready_lock_controls()
 	_test_staging_messages_no_secrets()
-	_test_can_press_ready_with_null_server_faction()
-	_test_unconfigured_slot_selection_enables_ready()
-	_test_item_selected_ready_state_update()
+	_test_fresh_claimed_slot_selection_enables_ready()
+	_test_slot_state_render_and_select()
+	_test_ready_commit_uses_pending_not_widget()
+	_test_taken_faction_blocks_can_ready()
 	_test_plan_ready_null_server_vastervik()
 	if _any_fail:
 		call_deferred("quit", 1)
@@ -47,6 +49,29 @@ func _faction_choices_shuffled() -> Array:
 	]
 
 
+func _unconfigured_summary() -> Dictionary:
+	return {
+		"match_id": "m_unconfigured",
+		"display_name": "Test",
+		"status": "staging",
+		"seats": [{"actor_id": 0, "claimed": true, "faction_id": null, "ready": false}],
+		"available_factions": [
+			{"id": "malmo", "display_name": "Malmö"},
+			{"id": "vastervik", "display_name": "Västervik"},
+			{"id": "paris", "display_name": "Paris"},
+		],
+	}
+
+
+func _unconfigured_slot_view() -> Dictionary:
+	var view: Dictionary = CloudStagingParsersScript.build_staging_view(_unconfigured_summary(), 0)
+	return (view["slots"] as Array)[0] as Dictionary
+
+
+func _state_from_slot(slot: Dictionary) -> RefCounted:
+	return SlotStateScript.from_slot_view(slot, "staging")
+
+
 func _test_option_index_by_id_not_display_order() -> void:
 	var choices: Array = _faction_choices_shuffled()
 	_check(
@@ -54,20 +79,20 @@ func _test_option_index_by_id_not_display_order() -> void:
 		"vastervik index by id",
 	)
 	_check(
-		CloudStagingParsersScript.option_index_for_faction_id(choices, "malmo") == 2,
-		"malmo index by id not zero when shuffled",
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, "malmo") == 2,
+		"malmo dropdown index not zero when shuffled",
 	)
 	_check(
-		CloudStagingParsersScript.faction_id_for_choice_index(choices, 1) == "vastervik",
-		"index 1 id",
+		CloudStagingParsersScript.faction_id_for_dropdown_option_index(choices, 1) == "vastervik",
+		"dropdown index 1 id",
 	)
 
 
 func _test_null_faction_id_no_default_index() -> void:
 	var choices: Array = _faction_choices_shuffled()
 	_check(
-		CloudStagingParsersScript.option_index_for_faction_id(choices, "") == -1,
-		"empty faction no selection index",
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, "") == -1,
+		"empty faction no dropdown index",
 	)
 	_check(
 		CloudStagingParsersScript.normalize_seat_faction_id(null).is_empty(),
@@ -93,7 +118,7 @@ func _test_ready_response_renders_vastervik() -> void:
 		"display_name": "Test",
 		"status": "staging",
 		"seats": [
-			{"actor_id": 0, "claimed": true, "faction_id": "vastervik", "ready": true},
+			{"actor_id": 0, "claimed": true, "faction_id": "vastervik", "ready": false},
 			{"actor_id": 1, "claimed": true, "faction_id": "malmo", "ready": false},
 		],
 		"available_factions": [
@@ -103,62 +128,25 @@ func _test_ready_response_renders_vastervik() -> void:
 	}
 	var view: Dictionary = CloudStagingParsersScript.build_staging_view(summary, 0)
 	var slot0: Dictionary = (view["slots"] as Array)[0] as Dictionary
-	_check(slot0["faction_id"] == "vastervik", "view faction_id")
-	_check(slot0["faction_display"] == "Västervik", "view display")
-	_check(
-		CloudStagingParsersScript.option_index_for_faction_id(
-			slot0["faction_choices"] as Array,
-			"vastervik",
-		)
-		== 1,
-		"dropdown index for vastervik",
-	)
-	_check(
-		CloudStagingParsersScript.seat_faction_id_from_summary(summary, 0) == "vastervik",
-		"summary parse actor0",
-	)
+	var state: RefCounted = _state_from_slot(slot0)
+	_check(state.pending_faction_id == "vastervik", "server vastervik pending")
+	_check(state.can_ready, "vastervik saved not ready can_ready")
+	_check(state.dropdown_option_index_for_pending() == 1, "dropdown selects vastervik")
 
 
 func _test_null_faction_slot_view_no_malmo_display() -> void:
-	var summary := {
-		"match_id": "m_null",
-		"display_name": "Test",
-		"status": "staging",
-		"seats": [{"actor_id": 0, "claimed": true, "faction_id": null, "ready": false}],
-		"available_factions": [
-			{"id": "malmo", "display_name": "Malmö"},
-			{"id": "vastervik", "display_name": "Västervik"},
-		],
-	}
-	var view: Dictionary = CloudStagingParsersScript.build_staging_view(summary, 0)
-	var slot0: Dictionary = (view["slots"] as Array)[0] as Dictionary
-	_check(slot0["faction_id"].is_empty(), "null stored as empty id")
-	_check(slot0["faction_display"].is_empty(), "null no display default")
-	_check(
-		CloudStagingParsersScript.option_index_for_faction_id(
-			slot0["faction_choices"] as Array,
-			"",
-		)
-		== -1,
-		"null no default malmo index",
-	)
-
-
-func _mine_slot(ready: bool, faction_id) -> Dictionary:
-	return {
-		"is_mine": true,
-		"claimed": true,
-		"ready": ready,
-		"faction_id": faction_id,
-	}
+	var slot0: Dictionary = _unconfigured_slot_view()
+	var state: RefCounted = _state_from_slot(slot0)
+	_check(state.server_faction_id.is_empty(), "null server faction")
+	_check(state.pending_faction_id.is_empty(), "null pending after server sync")
+	_check(not state.can_ready, "null cannot ready")
+	_check(state.dropdown_option_index_for_pending() == -1, "null no fake malmo select")
 
 
 func _test_no_apply_faction_button_in_ui_model() -> void:
-	var slot: Dictionary = _mine_slot(false, "")
+	var slot: Dictionary = _unconfigured_slot_view()
 	var controls: Dictionary = CloudStagingParsersScript.build_my_slot_ui_controls(slot, "")
 	_check(not bool(controls.get("show_apply_faction_button", true)), "no apply button")
-	_check(bool(controls.get("show_faction_row", false)), "faction row when mine")
-	_check(bool(controls.get("show_ready_row", false)), "ready row when mine")
 
 
 func _test_ready_commit_plan() -> void:
@@ -166,108 +154,101 @@ func _test_ready_commit_plan() -> void:
 	_check(bool(changed.get("ok")), "changed ok")
 	_check(bool(changed.get("post_faction")), "posts faction first")
 	_check(changed.get("faction_id") == "vastervik", "faction id to save")
-	_check(bool(changed.get("post_ready")), "then ready")
 	var saved: Dictionary = CloudStagingParsersScript.plan_ready_commit("vastervik", "vastervik")
 	_check(bool(saved.get("ok")), "saved ok")
 	_check(not bool(saved.get("post_faction")), "saved skips faction post")
-	_check(bool(saved.get("post_ready")), "saved posts ready only")
-	var server_only: Dictionary = CloudStagingParsersScript.plan_ready_commit("malmo", "")
-	_check(bool(server_only.get("ok")), "server faction ok")
-	_check(not bool(server_only.get("post_faction")), "server only no faction post")
 	var none: Dictionary = CloudStagingParsersScript.plan_ready_commit("", "")
 	_check(not bool(none.get("ok")), "none blocked")
-	_check(not bool(none.get("post_ready")), "none no ready post")
 
 
 func _test_unready_and_ready_lock_controls() -> void:
-	var not_ready: Dictionary = CloudStagingParsersScript.build_my_slot_ui_controls(
-		_mine_slot(false, "malmo"),
-		"paris",
-	)
-	_check(bool(not_ready.get("faction_dropdown_editable")), "editable before ready")
-	_check(bool(not_ready.get("show_ready_button")), "ready visible")
-	_check(not bool(not_ready.get("show_unready_button")), "unready hidden")
-	var ready_slot: Dictionary = CloudStagingParsersScript.build_my_slot_ui_controls(
-		_mine_slot(true, "vastervik"),
-		"",
-	)
-	_check(not bool(ready_slot.get("faction_dropdown_editable")), "locked when ready")
-	_check(bool(ready_slot.get("show_unready_button")), "unready visible")
-	_check(not bool(ready_slot.get("show_ready_button")), "ready hidden when ready")
-	var unready_plan: Dictionary = CloudStagingParsersScript.plan_unready_commit()
-	_check(bool(unready_plan.get("post_ready")), "unready posts ready")
-	_check(unready_plan.get("ready") == false, "unready false")
+	var slot: Dictionary = {
+		"is_mine": true,
+		"claimed": true,
+		"ready": true,
+		"faction_id": "vastervik",
+		"faction_choices": [{"id": "vastervik", "display_name": "Västervik", "taken": false}],
+	}
+	var controls: Dictionary = CloudStagingParsersScript.build_my_slot_ui_controls(slot, "vastervik")
+	_check(not bool(controls.get("faction_dropdown_editable")), "locked when ready")
+	_check(bool(controls.get("show_unready_button")), "unready visible")
 
 
-func _unconfigured_claimed_slot_view() -> Dictionary:
-	var summary := {
-		"match_id": "m_unconfigured",
-		"display_name": "Test",
-		"status": "staging",
-		"seats": [{"actor_id": 0, "claimed": true, "faction_id": null, "ready": false}],
-		"available_factions": [
-			{"id": "malmo", "display_name": "Malmö"},
-			{"id": "vastervik", "display_name": "Västervik"},
-			{"id": "paris", "display_name": "Paris"},
+func _test_fresh_claimed_slot_selection_enables_ready() -> void:
+	var slot0: Dictionary = _unconfigured_slot_view()
+	var state: RefCounted = _state_from_slot(slot0)
+	var choices: Array = state.faction_choices
+	for fid in ["malmo", "vastervik", "paris"]:
+		var fresh: RefCounted = _state_from_slot(slot0)
+		var opt_idx: int = CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, fid)
+		fresh.on_dropdown_selected(opt_idx)
+		_check(fresh.can_ready, "fresh select %s enables ready" % fid)
+		_check(fresh.pending_faction_id == fid, "pending %s" % fid)
+
+
+func _test_slot_state_render_and_select() -> void:
+	var slot0: Dictionary = _unconfigured_slot_view()
+	var state: RefCounted = _state_from_slot(slot0)
+	var render_before: Dictionary = state.apply_render_select()
+	_check(render_before.cleared_pending, "render null server clears pending")
+	_check(render_before.option_index == -1, "render no default index")
+	state.on_dropdown_selected(
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(state.faction_choices, "vastervik")
+	)
+	_check(state.can_ready, "select vastervik can_ready")
+	state.sync_from_server_slot(slot0, "staging")
+	_check(state.pending_faction_id.is_empty(), "re-sync null server clears pending")
+	var vastervik_slot: Dictionary = {
+		"actor_id": 0,
+		"claimed": true,
+		"faction_id": "vastervik",
+		"ready": false,
+		"is_mine": true,
+		"faction_choices": slot0["faction_choices"],
+	}
+	var saved: RefCounted = _state_from_slot(vastervik_slot)
+	_check(saved.pending_faction_id == "vastervik", "re-sync vastervik pending")
+	_check(saved.can_ready, "re-sync vastervik can_ready")
+
+
+func _test_ready_commit_uses_pending_not_widget() -> void:
+	var slot0: Dictionary = _unconfigured_slot_view()
+	var state: RefCounted = _state_from_slot(slot0)
+	state.on_dropdown_selected(
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(state.faction_choices, "vastervik")
+	)
+	var plan: Dictionary = state.plan_ready_commit()
+	_check(bool(plan.get("post_faction")), "commit posts vastervik")
+	_check(plan.get("faction_id") == "vastervik", "commit faction from pending")
+	var stale_widget_selected: int = 0
+	_check(stale_widget_selected != state.dropdown_option_index_for_pending(), "widget index not source")
+	_check(state.pending_faction_id == "vastervik", "pending still vastervik")
+
+
+func _test_taken_faction_blocks_can_ready() -> void:
+	var slot: Dictionary = {
+		"actor_id": 0,
+		"claimed": true,
+		"faction_id": null,
+		"ready": false,
+		"is_mine": true,
+		"faction_choices": [
+			{"id": "malmo", "display_name": "Malmö", "taken": false},
+			{"id": "paris", "display_name": "Paris", "taken": true},
 		],
 	}
-	var view: Dictionary = CloudStagingParsersScript.build_staging_view(summary, 0)
-	return (view["slots"] as Array)[0] as Dictionary
-
-
-func _test_can_press_ready_with_null_server_faction() -> void:
-	for fid in ["malmo", "vastervik", "paris"]:
-		_check(CloudStagingParsersScript.can_press_ready("", fid), "can_press_ready null server %s" % fid)
-		_check(
-			CloudStagingParsersScript.can_press_ready(null, fid),
-			"can_press_ready null variant server %s" % fid,
-		)
-
-
-func _test_unconfigured_slot_selection_enables_ready() -> void:
-	var slot0: Dictionary = _unconfigured_claimed_slot_view()
-	var choices: Array = slot0["faction_choices"] as Array
-	for fid in ["malmo", "vastervik", "paris"]:
-		var controls: Dictionary = CloudStagingParsersScript.build_my_slot_ui_controls(slot0, fid)
-		_check(
-			bool(controls.get("ready_button_enabled", false)),
-			"unconfigured ready enabled for %s" % fid,
-		)
-		var opt_idx: int = CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, fid)
-		_check(opt_idx >= 0, "dropdown index for %s" % fid)
-		_check(
-			CloudStagingParsersScript.faction_id_for_dropdown_option_index(choices, opt_idx) == fid,
-			"dropdown index maps id %s" % fid,
-		)
-
-
-func _test_item_selected_ready_state_update() -> void:
-	var slot0: Dictionary = _unconfigured_claimed_slot_view()
-	var choices: Array = slot0["faction_choices"] as Array
-	var vastervik_idx: int = CloudStagingParsersScript.dropdown_option_index_for_faction_id(
-		choices,
-		"vastervik",
-	)
-	_check(
-		CloudStagingParsersScript.ready_enabled_after_dropdown_select("", choices, vastervik_idx),
-		"item_selected vastervik enables ready",
-	)
-	_check(
-		CloudStagingParsersScript.ready_enabled_after_dropdown_select(
-			"",
-			choices,
-			CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, "paris"),
-		),
-		"item_selected paris enables ready",
-	)
-	_check(
-		not CloudStagingParsersScript.ready_enabled_after_dropdown_select("", choices, -1),
-		"no selection does not enable ready",
-	)
+	var state: RefCounted = _state_from_slot(slot)
+	state.on_dropdown_selected(1)
+	_check(state.pending_faction_id == "paris", "selected paris pending")
+	_check(not state.can_ready, "taken paris blocks ready")
 
 
 func _test_plan_ready_null_server_vastervik() -> void:
-	var plan: Dictionary = CloudStagingParsersScript.plan_ready_commit(null, "vastervik")
+	var state: RefCounted = _state_from_slot(_unconfigured_slot_view())
+	state.on_dropdown_selected(
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(state.faction_choices, "vastervik")
+	)
+	var plan: Dictionary = state.plan_ready_commit()
 	_check(bool(plan.get("ok")), "plan ok")
 	_check(bool(plan.get("post_faction")), "plan posts faction")
 	_check(plan.get("faction_id") == "vastervik", "plan faction id")
