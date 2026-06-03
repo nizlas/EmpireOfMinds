@@ -424,30 +424,48 @@ func _render_slot(panel: PanelContainer, slot: Dictionary, state: RefCounted) ->
 	var seat_number: int = int(slot.get("actor_id", 0)) + 1
 	var hdr: Label = vb.get_node("SlotHeader") as Label
 	hdr.text = CloudStagingParsersScript.slot_header_text(seat_number, is_mine, claimed)
-	state_lbl.text = CloudStagingParsersScript.slot_status_line(
-		slot,
-		is_mine,
-		state.pending_faction_id,
-		state.faction_choices,
-	)
+	state_lbl.text = CloudStagingParsersScript.slot_status_line(slot, is_mine)
 	claim_btn.visible = bool(slot.get("can_claim", false))
-	faction_row.visible = is_mine and claimed
+	faction_row.visible = CloudStagingParsersScript.slot_faction_field_visible(claimed)
 	ready_row.visible = is_mine and claimed
 	claim_btn.set_meta("actor_id", state.actor_id)
 	faction_opt.set_meta("actor_id", state.actor_id)
-	if is_mine and claimed:
+	if CloudStagingParsersScript.slot_faction_field_interactive(is_mine, claimed):
 		faction_row.mouse_filter = Control.MOUSE_FILTER_STOP
 	else:
 		faction_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_render_faction_dropdown(faction_opt, state, is_mine and claimed)
+	_render_faction_field(faction_opt, state, slot, is_mine, claimed)
 	_apply_ready_controls(ready_btn, unready_btn, state, is_mine and claimed)
 
 
-func _render_faction_dropdown(faction_opt: OptionButton, state: RefCounted, show_mine: bool) -> void:
-	if not show_mine:
+func _render_faction_field(
+	faction_opt: OptionButton,
+	state: RefCounted,
+	slot: Dictionary,
+	is_mine: bool,
+	claimed: bool,
+) -> void:
+	if not claimed:
 		faction_opt.clear()
 		faction_opt.disabled = true
 		return
+	if is_mine:
+		_render_faction_dropdown_editable(faction_opt, state)
+	else:
+		_render_faction_dropdown_readonly(faction_opt, slot)
+
+
+func _render_faction_dropdown_readonly(faction_opt: OptionButton, slot: Dictionary) -> void:
+	faction_opt.set_block_signals(true)
+	faction_opt.clear()
+	var label: String = CloudStagingParsersScript.slot_readonly_faction_display_text(slot)
+	faction_opt.add_item(label)
+	faction_opt.select(0)
+	faction_opt.disabled = true
+	faction_opt.set_block_signals(false)
+
+
+func _render_faction_dropdown_editable(faction_opt: OptionButton, state: RefCounted) -> void:
 	var pending_before: String = state.pending_faction_id
 	faction_opt.set_block_signals(true)
 	faction_opt.clear()

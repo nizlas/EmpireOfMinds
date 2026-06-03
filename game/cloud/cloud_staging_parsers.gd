@@ -529,31 +529,35 @@ static func slot_header_text(seat_number: int, is_mine: bool, claimed: bool) -> 
 	return base
 
 
-static func slot_status_line(
-	slot: Dictionary,
-	is_mine: bool,
-	pending_faction_id: String = "",
-	faction_choices: Array = [],
-) -> String:
+static func slot_status_line(slot: Dictionary, _is_mine: bool = false) -> String:
 	var claimed: bool = bool(slot.get("claimed", false))
 	if not claimed:
 		return "Open"
-	var ready: bool = bool(slot.get("ready", false))
-	var ready_label: String = "Ready" if ready else "Not ready"
+	if bool(slot.get("ready", false)):
+		return "Ready"
+	return "Not ready"
+
+
+static func slot_readonly_faction_display_text(slot: Dictionary) -> String:
 	var fn: String = str(slot.get("faction_display", "")).strip_edges()
-	if is_mine and fn.is_empty():
-		var pending_fn: String = faction_display_name_from_pending(faction_choices, pending_faction_id)
-		if not pending_fn.is_empty():
-			fn = pending_fn
-	if is_mine:
-		if not ready:
-			return ""
-		if fn.is_empty():
-			return ready_label
-		return "%s — %s" % [fn, ready_label]
 	if fn.is_empty():
-		return ready_label
-	return "%s — %s" % [fn, ready_label]
+		return "—"
+	return fn
+
+
+static func slot_faction_field_visible(claimed: bool) -> bool:
+	return claimed
+
+
+static func slot_faction_field_interactive(is_mine: bool, claimed: bool) -> bool:
+	return claimed and is_mine
+
+
+static func slot_status_combines_faction_and_ready(status: String) -> bool:
+	var text: String = str(status).strip_edges()
+	if not text.contains(" — "):
+		return false
+	return text.ends_with("Ready") or text.ends_with("Not ready")
 
 
 static func slot_ui_text_has_no_secrets(header: String, status: String) -> bool:
