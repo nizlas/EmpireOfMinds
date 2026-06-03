@@ -117,7 +117,8 @@ func _redraw_map_layers() -> void:
 
 
 func _refresh_turn_hud_after_turn_label() -> void:
-	$HudCanvas/TurnStatusPanel.refresh()
+	if CloudTurnOwnershipScript.should_show_turn_status_panel(_cloud_mode):
+		$HudCanvas/TurnStatusPanel.refresh()
 	$HudCanvas/PlayerContactStrip.refresh()
 
 
@@ -428,7 +429,15 @@ func _cloud_clear_legal_action_ui() -> void:
 		cpp.refresh()
 
 
+func _sync_turn_status_panel_cloud_visibility() -> void:
+	var panel = $HudCanvas/TurnStatusPanel
+	if panel == null:
+		return
+	panel.visible = CloudTurnOwnershipScript.should_show_turn_status_panel(_cloud_mode)
+
+
 func cloud_refresh_turn_ownership_ui() -> void:
+	_sync_turn_status_panel_cloud_visibility()
 	if not _cloud_mode:
 		return
 	var strip = $HudCanvas/PlayerContactStrip
@@ -600,6 +609,7 @@ func _cloud_fail_session_and_strand(msg: String, resp: Dictionary = {}) -> void:
 	_cloud_loading = false
 	_cloud_boot_stranded = true
 	_stop_cloud_waiting_poll()
+	_sync_turn_status_panel_cloud_visibility()
 	PresentationVisibilityScript.viewing_player_id_override = -1
 	$SelectionController.use_cloud_server = false
 	$SelectionController.cloud_play_host = null

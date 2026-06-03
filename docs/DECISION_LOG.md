@@ -1,3 +1,8 @@
+## 2026-06-03 — Slice **C14d-4f** — Cloud TurnStatusPanel suppression
+
+- **Decision:** In cloud ongoing play, hide **`HudCanvas/TurnStatusPanel`** (lower-right “{Civ}'s turn” / “Turn N”). Keep **`PlayerContactStrip`** chips (current-player highlight) and C14d-4b small **“Other player’s turn”** waiting line. **`TurnStartBanner`** (C14d-4d local-seat gating) unchanged. Local hotseat still shows **TurnStatusPanel**.
+- **Tests:** **`test_cloud_turn_panel_c14d4f.gd`** in Godot slice **`c14d`**.
+
 ## 2026-06-03 — Slice **C14d-4e** — Staging civilization terminology & display names
 
 - **Decision:** Player-facing staging term is **civilization/civ** (Godot labels/messages). Internal API/schema unchanged: **`faction_id`**, **`available_factions`**, **`faction_taken`**, etc. Server staging registry **`display_name`** values align with **`docs/FACTION_IDENTITY.md`** debug profiles: **`malmo`** → **Malmöfubikkarna**, **`vastervik`** → **Västerviksjävlarna**, **`paris`** → **Pajasarna från Paris** (not the short city names). Godot uses server **`display_name`** in dropdown/read-only slots (no local fallback drift).

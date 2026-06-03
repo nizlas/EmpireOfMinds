@@ -507,3 +507,13 @@ Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_turn_ban
 - [ ] No match_id, tokens, or server URL in normal staging labels.
 
 Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_faction_display_names_c14d4e.py`**); **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_staging_civ_terminology_c14d4e.gd`**, updated staging UI tests).
+
+## Slice C14d-4f — Cloud turn panel suppression (Godot)
+
+- [ ] Ongoing cloud match: no large lower-right **TurnStatusPanel** (“{Civ}'s turn” / “Turn N”).
+- [ ] Top-right **PlayerContactStrip** chips still visible; current player highlighted.
+- [ ] Waiting client: small **“Other player’s turn”** under chips only.
+- [ ] C14d-4d full-screen **“Your turn …”** scroll banner still gated by local seat (when shown).
+- [ ] Local hotseat: **TurnStatusPanel** still visible and updates on turn change.
+
+Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_turn_panel_c14d4f.gd`**). **`smoke`** if **`main.gd`** HUD wiring changed.

@@ -5,6 +5,11 @@ const WAITING_STATUS_TEXT: String = "Other player's turn"
 const WAITING_POLL_INTERVAL_SEC: float = 2.0
 
 
+## C14d-4f: hide lower-right **TurnStatusPanel** in cloud (chips + small waiting text suffice).
+static func should_show_turn_status_panel(cloud_mode: bool) -> bool:
+	return not cloud_mode
+
+
 static func current_actor_id_from_turn_state(turn_state) -> int:
 	if turn_state == null:
 		return -1
