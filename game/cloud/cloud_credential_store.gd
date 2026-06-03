@@ -3,6 +3,7 @@ extends RefCounted
 class_name CloudCredentialStore
 
 const DEFAULT_PATH: String = "user://cloud_matches.json"
+const PROFILE_ENV_VAR: String = "EOM_CLOUD_PROFILE"
 const STORE_VERSION: int = 1
 const STATUS_UNKNOWN: String = "unknown"
 const STATUS_STAGING: String = "staging"
@@ -30,11 +31,65 @@ static func normalize_match_id(match_id: String) -> String:
 	return str(match_id).strip_edges()
 
 
+static func sanitize_profile_name(raw: String) -> String:
+	var s: String = str(raw).strip_edges()
+	if s.is_empty():
+		return ""
+	var out: String = ""
+	var i: int = 0
+	while i < s.length():
+		var ch: String = s[i]
+		i += 1
+		var ok: bool = (
+			(ch >= "a" and ch <= "z")
+			or (ch >= "A" and ch <= "Z")
+			or (ch >= "0" and ch <= "9")
+			or ch == "_"
+			or ch == "-"
+		)
+		out += ch if ok else "_"
+	return out
+
+
+static func profile_from_environment() -> String:
+	return sanitize_profile_name(OS.get_environment(PROFILE_ENV_VAR))
+
+
+static func store_path_for_profile_name(profile_name: String) -> String:
+	var profile: String = sanitize_profile_name(profile_name)
+	if profile.is_empty():
+		return DEFAULT_PATH
+	return "user://cloud_matches_%s.json" % profile
+
+
+static func resolved_store_path() -> String:
+	return store_path_for_profile_name(profile_from_environment())
+
+
+static func _effective_store_path(path: String) -> String:
+	var p: String = str(path).strip_edges()
+	if p.is_empty() or p == DEFAULT_PATH:
+		return resolved_store_path()
+	return p
+
+
+static func log_resolved_store_if_debug(_source: String = "") -> void:
+	if OS.get_environment("EOM_CLOUD_DEBUG").strip_edges() != "1":
+		return
+	var profile: String = profile_from_environment()
+	var path: String = resolved_store_path()
+	if profile.is_empty():
+		print("Cloud credentials profile=default store=%s" % path)
+	else:
+		print("Cloud credentials profile=%s store=%s" % [profile, path])
+
+
 static func _now_updated_at() -> String:
 	return Time.get_datetime_string_from_system()
 
 
 static func load_store(path: String = DEFAULT_PATH) -> Dictionary:
+	path = _effective_store_path(path)
 	if not FileAccess.file_exists(path):
 		return empty_store()
 	var txt: String = FileAccess.get_file_as_string(path)
@@ -116,7 +171,7 @@ static func _parse_match_number_from_label(label: String) -> int:
 
 ## Next local default number: max existing **Match N** + 1 (custom labels do not consume numbers).
 static func next_match_number(path: String = DEFAULT_PATH) -> int:
-	var store := load_store(path)
+	var store := load_store(_effective_store_path(path))
 	var matches: Array = store["matches"] as Array
 	var max_n: int = 0
 	var i: int = 0
@@ -461,6 +516,7 @@ static func rename_entry(
 
 
 static func find(path: String, server_url: String, match_id: String) -> Dictionary:
+	path = _effective_store_path(path)
 	var store := load_store(path)
 	var su := normalize_server_url(server_url)
 	var mid := normalize_match_id(match_id)
@@ -481,6 +537,7 @@ static func find(path: String, server_url: String, match_id: String) -> Dictiona
 
 
 static func upsert(path: String, entry: Dictionary) -> void:
+	path = _effective_store_path(path)
 	var store := load_store(path)
 	var matches: Array = (store["matches"] as Array).duplicate(true)
 	var su := normalize_server_url(str(entry.get("server_url", "")))
@@ -636,6 +693,7 @@ static func merge_host_create(
 	last_seen_status: String = STATUS_STAGING,
 	path: String = DEFAULT_PATH,
 ) -> Dictionary:
+	path = _effective_store_path(path)
 	var existing: Dictionary = find(path, server_url, match_id)
 	var patch: Dictionary = {
 		"server_url": server_url,
@@ -661,6 +719,7 @@ static func merge_seat_claim(
 	last_seen_status: String = STATUS_STAGING,
 	path: String = DEFAULT_PATH,
 ) -> Dictionary:
+	path = _effective_store_path(path)
 	var existing: Dictionary = find(path, server_url, match_id)
 	var patch: Dictionary = {
 		"server_url": server_url,
@@ -685,6 +744,7 @@ static func resolve_seat_token_for_boot(
 	store_path: String = DEFAULT_PATH,
 	boot_token: String = "",
 ) -> Dictionary:
+	store_path = _effective_store_path(store_path)
 	var et: String = str(env_token).strip_edges()
 	if et.length() > 0 and et.begins_with(SEAT_TOKEN_PREFIX):
 		return {"value": et, "source": "EOM_CLOUD_SEAT_TOKEN"}
@@ -712,6 +772,7 @@ static func resolve_host_token_for_admin(
 	store_path: String = DEFAULT_PATH,
 	boot_host_token: String = "",
 ) -> Dictionary:
+	store_path = _effective_store_path(store_path)
 	var bt: String = str(boot_host_token).strip_edges()
 	if bt.length() > 0 and bt.begins_with(HOST_TOKEN_PREFIX):
 		return {"value": bt, "source": "BootIntent"}
@@ -747,6 +808,7 @@ static func persist_after_bootstrap(
 	resp: Dictionary,
 	actor_id: int = HOST_ACTOR_ID
 ) -> void:
+	path = _effective_store_path(path)
 	var mid := normalize_match_id(match_id)
 	if mid.is_empty():
 		return
@@ -790,6 +852,7 @@ static func touch_revision(
 	is_host: bool = false,
 	actor_id: int = HOST_ACTOR_ID
 ) -> void:
+	path = _effective_store_path(path)
 	if revision < 0:
 		return
 	var existing: Dictionary = find(path, server_url, match_id)

@@ -140,6 +140,40 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 - **UI:** no match_id, tokens, or server URL in normal labels; manual refresh only (no polling).
 - **Not in C14d-3:** waiting-on-opponent UX (C14d-4), server changes (requires C14d-1/C14d-2 deployed on target server).
 
+### Local two-client credential profiles (Slice C14d-dev, Godot only)
+
+- **Problem:** two Godot editor instances on one machine share **`user://cloud_matches.json`**, so they do not behave as two cloud players during async staging validation.
+- **Dev/test env:** optional **`EOM_CLOUD_PROFILE`** (letters, digits, `_`, `-`; trimmed; other characters become `_`). When unset, behavior is unchanged (**`user://cloud_matches.json`**). When set (e.g. **`A`**, **`B`**), credentials use **`user://cloud_matches_<profile>.json`** (e.g. **`user://cloud_matches_A.json`**).
+- **Scope:** front door, staging, and gameplay credential I/O only. Does **not** change **`server_url`**, **`match_id`**, seat/host tokens, server/API, Docker/Caddy, hotseat, or staging rules.
+- **Debug:** with **`EOM_CLOUD_DEBUG=1`**, front door and staging log once at startup: **`Cloud credentials profile=A store=user://cloud_matches_A.json`** (no token values).
+- **Two-terminal local test** (same remote **`EOM_CLOUD_BASE_URL`**; clear per-terminal boot overrides):
+
+**Terminal A:**
+
+```powershell
+Remove-Item Env:EOM_CLOUD_CLIENT -ErrorAction SilentlyContinue
+Remove-Item Env:EOM_CLOUD_MATCH_ID -ErrorAction SilentlyContinue
+Remove-Item Env:EOM_CLOUD_SEAT_TOKEN -ErrorAction SilentlyContinue
+$env:EOM_CLOUD_BASE_URL="https://cloud.thewizardsapprentice.org"
+$env:EOM_CLOUD_PROFILE="A"
+$env:EOM_CLOUD_DEBUG="1"
+& "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe" --editor --path "C:\Users\nicla\development\EmpireOfMinds\game"
+```
+
+**Terminal B:**
+
+```powershell
+Remove-Item Env:EOM_CLOUD_CLIENT -ErrorAction SilentlyContinue
+Remove-Item Env:EOM_CLOUD_MATCH_ID -ErrorAction SilentlyContinue
+Remove-Item Env:EOM_CLOUD_SEAT_TOKEN -ErrorAction SilentlyContinue
+$env:EOM_CLOUD_BASE_URL="https://cloud.thewizardsapprentice.org"
+$env:EOM_CLOUD_PROFILE="B"
+$env:EOM_CLOUD_DEBUG="1"
+& "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe" --editor --path "C:\Users\nicla\development\EmpireOfMinds\game"
+```
+
+- **Manual flow:** A creates match, claims seat 1, faction, Ready; B refreshes lobby, joins same staging match, claims seat 2, different faction, Ready; server auto-starts; B enters gameplay; A resume/continue sees ongoing match. Credentials must not cross profiles.
+
 ### Server display names (Slice C14b.1 / C14c.2)
 
 - **`meta.json` v2** includes **`display_name`** (public lobby title). **`POST /v1/matches`** accepts optional **`display_name`**; if missing/empty the server sets **`Match {short_match_id}`** (not client-local **Match N** numbering).
@@ -167,7 +201,7 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 - **Fields:** `server_url`, `match_id`, `actor_id`, `seat_token`, `is_host`, `last_seen_revision`, `last_seen_status` ( **`unknown`** until server exposes staging/ongoing in C14b), optional `label`, `updated_at`.
 - **After create:** host token and `match_id` are saved automatically; reconnect no longer requires **`EOM_CLOUD_SEAT_TOKEN`** when **`EOM_CLOUD_MATCH_ID`** is set.
 - **Resolution (conservative):** env/inspector **`EOM_CLOUD_SEAT_TOKEN`** wins; else if **`EOM_CLOUD_MATCH_ID`** / **`cloud_match_id`** is set but token is empty, load token from the store for that **`server_url` + `match_id`**; else create-new-match when match id is empty. **No** auto-resume of “latest” saved match without an explicit match id (lobby UI in C14c).
-- **Dev overrides unchanged:** **`EOM_CLOUD_CLIENT`**, **`EOM_CLOUD_BASE_URL`**, **`EOM_CLOUD_MATCH_ID`**, **`EOM_CLOUD_SEAT_TOKEN`**, **`EOM_CLOUD_DEBUG`**.
+- **Dev overrides unchanged:** **`EOM_CLOUD_CLIENT`**, **`EOM_CLOUD_BASE_URL`**, **`EOM_CLOUD_MATCH_ID`**, **`EOM_CLOUD_SEAT_TOKEN`**, **`EOM_CLOUD_DEBUG`**, optional **`EOM_CLOUD_PROFILE`** (C14d-dev — separate credential file per profile; see above).
 - **Out of scope:** lobby/front-door UI, server list/claim/start, encryption/keychain.
 
 ### Seat tokens / host credential (Slice C13a)

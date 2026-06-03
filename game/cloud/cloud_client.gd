@@ -344,14 +344,17 @@ static func create_flow_identity(
 	resp: Dictionary,
 	server_url: String,
 	scenario_id: String = "prototype_play",
-	store_path: String = CloudCredentialStoreScript.DEFAULT_PATH,
+	store_path: String = "",
 ) -> Dictionary:
+	var path: String = (
+		store_path if not store_path.is_empty() else CloudCredentialStoreScript.resolved_store_path()
+	)
 	var req: String = str(requested_display_name).strip_edges()
 	var body: Dictionary = build_create_match_body(scenario_id, req)
 	var mid: String = str(resp.get("match_id", "")).strip_edges()
 	var resp_dn: String = display_name_from_create_response(resp)
 	var cred_dn: String = pick_create_credential_display_name(req, resp)
-	var cred: Dictionary = credential_from_create_response(server_url, resp, cred_dn, store_path)
+	var cred: Dictionary = credential_from_create_response(server_url, resp, cred_dn, path)
 	return {
 		"requested_display_name": req,
 		"body_display_name": str(body.get("display_name", "")).strip_edges(),
@@ -375,7 +378,7 @@ static func credential_from_create_response(
 	server_url: String,
 	resp: Dictionary,
 	label: String = "",
-	_store_path: String = CloudCredentialStoreScript.DEFAULT_PATH,
+	_store_path: String = "",
 ) -> Dictionary:
 	var mid: String = str(resp.get("match_id", "")).strip_edges()
 	var host_tok: String = host_token_from_create_response(resp)
@@ -401,15 +404,18 @@ static func credential_from_claim_response(
 	server_url: String,
 	parsed: Dictionary,
 	label: String = "",
-	store_path: String = CloudCredentialStoreScript.DEFAULT_PATH,
+	store_path: String = "",
 ) -> Dictionary:
+	var path: String = (
+		store_path if not store_path.is_empty() else CloudCredentialStoreScript.resolved_store_path()
+	)
 	var lbl: String = str(label).strip_edges()
 	if lbl.is_empty():
 		lbl = str(parsed.get("display_name", "")).strip_edges()
 	if lbl.is_empty():
-		lbl = CloudCredentialStoreScript.generate_default_label(store_path)
+		lbl = CloudCredentialStoreScript.generate_default_label(path)
 	var mid: String = str(parsed.get("match_id", ""))
-	var existing: Dictionary = CloudCredentialStoreScript.find(store_path, server_url, mid)
+	var existing: Dictionary = CloudCredentialStoreScript.find(path, server_url, mid)
 	return CloudCredentialStoreScript.merge_entry(
 		existing,
 		CloudCredentialStoreScript.make_entry(

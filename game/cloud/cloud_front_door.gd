@@ -10,7 +10,6 @@ const MAIN_SCENE: String = "res://main.tscn"
 const STAGING_SCENE: String = "res://cloud/cloud_staging.tscn"
 const CloudStagingParsersScript = preload("res://cloud/cloud_staging_parsers.gd")
 const DEFAULT_SERVER_URL: String = "http://127.0.0.1:8000"
-const STORE_PATH: String = CloudCredentialStoreScript.DEFAULT_PATH
 
 var _server_url: String = DEFAULT_SERVER_URL
 var _status_label: Label
@@ -36,6 +35,7 @@ func _ready() -> void:
 		get_tree().change_scene_to_file(MAIN_SCENE)
 		return
 	_build_ui()
+	CloudCredentialStoreScript.log_resolved_store_if_debug("front_door")
 	call_deferred("_reload_lobby_from_server")
 
 
@@ -267,7 +267,7 @@ func _prompt_create_display_name(default_label: String) -> Dictionary:
 	var interpreted: Dictionary = CloudCredentialStoreScript.interpret_create_dialog_result(
 		dialog_result,
 		default_label,
-		STORE_PATH,
+		CloudCredentialStoreScript.resolved_store_path(),
 	)
 	if _cloud_debug_enabled():
 		print(
@@ -306,7 +306,7 @@ func _prompt_rename_display_name(prefill_full: String, own_match_id: String) -> 
 
 
 func _save_credential_with_label(entry: Dictionary) -> void:
-	CloudCredentialStoreScript.upsert(STORE_PATH, entry)
+	CloudCredentialStoreScript.upsert(CloudCredentialStoreScript.resolved_store_path(), entry)
 
 
 func _on_create_cloud() -> void:
@@ -365,7 +365,7 @@ func _on_create_cloud() -> void:
 		display_name,
 		CloudCredentialStoreScript.revision_from_response(resp),
 		CloudCredentialStoreScript.STATUS_STAGING,
-		STORE_PATH,
+		CloudCredentialStoreScript.resolved_store_path(),
 	)
 	if _cloud_debug_enabled():
 		print("SliceC14d3 create_flow staging match_id=%s" % mid)
@@ -396,7 +396,7 @@ func _enter_staging_for_match(target: Dictionary) -> void:
 	var match_id: String = str(target.get("match_id", "")).strip_edges()
 	var lobby_row: Dictionary = target.get("lobby_row", {}) as Dictionary
 	var dn: String = CloudClientScript.display_name_from_lobby_row(lobby_row)
-	var cred: Dictionary = CloudCredentialStoreScript.find(STORE_PATH, _server_url, match_id)
+	var cred: Dictionary = CloudCredentialStoreScript.find(CloudCredentialStoreScript.resolved_store_path(), _server_url, match_id)
 	var host_tok: String = CloudCredentialStoreScript.host_token_from_entry(cred)
 	var seat_tok: String = CloudCredentialStoreScript.gameplay_token_from_entry(cred)
 	var aid: int = int(cred.get("actor_id", -1)) if not cred.is_empty() else -1
@@ -434,7 +434,7 @@ func _reload_lobby_from_server() -> void:
 	_lobby_matches = matches
 	_refresh_display_name_key_map()
 	var cred_map: Dictionary = CloudCredentialStoreScript.credentials_map_for_server(
-		STORE_PATH,
+		CloudCredentialStoreScript.resolved_store_path(),
 		_server_url,
 	)
 	_saved_rows = CloudClientScript.build_resume_rows_from_lobby(matches, cred_map, _server_url)
@@ -618,7 +618,7 @@ func _on_rename_saved() -> void:
 		_set_status("Rename failed: %s" % err_detail)
 		return
 	var server_name: String = str(parsed.get("display_name", ""))
-	CloudCredentialStoreScript.update_label_cache(STORE_PATH, _server_url, mid, server_name)
+	CloudCredentialStoreScript.update_label_cache(CloudCredentialStoreScript.resolved_store_path(), _server_url, mid, server_name)
 	_saved_rows[_saved_selected_index] = CloudCredentialStoreScript.apply_rename_to_view(view, server_name)
 	_render_saved_list()
 	var sel: int = _saved_selected_index

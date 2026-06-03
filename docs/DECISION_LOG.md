@@ -1874,3 +1874,18 @@ Caveat:
 
 - **`full`** remains the runner default when no args are passed; humans and deploy scripts may still use it intentionally.
 
+## 2026-06-03 — Slice C14d-dev local cloud credential profiles
+
+Decision:
+
+- Optional env **`EOM_CLOUD_PROFILE`** selects a separate Godot credential file: default **`user://cloud_matches.json`**; profile **`A`** → **`user://cloud_matches_A.json`**. Profile names are trimmed and sanitized (alnum, `_`, `-`; other chars → `_`). **`cloud_credential_store.gd`** resolves paths via **`resolved_store_path()`** / **`_effective_store_path()`** for all default-path I/O.
+- Dev/test only: no product UI; **`EOM_CLOUD_DEBUG=1`** logs profile + store path once at front door/staging startup (no tokens).
+
+Rationale:
+
+- Two Godot instances on one machine need isolated saved credentials for async two-player staging validation without separate OS users.
+
+Caveat:
+
+- Plaintext JSON per profile on the same machine; not a security boundary—convenience for local multi-client testing only.
+

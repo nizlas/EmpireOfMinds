@@ -10,7 +10,6 @@ const SlotStateScript = preload("res://cloud/cloud_staging_slot_state.gd")
 
 const FRONT_DOOR_SCENE: String = "res://cloud/cloud_front_door.tscn"
 const MAIN_SCENE: String = "res://main.tscn"
-const STORE_PATH: String = CloudCredentialStoreScript.DEFAULT_PATH
 
 var _server_url: String = ""
 var _match_id: String = ""
@@ -42,11 +41,16 @@ func _ready() -> void:
 	_display_name = str(boot.get("display_name", "")).strip_edges()
 	_hydrate_from_store()
 	_build_ui()
+	CloudCredentialStoreScript.log_resolved_store_if_debug("staging")
 	call_deferred("_refresh_from_server")
 
 
 func _hydrate_from_store() -> void:
-	var cred: Dictionary = CloudCredentialStoreScript.find(STORE_PATH, _server_url, _match_id)
+	var cred: Dictionary = CloudCredentialStoreScript.find(
+		CloudCredentialStoreScript.resolved_store_path(),
+		_server_url,
+		_match_id,
+	)
 	if cred.is_empty():
 		return
 	if _host_token.is_empty():

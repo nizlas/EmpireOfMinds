@@ -282,7 +282,7 @@ func _cloud_resolve_seat_token_meta() -> Dictionary:
 		_cloud_resolve_match_id(),
 		OS.get_environment("EOM_CLOUD_SEAT_TOKEN"),
 		cloud_seat_token,
-		CloudCredentialStoreScript.DEFAULT_PATH,
+		CloudCredentialStoreScript.resolved_store_path(),
 		boot_tok,
 	)
 
@@ -300,7 +300,7 @@ func _cloud_persist_credential_after_bootstrap(resp: Dictionary, reconnecting: b
 	var is_host: bool = not reconnecting
 	if reconnecting:
 		var existing: Dictionary = CloudCredentialStoreScript.find(
-			CloudCredentialStoreScript.DEFAULT_PATH,
+			CloudCredentialStoreScript.resolved_store_path(),
 			_cloud_resolve_base_url(),
 			_cloud_session.match_id,
 		)
@@ -309,7 +309,7 @@ func _cloud_persist_credential_after_bootstrap(resp: Dictionary, reconnecting: b
 		else:
 			is_host = tok.begins_with("ht_")
 	CloudCredentialStoreScript.persist_after_bootstrap(
-		CloudCredentialStoreScript.DEFAULT_PATH,
+		CloudCredentialStoreScript.resolved_store_path(),
 		_cloud_resolve_base_url(),
 		_cloud_session.match_id,
 		tok,
@@ -322,7 +322,7 @@ func _cloud_touch_credential_revision(revision: int) -> void:
 	if not _cloud_mode or _cloud_session == null:
 		return
 	CloudCredentialStoreScript.touch_revision(
-		CloudCredentialStoreScript.DEFAULT_PATH,
+		CloudCredentialStoreScript.resolved_store_path(),
 		_cloud_resolve_base_url(),
 		_cloud_session.match_id,
 		_cloud_session.seat_token,

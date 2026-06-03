@@ -444,3 +444,14 @@ Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_auto_start.py
 **Manual (server with C14d-1/C14d-2 deployed):** create → staging → claim → faction → ready seat 0 (still staging) → second seat ready → auto-start → gameplay. Actions blocked while staging.
 
 Validation: **`scripts/run-godot-tests.ps1 slice c14d`**; **`smoke`** if boot plumbing touched.
+
+## Slice C14d-dev — Local two-client cloud credential profiles (Godot)
+
+- [ ] Without **`EOM_CLOUD_PROFILE`**, credentials still use **`user://cloud_matches.json`** (unchanged).
+- [ ] **`EOM_CLOUD_PROFILE=A`** / **`B`** use separate files (**`user://cloud_matches_A.json`**, **`user://cloud_matches_B.json`**); writes in one profile do not appear in the other.
+- [ ] Profile names trimmed/sanitized (unsafe chars → `_`; no path separators in filename).
+- [ ] **`EOM_CLOUD_DEBUG=1`**: one startup log line with profile + store path (no tokens).
+- [ ] Two Godot terminals (see [CLOUD_PLAY.md](CLOUD_PLAY.md) C14d-dev): A creates + claims seat 1 + Ready; B joins same match + seat 2 + Ready; auto-start; B gameplay; A resume sees ongoing; credentials isolated.
+- [ ] No server/API/Docker/Caddy/gameplay/hotseat changes.
+
+Validation: **`scripts/run-godot-tests.ps1 slice c14d-dev`** (**`test_cloud_credential_profile.gd`**). **`smoke`** only if shared boot/session plumbing changed.
