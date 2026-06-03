@@ -66,6 +66,86 @@ static func build_ready_post_body(ready: bool) -> Dictionary:
 	return {"ready": bool(ready)}
 
 
+static func can_press_ready(server_faction_id: String, selected_faction_id: String) -> bool:
+	var server_fid: String = normalize_seat_faction_id(server_faction_id)
+	var selected_fid: String = normalize_seat_faction_id(selected_faction_id)
+	return not server_fid.is_empty() or not selected_fid.is_empty()
+
+
+static func plan_ready_commit(server_faction_id: String, selected_faction_id: String) -> Dictionary:
+	var server_fid: String = normalize_seat_faction_id(server_faction_id)
+	var selected_fid: String = normalize_seat_faction_id(selected_faction_id)
+	if selected_fid.is_empty() and server_fid.is_empty():
+		return {
+			"ok": false,
+			"error": "choose_faction",
+			"post_faction": false,
+			"faction_id": "",
+			"post_ready": false,
+		}
+	var post_faction: bool = not selected_fid.is_empty() and selected_fid != server_fid
+	return {
+		"ok": true,
+		"post_faction": post_faction,
+		"faction_id": selected_fid if post_faction else "",
+		"post_ready": true,
+	}
+
+
+static func plan_unready_commit() -> Dictionary:
+	return {"ok": true, "post_ready": true, "ready": false}
+
+
+static func build_my_slot_ui_controls(slot: Dictionary, selected_faction_id: String = "") -> Dictionary:
+	var is_mine: bool = bool(slot.get("is_mine", false))
+	var claimed: bool = bool(slot.get("claimed", false))
+	var ready: bool = bool(slot.get("ready", false))
+	var show_mine_controls: bool = is_mine and claimed
+	var server_fid: String = normalize_seat_faction_id(slot.get("faction_id"))
+	return {
+		"show_apply_faction_button": false,
+		"show_faction_row": show_mine_controls,
+		"show_ready_row": show_mine_controls,
+		"faction_dropdown_editable": show_mine_controls and not ready,
+		"show_ready_button": show_mine_controls and not ready,
+		"show_unready_button": show_mine_controls and ready,
+		"ready_button_enabled": (
+			show_mine_controls
+			and not ready
+			and can_press_ready(server_fid, selected_faction_id)
+		),
+	}
+
+
+static func staging_user_visible_messages() -> Array:
+	return [
+		"Staging — claim a slot, choose a faction, then Ready.",
+		"All players ready — waiting for server to start…",
+		"Choose a faction before Ready.",
+		"That faction is already taken — choose another.",
+		"Claim a slot before entering the match.",
+		"Choose a player slot before entering the match.",
+		"Loading staging state…",
+		"Saving faction…",
+		"Marking ready…",
+		"Marking not ready…",
+	]
+
+
+static func player_visible_text_has_no_secrets(text: String) -> bool:
+	var t: String = str(text).strip_edges()
+	if t.is_empty():
+		return true
+	var lower: String = t.to_lower()
+	if lower.contains("http://") or lower.contains("https://"):
+		return false
+	if lower.contains("token") or lower.contains("seat_token") or lower.contains("host_token"):
+		return false
+	if t.begins_with("ht_") or t.begins_with("st_"):
+		return false
+	return true
+
+
 static func seat_faction_id_from_summary(summary: Dictionary, actor_id: int) -> String:
 	var seats = summary.get("seats", [])
 	if typeof(seats) != TYPE_ARRAY:

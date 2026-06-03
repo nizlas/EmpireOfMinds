@@ -125,11 +125,6 @@ func _make_slot_panel(slot_index: int) -> PanelContainer:
 	faction_opt.name = "FactionOption"
 	faction_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	faction_row.add_child(faction_opt)
-	var faction_btn := Button.new()
-	faction_btn.name = "FactionApplyBtn"
-	faction_btn.text = "Apply faction"
-	faction_btn.pressed.connect(_on_faction_apply_pressed.bind(slot_index))
-	faction_row.add_child(faction_btn)
 	faction_opt.item_selected.connect(_on_faction_option_selected.bind(slot_index))
 	vb.add_child(faction_row)
 	var ready_row := HBoxContainer.new()
@@ -316,9 +311,9 @@ func _render_slot(panel: PanelContainer, slot: Dictionary) -> void:
 	var faction_row: HBoxContainer = vb.get_node("FactionRow") as HBoxContainer
 	var ready_row: HBoxContainer = vb.get_node("ReadyRow") as HBoxContainer
 	var faction_opt: OptionButton = faction_row.get_node("FactionOption") as OptionButton
-	var faction_btn: Button = faction_row.get_node("FactionApplyBtn") as Button
 	var ready_btn: Button = ready_row.get_node("ReadyBtn") as Button
 	var unready_btn: Button = ready_row.get_node("UnreadyBtn") as Button
+	var is_ready: bool = bool(slot.get("ready", false))
 	var aid: int = int(slot.get("actor_id", -1))
 	var claimed: bool = bool(slot.get("claimed", false))
 	var is_mine: bool = bool(slot.get("is_mine", false))
@@ -368,10 +363,12 @@ func _render_slot(panel: PanelContainer, slot: Dictionary) -> void:
 	else:
 		faction_opt.select(-1)
 	panel.set_meta("suppress_faction_signal", false)
-	faction_btn.disabled = faction_opt.item_count == 0
+	faction_opt.disabled = is_ready or faction_opt.item_count == 0
 	var pending_fid: String = _faction_id_from_option(faction_opt)
-	ready_btn.disabled = server_fid.is_empty() and pending_fid.is_empty()
-	unready_btn.disabled = not bool(slot.get("ready", false))
+	ready_btn.visible = is_mine and claimed and not is_ready
+	unready_btn.visible = is_mine and claimed and is_ready
+	ready_btn.disabled = not CloudStagingParsersScript.can_press_ready(server_fid, pending_fid)
+	unready_btn.disabled = not is_ready
 
 
 func _on_claim_pressed(slot_index: int) -> void:
@@ -411,18 +408,20 @@ func _on_faction_option_selected(slot_index: int, _item_index: int) -> void:
 	if bool(panel.get_meta("suppress_faction_signal", false)):
 		return
 	var faction_opt: OptionButton = _slot_faction_option(panel)
+	if faction_opt.disabled:
+		return
 	_debug_log_faction_selected(slot_index, faction_opt)
-	await _post_faction_for_slot(slot_index, _faction_id_from_option(faction_opt))
+	_sync_ready_button_for_panel(panel)
 
 
-func _on_faction_apply_pressed(slot_index: int) -> void:
-	if _busy or _local_actor_id < 0 or _seat_token.is_empty():
-		return
-	var panel: PanelContainer = _slot_panels[slot_index] as PanelContainer
+func _sync_ready_button_for_panel(panel: PanelContainer) -> void:
+	var vb: VBoxContainer = (panel.get_child(0) as MarginContainer).get_child(0) as VBoxContainer
+	var ready_row: HBoxContainer = vb.get_node("ReadyRow") as HBoxContainer
+	var ready_btn: Button = ready_row.get_node("ReadyBtn") as Button
 	var faction_opt: OptionButton = _slot_faction_option(panel)
-	if faction_opt.item_count < 1 or faction_opt.selected < 0:
-		return
-	await _post_faction_for_slot(slot_index, _faction_id_from_option(faction_opt))
+	var server_fid: String = str(panel.get_meta("server_faction_id", "")).strip_edges()
+	var pending_fid: String = _faction_id_from_option(faction_opt)
+	ready_btn.disabled = not CloudStagingParsersScript.can_press_ready(server_fid, pending_fid)
 
 
 func _post_faction_for_slot(slot_index: int, faction_id: String) -> void:
@@ -441,7 +440,11 @@ func _post_faction_for_slot(slot_index: int, faction_id: String) -> void:
 	_set_busy(false)
 	var parsed: Dictionary = CloudClientScript.parse_staging_summary_response(raw)
 	if not bool(parsed.get("ok", false)):
-		_set_status("Faction failed: %s" % str(parsed.get("_error", "unknown")))
+		var err: String = str(parsed.get("_error", "unknown"))
+		if err == "faction_taken":
+			_set_status("That faction is already taken — choose another.")
+		else:
+			_set_status("Faction failed: %s" % err)
 		await _refresh_from_server()
 		return
 	var summary: Dictionary = parsed["summary"] as Dictionary
@@ -477,13 +480,12 @@ func _ensure_faction_saved_for_slot(slot_index: int) -> bool:
 	var faction_opt: OptionButton = _slot_faction_option(panel)
 	var pending: String = _faction_id_from_option(faction_opt)
 	var server_fid: String = str(panel.get_meta("server_faction_id", "")).strip_edges()
-	if pending.is_empty():
-		if server_fid.is_empty():
-			_set_status("Choose a faction before Ready.")
-			return false
-		return true
-	if pending != server_fid:
-		await _post_faction_for_slot(slot_index, pending)
+	var plan: Dictionary = CloudStagingParsersScript.plan_ready_commit(server_fid, pending)
+	if not bool(plan.get("ok", false)):
+		_set_status("Choose a faction before Ready.")
+		return false
+	if bool(plan.get("post_faction", false)):
+		await _post_faction_for_slot(slot_index, str(plan.get("faction_id", "")))
 		if _busy:
 			return false
 		server_fid = str(panel.get_meta("server_faction_id", "")).strip_edges()

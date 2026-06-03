@@ -14,6 +14,10 @@ func _init() -> void:
 	_test_build_faction_and_ready_bodies()
 	_test_ready_response_renders_vastervik()
 	_test_null_faction_slot_view_no_malmo_display()
+	_test_no_apply_faction_button_in_ui_model()
+	_test_ready_commit_plan()
+	_test_unready_and_ready_lock_controls()
+	_test_staging_messages_no_secrets()
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:
@@ -134,3 +138,70 @@ func _test_null_faction_slot_view_no_malmo_display() -> void:
 		== -1,
 		"null no default malmo index",
 	)
+
+
+func _mine_slot(ready: bool, faction_id) -> Dictionary:
+	return {
+		"is_mine": true,
+		"claimed": true,
+		"ready": ready,
+		"faction_id": faction_id,
+	}
+
+
+func _test_no_apply_faction_button_in_ui_model() -> void:
+	var slot: Dictionary = _mine_slot(false, "")
+	var controls: Dictionary = CloudStagingParsersScript.build_my_slot_ui_controls(slot, "")
+	_check(not bool(controls.get("show_apply_faction_button", true)), "no apply button")
+	_check(bool(controls.get("show_faction_row", false)), "faction row when mine")
+	_check(bool(controls.get("show_ready_row", false)), "ready row when mine")
+
+
+func _test_ready_commit_plan() -> void:
+	var changed: Dictionary = CloudStagingParsersScript.plan_ready_commit("", "vastervik")
+	_check(bool(changed.get("ok")), "changed ok")
+	_check(bool(changed.get("post_faction")), "posts faction first")
+	_check(changed.get("faction_id") == "vastervik", "faction id to save")
+	_check(bool(changed.get("post_ready")), "then ready")
+	var saved: Dictionary = CloudStagingParsersScript.plan_ready_commit("vastervik", "vastervik")
+	_check(bool(saved.get("ok")), "saved ok")
+	_check(not bool(saved.get("post_faction")), "saved skips faction post")
+	_check(bool(saved.get("post_ready")), "saved posts ready only")
+	var server_only: Dictionary = CloudStagingParsersScript.plan_ready_commit("malmo", "")
+	_check(bool(server_only.get("ok")), "server faction ok")
+	_check(not bool(server_only.get("post_faction")), "server only no faction post")
+	var none: Dictionary = CloudStagingParsersScript.plan_ready_commit("", "")
+	_check(not bool(none.get("ok")), "none blocked")
+	_check(not bool(none.get("post_ready")), "none no ready post")
+
+
+func _test_unready_and_ready_lock_controls() -> void:
+	var not_ready: Dictionary = CloudStagingParsersScript.build_my_slot_ui_controls(
+		_mine_slot(false, "malmo"),
+		"paris",
+	)
+	_check(bool(not_ready.get("faction_dropdown_editable")), "editable before ready")
+	_check(bool(not_ready.get("show_ready_button")), "ready visible")
+	_check(not bool(not_ready.get("show_unready_button")), "unready hidden")
+	var ready_slot: Dictionary = CloudStagingParsersScript.build_my_slot_ui_controls(
+		_mine_slot(true, "vastervik"),
+		"",
+	)
+	_check(not bool(ready_slot.get("faction_dropdown_editable")), "locked when ready")
+	_check(bool(ready_slot.get("show_unready_button")), "unready visible")
+	_check(not bool(ready_slot.get("show_ready_button")), "ready hidden when ready")
+	var unready_plan: Dictionary = CloudStagingParsersScript.plan_unready_commit()
+	_check(bool(unready_plan.get("post_ready")), "unready posts ready")
+	_check(unready_plan.get("ready") == false, "unready false")
+
+
+func _test_staging_messages_no_secrets() -> void:
+	var msgs: Array = CloudStagingParsersScript.staging_user_visible_messages()
+	var i: int = 0
+	while i < msgs.size():
+		var m: String = str(msgs[i])
+		i += 1
+		_check(
+			CloudStagingParsersScript.player_visible_text_has_no_secrets(m),
+			"staging message safe: %s" % m,
+		)
