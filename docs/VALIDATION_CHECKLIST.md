@@ -417,3 +417,17 @@ Validation: **docs-only** — per [TESTING.md](TESTING.md) T2, **no** runtime su
 - [ ] No Godot, gameplay faction effects, Docker/Caddy, or **`ongoing`** transition changes.
 
 Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_faction_select.py`**, **`test_seat_ready.py`**, **`test_seats.py`**, **`test_lobby_list.py`**).
+
+## Slice C14d-2 — Server lifecycle: auto-start, first player, action gate
+
+- [ ] Final **`POST …/ready`** with all seats claimed+faction+ready → **`status=ongoing`**, **`started_at`**, **`first_player_id`**, snapshot **`current_index`** updated; **`ready_to_start`** false in summary.
+- [ ] One seat ready only → remains **staging**; no **`started_at`**.
+- [ ] First player deterministic from **`match_seed`** (or **`match_id`**); not hardcoded to host/actor 0; reproducible in tests with fixed seed.
+- [ ] Auto-start idempotent when already **ongoing**.
+- [ ] **`POST /actions`** on v2 **staging** → **`match_not_ongoing`**; **ongoing** uses existing path; no-meta legacy permissive; v1 treated as ongoing.
+- [ ] Optional **`match_started`** event; no tokens in summary/snapshot/events.
+- [ ] No Godot, Docker/Caddy, gameplay faction effects, manual **`/start`**, accounts/realtime.
+
+**Manual (local or deployed server):** create → claim both seats → factions → ready seat 0 only (staging) → ready seat 1 (ongoing + **`first_player_id`**) → **`POST /actions`** on fresh staging match rejected → legal action after ongoing succeeds.
+
+Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_auto_start.py`**, **`test_action_status_gate.py`**, plus C14d-1 tests).

@@ -46,7 +46,7 @@ def test_p0_end_turn_advances_to_p1(client: TestClient) -> None:
     body = r.json()
     assert body["accepted"] is True
     assert body["reason"] == ""
-    assert body["index"] == 0
+    assert body["index"] == 1
     assert body["revision"] == 1
     assert body["snapshot"]["turn_state"]["current_index"] == 1
     assert body["snapshot"]["turn_state"]["turn_number"] == 1
@@ -110,8 +110,9 @@ def test_event_log_only_accepted_actions(client: TestClient) -> None:
         }, headers=action_headers)
     post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 0}, headers=action_headers)
     ev = client.get(f"/v1/matches/{mid}/events").json()["events"]
-    assert len(ev) == 1
-    assert ev[0]["action_type"] == "end_turn"
+    assert len(ev) == 2
+    assert ev[0]["action_type"] == "match_started"
+    assert ev[1]["action_type"] == "end_turn"
 
 
 def test_events_since_filters(client: TestClient) -> None:
@@ -121,8 +122,9 @@ def test_events_since_filters(client: TestClient) -> None:
     post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 0}, headers=action_headers)
     post_match_action(client, mid, {"schema_version": 1, "action_type": "end_turn", "actor_id": 1}, headers=action_headers)
     tail = client.get(f"/v1/matches/{mid}/events", params={"since": 0}).json()["events"]
-    assert len(tail) == 1
+    assert len(tail) == 2
     assert tail[0]["index"] == 1
+    assert tail[1]["index"] == 2
 
 
 def test_state_hash_stable_and_changes_on_accept(client: TestClient) -> None:

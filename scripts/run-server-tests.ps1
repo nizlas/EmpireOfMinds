@@ -29,6 +29,9 @@ $Script:SliceTests = @{
 	"c14d" = @(
 		"tests/test_faction_select.py"
 		"tests/test_seat_ready.py"
+		"tests/test_auto_start.py"
+		"tests/test_action_status_gate.py"
+		"tests/test_seat_claim.py"
 		"tests/test_seats.py"
 		"tests/test_lobby_list.py"
 	)

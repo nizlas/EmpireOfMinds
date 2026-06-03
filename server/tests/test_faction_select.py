@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.domain import factions, seats
 from app.storage import file_store
-from match_helpers import SEAT_TOKEN_HEADER, create_seated_match
+from match_helpers import SEAT_TOKEN_HEADER, create_staging_match
 
 
 def _claim_token(client: TestClient, match_id: str, actor_id: int) -> str:
@@ -30,7 +30,7 @@ def _faction(
 
 
 def test_faction_select_happy_path_no_tokens_in_response(client: TestClient) -> None:
-    m = create_seated_match(client, {"scenario_id": "tiny_test", "player_ids": [0, 1]})
+    m = create_staging_match(client, {"scenario_id": "tiny_test", "player_ids": [0, 1]})
     mid = m["match_id"]
     token0 = _claim_token(client, mid, 0)
     r = _faction(client, mid, 0, token0, factions.FACTION_MALMO)
@@ -49,7 +49,7 @@ def test_faction_select_happy_path_no_tokens_in_response(client: TestClient) -> 
 
 
 def test_faction_unknown_rejected(client: TestClient) -> None:
-    m = create_seated_match(client, {"scenario_id": "tiny_test", "player_ids": [0]})
+    m = create_staging_match(client, {"scenario_id": "tiny_test", "player_ids": [0]})
     mid = m["match_id"]
     token0 = _claim_token(client, mid, 0)
     r = _faction(client, mid, 0, token0, "stockholm")
@@ -58,7 +58,7 @@ def test_faction_unknown_rejected(client: TestClient) -> None:
 
 
 def test_faction_taken_rejected(client: TestClient) -> None:
-    m = create_seated_match(client, {"scenario_id": "tiny_test", "player_ids": [0, 1]})
+    m = create_staging_match(client, {"scenario_id": "tiny_test", "player_ids": [0, 1]})
     mid = m["match_id"]
     token0 = _claim_token(client, mid, 0)
     token1 = _claim_token(client, mid, 1)
@@ -69,7 +69,7 @@ def test_faction_taken_rejected(client: TestClient) -> None:
 
 
 def test_faction_requires_claimed_seat(client: TestClient) -> None:
-    m = create_seated_match(client, {"scenario_id": "tiny_test", "player_ids": [0, 1]})
+    m = create_staging_match(client, {"scenario_id": "tiny_test", "player_ids": [0, 1]})
     mid = m["match_id"]
     meta = file_store.read_meta(mid)
     assert meta is not None
@@ -80,7 +80,7 @@ def test_faction_requires_claimed_seat(client: TestClient) -> None:
 
 
 def test_faction_host_token_rejected(client: TestClient) -> None:
-    m = create_seated_match(client, {"scenario_id": "tiny_test", "player_ids": [0]})
+    m = create_staging_match(client, {"scenario_id": "tiny_test", "player_ids": [0]})
     mid = m["match_id"]
     _claim_token(client, mid, 0)
     r = _faction(client, mid, 0, m["host_token"], factions.FACTION_MALMO)
@@ -89,7 +89,7 @@ def test_faction_host_token_rejected(client: TestClient) -> None:
 
 
 def test_faction_wrong_actor_token_rejected(client: TestClient) -> None:
-    m = create_seated_match(client, {"scenario_id": "tiny_test", "player_ids": [0, 1]})
+    m = create_staging_match(client, {"scenario_id": "tiny_test", "player_ids": [0, 1]})
     mid = m["match_id"]
     token0 = _claim_token(client, mid, 0)
     _claim_token(client, mid, 1)
@@ -99,7 +99,7 @@ def test_faction_wrong_actor_token_rejected(client: TestClient) -> None:
 
 
 def test_faction_not_staging_rejected(client: TestClient) -> None:
-    m = create_seated_match(client, {"scenario_id": "tiny_test", "player_ids": [0]})
+    m = create_staging_match(client, {"scenario_id": "tiny_test", "player_ids": [0]})
     mid = m["match_id"]
     token0 = _claim_token(client, mid, 0)
     meta = file_store.read_meta(mid)

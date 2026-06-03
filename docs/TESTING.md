@@ -92,7 +92,7 @@ Equivalent manual full run: `cd server` then `pytest -q`.
 - **cloud** — API/action flows: create match, move, end turn, found city, production, attack, combat rules, legal-actions, production/food/science ticks, snapshot v2, player visibility, seats / seat-token flow.
 - **slice c13a** — `test_seats.py`, `test_seat_token_flow.py`.
 - **slice c14b** — `test_lobby_list.py`, `test_seat_claim.py`, `test_seats.py`, `test_display_name.py`.
-- **slice c14d** — `test_faction_select.py`, `test_seat_ready.py`, `test_seats.py`, `test_lobby_list.py`.
+- **slice c14d** — `test_faction_select.py`, `test_seat_ready.py`, `test_auto_start.py`, `test_action_status_gate.py`, `test_seat_claim.py`, `test_seats.py`, `test_lobby_list.py`.
 
 Unknown slice ids print supported ids and exit non-zero.
 

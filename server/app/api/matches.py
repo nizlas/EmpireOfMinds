@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Header, HTTPException, Query
 
-from app.domain import legal_actions, match_state, player_visibility, seats, snapshot
+from app.domain import legal_actions, match_lifecycle, match_state, player_visibility, seats, snapshot
 from app.domain.actions import attack_unit, end_turn, found_city, move_unit, set_city_production
 from app.domain.combat_rules import resolve_attack
 from app.domain.food_growth_rules import apply_food_growth_for_player
@@ -110,6 +110,26 @@ def _credential_gate(
     if int(action["actor_id"]) not in allowed:
         return _reject("seat_not_allowed")
     return None
+
+
+def _match_status_gate(match_id: str) -> dict[str, Any] | None:
+    """Reject gameplay actions while meta v2 match is staging (C14d-2). Legacy/no-meta stays permissive."""
+    meta = file_store.read_meta(match_id)
+    if meta is None:
+        return None
+    if seats.match_status(meta) == seats.STATUS_STAGING:
+        return _reject("match_not_ongoing")
+    return None
+
+
+def _persist_match_started_event(match_id: str, snap: dict[str, Any], base_event: dict[str, Any]) -> None:
+    log_index = len(file_store.read_events(match_id))
+    row = {
+        **base_event,
+        "index": log_index,
+        "revision": int(snap.get("revision", 0)),
+    }
+    file_store.append_event(match_id, row)
 
 
 def _actor_gate(snap: dict[str, Any], action: dict[str, Any]) -> str | None:
@@ -272,7 +292,7 @@ def post_seat_ready(
     body: dict[str, Any] | None = Body(default=None),
     seat_token: str | None = Header(default=None, alias=SEAT_TOKEN_HEADER),
 ) -> dict[str, Any]:
-    """Set ready flag for a claimed seat in staging; returns token-free lobby summary (C14d-1)."""
+    """Set ready flag for a claimed seat in staging; may auto-start match (C14d-1/C14d-2)."""
     snap = file_store.read_snapshot(match_id)
     if snap is None:
         raise HTTPException(status_code=404, detail="match_not_found")
@@ -287,8 +307,17 @@ def post_seat_ready(
     if not result.ok:
         _raise_faction_ready_http(result.reason)
     assert result.meta is not None
-    file_store.write_meta(match_id, result.meta)
-    summary = seats.lobby_summary(match_id, result.meta, snap)
+    meta_out = result.meta
+    snap_out = snap
+    start = match_lifecycle.try_start_match_if_ready(match_id, meta_out, snap_out)
+    meta_out = start.meta
+    snap_out = start.snapshot
+    file_store.write_meta(match_id, meta_out)
+    if start.started:
+        file_store.write_snapshot(match_id, snap_out)
+        if start.match_started_event is not None:
+            _persist_match_started_event(match_id, snap_out, start.match_started_event)
+    summary = seats.lobby_summary(match_id, meta_out, snap_out)
     assert seats.summary_has_no_tokens(summary)
     return summary
 
@@ -632,6 +661,10 @@ def post_action(
     cred_reject = _credential_gate(match_id, action, x_empire_seat_token)
     if cred_reject is not None:
         return cred_reject
+
+    status_reject = _match_status_gate(match_id)
+    if status_reject is not None:
+        return status_reject
 
     if action is None or not isinstance(action, dict):
         return _reject("unknown_action_type")

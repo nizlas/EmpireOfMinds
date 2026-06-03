@@ -239,7 +239,7 @@ def turn_number_from_snapshot(snap: dict[str, Any]) -> int:
 
 def lobby_summary(match_id: str, meta: dict[str, Any], snap: dict[str, Any]) -> dict[str, Any]:
     seat_rows = public_seat_summary(meta)
-    return {
+    summary: dict[str, Any] = {
         "match_id": match_id,
         "display_name": display_name_from_meta(meta, match_id),
         "status": match_status(meta),
@@ -253,6 +253,11 @@ def lobby_summary(match_id: str, meta: dict[str, Any], snap: dict[str, Any]) -> 
         "revision": int(snap.get("revision", 0)),
         "turn_number": turn_number_from_snapshot(snap),
     }
+    if match_status(meta) == STATUS_ONGOING:
+        fp = meta.get("first_player_id")
+        if isinstance(fp, int):
+            summary["first_player_id"] = int(fp)
+    return summary
 
 
 def summary_has_no_tokens(summary: dict[str, Any]) -> bool:

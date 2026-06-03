@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.domain import seats
 from app.storage import file_store
-from match_helpers import create_seated_match
+from match_helpers import create_staging_match
 
 
 def _response_has_no_tokens(payload: object) -> bool:
@@ -26,7 +26,7 @@ def _response_has_no_tokens(payload: object) -> bool:
 
 
 def test_create_appears_in_list_without_tokens(client: TestClient) -> None:
-    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    m = create_staging_match(client, {"scenario_id": "tiny_test"})
     listed = client.get("/v1/matches").json()
     assert _response_has_no_tokens(listed)
     rows = listed["matches"]
@@ -48,7 +48,7 @@ def test_create_appears_in_list_without_tokens(client: TestClient) -> None:
 
 
 def test_status_staging_filter(client: TestClient) -> None:
-    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    m = create_staging_match(client, {"scenario_id": "tiny_test"})
     only_staging = client.get("/v1/matches", params={"status": "staging"}).json()
     ids = {r["match_id"] for r in only_staging["matches"]}
     assert m["match_id"] in ids
@@ -57,7 +57,7 @@ def test_status_staging_filter(client: TestClient) -> None:
 
 
 def test_v1_meta_lists_as_ongoing_excluded_from_staging_filter(client: TestClient) -> None:
-    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    m = create_staging_match(client, {"scenario_id": "tiny_test"})
     mid = m["match_id"]
     meta = file_store.read_meta(mid)
     assert meta is not None
@@ -79,7 +79,7 @@ def test_v1_meta_lists_as_ongoing_excluded_from_staging_filter(client: TestClien
 
 
 def test_legacy_no_meta_excluded_from_list(client: TestClient) -> None:
-    m = create_seated_match(client, {"scenario_id": "tiny_test"})
+    m = create_staging_match(client, {"scenario_id": "tiny_test"})
     mid = m["match_id"]
     file_store.meta_path(mid).unlink()
     listed = client.get("/v1/matches").json()["matches"]
@@ -87,7 +87,7 @@ def test_legacy_no_meta_excluded_from_list(client: TestClient) -> None:
 
 
 def test_list_tolerates_corrupt_meta_dir(client: TestClient) -> None:
-    create_seated_match(client, {"scenario_id": "tiny_test"})
+    create_staging_match(client, {"scenario_id": "tiny_test"})
     bad_dir = file_store.matches_root() / "m_badmeta"
     bad_dir.mkdir(parents=True, exist_ok=True)
     (bad_dir / "snapshot.json").write_text(

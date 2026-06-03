@@ -1,3 +1,11 @@
+## 2026-06-03 — Slice **C14d-2** — Server lifecycle: auto-start, first player, action gate
+
+- **Decision:** When all seats are claimed, have a valid faction, and **`ready=true`**, the final **`POST …/ready`** auto-starts the match: **`status=ongoing`**, **`started_at`**, **`first_player_id`**, snapshot **`turn_state.current_index`** updated (revision unchanged). First player: **`sha256((match_seed or match_id) + ":first_player")`** → index mod **`len(players)`**; not host/client-chosen. Append optional **`match_started`** event to **`events.jsonl`**.
+- **Action gate:** **`POST /actions`** on meta v2 **`staging`** returns **`accepted=false`**, **`reason=match_not_ongoing`** (after credential gate). No meta / v1 meta → permissive (ongoing) as before.
+- **Lobby summary:** ongoing rows may include **`first_player_id`**; **`ready_to_start`** is false when not staging.
+- **Not in C14d-2:** manual **`/start`**, Godot UI, gameplay/faction effects, Docker/Caddy, accounts/realtime.
+- **Tests:** **`test_auto_start.py`**, **`test_action_status_gate.py`**; **`create_staging_match`** vs **`create_seated_match(start_ongoing=True)`** in **`match_helpers`**.
+
 ## 2026-06-03 — Slice **C14d-1** — Server staging seat config (faction + ready)
 
 - **Decision:** Extend **`meta.json` v2** (additive, not v3) with per-seat **`faction_id`** (default **`null`**), **`ready`** (default **`false`**), optional **`claimed_at`** / **`ready_at`** ISO timestamps, and match-level **`match_seed`** set at create. Staging faction registry (metadata only, no gameplay): **`malmo`** → Malmö, **`vastervik`** → Västervik, **`paris`** → Paris.
