@@ -522,6 +522,53 @@ static func saved_resume_button_label(server_status: String, has_seat_token: boo
 	return "Continue setup"
 
 
+static func slot_header_text(seat_number: int, is_mine: bool, claimed: bool) -> String:
+	var base: String = "Seat %d" % int(seat_number)
+	if claimed and is_mine:
+		return "%s — You" % base
+	return base
+
+
+static func slot_status_line(
+	slot: Dictionary,
+	is_mine: bool,
+	pending_faction_id: String = "",
+	faction_choices: Array = [],
+) -> String:
+	var claimed: bool = bool(slot.get("claimed", false))
+	if not claimed:
+		return "Open"
+	var ready: bool = bool(slot.get("ready", false))
+	var ready_label: String = "Ready" if ready else "Not ready"
+	var fn: String = str(slot.get("faction_display", "")).strip_edges()
+	if is_mine and fn.is_empty():
+		var pending_fn: String = faction_display_name_from_pending(faction_choices, pending_faction_id)
+		if not pending_fn.is_empty():
+			fn = pending_fn
+	if is_mine:
+		if not ready:
+			return ""
+		if fn.is_empty():
+			return ready_label
+		return "%s — %s" % [fn, ready_label]
+	if fn.is_empty():
+		return ready_label
+	return "%s — %s" % [fn, ready_label]
+
+
+static func slot_ui_text_has_no_secrets(header: String, status: String) -> bool:
+	if not player_visible_text_has_no_secrets(header):
+		return false
+	if status.is_empty():
+		return true
+	return player_visible_text_has_no_secrets(status)
+
+
+static func slot_status_has_redundant_choose_instruction(status: String) -> bool:
+	var lower: String = str(status).to_lower()
+	return lower.contains("choose a faction") or lower.begins_with("your slot")
+
+
 static func open_staging_row_text(lobby_row: Dictionary) -> String:
 	var title: String = CloudCredentialStoreScript.player_visible_display_name(
 		str(lobby_row.get("display_name", "")).strip_edges()

@@ -29,6 +29,7 @@ func _init() -> void:
 	_test_non_owned_slot_selection_ignored()
 	_test_ready_enable_chain_after_claim()
 	_test_own_faction_not_taken_by_self()
+	_test_simplified_slot_ui_text()
 	_test_placeholder_dropdown_mapping()
 	_test_first_selection_from_empty_placeholder()
 	_test_render_preserves_pending_then_user_select()
@@ -494,6 +495,63 @@ func _test_sync_does_not_clear_user_pending_without_server_change() -> void:
 	_check(state.pending_faction_id == "paris", "user picked paris")
 	state.sync_from_server_slot(slot0, "staging")
 	_check(state.pending_faction_id.is_empty(), "server sync resets pending when server empty")
+
+
+func _test_simplified_slot_ui_text() -> void:
+	var open_slot: Dictionary = {
+		"actor_id": 1,
+		"claimed": false,
+		"is_mine": false,
+		"faction_display": "",
+		"ready": false,
+	}
+	_check(CloudStagingParsersScript.slot_header_text(2, false, false) == "Seat 2", "open header")
+	_check(CloudStagingParsersScript.slot_status_line(open_slot, false) == "Open", "open status")
+	var mine_not_ready: Dictionary = {
+		"actor_id": 0,
+		"claimed": true,
+		"is_mine": true,
+		"faction_display": "",
+		"ready": false,
+		"faction_choices": (_unconfigured_slot_view()["faction_choices"] as Array),
+	}
+	_check(
+		CloudStagingParsersScript.slot_header_text(1, true, true) == "Seat 1 — You",
+		"owned header you",
+	)
+	var mine_status: String = CloudStagingParsersScript.slot_status_line(mine_not_ready, true, "", [])
+	_check(mine_status.is_empty(), "owned not ready no redundant status")
+	_check(
+		not CloudStagingParsersScript.slot_status_has_redundant_choose_instruction(mine_status),
+		"no choose instruction",
+	)
+	var mine_ready: Dictionary = mine_not_ready.duplicate(true)
+	mine_ready["ready"] = true
+	mine_ready["faction_display"] = "Västervik"
+	_check(
+		CloudStagingParsersScript.slot_status_line(mine_ready, true) == "Västervik — Ready",
+		"owned ready faction",
+	)
+	var other_claimed: Dictionary = {
+		"actor_id": 1,
+		"claimed": true,
+		"is_mine": false,
+		"faction_display": "Malmö",
+		"ready": false,
+	}
+	_check(
+		CloudStagingParsersScript.slot_status_line(other_claimed, false) == "Malmö — Not ready",
+		"other faction not ready",
+	)
+	other_claimed["ready"] = true
+	_check(
+		CloudStagingParsersScript.slot_status_line(other_claimed, false) == "Malmö — Ready",
+		"other faction ready",
+	)
+	_check(
+		CloudStagingParsersScript.slot_ui_text_has_no_secrets("Seat 1 — You", "Västervik — Ready"),
+		"slot text no secrets",
+	)
 
 
 func _test_staging_messages_no_secrets() -> void:

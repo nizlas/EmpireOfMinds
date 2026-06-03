@@ -120,7 +120,7 @@ func _make_slot_panel(slot_index: int) -> PanelContainer:
 	vb.add_child(state_lbl)
 	var claim_btn := Button.new()
 	claim_btn.name = "ClaimBtn"
-	claim_btn.text = "Claim this slot"
+	claim_btn.text = "Claim"
 	claim_btn.visible = false
 	claim_btn.pressed.connect(_on_claim_pressed.bind(slot_index))
 	vb.add_child(claim_btn)
@@ -421,27 +421,15 @@ func _render_slot(panel: PanelContainer, slot: Dictionary, state: RefCounted) ->
 	var unready_btn: Button = ready_row.get_node("UnreadyBtn") as Button
 	var claimed: bool = bool(slot.get("claimed", false))
 	var is_mine: bool = bool(slot.get("is_mine", false))
-	if claimed:
-		if is_mine:
-			var fn: String = CloudStagingParsersScript.faction_display_name_from_pending(
-				state.faction_choices,
-				state.pending_faction_id,
-			)
-			if fn.is_empty():
-				fn = str(slot.get("faction_display", "")).strip_edges()
-			var rd: String = "Ready" if state.ready else "Not ready"
-			if fn.is_empty():
-				state_lbl.text = "Your slot — choose a faction. (%s)" % rd
-			else:
-				state_lbl.text = "Your slot — %s (%s)" % [fn, rd]
-		else:
-			var other_fn: String = str(slot.get("faction_display", "")).strip_edges()
-			if other_fn.is_empty():
-				state_lbl.text = "Claimed — setting up"
-			else:
-				state_lbl.text = "Claimed — %s" % other_fn
-	else:
-		state_lbl.text = "Open"
+	var seat_number: int = int(slot.get("actor_id", 0)) + 1
+	var hdr: Label = vb.get_node("SlotHeader") as Label
+	hdr.text = CloudStagingParsersScript.slot_header_text(seat_number, is_mine, claimed)
+	state_lbl.text = CloudStagingParsersScript.slot_status_line(
+		slot,
+		is_mine,
+		state.pending_faction_id,
+		state.faction_choices,
+	)
 	claim_btn.visible = bool(slot.get("can_claim", false))
 	faction_row.visible = is_mine and claimed
 	ready_row.visible = is_mine and claimed
