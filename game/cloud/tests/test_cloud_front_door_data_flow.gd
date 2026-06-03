@@ -1,4 +1,4 @@
-# Headless: C14c blocking data-flow — dialog OK vs close, create body, server-scoped resume.
+# Headless: C14c blocking data-flow — dialog OK vs cancel, create body, server-scoped resume.
 extends SceneTree
 
 const StoreScript = preload("res://cloud/cloud_credential_store.gd")
@@ -13,7 +13,12 @@ var _any_fail = false
 
 
 func _init() -> void:
-	_test_dialog_ok_not_reverted_by_close()
+	_test_dialog_ok_custom_name()
+	_test_dialog_ok_empty_uses_default()
+	_test_dialog_cancel()
+	_test_close_after_ok_does_not_cancel()
+	_test_create_flow_proceeds_after_ok()
+	_test_rename_ok_and_cancel()
 	_test_create_body_includes_custom_name()
 	_test_pick_create_uses_response_then_request()
 	_test_credential_create_no_local_match_number_override()
@@ -42,15 +47,63 @@ func _check(cond, message: String) -> void:
 	push_error(line)
 
 
-func _test_dialog_ok_not_reverted_by_close() -> void:
-	var prefill := "Match 4"
-	var edited := CUSTOM
-	var ok_result: String = StoreScript.finalize_dialog_text(edited, prefill, true, true)
-	_check(ok_result == CUSTOM, "OK keeps custom text not prefill")
-	var cancel_result: String = StoreScript.finalize_dialog_text(edited, prefill, false, true)
-	_check(cancel_result == prefill, "cancel uses prefill when configured")
-	var rename_ok: String = StoreScript.finalize_dialog_text("Manual Renamed Match", "Old", true, false)
-	_check(rename_ok == "Manual Renamed Match", "rename OK not cleared")
+func _test_dialog_ok_custom_name() -> void:
+	var result := {"confirmed": true, "text": CUSTOM}
+	var out: Dictionary = StoreScript.interpret_create_dialog_result(result, TEST_PATH)
+	_check(not bool(out.get("cancelled", true)), "OK custom not cancelled")
+	_check(out["display_name"] == CUSTOM, "OK custom name preserved")
+
+
+func _test_dialog_ok_empty_uses_default() -> void:
+	_remove_test_file()
+	var default_label: String = StoreScript.generate_default_label(TEST_PATH)
+	var result := {"confirmed": true, "text": "   "}
+	var out: Dictionary = StoreScript.interpret_create_dialog_result(result, TEST_PATH)
+	_check(not bool(out.get("cancelled", true)), "OK empty not cancelled")
+	_check(out["display_name"] == default_label, "OK empty uses generated default")
+
+
+func _test_dialog_cancel() -> void:
+	var result := {"confirmed": false, "text": CUSTOM}
+	var out: Dictionary = StoreScript.interpret_create_dialog_result(result, TEST_PATH)
+	_check(bool(out.get("cancelled", true)), "cancel sets cancelled")
+	_check(str(out.get("display_name", "x")) == "", "cancel has no display_name")
+
+
+func _test_close_after_ok_does_not_cancel() -> void:
+	var result := {"confirmed": true, "text": CUSTOM}
+	var after_close: Dictionary = StoreScript.apply_close_requested_to_dialog_result(result)
+	_check(bool(after_close.get("confirmed", false)), "close after OK keeps confirmed")
+	var out: Dictionary = StoreScript.interpret_create_dialog_result(after_close, TEST_PATH)
+	_check(not bool(out.get("cancelled", true)), "interpret after close still proceeds")
+	_check(out["display_name"] == CUSTOM, "name preserved after close guard")
+
+
+func _test_create_flow_proceeds_after_ok() -> void:
+	var result := {"confirmed": true, "text": CUSTOM}
+	var out: Dictionary = StoreScript.interpret_create_dialog_result(result, TEST_PATH)
+	_check(not bool(out.get("cancelled", true)), "create not cancelled on OK")
+	var body: Dictionary = CloudClientScript.build_create_match_body(
+		"prototype_play",
+		str(out["display_name"]),
+	)
+	_check(body["display_name"] == CUSTOM, "POST body uses OK name")
+
+
+func _test_rename_ok_and_cancel() -> void:
+	var ok: Dictionary = StoreScript.interpret_rename_dialog_result(
+		{"confirmed": true, "text": "  " + CUSTOM + "  "}
+	)
+	_check(not bool(ok.get("cancelled", true)), "rename OK proceeds")
+	_check(ok["display_name"] == CUSTOM, "rename OK exact name")
+	var cancel: Dictionary = StoreScript.interpret_rename_dialog_result(
+		{"confirmed": false, "text": CUSTOM}
+	)
+	_check(bool(cancel.get("cancelled", true)), "rename cancel")
+	var empty_ok: Dictionary = StoreScript.interpret_rename_dialog_result(
+		{"confirmed": true, "text": "   "}
+	)
+	_check(bool(empty_ok.get("cancelled", true)), "rename OK empty still cancels rename")
 
 
 func _test_create_body_includes_custom_name() -> void:

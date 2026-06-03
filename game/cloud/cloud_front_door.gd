@@ -141,9 +141,8 @@ func _make_session() -> Node:
 	return sess
 
 
-func _await_text_dialog(title: String, hint: String, prefill: String, cancel_to_prefill: bool) -> String:
-	var edited: String = prefill
-	var confirmed: bool = false
+func _await_text_dialog(title: String, hint: String, prefill: String) -> Dictionary:
+	var result: Dictionary = CloudCredentialStoreScript.empty_dialog_result(prefill)
 	var win := Window.new()
 	win.title = title
 	win.unresizable = true
@@ -182,53 +181,89 @@ func _await_text_dialog(title: String, hint: String, prefill: String, cancel_to_
 	win.popup_centered()
 	edit.grab_focus()
 	edit.caret_column = edit.text.length()
-	ok_btn.pressed.connect(
-		func() -> void:
-			edited = edit.text
-			confirmed = true
-			win.hide()
-	)
-	cancel_btn.pressed.connect(
-		func() -> void:
-			confirmed = false
-			win.hide()
-	)
+
+	var commit_ok := func() -> void:
+		if bool(result.get("confirmed", false)):
+			return
+		result["confirmed"] = true
+		result["text"] = edit.text
+		win.hide()
+
+	var commit_cancel := func() -> void:
+		if bool(result.get("confirmed", false)):
+			return
+		result["confirmed"] = false
+		result["text"] = edit.text
+		win.hide()
+
+	ok_btn.pressed.connect(commit_ok)
+	edit.text_submitted.connect(func(_new_text: String) -> void: commit_ok.call())
+	cancel_btn.pressed.connect(commit_cancel)
 	win.close_requested.connect(
 		func() -> void:
-			if not confirmed:
-				win.hide()
+			result = CloudCredentialStoreScript.apply_close_requested_to_dialog_result(result)
+			if bool(result.get("confirmed", false)):
+				return
+			win.hide()
+	)
+	win.gui_input.connect(
+		func(event: InputEvent) -> void:
+			if event.is_action_pressed("ui_accept"):
+				commit_ok.call()
+				win.set_input_as_handled()
 	)
 	while win.visible:
 		await get_tree().process_frame
 	win.queue_free()
-	return CloudCredentialStoreScript.finalize_dialog_text(
-		edited,
-		prefill,
-		confirmed,
-		cancel_to_prefill,
-	)
+	return result
 
 
-func _prompt_create_display_name(default_label: String) -> String:
-	var raw: String = await _await_text_dialog(
+func _prompt_create_display_name(default_label: String) -> Dictionary:
+	var dialog_result: Dictionary = await _await_text_dialog(
 		"Name this cloud match",
 		"Public display name on the server (visible to others in the open match list).",
 		default_label,
-		false,
 	)
-	if raw.is_empty():
-		return ""
-	return CloudCredentialStoreScript.resolve_label_for_save(raw, STORE_PATH)
+	if _cloud_debug_enabled():
+		print(
+			"SliceC14c create_dialog default=%s confirmed=%s raw_text=%s"
+			% [
+				default_label,
+				str(dialog_result.get("confirmed", false)),
+				str(dialog_result.get("text", "")),
+			]
+		)
+	var interpreted: Dictionary = CloudCredentialStoreScript.interpret_create_dialog_result(
+		dialog_result,
+		STORE_PATH,
+	)
+	if _cloud_debug_enabled():
+		print(
+			"SliceC14c create_dialog cancelled=%s final_display_name=%s"
+			% [
+				str(interpreted.get("cancelled", true)),
+				str(interpreted.get("display_name", "")),
+			]
+		)
+	return interpreted
 
 
-func _prompt_rename_display_name(prefill_full: String) -> String:
-	var raw: String = await _await_text_dialog(
+func _prompt_rename_display_name(prefill_full: String) -> Dictionary:
+	var dialog_result: Dictionary = await _await_text_dialog(
 		"Rename cloud match",
 		"Public display name on the server (visible to others in the open match list).",
 		prefill_full,
-		false,
 	)
-	return CloudCredentialStoreScript.rename_submit_body(raw)
+	if _cloud_debug_enabled():
+		print(
+			"SliceC14c rename_dialog prefill=%s confirmed=%s raw_text=%s"
+			% [
+				prefill_full,
+				str(dialog_result.get("confirmed", false)),
+				str(dialog_result.get("text", "")),
+			]
+		)
+	return CloudCredentialStoreScript.interpret_rename_dialog_result(dialog_result)
 
 
 func _save_credential_with_label(entry: Dictionary) -> void:
@@ -238,9 +273,12 @@ func _save_credential_with_label(entry: Dictionary) -> void:
 func _on_create_cloud() -> void:
 	if _busy:
 		return
-	var requested_name: String = await _prompt_create_display_name(
-		CloudCredentialStoreScript.generate_default_label(STORE_PATH)
-	)
+	var default_label: String = CloudCredentialStoreScript.generate_default_label(STORE_PATH)
+	var create_dialog: Dictionary = await _prompt_create_display_name(default_label)
+	if bool(create_dialog.get("cancelled", true)):
+		_set_status("Create cancelled.")
+		return
+	var requested_name: String = str(create_dialog.get("display_name", "")).strip_edges()
 	if requested_name.is_empty():
 		_set_status("Create cancelled.")
 		return
@@ -460,7 +498,11 @@ func _on_rename_saved() -> void:
 		_set_status("Saved entry is incomplete.")
 		return
 	var old_name: String = str(view.get("display_name", ""))
-	var requested: String = await _prompt_rename_display_name(old_name)
+	var rename_dialog: Dictionary = await _prompt_rename_display_name(old_name)
+	if bool(rename_dialog.get("cancelled", true)):
+		_set_status("Rename cancelled.")
+		return
+	var requested: String = str(rename_dialog.get("display_name", "")).strip_edges()
 	if requested.is_empty():
 		_set_status("Rename cancelled.")
 		return

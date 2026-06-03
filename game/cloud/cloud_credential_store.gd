@@ -132,7 +132,40 @@ static func resolve_label_for_save(user_input: String, path: String = DEFAULT_PA
 	return generate_default_label(path)
 
 
-## After OK, **hide()** must not let **close_requested** overwrite the edited value.
+## Explicit dialog result: **confirmed** + raw **text** (never conflate cancel with empty OK).
+static func empty_dialog_result(prefill: String = "") -> Dictionary:
+	return {"confirmed": false, "text": str(prefill)}
+
+
+## **close_requested** / outside-popup must not cancel after OK (**confirmed** already true).
+static func apply_close_requested_to_dialog_result(result: Dictionary) -> Dictionary:
+	var out: Dictionary = result.duplicate()
+	if bool(out.get("confirmed", false)):
+		return out
+	out["confirmed"] = false
+	return out
+
+
+static func interpret_create_dialog_result(
+	result: Dictionary,
+	path: String = DEFAULT_PATH,
+) -> Dictionary:
+	if not bool(result.get("confirmed", false)):
+		return {"cancelled": true, "display_name": ""}
+	var display_name: String = resolve_label_for_save(str(result.get("text", "")), path)
+	return {"cancelled": false, "display_name": display_name}
+
+
+static func interpret_rename_dialog_result(result: Dictionary) -> Dictionary:
+	if not bool(result.get("confirmed", false)):
+		return {"cancelled": true, "display_name": ""}
+	var display_name: String = rename_submit_body(str(result.get("text", "")))
+	if display_name.is_empty():
+		return {"cancelled": true, "display_name": ""}
+	return {"cancelled": false, "display_name": display_name}
+
+
+## Legacy helper for tests simulating finalize paths.
 static func finalize_dialog_text(
 	edited_text: String,
 	prefill: String,
