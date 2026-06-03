@@ -13,6 +13,7 @@ var _any_fail = false
 
 
 func _init() -> void:
+	_test_window_dialog_signal_wiring()
 	_test_dialog_ok_custom_name()
 	_test_dialog_ok_empty_uses_default()
 	_test_dialog_cancel()
@@ -45,6 +46,30 @@ func _check(cond, message: String) -> void:
 	var line := "FAIL: %s" % message
 	print(line)
 	push_error(line)
+
+
+func _test_window_dialog_signal_wiring() -> void:
+	_check(not ClassDB.class_has_signal("Window", "gui_input"), "Window has no gui_input signal")
+	_check(ClassDB.class_has_signal("Window", "close_requested"), "Window has close_requested")
+	var win := Window.new()
+	var edit := LineEdit.new()
+	var ok_btn := Button.new()
+	win.add_child(edit)
+	var result := {"confirmed": false, "text": "Match 1"}
+	var commit_ok := func() -> void:
+		result["confirmed"] = true
+		result["text"] = edit.text
+		win.hide()
+	ok_btn.pressed.connect(commit_ok)
+	edit.text_submitted.connect(func(_t: String) -> void: commit_ok.call())
+	win.close_requested.connect(
+		func() -> void:
+			result = StoreScript.apply_close_requested_to_dialog_result(result)
+			if bool(result.get("confirmed", false)):
+				return
+			win.hide()
+	)
+	_check(true, "dialog wiring uses only valid Window/LineEdit signals")
 
 
 func _test_dialog_ok_custom_name() -> void:

@@ -206,12 +206,6 @@ func _await_text_dialog(title: String, hint: String, prefill: String) -> Diction
 				return
 			win.hide()
 	)
-	win.gui_input.connect(
-		func(event: InputEvent) -> void:
-			if event.is_action_pressed("ui_accept"):
-				commit_ok.call()
-				win.set_input_as_handled()
-	)
 	while win.visible:
 		await get_tree().process_frame
 	win.queue_free()
