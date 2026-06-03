@@ -1,3 +1,8 @@
+## 2026-06-03 — Slice **C14d-4g** — Staging civ → ongoing player identity
+
+- **Decision:** On auto-start, copy per-seat staging **`faction_id`** into snapshot **`player_factions`** (`{"0":"paris",…}`). Godot **`CloudPlayerIdentity`** registry (via **`PlaytestPlayerDisplay`**) drives contact strip, turn labels/banners, and accents from chosen civ — not hardcoded actor 0/1 → Västervik/Malmö. Unknown ids → **"Unknown civilization"** + warning (no silent Malmö/Paris swap). Hotseat unchanged when registry empty.
+- **Tests:** server **`test_player_factions_c14d4g.py`**; Godot **`test_cloud_player_identity_c14d4g.gd`**.
+
 ## 2026-06-03 — Slice **C14d-4f** — Cloud TurnStatusPanel suppression
 
 - **Decision:** In cloud ongoing play, hide **`HudCanvas/TurnStatusPanel`** (lower-right “{Civ}'s turn” / “Turn N”). Keep **`PlayerContactStrip`** chips (current-player highlight) and C14d-4b small **“Other player’s turn”** waiting line. **`TurnStartBanner`** (C14d-4d local-seat gating) unchanged. Local hotseat still shows **TurnStatusPanel**.

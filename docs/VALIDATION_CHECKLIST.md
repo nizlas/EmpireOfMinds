@@ -517,3 +517,12 @@ Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_faction_displ
 - [ ] Local hotseat: **TurnStatusPanel** still visible and updates on turn change.
 
 Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_turn_panel_c14d4f.gd`**). **`smoke`** if **`main.gd`** HUD wiring changed.
+
+## Slice C14d-4g — Staging civilization → ongoing player identity (server + Godot)
+
+- [ ] Auto-start copies **`seats[].faction_id`** into snapshot **`player_factions`**.
+- [ ] Match with **Paris** + another civ: chips/labels show **Pajasarna från Paris** for the seat that chose **`paris`** (not default Malmö on actor 1).
+- [ ] Third unchosen civ does not appear as a player.
+- [ ] Fog/turn authority still use **`actor_id`**; C14d-4c local perspective unchanged.
+
+Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_player_factions_c14d4g.py`**); **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_player_identity_c14d4g.gd`**).

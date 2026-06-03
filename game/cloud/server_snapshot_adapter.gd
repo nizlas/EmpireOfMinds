@@ -12,6 +12,7 @@ const TurnStateScript = preload("res://domain/turn_state.gd")
 const ProgressStateScript = preload("res://domain/progress_state.gd")
 const GameStateScript = preload("res://domain/game_state.gd")
 const PlayerVisibilityStateScript = preload("res://domain/player_visibility_state.gd")
+const PlaytestPlayerDisplayScript = preload("res://presentation/playtest_player_display.gd")
 
 
 static func _terrain_from_string(s: String) -> int:
@@ -245,6 +246,7 @@ static func build_game_state_from_api_snapshot(snap: Dictionary) -> Object:
 		prog = progress_state_from_server_dict(prog_d)
 	else:
 		prog = ProgressStateScript.with_default_unlocks_for_players(ts.players)
+	PlaytestPlayerDisplayScript.apply_player_factions_from_snapshot(snap)
 	var gs = GameStateScript.new(scen, prog, ts, true)
 	var vis_d = snap.get("visibility_state", null)
 	if typeof(vis_d) == TYPE_DICTIONARY:

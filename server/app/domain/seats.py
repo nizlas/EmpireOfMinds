@@ -173,6 +173,19 @@ def _seat_claimed(row: dict[str, Any], meta: dict[str, Any]) -> bool:
     return bool(row.get("claimed", False))
 
 
+def player_factions_from_meta(meta: dict[str, Any]) -> dict[str, str]:
+    """C14d-4g: actor_id (as str) → staging faction_id for snapshot / client UI."""
+    out: dict[str, str] = {}
+    for seat in meta.get("seats", []):
+        if not isinstance(seat, dict):
+            continue
+        aid = seat.get("actor_id")
+        fid = _seat_faction_id(seat)
+        if isinstance(aid, int) and fid:
+            out[str(int(aid))] = fid
+    return out
+
+
 def _seat_faction_id(row: dict[str, Any]) -> str | None:
     raw = row.get("faction_id")
     if isinstance(raw, str):

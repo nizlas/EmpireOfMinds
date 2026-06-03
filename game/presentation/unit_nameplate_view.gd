@@ -75,19 +75,10 @@ static func display_name_for_type_id(type_id: String) -> String:
 	return _humanize_type_id(tid)
 
 
-## Muted prototype palette (distinct from **UnitsView** marker disk colors). Stable per **owner_id**.
+## Muted prototype palette (distinct from **UnitsView** marker disk colors). C14d-4g: per chosen civ when registry set.
 static func owner_nameplate_accent_color(owner_id: int) -> Color:
-	if owner_id == 0:
-		return Color(0.38, 0.56, 0.62, 1.0)
-	if owner_id == 1:
-		return Color(0.58, 0.32, 0.36, 1.0)
-	if owner_id == 2:
-		return Color(0.44, 0.50, 0.38, 1.0)
-	if owner_id == 3:
-		return Color(0.52, 0.44, 0.58, 1.0)
-	var seed = int(abs(owner_id * 1103515245 + 12345)) % 100000
-	var hue = float(seed % 360) / 360.0
-	return Color.from_hsv(hue, 0.35, 0.55, 1.0)
+	const PlaytestPlayerDisplayScript = preload("res://presentation/playtest_player_display.gd")
+	return PlaytestPlayerDisplayScript.accent_color_for_player_id(owner_id)
 
 
 ## **0..1** for HP bar fill; safe if **`max_hp`** is missing or zero.

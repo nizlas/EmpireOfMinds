@@ -25,6 +25,7 @@ const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.g
 const BootIntentScript = preload("res://cloud/boot_intent.gd")
 const CloudTurnOwnershipScript = preload("res://cloud/cloud_turn_ownership.gd")
 const PresentationVisibilityScript = preload("res://presentation/presentation_visibility.gd")
+const PlaytestPlayerDisplayScript = preload("res://presentation/playtest_player_display.gd")
 const CityProductionPanelScript = preload("res://presentation/city_production_panel.gd")
 const WAITING_POLL_INTERVAL_SEC: float = CloudTurnOwnershipScript.WAITING_POLL_INTERVAL_SEC
 ## Phase 4.5n: mouse-wheel zoom multiplier (center-anchored in layer-local space; not cursor-anchored).
@@ -227,6 +228,7 @@ func _exit_tree() -> void:
 func _start_local_hotseat_session() -> void:
 	_stop_cloud_waiting_poll()
 	PresentationVisibilityScript.viewing_player_id_override = -1
+	PlaytestPlayerDisplayScript.clear_player_faction_registry()
 	var scenario_loc = ScenarioScript.make_prototype_play_scenario()
 	var game_state_loc = GameStateScript.new(scenario_loc)
 	var selection_loc = SelectionStateScript.new()

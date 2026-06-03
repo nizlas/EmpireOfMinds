@@ -13,6 +13,7 @@ from app.domain.seats import (
     STATUS_STAGING,
     derive_ready_to_start,
     match_status,
+    player_factions_from_meta,
 )
 
 MATCH_STARTED_ACTION_TYPE = "match_started"
@@ -97,6 +98,7 @@ def try_start_match_if_ready(
     new_ts = copy.deepcopy(ts)
     new_ts["current_index"] = first_index
     new_snap["turn_state"] = new_ts
+    new_snap["player_factions"] = player_factions_from_meta(new_meta)
 
     event = {
         "action_type": MATCH_STARTED_ACTION_TYPE,

@@ -32,5 +32,10 @@ def display_name_for_faction(faction_id: str) -> str:
     return _FACTIONS[str(faction_id).strip()]
 
 
+def display_name_for_faction_or_unknown(faction_id: str) -> str:
+    fid = str(faction_id).strip()
+    return _FACTIONS.get(fid, "Unknown civilization")
+
+
 def available_factions_public() -> list[dict[str, str]]:
     return [{"id": fid, "display_name": dn} for fid, dn in _FACTIONS.items()]
