@@ -13,6 +13,10 @@ const MODE_CLOUD_ENTER_CREATED: String = "cloud_enter_created"
 ## Staging area for a match (C14d-3); may carry host and/or seat token.
 const MODE_CLOUD_STAGING: String = "cloud_staging"
 
+## C14d UI: neutral player-facing overlay while cloud session starts (create/reconnect/enter-created).
+const CLOUD_CONNECTING_STATUS: String = "Connecting to cloud game…"
+const CLOUD_LOADING_STATUS: String = "Loading cloud game…"
+
 static var mode: String = MODE_NONE
 static var server_url: String = ""
 static var match_id: String = ""
@@ -113,13 +117,7 @@ static func is_cloud_staging(boot_mode: String) -> bool:
 static func cloud_load_status_message(boot_mode: String) -> String:
 	if is_cloud_staging(boot_mode):
 		return "Entering staging…"
-	if is_cloud_enter_created(boot_mode):
-		return "Connecting to new cloud match…"
-	if str(boot_mode) == MODE_CLOUD_RECONNECT:
-		return "Reconnecting to cloud match…"
-	if str(boot_mode) == MODE_CLOUD_CREATE:
-		return "Creating cloud match…"
-	return "Connecting to cloud match…"
+	return CLOUD_CONNECTING_STATUS
 
 
 ## Dev/test: skip front door when **EOM_CLOUD_CLIENT** is set (same as Main cloud gate).

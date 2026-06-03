@@ -631,7 +631,7 @@ func _bootstrap_cloud_session() -> void:
 	_cloud_debug_timing("cloud_init_start")
 	_ensure_cloud_loading_overlay()
 	_set_cloud_overlay_visible(true)
-	_set_cloud_overlay_text("Connecting to cloud match…")
+	_set_cloud_overlay_text(BootIntentScript.CLOUD_CONNECTING_STATUS)
 	$SelectionController.use_cloud_server = true
 	$SelectionController.cloud_play_host = self
 	$AITurnController.skip_for_cloud = true
@@ -665,10 +665,7 @@ func _bootstrap_cloud_session() -> void:
 	var resp: Dictionary = {}
 	if reconnecting:
 		_cloud_session.match_id = reconnect_mid
-		if _boot_cloud_enter_created:
-			_set_cloud_overlay_text("Connecting to new cloud match…")
-		else:
-			_set_cloud_overlay_text("Reconnecting to cloud match…")
+		_set_cloud_overlay_text(BootIntentScript.CLOUD_CONNECTING_STATUS)
 		resp = await _cloud_session.get_match()
 		if resp.has("_error") or typeof(resp.get("snapshot")) != TYPE_DICTIONARY:
 			_cloud_fail_session_and_strand(
@@ -694,7 +691,7 @@ func _bootstrap_cloud_session() -> void:
 		)
 		_cloud_fail_session_and_strand(fail_msg, resp)
 		return
-	_set_cloud_overlay_text("Loading cloud match…")
+	_set_cloud_overlay_text(BootIntentScript.CLOUD_LOADING_STATUS)
 	_cloud_debug_timing("snapshot_adapter_start")
 	var gs_cloud = ServerSnapshotAdapterScript.build_game_state_from_api_snapshot(snap)
 	_cloud_debug_timing("snapshot_adapter_done")

@@ -52,13 +52,18 @@ func _test_create_response_boot_intent() -> void:
 	_check(BootIntentScript.seat_token == "ht_created", "create response host_token")
 	_check(
 		BootIntentScript.cloud_load_status_message(BootIntentScript.MODE_CLOUD_ENTER_CREATED)
-			== "Connecting to new cloud match…",
-		"enter-created status message",
+			== BootIntentScript.CLOUD_CONNECTING_STATUS,
+		"enter-created uses neutral connecting status",
 	)
 	_check(
 		BootIntentScript.cloud_load_status_message(BootIntentScript.MODE_CLOUD_RECONNECT)
-			== "Reconnecting to cloud match…",
-		"reconnect status message",
+			== BootIntentScript.CLOUD_CONNECTING_STATUS,
+		"reconnect uses neutral connecting status",
+	)
+	_check(
+		BootIntentScript.cloud_load_status_message(BootIntentScript.MODE_CLOUD_CREATE)
+			== BootIntentScript.CLOUD_CONNECTING_STATUS,
+		"cloud create uses neutral connecting status",
 	)
 	var snap: Dictionary = BootIntentScript.consume_for_main()
 	_check(snap["match_id"] == "m_created", "create consume match_id")

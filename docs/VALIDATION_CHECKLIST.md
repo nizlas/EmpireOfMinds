@@ -254,7 +254,7 @@ Manual validation (**no** auth, **no** websocket, **no** combat parity; server r
 
 1. Start server: `cd server` then `python -m uvicorn app.main:app --reload --port 8000` (or your venv Python).
 2. Enable cloud in Godot: set **`Main.use_cloud_server`** in the inspector **or** set env **`EOM_CLOUD_CLIENT=1`**; optional **`EOM_CLOUD_BASE_URL`** overrides **`cloud_base_url`** (default `http://localhost:8000`).
-3. Before the first server-backed frame is ready, a **full-screen dimmed overlay** shows **Connecting to cloud match…** then **Loading cloud match…**; map zoom/pan, selection, **Y**, and other gameplay shortcuts are blocked (**Esc** / **F1** still work). If **create-match** or snapshot wiring fails, the overlay stays up with an **error** message and the client does **not** fall back to local hotseat.
+3. Before the first server-backed frame is ready, a **full-screen dimmed overlay** shows **Connecting to cloud game…** then **Loading cloud game…**; map zoom/pan, selection, **Y**, and other gameplay shortcuts are blocked (**Esc** / **F1** still work). If **create-match** or snapshot wiring fails, the overlay stays up with an **error** message and the client does **not** fall back to local hotseat.
 4. **Play:** **`POST /v1/matches`** runs once; note **`match_id`** in the console.
 5. Select a **unit** belonging to the current player: move highlights follow **`GET .../legal-actions`** **`move_unit`** list; **found city** via **F** uses the server-listed action.
 6. Select a **city**: **City Hub** production buttons use **`set_city_production`** entries from legal-actions where applicable.
@@ -273,7 +273,7 @@ Manual validation (**Godot client only**; reuses existing server GET — **no** 
 1. Start server (same as Slice C8).
 2. Enable cloud with **no** **`cloud_match_id`** / **`EOM_CLOUD_MATCH_ID`** → match is **created**; note **`match_id`** in console (`Slice C9 cloud: created match_id=… (set EOM_CLOUD_MATCH_ID=… to reconnect)`).
 3. Make a server-visible change (e.g. **move_unit** or **end_turn**); note **revision** / **current player** / unit positions.
-4. Quit Godot; relaunch with **`EOM_CLOUD_MATCH_ID=<that id>`** (or inspector **`cloud_match_id`**) → overlay shows **Reconnecting to cloud match…** then gameplay; **revision**, **current player**, and positions match the saved server state (**GET**, not **POST /v1/matches**).
+4. Quit Godot; relaunch with **`EOM_CLOUD_MATCH_ID=<that id>`** (or inspector **`cloud_match_id`**) → overlay shows **Connecting to cloud game…** then gameplay; **revision**, **current player**, and positions match the saved server state (**GET**, not **POST /v1/matches**).
 5. After reconnect: **move_unit**, **end_turn**, and **legal-actions** refresh still work; turn banner shows on bootstrap/reconnect once and again only when **current player** changes.
 6. Set **`EOM_CLOUD_MATCH_ID=m_bad_id`** with server running → **error overlay**, **no** local hotseat fallback, **`MapView.map`** stays unwired.
 7. Unset match id env and disable cloud → **local hotseat** unchanged.

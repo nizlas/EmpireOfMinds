@@ -196,8 +196,13 @@ func _test_distinct_create_row_models() -> void:
 func _test_enter_created_status_not_reconnecting() -> void:
 	_check(
 		BootIntentScript.cloud_load_status_message(BootIntentScript.MODE_CLOUD_ENTER_CREATED)
-			!= "Reconnecting to cloud match…",
-		"enter-created message not reconnecting",
+			== BootIntentScript.CLOUD_CONNECTING_STATUS,
+		"enter-created neutral connecting status",
+	)
+	_check(
+		BootIntentScript.cloud_load_status_message(BootIntentScript.MODE_CLOUD_RECONNECT)
+			== BootIntentScript.CLOUD_CONNECTING_STATUS,
+		"reconnect same neutral connecting status",
 	)
 	_check(BootIntentScript.is_cloud_enter_created(BootIntentScript.MODE_CLOUD_ENTER_CREATED), "flag helper")
 
