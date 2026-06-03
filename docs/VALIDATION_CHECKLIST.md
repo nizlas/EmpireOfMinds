@@ -368,8 +368,10 @@ Validation: **`scripts/run-godot-tests.ps1 slice c14c`** — lobby parsers, fron
 
 ## Slice C14c.1 — Saved match labels (Godot)
 
-- [ ] **Your saved cloud matches** lists only local credentials for this server (not server lobby rows).
-- [ ] **Join open cloud matches** is separate; staging rows show no tokens.
+- [ ] **Your matches on this server** lists **`GET /v1/matches`** rows filtered by local credentials for the active **`server_url`** (not credentials alone when the server is down).
+- [ ] Credential for a match absent from the server list does not appear as playable resume.
+- [ ] **Open staging matches** is separate from resume; staging rows show no tokens.
+- [ ] **`EOM_CLOUD_BASE_URL`** to local debug server uses a separate credential/list scope from production cloud URL.
 - [ ] **Create Cloud Match** → naming dialog prefilled **Match N**; OK saves label; cancel/empty uses default.
 - [ ] Saved row shows human label + actor + short match id (not full token).
 - [ ] **Rename** updates label; **Resume saved match** still reconnects.

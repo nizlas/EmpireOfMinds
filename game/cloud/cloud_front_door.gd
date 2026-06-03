@@ -18,11 +18,10 @@ var _saved_resume_btn: Button
 var _saved_rename_btn: Button
 var _busy: bool = false
 var _lobby_claim_targets: Array = []
-## Saved row view models (see CloudCredentialStore.build_saved_row_view).
+## Resume rows: server lobby summaries filtered by local credentials for active server_url.
 var _saved_rows: Array = []
 var _saved_selected_index: int = -1
-## match_id -> server display_name (merge updates; never cleared before fetch).
-var _server_display_names: Dictionary = {}
+var _server_lobby_load_failed: bool = false
 
 
 func _ready() -> void:
@@ -32,15 +31,14 @@ func _ready() -> void:
 		get_tree().change_scene_to_file(MAIN_SCENE)
 		return
 	_build_ui()
-	_populate_saved_list_from_store()
-	call_deferred("_enrich_saved_list_from_server")
+	call_deferred("_reload_lobby_from_server")
 
 
 func _resolve_server_url() -> String:
 	var env_u: String = OS.get_environment("EOM_CLOUD_BASE_URL").strip_edges()
 	if env_u.length() > 0:
-		return env_u.rstrip("/")
-	return DEFAULT_SERVER_URL
+		return CloudCredentialStoreScript.normalize_server_url(env_u)
+	return CloudCredentialStoreScript.normalize_server_url(DEFAULT_SERVER_URL)
 
 
 func _cloud_debug_enabled() -> bool:
@@ -80,7 +78,7 @@ func _build_ui() -> void:
 	create_btn.pressed.connect(_on_create_cloud)
 	row1.add_child(create_btn)
 	var lobby_btn := Button.new()
-	lobby_btn.text = "Refresh open matches"
+	lobby_btn.text = "Refresh cloud matches"
 	lobby_btn.pressed.connect(_on_refresh_lobby)
 	row1.add_child(lobby_btn)
 	_status_label = Label.new()
@@ -88,7 +86,7 @@ func _build_ui() -> void:
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(_status_label)
 	var saved_hdr := Label.new()
-	saved_hdr.text = "Your saved cloud matches (local credentials; names from server when online):"
+	saved_hdr.text = "Your matches on this server"
 	vbox.add_child(saved_hdr)
 	_saved_list = ItemList.new()
 	_saved_list.custom_minimum_size = Vector2(0, 120)
@@ -108,7 +106,7 @@ func _build_ui() -> void:
 	_saved_rename_btn.pressed.connect(_on_rename_saved)
 	saved_row.add_child(_saved_rename_btn)
 	var lobby_hdr := Label.new()
-	lobby_hdr.text = "Join open cloud matches (server staging list; no tokens shown):"
+	lobby_hdr.text = "Open staging matches"
 	vbox.add_child(lobby_hdr)
 	_lobby_list = ItemList.new()
 	_lobby_list.custom_minimum_size = Vector2(0, 180)
@@ -269,7 +267,6 @@ func _on_create_cloud() -> void:
 			"SliceC14c2 create using response display_name=%s (requested=%s)"
 			% [display_name, requested_name]
 		)
-	_server_display_names[mid] = display_name
 	var entry: Dictionary = CloudClientScript.credential_from_create_response(
 		_server_url,
 		resp,
@@ -282,47 +279,7 @@ func _on_create_cloud() -> void:
 
 
 func _on_refresh_lobby() -> void:
-	if _busy:
-		return
-	_set_busy(true)
-	_set_status("Loading open staging matches…")
-	_lobby_claim_targets.clear()
-	_lobby_list.clear()
-	var sess = _make_session()
-	var raw: Dictionary = await sess.get_matches_list("staging")
-	sess.queue_free()
-	_set_busy(false)
-	var parsed: Dictionary = CloudClientScript.parse_lobby_list_response(raw)
-	if parsed.has("_error"):
-		_set_status("Lobby list failed: %s" % str(parsed["_error"]))
-		return
-	var matches: Array = parsed["matches"] as Array
-	var idx: int = 0
-	while idx < matches.size():
-		var row: Dictionary = matches[idx] as Dictionary
-		idx += 1
-		var mid: String = str(row.get("match_id", ""))
-		var dn: String = CloudClientScript.display_name_from_lobby_row(row)
-		if mid.length() > 0 and dn.length() > 0:
-			_server_display_names[mid] = dn
-		var seats = row.get("seats", [])
-		if typeof(seats) != TYPE_ARRAY:
-			continue
-		var si: int = 0
-		while si < (seats as Array).size():
-			var seat = (seats as Array)[si]
-			si += 1
-			if typeof(seat) != TYPE_DICTIONARY:
-				continue
-			var sd: Dictionary = seat as Dictionary
-			if bool(sd.get("claimed", true)):
-				continue
-			var aid: int = int(sd.get("actor_id", -1))
-			_lobby_claim_targets.append({"match_id": mid, "actor_id": aid, "lobby_row": row})
-			_lobby_list.add_item(CloudClientScript.lobby_open_row_text(row, aid))
-	_set_status(
-		"Open matches: %d claimable seat(s). Select a line to join." % _lobby_claim_targets.size()
-	)
+	await _reload_lobby_from_server()
 
 
 func _on_lobby_item_selected(index: int) -> void:
@@ -348,8 +305,6 @@ func _claim_and_play(match_id: String, actor_id: int) -> void:
 		return
 	var mid: String = str(parsed.get("match_id", "")).strip_edges()
 	var server_name: String = str(parsed.get("display_name", "")).strip_edges()
-	if server_name.length() > 0:
-		_server_display_names[mid] = server_name
 	var entry: Dictionary = CloudClientScript.credential_from_claim_response(
 		_server_url,
 		parsed,
@@ -366,37 +321,72 @@ func _claim_and_play(match_id: String, actor_id: int) -> void:
 	_go_main()
 
 
-func _merge_server_display_names_from_lobby() -> void:
+func _reload_lobby_from_server() -> void:
+	if _busy:
+		return
+	_set_busy(true)
+	_server_lobby_load_failed = false
+	_set_status("Loading matches from server…")
+	_saved_rows.clear()
+	_lobby_claim_targets.clear()
+	_saved_list.clear()
+	_lobby_list.clear()
+	_saved_selected_index = -1
+	if _saved_resume_btn != null:
+		_saved_resume_btn.disabled = true
+	if _saved_rename_btn != null:
+		_saved_rename_btn.disabled = true
 	var sess = _make_session()
 	var raw: Dictionary = await sess.get_matches_list("")
 	sess.queue_free()
+	_set_busy(false)
 	var parsed: Dictionary = CloudClientScript.parse_lobby_list_response(raw)
 	if parsed.has("_error"):
+		_server_lobby_load_failed = true
+		_render_lobby_load_failed(str(parsed["_error"]))
 		return
 	var matches: Array = parsed.get("matches", []) as Array
-	var i: int = 0
-	while i < matches.size():
-		var row = matches[i]
-		i += 1
-		if typeof(row) != TYPE_DICTIONARY:
-			continue
-		var d: Dictionary = row as Dictionary
-		var mid: String = str(d.get("match_id", "")).strip_edges()
-		var dn: String = CloudClientScript.display_name_from_lobby_row(d)
-		if mid.length() > 0 and dn.length() > 0:
-			_server_display_names[mid] = dn
+	var cred_map: Dictionary = CloudCredentialStoreScript.credentials_map_for_server(
+		STORE_PATH,
+		_server_url,
+	)
+	_saved_rows = CloudClientScript.build_resume_rows_from_lobby(matches, cred_map, _server_url)
+	var resume_ids: Dictionary = CloudClientScript.resume_match_id_set(_saved_rows)
+	_lobby_claim_targets = CloudClientScript.build_open_staging_claim_targets(matches, resume_ids)
+	_render_saved_list()
+	_render_open_list()
+	_set_lobby_load_status()
 
 
-func _load_saved_row_views() -> void:
-	_saved_rows.clear()
-	var entries: Array = CloudCredentialStoreScript.entries_for_server(STORE_PATH, _server_url)
-	var i: int = 0
-	while i < entries.size():
-		var entry: Dictionary = entries[i] as Dictionary
-		i += 1
-		_saved_rows.append(
-			CloudCredentialStoreScript.build_saved_row_view(entry, _server_url, _server_display_names)
+func _render_lobby_load_failed(_detail: String) -> void:
+	_saved_list.clear()
+	_lobby_list.clear()
+	_set_status("Unable to load cloud matches. Could not reach cloud server.")
+	if _saved_resume_btn != null:
+		_saved_resume_btn.disabled = true
+	if _saved_rename_btn != null:
+		_saved_rename_btn.disabled = true
+
+
+func _set_lobby_load_status() -> void:
+	if _server_lobby_load_failed:
+		return
+	if _saved_rows.is_empty() and _lobby_claim_targets.is_empty():
+		_set_status("No saved matches on this server. No open staging seats.")
+		return
+	if _saved_rows.is_empty():
+		_set_status(
+			"No saved matches found on this server. Open staging: %d seat(s)."
+			% _lobby_claim_targets.size()
 		)
+		return
+	if _lobby_claim_targets.is_empty():
+		_set_status("Your matches: %d. No open staging seats." % _saved_rows.size())
+		return
+	_set_status(
+		"Your matches: %d. Open staging: %d claimable seat(s)."
+		% [_saved_rows.size(), _lobby_claim_targets.size()]
+	)
 
 
 func _render_saved_list() -> void:
@@ -406,44 +396,21 @@ func _render_saved_list() -> void:
 		var view: Dictionary = _saved_rows[i] as Dictionary
 		i += 1
 		_saved_list.add_item(str(view.get("row_text", "")))
-	if _saved_rows.is_empty():
-		_saved_list.add_item("(no saved credentials for this server — create or claim a match)")
+	if _saved_rows.is_empty() and not _server_lobby_load_failed:
+		_saved_list.add_item("(No saved matches found on this server.)")
 
 
-func _populate_saved_list_from_store() -> void:
-	var entries: Array = CloudCredentialStoreScript.entries_for_server(STORE_PATH, _server_url)
-	var seeded: Dictionary = CloudCredentialStoreScript.seed_display_names_from_entries(entries)
-	for mid in seeded.keys():
-		if not _server_display_names.has(mid):
-			_server_display_names[mid] = seeded[mid]
-	_load_saved_row_views()
-	_render_saved_list()
-	_saved_selected_index = -1
-	if _saved_resume_btn != null:
-		_saved_resume_btn.disabled = true
-	if _saved_rename_btn != null:
-		_saved_rename_btn.disabled = true
-
-
-func _enrich_saved_list_from_server() -> void:
-	if _busy:
-		return
-	await _merge_server_display_names_from_lobby()
-	var sel: int = _saved_selected_index
-	_load_saved_row_views()
-	_render_saved_list()
-	if sel >= 0 and sel < _saved_rows.size():
-		_saved_selected_index = sel
-		_saved_list.select(sel)
-		if _saved_resume_btn != null:
-			_saved_resume_btn.disabled = false
-		if _saved_rename_btn != null:
-			_saved_rename_btn.disabled = not bool((_saved_rows[sel] as Dictionary).get("is_host", false))
-
-
-func _refresh_saved_list() -> void:
-	_populate_saved_list_from_store()
-	await _enrich_saved_list_from_server()
+func _render_open_list() -> void:
+	_lobby_list.clear()
+	var i: int = 0
+	while i < _lobby_claim_targets.size():
+		var target: Dictionary = _lobby_claim_targets[i] as Dictionary
+		i += 1
+		var row: Dictionary = target.get("lobby_row", {}) as Dictionary
+		var aid: int = int(target.get("actor_id", -1))
+		_lobby_list.add_item(CloudClientScript.lobby_open_row_text(row, aid))
+	if _lobby_claim_targets.is_empty() and not _server_lobby_load_failed:
+		_lobby_list.add_item("(No open staging matches on this server.)")
 
 
 func _on_saved_item_selected(index: int) -> void:
@@ -518,7 +485,6 @@ func _on_rename_saved() -> void:
 		_set_status("Rename failed: %s" % err_detail)
 		return
 	var server_name: String = str(parsed.get("display_name", ""))
-	_server_display_names[mid] = server_name
 	CloudCredentialStoreScript.update_label_cache(STORE_PATH, _server_url, mid, server_name)
 	_saved_rows[_saved_selected_index] = CloudCredentialStoreScript.apply_rename_to_view(view, server_name)
 	_render_saved_list()

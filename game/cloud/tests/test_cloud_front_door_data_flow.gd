@@ -1,4 +1,4 @@
-# Headless: C14c blocking data-flow — dialog OK vs close, create body, local saved startup.
+# Headless: C14c blocking data-flow — dialog OK vs close, create body, server-scoped resume.
 extends SceneTree
 
 const StoreScript = preload("res://cloud/cloud_credential_store.gd")
@@ -6,6 +6,7 @@ const CloudClientScript = preload("res://cloud/cloud_client.gd")
 
 const TEST_PATH: String = "user://test_eom_front_door_flow.json"
 const CUSTOM: String = "Manual Custom Name"
+const SERVER: String = "http://127.0.0.1:8000"
 
 var _total = 0
 var _any_fail = false
@@ -16,9 +17,8 @@ func _init() -> void:
 	_test_create_body_includes_custom_name()
 	_test_pick_create_uses_response_then_request()
 	_test_credential_create_no_local_match_number_override()
-	_test_saved_rows_without_server_map()
-	_test_refresh_merge_updates_display()
-	_test_seed_from_store()
+	_test_resume_requires_server_row()
+	_test_rename_merge_still_updates_view()
 	_remove_test_file()
 	if _any_fail:
 		call_deferred("quit", 1)
@@ -77,7 +77,7 @@ func _test_pick_create_uses_response_then_request() -> void:
 func _test_credential_create_no_local_match_number_override() -> void:
 	var resp := {"match_id": "m_z", "host_token": "ht_z", "display_name": CUSTOM}
 	var entry: Dictionary = CloudClientScript.credential_from_create_response(
-		"http://127.0.0.1:8000",
+		SERVER,
 		resp,
 		CUSTOM,
 		TEST_PATH,
@@ -86,22 +86,33 @@ func _test_credential_create_no_local_match_number_override() -> void:
 	_check(entry["seat_token"] == "ht_z", "host token stored")
 
 
-func _test_saved_rows_without_server_map() -> void:
+func _test_resume_requires_server_row() -> void:
 	_remove_test_file()
 	StoreScript.upsert(
 		TEST_PATH,
-		StoreScript.make_entry("http://a", "m_local", 0, "ht_l", true, -1, StoreScript.STATUS_STAGING, CUSTOM),
+		StoreScript.make_entry(SERVER, "m_local", 0, "ht_l", true, -1, StoreScript.STATUS_STAGING, CUSTOM),
 	)
-	var entries: Array = StoreScript.entries_for_server(TEST_PATH, "http://a")
-	_check(entries.size() == 1, "local entry exists")
-	var view: Dictionary = StoreScript.build_saved_row_view(entries[0] as Dictionary, "http://a", {})
-	_check(view["display_name"] == CUSTOM, "no server map uses local label")
-	_check(str(view["row_text"]).find(CUSTOM) >= 0, "row shows custom without server")
+	var cred_map: Dictionary = StoreScript.credentials_map_for_server(TEST_PATH, SERVER)
+	_check(cred_map.has("m_local"), "credential stored for server")
+	var without_server: Array = CloudClientScript.build_resume_rows_from_lobby([], cred_map, SERVER)
+	_check(without_server.is_empty(), "credential alone does not produce resume row")
+	var lobby: Array = [
+		{
+			"match_id": "m_local",
+			"display_name": "Server Name",
+			"status": "staging",
+			"revision": 1,
+			"seats": [],
+		},
+	]
+	var with_server: Array = CloudClientScript.build_resume_rows_from_lobby(lobby, cred_map, SERVER)
+	_check(with_server.size() == 1, "resume row when server confirms match")
+	_check((with_server[0] as Dictionary)["display_name"] == "Server Name", "server display_name on resume")
 
 
-func _test_refresh_merge_updates_display() -> void:
-	var entry: Dictionary = StoreScript.make_entry(
-		"http://a",
+func _test_rename_merge_still_updates_view() -> void:
+	var cred: Dictionary = StoreScript.make_entry(
+		SERVER,
 		"m_merge",
 		0,
 		"ht_m",
@@ -110,20 +121,17 @@ func _test_refresh_merge_updates_display() -> void:
 		StoreScript.STATUS_STAGING,
 		"Old Local",
 	)
-	var before: Dictionary = StoreScript.build_saved_row_view(entry, "http://a", {})
-	_check(before["display_name"] == "Old Local", "before merge local")
-	var after: Dictionary = StoreScript.build_saved_row_view(
-		entry,
-		"http://a",
-		{"m_merge": "Server Updated"},
+	var view: Dictionary = CloudClientScript.build_resume_row_view(
+		{
+			"match_id": "m_merge",
+			"display_name": "Old Local",
+			"status": "staging",
+			"revision": 0,
+			"seats": [],
+		},
+		cred,
+		SERVER,
 	)
-	_check(after["display_name"] == "Server Updated", "after merge server wins")
-	_check(str(after["row_text"]).find("Server Updated") >= 0, "merged row text updated")
-
-
-func _test_seed_from_store() -> void:
-	var entries: Array = [
-		StoreScript.make_entry("http://a", "m1", 0, "ht_1", true, -1, StoreScript.STATUS_STAGING, CUSTOM),
-	]
-	var seeded: Dictionary = StoreScript.seed_display_names_from_entries(entries)
-	_check(seeded["m1"] == CUSTOM, "seed map from credentials")
+	var after: Dictionary = StoreScript.apply_rename_to_view(view, "Server Updated")
+	_check(after["display_name"] == "Server Updated", "rename updates view display_name")
+	_check(str(after["row_text"]).find("Server Updated") >= 0, "rename updates row text")

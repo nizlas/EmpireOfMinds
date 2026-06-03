@@ -47,6 +47,113 @@ static func parse_rename_display_response(resp: Dictionary) -> Dictionary:
 	}
 
 
+## Resume row: server lobby summary + local credential (tokens never in row_text).
+static func build_resume_row_view(
+	server_row: Dictionary,
+	credential: Dictionary,
+	server_url: String,
+) -> Dictionary:
+	var mid: String = CloudCredentialStoreScript.normalize_match_id(str(server_row.get("match_id", "")))
+	var su: String = CloudCredentialStoreScript.normalize_server_url(server_url)
+	var server_dn: String = display_name_from_lobby_row(server_row)
+	var local_lbl: String = str(credential.get("label", "")).strip_edges()
+	var display_full: String = server_dn
+	if display_full.is_empty():
+		display_full = local_lbl if local_lbl.length() > 0 else mid
+	var view := {
+		"match_id": mid,
+		"server_url": su,
+		"actor_id": int(credential.get("actor_id", 0)),
+		"is_host": bool(credential.get("is_host", false)),
+		"seat_token": str(credential.get("seat_token", "")).strip_edges(),
+		"display_name": display_full,
+		"label_local": local_lbl,
+		"server_display_name": server_dn,
+		"server_status": str(server_row.get("status", "")).strip_edges(),
+		"server_revision": int(server_row.get("revision", -1)),
+		"lobby_row": server_row.duplicate(true),
+		"credential": credential.duplicate(true),
+	}
+	view["row_text"] = CloudCredentialStoreScript.format_saved_row_text_from_view(view)
+	return view
+
+
+static func build_resume_rows_from_lobby(
+	matches: Array,
+	cred_map: Dictionary,
+	server_url: String,
+) -> Array:
+	var out: Array = []
+	var i: int = 0
+	while i < matches.size():
+		var row = matches[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row as Dictionary
+		var mid: String = CloudCredentialStoreScript.normalize_match_id(str(d.get("match_id", "")))
+		if mid.is_empty() or not cred_map.has(mid):
+			continue
+		var cred = cred_map[mid]
+		if typeof(cred) != TYPE_DICTIONARY:
+			continue
+		out.append(build_resume_row_view(d, cred as Dictionary, server_url))
+	return out
+
+
+static func resume_match_id_set(resume_rows: Array) -> Dictionary:
+	var out: Dictionary = {}
+	var i: int = 0
+	while i < resume_rows.size():
+		var row = resume_rows[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var mid: String = CloudCredentialStoreScript.normalize_match_id(
+			str((row as Dictionary).get("match_id", ""))
+		)
+		if mid.length() > 0:
+			out[mid] = true
+	return out
+
+
+## Open staging seats from server list; excludes matches already in the resume set.
+static func build_open_staging_claim_targets(matches: Array, resume_match_ids: Dictionary) -> Array:
+	var targets: Array = []
+	var i: int = 0
+	while i < matches.size():
+		var row = matches[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var lobby_row: Dictionary = row as Dictionary
+		var mid: String = CloudCredentialStoreScript.normalize_match_id(str(lobby_row.get("match_id", "")))
+		if mid.is_empty():
+			continue
+		if (
+			str(lobby_row.get("status", "")).strip_edges()
+			!= CloudCredentialStoreScript.STATUS_STAGING
+		):
+			continue
+		if typeof(resume_match_ids) == TYPE_DICTIONARY and resume_match_ids.has(mid):
+			continue
+		var seats = lobby_row.get("seats", [])
+		if typeof(seats) != TYPE_ARRAY:
+			continue
+		var si: int = 0
+		while si < (seats as Array).size():
+			var seat = (seats as Array)[si]
+			si += 1
+			if typeof(seat) != TYPE_DICTIONARY:
+				continue
+			var sd: Dictionary = seat as Dictionary
+			if bool(sd.get("claimed", true)):
+				continue
+			var aid: int = int(sd.get("actor_id", -1))
+			targets.append({"match_id": mid, "actor_id": aid, "lobby_row": lobby_row})
+	return targets
+
+
 static func lobby_open_row_text(row: Dictionary, actor_id: int) -> String:
 	var title: String = display_name_from_lobby_row(row)
 	if title.is_empty():

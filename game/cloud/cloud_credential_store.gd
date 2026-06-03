@@ -60,6 +60,22 @@ static func save_store(path: String, data: Dictionary) -> void:
 	f.close()
 
 
+## match_id (normalized) -> credential entry for one active server target.
+static func credentials_map_for_server(path: String, server_url: String) -> Dictionary:
+	var out: Dictionary = {}
+	var entries: Array = entries_for_server(path, server_url)
+	var i: int = 0
+	while i < entries.size():
+		var entry = entries[i]
+		i += 1
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var mid: String = normalize_match_id(str((entry as Dictionary).get("match_id", "")))
+		if mid.length() > 0:
+			out[mid] = entry
+	return out
+
+
 static func entries_for_server(path: String, server_url: String) -> Array:
 	var store := load_store(path)
 	var su := normalize_server_url(server_url)
