@@ -22,6 +22,8 @@ func _method_name(m: int) -> String:
 		return "GET"
 	if m == HTTPClient.METHOD_POST:
 		return "POST"
+	if m == HTTPClient.METHOD_PATCH:
+		return "PATCH"
 	return str(m)
 
 
@@ -64,7 +66,7 @@ func http_json_request(method: int, path: String, body: String = "") -> Dictiona
 	var is_cm := _is_create_match_post(method, path)
 	var t0 := Time.get_ticks_msec()
 	var headers := PackedStringArray()
-	if method == HTTPClient.METHOD_POST:
+	if method == HTTPClient.METHOD_POST or method == HTTPClient.METHOD_PATCH:
 		headers.append("Content-Type: application/json")
 	var tok := str(seat_token).strip_edges()
 	if tok.length() > 0:
@@ -152,7 +154,7 @@ func http_json_request(method: int, path: String, body: String = "") -> Dictiona
 	return out
 
 
-func post_create_match(scenario_id: String) -> Dictionary:
+func post_create_match(scenario_id: String, display_name: String = "") -> Dictionary:
 	var dbg := _cloud_debug_enabled()
 	var path := "/v1/matches"
 	var base_norm := str(base_url).rstrip("/")
@@ -164,8 +166,18 @@ func post_create_match(scenario_id: String) -> Dictionary:
 				% [Time.get_ticks_msec(), base_norm, path, full_url, scenario_id]
 			)
 		)
-	var payload := JSON.stringify({"scenario_id": scenario_id})
+	var body: Dictionary = {"scenario_id": scenario_id}
+	var dn: String = str(display_name).strip_edges()
+	if dn.length() > 0:
+		body["display_name"] = dn
+	var payload := JSON.stringify(body)
 	return await http_json_request(HTTPClient.METHOD_POST, path, payload)
+
+
+func patch_display_name(match_id: String, display_name: String) -> Dictionary:
+	var path: String = CloudClientScript.patch_display_name_path(match_id)
+	var body: Dictionary = {"display_name": str(display_name).strip_edges()}
+	return await http_json_request(HTTPClient.METHOD_PATCH, path, JSON.stringify(body))
 
 
 func get_match() -> Dictionary:

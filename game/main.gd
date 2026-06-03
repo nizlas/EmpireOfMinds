@@ -47,6 +47,10 @@ var _session_layout = null
 var _cloud_legal_busy: bool = false
 var _cloud_legal_stale: bool = false
 var _cloud_last_legal_actions: Array = []
+## Slice C14c: credentials from consumed **BootIntent** (priority over inspector, below env).
+var _boot_cloud_from_intent: bool = false
+var _boot_cloud_match_id: String = ""
+var _boot_cloud_seat_token: String = ""
 ## Slice C8: true from cloud bootstrap until first server snapshot is applied and presentation refreshed.
 var _cloud_loading: bool = false
 ## Slice C11: blocks map input during cloud combat presentation (presentation-only; snapshot applies after).
@@ -184,9 +188,12 @@ func _ready() -> void:
 		_start_local_hotseat_session()
 	elif boot_mode == BootIntentScript.MODE_CLOUD_CREATE or boot_mode == BootIntentScript.MODE_CLOUD_RECONNECT:
 		use_cloud_server = true
+		_boot_cloud_from_intent = true
+		_boot_cloud_match_id = str(boot.get("match_id", ""))
+		_boot_cloud_seat_token = str(boot.get("seat_token", ""))
 		cloud_base_url = str(boot.get("server_url", cloud_base_url))
-		cloud_match_id = str(boot.get("match_id", ""))
-		cloud_seat_token = str(boot.get("seat_token", ""))
+		cloud_match_id = _boot_cloud_match_id
+		cloud_seat_token = _boot_cloud_seat_token
 		cloud_scenario_id = str(boot.get("scenario_id", cloud_scenario_id))
 		await _start_cloud_client_session()
 	elif _should_use_cloud():
@@ -251,6 +258,10 @@ func _cloud_resolve_match_id_meta() -> Dictionary:
 	var env_m: String = OS.get_environment("EOM_CLOUD_MATCH_ID").strip_edges()
 	if env_m.length() > 0:
 		return {"value": env_m, "source": "EOM_CLOUD_MATCH_ID"}
+	if _boot_cloud_from_intent:
+		var bmid: String = _boot_cloud_match_id.strip_edges()
+		if bmid.length() > 0:
+			return {"value": bmid, "source": "BootIntent"}
 	return {"value": cloud_match_id.strip_edges(), "source": "Main.cloud_match_id"}
 
 
@@ -259,11 +270,14 @@ func _cloud_resolve_match_id() -> String:
 
 
 func _cloud_resolve_seat_token_meta() -> Dictionary:
+	var boot_tok: String = _boot_cloud_seat_token if _boot_cloud_from_intent else ""
 	return CloudCredentialStoreScript.resolve_seat_token_for_boot(
 		_cloud_resolve_base_url(),
 		_cloud_resolve_match_id(),
 		OS.get_environment("EOM_CLOUD_SEAT_TOKEN"),
 		cloud_seat_token,
+		CloudCredentialStoreScript.DEFAULT_PATH,
+		boot_tok,
 	)
 
 

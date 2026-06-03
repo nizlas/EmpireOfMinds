@@ -19,6 +19,7 @@ def test_generate_seats_prefixes_and_unique_tokens() -> None:
     assert all(t.startswith(seats.SEAT_TOKEN_PREFIX) for t in tokens)
     assert len(set(tokens)) == 2
     assert meta["host_token"].startswith(seats.HOST_TOKEN_PREFIX)
+    assert meta["display_name"] == seats.default_display_name("m_test")
 
 
 def test_allowed_actor_ids_host_vs_seat() -> None:

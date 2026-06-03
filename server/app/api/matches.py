@@ -126,10 +126,12 @@ def create_match(
     mid = match_state.make_match_id()
     snap = match_state.initial_snapshot(mid, player_ids, str(scenario_id))
     file_store.write_snapshot(mid, snap)
-    meta = seats.build_meta(mid, player_ids, str(scenario_id))
+    requested_name = body.get("display_name") if isinstance(body.get("display_name"), str) else None
+    meta = seats.build_meta(mid, player_ids, str(scenario_id), display_name=requested_name)
     file_store.write_meta(mid, meta)
     return {
         "match_id": mid,
+        "display_name": seats.display_name_from_meta(meta, mid),
         "snapshot": snap,
         "revision": snap["revision"],
         "state_hash": state_hash(snap),
@@ -181,10 +183,39 @@ def claim_match_seat(match_id: str, actor_id: int) -> dict[str, Any]:
     file_store.write_meta(match_id, result.meta)
     return {
         "match_id": match_id,
+        "display_name": seats.display_name_from_meta(result.meta, match_id),
         "actor_id": actor_id,
         "seat_token": result.seat_token,
         "status": seats.match_status(result.meta),
     }
+
+
+@router.patch("/matches/{match_id}/display-name")
+def patch_match_display_name(
+    match_id: str,
+    body: dict[str, Any] | None = Body(default=None),
+    seat_token: str | None = Header(default=None, alias=SEAT_TOKEN_HEADER),
+) -> dict[str, Any]:
+    """Update public lobby display name; host token only (C14b.1)."""
+    snap = file_store.read_snapshot(match_id)
+    if snap is None:
+        raise HTTPException(status_code=404, detail="match_not_found")
+    meta = file_store.read_meta(match_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="match_not_found")
+    payload = body if body is not None else {}
+    result = seats.try_rename_display_name(meta, match_id, seat_token, payload.get("display_name"))
+    if not result.ok:
+        if result.reason == "missing_seat_token":
+            raise HTTPException(status_code=403, detail="missing_seat_token")
+        if result.reason == "invalid_seat_token":
+            raise HTTPException(status_code=403, detail="invalid_seat_token")
+        if result.reason == "not_host":
+            raise HTTPException(status_code=403, detail="not_host")
+        raise HTTPException(status_code=400, detail=result.reason)
+    assert result.meta is not None
+    file_store.write_meta(match_id, result.meta)
+    return {"match_id": match_id, "display_name": result.display_name}
 
 
 @router.get("/matches/{match_id}")

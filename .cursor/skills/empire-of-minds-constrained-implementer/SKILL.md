@@ -49,7 +49,7 @@ Then answer:
 5. What architecture risks exist?
 6. What are plausible wrong implementations that might appear to work?
 7. What hidden assumptions exist?
-8. What validation will prove the task is complete?
+8. What validation will prove the task is complete? (See **`docs/TESTING.md`** validation policy T2 — prefer **`slice`**, not **`full`**, for small slices.)
 
 ## Steering Document Change Rule
 
@@ -145,7 +145,7 @@ Explain how the implementation respects the steering docs.
 
 ### Validation performed
 
-List what was tested or checked.
+List what was tested or checked. Follow **`docs/TESTING.md`** (T2): run **`slice`** (and **`smoke`** only if shared boot/session/helpers changed). State broader profiles (**cloud**, **presentation**, **full**) intentionally skipped and why, unless the user requested them. Note if **full** is recommended before commit/deploy.
 
 ### Known limitations
 

@@ -7,6 +7,7 @@
 #   .\scripts\run-godot-tests.ps1 presentation
 #   .\scripts\run-godot-tests.ps1 slice c13a
 #   .\scripts\run-godot-tests.ps1 slice c14a
+# Profile policy: docs/TESTING.md (T2 — prefer slice for focused slices; full only when requested/deploy).
 # Requires: GODOT_EXE, Godot on PATH, or install at the known path below.
 
 $ErrorActionPreference = "Stop"
@@ -28,6 +29,9 @@ $Script:SliceTests = @{
 	"c14c" = @(
 		"res://cloud/tests/test_cloud_lobby_parsers.gd"
 		"res://cloud/tests/test_cloud_front_door_boot_intent.gd"
+		"res://cloud/tests/test_main_cloud_boot_intent_reconnect.gd"
+		"res://cloud/tests/test_cloud_match_labels.gd"
+		"res://cloud/tests/test_cloud_display_name.gd"
 	)
 }
 
@@ -177,12 +181,15 @@ $Script:AllTests = @(
 	"res://cloud/tests/test_cloud_credential_store.gd",
 	"res://cloud/tests/test_cloud_lobby_parsers.gd",
 	"res://cloud/tests/test_cloud_front_door_boot_intent.gd",
+	"res://cloud/tests/test_cloud_match_labels.gd",
+	"res://cloud/tests/test_cloud_display_name.gd",
 	"res://cloud/tests/test_cloud_routing_pick.gd",
 	"res://cloud/tests/test_cloud_turn_banner.gd",
 	"res://cloud/tests/test_cloud_combat_animation.gd",
 	"res://cloud/tests/test_main_default_cloud_base_url.gd",
 	"res://cloud/tests/test_main_cloud_boot_no_local_session_before_server.gd",
-	"res://cloud/tests/test_main_cloud_reconnect_get_match.gd"
+	"res://cloud/tests/test_main_cloud_reconnect_get_match.gd",
+	"res://cloud/tests/test_main_cloud_boot_intent_reconnect.gd"
 )
 
 function Get-GodotExecutable {

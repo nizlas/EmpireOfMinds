@@ -1,18 +1,67 @@
-# Empire of Minds — Test profiles (T1)
+# Empire of Minds — Test profiles (T1) and validation policy (T2)
 
-The project has a large server (pytest) and Godot headless regression suite. **Profiles** run a subset during day-to-day work; **`full`** is unchanged and remains the default before deploy or large refactors.
+The project has a large server (pytest) and Godot headless regression suite. **Profiles** run a subset during day-to-day work. **`full`** is unchanged and still runs every test when explicitly requested; it is **not** the default for small focused slices.
 
 No profile deletes or weakens tests. Failures are not suppressed.
 
-## When to use each profile
+## Validation policy (T2) — default for agents and implementation prompts
+
+**During implementation:** run **only** the profile that matches the slice you are changing.
+
+```text
+.\scripts\run-godot-tests.ps1 slice c14c
+.\scripts\run-server-tests.ps1 slice c14b
+```
+
+**Final report on a small/local slice:** run the **slice** profile again; add **smoke** only when shared boot/session/helper code was touched. **Do not** run **cloud**, **presentation**, or **full** unless the user explicitly asks or you are doing a release/deploy checkpoint (see below).
+
+**Future Composer/Cursor prompts** should state the intended validation level, for example:
+
+```text
+Validation:
+- During implementation, run only the slice profile.
+- For final report, run slice and optionally smoke.
+- Do not run full/cloud/presentation unless explicitly requested.
+```
+
+### Agent final-report checklist
+
+Report:
+
+1. **Focused tests run** (commands + pass/fail).
+2. **Broader tests intentionally skipped** (e.g. cloud, full, presentation).
+3. **Why** broader tests were skipped (slice-local change; user did not request full regression).
+4. Whether **full** validation is **recommended** before commit/deploy for this change.
+
+### When to use each profile
 
 | Profile | Use when |
 |--------|----------|
-| **smoke** | Quick local iteration — “is anything obviously broken?” |
-| **slice \<id\>** | Repeated checks while implementing a focused slice (e.g. **c13a**) |
-| **cloud** | Before cloud/server/client deploy-related changes |
-| **presentation** | Before visual / presentation / headless UI changes (Godot only) |
-| **full** | Before committing a larger slice, before deploy, after refactors, when chasing regressions |
+| **slice \<id\>** | **Default** while implementing and reporting on a focused slice (e.g. **c14c**, **c14b**) |
+| **smoke** | Small change touches **shared** setup/boot/session/helper code; quick sanity without full regression |
+| **cloud** | Broad cloud client/server change; shared **CloudSession** / **CloudClient** behavior across flows; cloud deploy prep; **user explicitly requests** broader cloud validation |
+| **presentation** | Broad map/presentation/rendering changes; UI rendering outside a narrow menu slice; **user explicitly requests** presentation validation |
+| **full** | **User explicitly requests**; final commit/deploy for a **large** slice; after a **large refactor**; suspected **cross-cutting** regression; release-like checkpoint |
+
+### Slice-specific defaults (small changes)
+
+**Godot front door / menu / labels / credential-store UX (e.g. C14c):**
+
+- Normally: `.\scripts\run-godot-tests.ps1 slice c14c`
+- If **BootIntent** or **main.gd** boot flow changed: also `.\scripts\run-godot-tests.ps1 smoke`
+- **Do not** run **full**, **cloud**, or **presentation** unless explicitly requested.
+
+**Small server endpoint/model slice (e.g. C14b):**
+
+- Normally: `.\scripts\run-server-tests.ps1 slice <slice_id>`
+- If shared match/action plumbing changed: also `.\scripts\run-server-tests.ps1 smoke`
+- **Do not** run **full** or broad Godot **cloud** unless explicitly requested or preparing deploy.
+
+### What not to do
+
+- Do not run **cloud** or **full** “because the task mentioned cloud” when the diff is a narrow UI/credential/menu slice.
+- Do not treat **full** as the default final step for every implementation report.
+- Do not suppress failing tests or runner output to hide noise (see [Known noisy output](#known-noisy-output-not-hidden)).
 
 ## Server
 
@@ -36,7 +85,7 @@ Equivalent manual full run: `cd server` then `pytest -q`.
 - **smoke** — `test_end_turn_flow.py` (health, create match, end turn), `test_legal_actions_endpoint.py`.
 - **cloud** — API/action flows: create match, move, end turn, found city, production, attack, combat rules, legal-actions, production/food/science ticks, snapshot v2, player visibility, seats / seat-token flow.
 - **slice c13a** — `test_seats.py`, `test_seat_token_flow.py`.
-- **slice c14b** — `test_lobby_list.py`, `test_seat_claim.py`, `test_seats.py`.
+- **slice c14b** — `test_lobby_list.py`, `test_seat_claim.py`, `test_seats.py`, `test_display_name.py`.
 
 Unknown slice ids print supported ids and exit non-zero.
 
@@ -45,7 +94,7 @@ Unknown slice ids print supported ids and exit non-zero.
 From the **repository root** (requires Godot console build; see script header for `GODOT_EXE` / PATH).
 
 ```powershell
-.\scripts\run-godot-tests.ps1              # full (144 tests, same order as before T1 + C14a/C14c)
+.\scripts\run-godot-tests.ps1              # full (146 tests, same order as before T1 + C14a/C14c)
 .\scripts\run-godot-tests.ps1 full
 .\scripts\run-godot-tests.ps1 smoke
 .\scripts\run-godot-tests.ps1 cloud
@@ -63,7 +112,7 @@ From the **repository root** (requires Godot console build; see script header fo
 - **presentation** — all `res://presentation/tests/*.gd` entries in the full list.
 - **slice c13a** — `test_cloud_seat_token.gd`.
 - **slice c14a** — `test_cloud_credential_store.gd`.
-- **slice c14c** — `test_cloud_lobby_parsers.gd`, `test_cloud_front_door_boot_intent.gd`.
+- **slice c14c** — `test_cloud_lobby_parsers.gd`, `test_cloud_front_door_boot_intent.gd`, `test_main_cloud_boot_intent_reconnect.gd`, `test_cloud_match_labels.gd`, `test_cloud_display_name.gd`.
 
 ## Known noisy output (not hidden)
 

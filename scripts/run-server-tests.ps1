@@ -6,6 +6,7 @@
 #   .\scripts\run-server-tests.ps1 cloud
 #   .\scripts\run-server-tests.ps1 slice c13a
 #   .\scripts\run-server-tests.ps1 presentation  # Godot-only; exits 0 with message
+# Profile policy: docs/TESTING.md (T2 — prefer slice for focused slices; full only when requested/deploy).
 
 $ErrorActionPreference = "Stop"
 
@@ -23,6 +24,7 @@ $Script:SliceTests = @{
 		"tests/test_lobby_list.py"
 		"tests/test_seat_claim.py"
 		"tests/test_seats.py"
+		"tests/test_display_name.py"
 	)
 }
 

@@ -57,6 +57,17 @@ static func set_cloud_reconnect(
 	scenario_id = scen
 
 
+## After front-door **POST /v1/matches** — reconnect via **GET**, not a second create in **main**.
+static func set_cloud_play_from_create_response(
+	url: String,
+	resp: Dictionary,
+	scen: String = "prototype_play",
+) -> void:
+	var mid: String = str(resp.get("match_id", "")).strip_edges()
+	var tok: String = CloudClientScript.host_token_from_create_response(resp)
+	set_cloud_reconnect(url, mid, tok, 0, scen)
+
+
 ## Dev/test: skip front door when **EOM_CLOUD_CLIENT** is set (same as Main cloud gate).
 static func should_skip_front_door_for_env() -> bool:
 	var flg: String = OS.get_environment("EOM_CLOUD_CLIENT").strip_edges()

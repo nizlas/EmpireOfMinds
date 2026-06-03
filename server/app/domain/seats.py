@@ -38,19 +38,45 @@ def generate_seats(player_ids: list[int], *, claimed: bool = False) -> list[dict
     return rows
 
 
+def short_match_id(match_id: str, *, max_len: int = 12) -> str:
+    mid = str(match_id).strip()
+    if len(mid) <= max_len:
+        return mid
+    return mid[:max_len] + "…"
+
+
+def default_display_name(match_id: str) -> str:
+    return f"Match {short_match_id(match_id)}"
+
+
+def normalize_display_name(match_id: str, raw: Any) -> str:
+    if isinstance(raw, str):
+        name = raw.strip()
+        if name:
+            return name
+    return default_display_name(match_id)
+
+
+def display_name_from_meta(meta: dict[str, Any], match_id: str) -> str:
+    return normalize_display_name(match_id, meta.get("display_name"))
+
+
 def build_meta(
     match_id: str,
     player_ids: list[int],
     scenario_id: str = "prototype_play",
     *,
     status: str = STATUS_STAGING,
+    display_name: str | None = None,
 ) -> dict[str, Any]:
+    dn = display_name.strip() if isinstance(display_name, str) and display_name.strip() else default_display_name(match_id)
     return {
         "match_id": match_id,
         "schema_version": META_SCHEMA_VERSION,
         "status": status,
         "created_at": _utc_now_iso(),
         "scenario_id": str(scenario_id),
+        "display_name": dn,
         "seats": generate_seats(player_ids, claimed=False),
         "host_token": _new_host_token(),
     }
@@ -142,6 +168,7 @@ def lobby_summary(match_id: str, meta: dict[str, Any], snap: dict[str, Any]) -> 
     seat_rows = public_seat_summary(meta)
     return {
         "match_id": match_id,
+        "display_name": display_name_from_meta(meta, match_id),
         "status": match_status(meta),
         "scenario_id": str(meta.get("scenario_id", snap.get("scenario_id", ""))),
         "created_at": meta.get("created_at", ""),
@@ -173,6 +200,33 @@ class ClaimSeatResult:
     reason: str = ""
     meta: dict[str, Any] | None = None
     seat_token: str = ""
+
+
+@dataclass(frozen=True)
+class RenameDisplayNameResult:
+    ok: bool
+    reason: str = ""
+    meta: dict[str, Any] | None = None
+    display_name: str = ""
+
+
+def try_rename_display_name(meta: dict[str, Any], match_id: str, token: str | None, raw_name: Any) -> RenameDisplayNameResult:
+    if not token or not str(token).strip():
+        return RenameDisplayNameResult(ok=False, reason="missing_seat_token")
+    t = str(token).strip()
+    host = meta.get("host_token")
+    if not isinstance(host, str) or t != host:
+        allowed = allowed_actor_ids(meta, t)
+        if allowed is None:
+            return RenameDisplayNameResult(ok=False, reason="invalid_seat_token")
+        return RenameDisplayNameResult(ok=False, reason="not_host")
+    new_meta = copy.deepcopy(meta)
+    new_meta["display_name"] = normalize_display_name(match_id, raw_name)
+    return RenameDisplayNameResult(
+        ok=True,
+        meta=new_meta,
+        display_name=str(new_meta["display_name"]),
+    )
 
 
 def try_claim_seat(meta: dict[str, Any], actor_id: int) -> ClaimSeatResult:

@@ -37,7 +37,7 @@ pip install -r requirements.txt
 pytest -q
 ```
 
-From the **repository root**, profiles: `.\scripts\run-server-tests.ps1` (full), `smoke`, `cloud`, `slice c13a`, `slice c14b` — see [TESTING.md](../docs/TESTING.md).
+From the **repository root**, profiles: `.\scripts\run-server-tests.ps1` (full), `smoke`, `cloud`, `slice c13a`, `slice c14b` — see [TESTING.md](../docs/TESTING.md). For focused slices, prefer **`slice <id>`** in reports; use **full** only when explicitly requested or before deploy (T2 validation policy).
 
 ## Run in Docker (local smoke)
 

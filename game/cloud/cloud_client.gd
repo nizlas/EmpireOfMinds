@@ -13,6 +13,46 @@ static func host_token_from_create_response(response: Dictionary) -> String:
 	return str(response.get("host_token", "")).strip_edges()
 
 
+static func display_name_from_create_response(response: Dictionary) -> String:
+	if typeof(response) != TYPE_DICTIONARY:
+		return ""
+	return str(response.get("display_name", "")).strip_edges()
+
+
+static func display_name_from_lobby_row(row: Dictionary) -> String:
+	if typeof(row) != TYPE_DICTIONARY:
+		return ""
+	return str(row.get("display_name", "")).strip_edges()
+
+
+static func patch_display_name_path(match_id: String) -> String:
+	return "/v1/matches/%s/display-name" % str(match_id).strip_edges()
+
+
+static func parse_rename_display_response(resp: Dictionary) -> Dictionary:
+	if typeof(resp) != TYPE_DICTIONARY:
+		return {"ok": false, "_error": "invalid_response"}
+	if resp.has("_error"):
+		return {"ok": false, "_error": resp["_error"]}
+	var name: String = str(resp.get("display_name", "")).strip_edges()
+	if name.is_empty():
+		return {"ok": false, "_error": "missing_display_name"}
+	return {
+		"ok": true,
+		"match_id": str(resp.get("match_id", "")).strip_edges(),
+		"display_name": name,
+	}
+
+
+static func lobby_open_row_text(row: Dictionary, actor_id: int) -> String:
+	var title: String = display_name_from_lobby_row(row)
+	if title.is_empty():
+		title = CloudCredentialStoreScript.short_match_id(
+			{"match_id": str(row.get("match_id", ""))}
+		)
+	return "Join %s as Player %d" % [title, int(actor_id)]
+
+
 static func seat_token_for_actor(response: Dictionary, actor_id: int) -> String:
 	var seats = response.get("seats", null)
 	if typeof(seats) != TYPE_ARRAY:
@@ -115,12 +155,23 @@ static func parse_claim_response(resp: Dictionary) -> Dictionary:
 		"actor_id": int(resp.get("actor_id", -1)),
 		"seat_token": tok,
 		"status": str(resp.get("status", "")).strip_edges(),
+		"display_name": str(resp.get("display_name", "")).strip_edges(),
 	}
 
 
-static func credential_from_create_response(server_url: String, resp: Dictionary) -> Dictionary:
+static func credential_from_create_response(
+	server_url: String,
+	resp: Dictionary,
+	label: String = "",
+	store_path: String = CloudCredentialStoreScript.DEFAULT_PATH,
+) -> Dictionary:
 	var mid: String = str(resp.get("match_id", "")).strip_edges()
 	var host_tok: String = host_token_from_create_response(resp)
+	var lbl: String = str(label).strip_edges()
+	if lbl.is_empty():
+		lbl = display_name_from_create_response(resp)
+	if lbl.is_empty():
+		lbl = CloudCredentialStoreScript.generate_default_label(store_path)
 	return CloudCredentialStoreScript.make_entry(
 		server_url,
 		mid,
@@ -129,10 +180,21 @@ static func credential_from_create_response(server_url: String, resp: Dictionary
 		true,
 		CloudCredentialStoreScript.revision_from_response(resp),
 		CloudCredentialStoreScript.STATUS_STAGING,
+		lbl,
 	)
 
 
-static func credential_from_claim_response(server_url: String, parsed: Dictionary) -> Dictionary:
+static func credential_from_claim_response(
+	server_url: String,
+	parsed: Dictionary,
+	label: String = "",
+	store_path: String = CloudCredentialStoreScript.DEFAULT_PATH,
+) -> Dictionary:
+	var lbl: String = str(label).strip_edges()
+	if lbl.is_empty():
+		lbl = str(parsed.get("display_name", "")).strip_edges()
+	if lbl.is_empty():
+		lbl = CloudCredentialStoreScript.generate_default_label(store_path)
 	return CloudCredentialStoreScript.make_entry(
 		server_url,
 		str(parsed.get("match_id", "")),
@@ -141,6 +203,7 @@ static func credential_from_claim_response(server_url: String, parsed: Dictionar
 		false,
 		-1,
 		str(parsed.get("status", CloudCredentialStoreScript.STATUS_STAGING)),
+		lbl,
 	)
 
 

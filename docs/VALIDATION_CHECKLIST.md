@@ -2,7 +2,19 @@
 
 This checklist is used after each implementation step.
 
-**Test profiles (T1):** For day-to-day runs use **`docs/TESTING.md`** — `scripts/run-server-tests.ps1` and `scripts/run-godot-tests.ps1` with profiles `smoke`, `slice <id>`, `cloud`, `presentation` (Godot), and `full` (default when no args).
+**Test profiles (T1) and validation policy (T2):** See **`docs/TESTING.md`**. Use **`slice <id>`** for focused work; use **`smoke`** when shared boot/helpers change; use **`cloud`**, **`presentation`**, and **`full`** only when the policy table says so or the user explicitly requests them.
+
+### Validation policy (T2) — quick reference
+
+| Situation | Run | Usually skip |
+|-----------|-----|----------------|
+| Implementing a focused slice | `slice <id>` on the side you changed | `full`, `cloud`, `presentation` |
+| Final report, small/local slice | Same `slice`; optional `smoke` if shared boot/session/helpers touched | `full`, `cloud`, `presentation` |
+| Godot front door / labels / credential UX | `run-godot-tests.ps1 slice c14c` (+ `smoke` if BootIntent / main boot changed) | `full`, `cloud`, `presentation` |
+| Small server API slice | `run-server-tests.ps1 slice <id>` (+ `smoke` if shared match/action plumbing changed) | `full`, Godot `cloud` unless deploy prep |
+| Large refactor, deploy checkpoint, user asked for full regression | `full` (and `cloud` / `presentation` if relevant) | — |
+
+Agents: in the final report, list focused tests run, broader tests skipped, why, and whether **full** is recommended before commit/deploy.
 
 ## Architecture Boundary Validation
 
@@ -352,4 +364,26 @@ Validation: **`scripts/run-server-tests.ps1 slice c14b`** — **`test_lobby_list
 - [ ] **`EOM_CLOUD_CLIENT=1`** (+ optional env ids/tokens) still boots **`main.tscn`** cloud path without front door.
 - [ ] Headless **`main.tscn`** cloud tests still pass.
 
-Validation: **`scripts/run-godot-tests.ps1 slice c14c`** — **`test_cloud_lobby_parsers.gd`**, **`test_cloud_front_door_boot_intent.gd`**. **`scripts/run-godot-tests.ps1 cloud`** / **full**.
+Validation: **`scripts/run-godot-tests.ps1 slice c14c`** — lobby parsers, front-door boot intent, match labels, main boot-intent reconnect. **`scripts/run-godot-tests.ps1 cloud`** / **full**.
+
+## Slice C14c.1 — Saved match labels (Godot)
+
+- [ ] **Your saved cloud matches** lists only local credentials for this server (not server lobby rows).
+- [ ] **Join open cloud matches** is separate; staging rows show no tokens.
+- [ ] **Create Cloud Match** → naming dialog prefilled **Match N**; OK saves label; cancel/empty uses default.
+- [ ] Saved row shows human label + actor + short match id (not full token).
+- [ ] **Rename** updates label; **Resume saved match** still reconnects.
+- [ ] Claim open seat → naming dialog → saved with label; appears in saved list.
+
+Validation: **`scripts/run-godot-tests.ps1 slice c14c`** — **`test_cloud_match_labels.gd`**.
+
+## Slice C14b.1 / C14c.2 — Server display_name + host rename
+
+- [ ] **POST /v1/matches** sets **`display_name`** (custom or **`Match {short_id}`** default).
+- [ ] **GET /v1/matches** includes **`display_name`**; no tokens in list.
+- [ ] **PATCH display-name** with host token succeeds; seat/invalid/missing token reject.
+- [ ] Rename does not alter snapshot/events/state_hash.
+- [ ] Front door saved rows show server name; host **Rename** persists after refresh; seat rename disabled/message.
+- [ ] Open staging rows use server **`display_name`**.
+
+Validation: **`scripts/run-server-tests.ps1 slice c14b`** (**`test_display_name.py`**), **`scripts/run-godot-tests.ps1 slice c14c`** (**`test_cloud_display_name.gd`**).

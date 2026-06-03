@@ -32,6 +32,7 @@ def test_create_appears_in_list_without_tokens(client: TestClient) -> None:
     rows = listed["matches"]
     hit = next(r for r in rows if r["match_id"] == m["match_id"])
     assert hit["status"] == seats.STATUS_STAGING
+    assert hit["display_name"] == seats.default_display_name(m["match_id"])
     assert hit["scenario_id"] == "tiny_test"
     assert hit["player_count"] == 2
     assert hit["open_seat_count"] == 2

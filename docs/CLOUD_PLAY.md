@@ -67,11 +67,23 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 - **Dev skip:** **`EOM_CLOUD_CLIENT=1`** still jumps straight to **`main.tscn`** with env-based cloud boot (headless tests unchanged).
 - **Lobby list** never displays tokens; only claim/create responses store tokens locally.
 
+### Server display names (Slice C14b.1 / C14c.2)
+
+- **`meta.json` v2** includes **`display_name`** (public lobby title). **`POST /v1/matches`** accepts optional **`display_name`**; if missing/empty the server sets **`Match {short_match_id}`** (not client-local **Match N** numbering).
+- **`GET /v1/matches`** summaries include **`display_name`**; still token-free.
+- **`PATCH /v1/matches/{id}/display-name`** with body **`{"display_name": "…"}`** — requires **`X-Empire-Seat-Token`**; **host token only** in alpha (**`not_host`** / **`invalid_seat_token`** / **`missing_seat_token`** otherwise). Empty/whitespace name becomes the server default. Updates **`meta.json` only** (not snapshot/events/state_hash).
+- **Godot front door:** saved rows show server **`display_name`** when online (from lobby list sync); local credential **`label`** is cache/fallback. **Create** dialog sends **`display_name`** to the server. **Rename** (host only) calls **PATCH** then refreshes from server so the list does not revert. **Claim** caches server **`display_name`** from the claim response; no seat-token rename.
+- **Out of scope:** private/invite-specific titles, accounts, **`display_name` on GET match snapshot** (unchanged).
+
+### Saved match labels (Slice C14c.1, superseded for display by C14c.2)
+
+- Local **`label`** in **`user://cloud_matches.json`** remains a cache; UI prefers server **`display_name`** when known.
+
 ### Lobby discovery and seat claim (Slice C14b)
 
 - **Server-only:** new matches write **`meta.json` schema_version 2** with **`status: "staging"`**, **`created_at`**, **`scenario_id`**, and per-seat **`claimed: false`** (tokens remain in meta only).
 - **`GET /v1/matches`:** token-free lobby summaries (`match_id`, `status`, `scenario_id`, `created_at`, `player_count`, `seats[{actor_id, claimed}]`, `open_seat_count`, `revision`, `turn_number`). Optional **`?status=staging`**. Matches without **`meta.json`** (C12 legacy) are omitted. C13 **`meta` v1** appears as **`ongoing`** with all seats **`claimed: true`** in summaries; excluded from staging filter.
-- **`POST /v1/matches/{id}/seats/{actor_id}/claim`:** marks seat claimed, returns only that **`seat_token`**. Rejects: **`match_not_found`** (404), **`seat_not_found`** (404), **`match_not_in_staging`** (409), **`seat_already_claimed`** (409).
+- **`POST /v1/matches/{id}/seats/{actor_id}/claim`:** marks seat claimed, returns **`seat_token`** and **`display_name`**. Rejects: **`match_not_found`** (404), **`seat_not_found`** (404), **`match_not_in_staging`** (409), **`seat_already_claimed`** (409).
 - **Alpha:** staging matches are public to anyone who can reach the server; no invite codes or accounts.
 - **Not in C14b:** **`POST /start`**, seat lock enforcement, action rejection while staging (those are **C14d**). **`POST /actions`** still uses the C13a token gate and **allows** actions on staging matches so create-then-play dev flow keeps working.
 - **Tokens never in:** list summaries, **`GET /v1/matches/{id}`** snapshot body, **`events.jsonl`**, or **`state_hash`**.

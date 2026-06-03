@@ -12,7 +12,7 @@ var _any_fail = false
 func _init() -> void:
 	BootIntentScript.clear()
 	_test_local_hotseat_intent()
-	_test_create_intent()
+	_test_create_response_boot_intent()
 	_test_reconnect_intent()
 	_test_consume_clears()
 	_test_front_door_scene_loads()
@@ -41,11 +41,16 @@ func _test_local_hotseat_intent() -> void:
 	_check(snap["mode"] == BootIntentScript.MODE_LOCAL_HOTSEAT, "local consume")
 
 
-func _test_create_intent() -> void:
-	BootIntentScript.set_cloud_create("http://127.0.0.1:8000", "ht_abc", "tiny_test")
-	_check(BootIntentScript.mode == BootIntentScript.MODE_CLOUD_CREATE, "create mode")
-	_check(BootIntentScript.match_id == "", "create empty match_id")
-	_check(BootIntentScript.seat_token == "ht_abc", "create token")
+func _test_create_response_boot_intent() -> void:
+	var resp := {"match_id": "m_created", "host_token": "ht_created", "revision": 1}
+	BootIntentScript.set_cloud_play_from_create_response("http://127.0.0.1:8000", resp, "tiny_test")
+	_check(BootIntentScript.mode == BootIntentScript.MODE_CLOUD_RECONNECT, "create response uses reconnect mode")
+	_check(BootIntentScript.match_id == "m_created", "create response match_id")
+	_check(BootIntentScript.seat_token == "ht_created", "create response host_token")
+	var snap: Dictionary = BootIntentScript.consume_for_main()
+	_check(snap["match_id"] == "m_created", "create consume match_id")
+	_check(snap["seat_token"] == "ht_created", "create consume seat_token")
+	_check(snap["mode"] == BootIntentScript.MODE_CLOUD_RECONNECT, "create consume reconnect mode")
 
 
 func _test_reconnect_intent() -> void:

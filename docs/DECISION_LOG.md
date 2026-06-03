@@ -1791,3 +1791,48 @@ Caveat:
 
 - No **`POST /start`**, no staging action gate, minimal layout only; lifecycle enforcement deferred to **C14d**.
 
+## 2026-06-02 — Slice C14c.1 local saved-match labels
+
+Decision:
+
+- **Saved list** = **`entries_for_server`** (local credentials with **`seat_token`** only). **Open staging list** = server **`GET /v1/matches`** — kept as separate UI sections.
+- **`label`** in **`user://cloud_matches.json`**; auto **Match N** defaults; naming **`Window`** after create/claim; **Rename** + **Resume** buttons on saved list (select row first).
+
+Rationale:
+
+- Usable resume UX without server match titles or shared names.
+
+Caveat:
+
+- Labels are per-computer only; other players do not see them until a future shared-title feature.
+
+## 2026-06-02 — Slice C14b.1 / C14c.2 server display_name + host rename
+
+Decision:
+
+- **`display_name`** in **`meta.json` v2**; server default **`Match {short_match_id}`**; **`PATCH /v1/matches/{id}/display-name`** (host token only). Lobby list and create/claim responses expose **`display_name`** without tokens.
+- Godot saved/open rows prefer server name; local **`label`** is cache; host **Rename** uses **PATCH** + lobby resync to fix revert.
+
+Rationale:
+
+- Shared lobby titles for alpha without accounts; local-only labels were invisible to other players and reverted on refresh.
+
+Caveat:
+
+- No private/invite titles; non-hosts cannot rename; GET single-match snapshot unchanged.
+
+## 2026-06-02 — Slice T2 validation policy checkpoint
+
+Decision:
+
+- Document in **`docs/TESTING.md`** and **`docs/VALIDATION_CHECKLIST.md`** that agents and implementation prompts should default to **`slice`** profiles during work and in final reports; **`full`**, **`cloud`**, and **`presentation`** run only per explicit user request or release/deploy/large-refactor checkpoints.
+- Cursor skill/rules reference the same policy in post-implementation validation reporting.
+
+Rationale:
+
+- T1 test profiles are underused when every slice report runs broad suites; focused iteration should match focused tests.
+
+Caveat:
+
+- **`full`** remains the runner default when no args are passed; humans and deploy scripts may still use it intentionally.
+

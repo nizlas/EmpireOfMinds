@@ -34,5 +34,5 @@ During implementation:
 After implementation:
 - List files changed.
 - Explain how the change respects architecture principles.
-- Run or describe validation.
+- Run or describe validation per `docs/TESTING.md` (T2): prefer `slice` (+ optional `smoke`); do not run `full`/`cloud`/`presentation` for small focused slices unless explicitly requested; report skipped broader tests and why.
 - Update `docs/DECISION_LOG.md` only if a real architectural/product decision was made.

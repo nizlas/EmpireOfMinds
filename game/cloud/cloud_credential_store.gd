@@ -8,6 +8,7 @@ const STATUS_UNKNOWN: String = "unknown"
 const STATUS_STAGING: String = "staging"
 ## Host/dev single-client flow: actor_id 0 when saving host_token from create.
 const HOST_ACTOR_ID: int = 0
+const DEFAULT_LABEL_PREFIX: String = "Match "
 
 
 static func empty_store() -> Dictionary:
@@ -71,9 +72,123 @@ static func entries_for_server(path: String, server_url: String) -> Array:
 		if typeof(row) != TYPE_DICTIONARY:
 			continue
 		var d: Dictionary = row as Dictionary
-		if normalize_server_url(str(d.get("server_url", ""))) == su:
-			out.append(d.duplicate(true))
+		if normalize_server_url(str(d.get("server_url", ""))) != su:
+			continue
+		if str(d.get("seat_token", "")).strip_edges().is_empty():
+			continue
+		out.append(d.duplicate(true))
 	return out
+
+
+static func _parse_match_number_from_label(label: String) -> int:
+	var s: String = str(label).strip_edges()
+	if not s.begins_with(DEFAULT_LABEL_PREFIX):
+		return 0
+	var rest: String = s.substr(DEFAULT_LABEL_PREFIX.length()).strip_edges()
+	if rest.is_valid_int():
+		return int(rest)
+	return 0
+
+
+## Next local default number: max existing **Match N** + 1 (custom labels do not consume numbers).
+static func next_match_number(path: String = DEFAULT_PATH) -> int:
+	var store := load_store(path)
+	var matches: Array = store["matches"] as Array
+	var max_n: int = 0
+	var i: int = 0
+	while i < matches.size():
+		var row = matches[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		max_n = maxi(max_n, _parse_match_number_from_label(str((row as Dictionary).get("label", ""))))
+	return max_n + 1
+
+
+static func generate_default_label(path: String = DEFAULT_PATH) -> String:
+	return "%s%d" % [DEFAULT_LABEL_PREFIX, next_match_number(path)]
+
+
+static func resolve_label_for_save(user_input: String, path: String = DEFAULT_PATH) -> String:
+	var custom: String = str(user_input).strip_edges()
+	if custom.length() > 0:
+		return custom
+	return generate_default_label(path)
+
+
+static func display_label(entry: Dictionary) -> String:
+	if typeof(entry) != TYPE_DICTIONARY:
+		return ""
+	var lbl: String = str(entry.get("label", "")).strip_edges()
+	if lbl.length() > 0:
+		return lbl
+	return short_match_id(entry)
+
+
+## Server **display_name** when known; else local label cache; else short match id.
+static func resolved_display_name(entry: Dictionary, server_names: Dictionary = {}) -> String:
+	if typeof(entry) != TYPE_DICTIONARY:
+		return ""
+	var mid: String = normalize_match_id(str(entry.get("match_id", "")))
+	if mid.length() > 0 and typeof(server_names) == TYPE_DICTIONARY:
+		var from_server: String = str(server_names.get(mid, "")).strip_edges()
+		if from_server.length() > 0:
+			return from_server
+	return display_label(entry)
+
+
+static func short_match_id(entry: Dictionary) -> String:
+	var mid: String = normalize_match_id(str(entry.get("match_id", "")))
+	if mid.is_empty():
+		return ""
+	if mid.length() <= 12:
+		return mid
+	return mid.substr(0, 12) + "…"
+
+
+static func format_saved_row_text(entry: Dictionary, server_names: Dictionary = {}) -> String:
+	var host_bit: String = " (host)" if bool(entry.get("is_host", false)) else ""
+	return "%s — actor %d%s — %s" % [
+		resolved_display_name(entry, server_names),
+		int(entry.get("actor_id", 0)),
+		host_bit,
+		short_match_id(entry),
+	]
+
+
+static func update_label_cache(
+	path: String,
+	server_url: String,
+	match_id: String,
+	display_name: String,
+) -> void:
+	var existing: Dictionary = find(path, server_url, match_id)
+	if existing.is_empty():
+		return
+	existing["label"] = str(display_name).strip_edges()
+	upsert(path, existing)
+
+
+static func row_text_has_no_token(row_text: String, entry: Dictionary) -> bool:
+	var tok: String = str(entry.get("seat_token", "")).strip_edges()
+	if tok.is_empty():
+		return true
+	return not str(row_text).contains(tok)
+
+
+static func rename_entry(
+	path: String,
+	server_url: String,
+	match_id: String,
+	new_label: String,
+) -> bool:
+	var existing: Dictionary = find(path, server_url, match_id)
+	if existing.is_empty():
+		return false
+	var merged: Dictionary = existing.duplicate(true)
+	merged["label"] = str(new_label).strip_edges()
+	upsert(path, merged)
+	return true
 
 
 static func find(path: String, server_url: String, match_id: String) -> Dictionary:
@@ -153,17 +268,21 @@ static func make_entry(
 	}
 
 
-## Conservative boot resolution: env/inspector token wins; else saved token only when match_id is known.
+## Conservative boot resolution: env → BootIntent → inspector → saved (match_id required for store).
 static func resolve_seat_token_for_boot(
 	server_url: String,
 	match_id: String,
 	env_token: String,
 	inspector_token: String,
-	store_path: String = DEFAULT_PATH
+	store_path: String = DEFAULT_PATH,
+	boot_token: String = "",
 ) -> Dictionary:
 	var et: String = str(env_token).strip_edges()
 	if et.length() > 0:
 		return {"value": et, "source": "EOM_CLOUD_SEAT_TOKEN"}
+	var bt: String = str(boot_token).strip_edges()
+	if bt.length() > 0:
+		return {"value": bt, "source": "BootIntent"}
 	var it: String = str(inspector_token).strip_edges()
 	if it.length() > 0:
 		return {"value": it, "source": "Main.cloud_seat_token"}

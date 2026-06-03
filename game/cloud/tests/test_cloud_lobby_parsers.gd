@@ -37,6 +37,7 @@ func _test_list_parse_no_tokens() -> void:
 		"matches": [
 			{
 				"match_id": "m_a",
+				"display_name": "Lobby One",
 				"status": "staging",
 				"seats": [{"actor_id": 0, "claimed": false}, {"actor_id": 1, "claimed": true}],
 				"open_seat_count": 1,
@@ -52,6 +53,10 @@ func _test_list_parse_no_tokens() -> void:
 	var rows: Array = parsed["matches"] as Array
 	_check(rows.size() == 1, "leaky row stripped")
 	_check(CloudClientScript.lobby_row_has_no_tokens(rows[0] as Dictionary), "row token-free")
+	_check(
+		CloudClientScript.display_name_from_lobby_row(rows[0] as Dictionary) == "Lobby One",
+		"list keeps display_name",
+	)
 
 
 func _test_list_rejects_error() -> void:

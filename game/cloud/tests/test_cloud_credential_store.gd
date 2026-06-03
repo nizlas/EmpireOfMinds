@@ -120,6 +120,16 @@ func _test_resolve_conservative() -> void:
 	)
 	_check(env_wins["value"] == "ht_env", "env token wins")
 	_check(env_wins["source"] == "EOM_CLOUD_SEAT_TOKEN", "env source")
+	var boot_wins: Dictionary = StoreScript.resolve_seat_token_for_boot(
+		"https://cloud.example.org",
+		"m_saved",
+		"",
+		"st_inspector",
+		TEST_PATH,
+		"ht_boot",
+	)
+	_check(boot_wins["value"] == "ht_boot", "boot token beats inspector")
+	_check(boot_wins["source"] == "BootIntent", "boot source")
 	var insp_wins: Dictionary = StoreScript.resolve_seat_token_for_boot(
 		"https://cloud.example.org",
 		"m_saved",
