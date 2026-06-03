@@ -127,9 +127,10 @@ func _make_slot_panel(slot_index: int) -> PanelContainer:
 	faction_row.add_child(faction_opt)
 	var faction_btn := Button.new()
 	faction_btn.name = "FactionApplyBtn"
-	faction_btn.text = "Choose faction"
+	faction_btn.text = "Apply faction"
 	faction_btn.pressed.connect(_on_faction_apply_pressed.bind(slot_index))
 	faction_row.add_child(faction_btn)
+	faction_opt.item_selected.connect(_on_faction_option_selected.bind(slot_index))
 	vb.add_child(faction_row)
 	var ready_row := HBoxContainer.new()
 	ready_row.name = "ReadyRow"
@@ -156,6 +157,68 @@ func _set_status(msg: String) -> void:
 
 func _set_busy(on: bool) -> void:
 	_busy = on
+
+
+func _staging_debug_enabled() -> bool:
+	return OS.get_environment("EOM_CLOUD_DEBUG").strip_edges() == "1"
+
+
+func _slot_faction_option(panel: PanelContainer) -> OptionButton:
+	var faction_row: HBoxContainer = (
+		((panel.get_child(0) as MarginContainer).get_child(0) as VBoxContainer).get_node("FactionRow") as HBoxContainer
+	)
+	return faction_row.get_node("FactionOption") as OptionButton
+
+
+func _faction_id_from_option(faction_opt: OptionButton) -> String:
+	if faction_opt == null or faction_opt.item_count < 1:
+		return ""
+	var idx: int = faction_opt.selected
+	if idx < 0 or idx >= faction_opt.item_count:
+		return ""
+	return str(faction_opt.get_item_metadata(idx)).strip_edges()
+
+
+func _faction_display_from_option(faction_opt: OptionButton) -> String:
+	if faction_opt == null or faction_opt.selected < 0:
+		return ""
+	return faction_opt.get_item_text(faction_opt.selected)
+
+
+func _debug_log_faction_selected(slot_index: int, faction_opt: OptionButton) -> void:
+	if not _staging_debug_enabled():
+		return
+	print(
+		(
+			"SliceC14d3 staging_faction_selected match_id=%s actor_id=%d slot=%d "
+			+ "display_name=%s faction_id=%s"
+		)
+		% [
+			_match_id,
+			_local_actor_id,
+			slot_index,
+			_faction_display_from_option(faction_opt),
+			_faction_id_from_option(faction_opt),
+		]
+	)
+
+
+func _debug_log_summary(label: String, summary: Dictionary) -> void:
+	if not _staging_debug_enabled():
+		return
+	var fid0: String = CloudStagingParsersScript.seat_faction_id_from_summary(summary, 0)
+	var fid1: String = CloudStagingParsersScript.seat_faction_id_from_summary(summary, 1)
+	print(
+		"SliceC14d3 staging_%s match_id=%s actor_id=%d seat0_faction=%s seat1_faction=%s status=%s"
+		% [
+			label,
+			_match_id,
+			_local_actor_id,
+			fid0,
+			fid1,
+			str(summary.get("status", "")),
+		]
+	)
 
 
 func _make_session(gameplay_token: String = "") -> Node:
@@ -279,9 +342,11 @@ func _render_slot(panel: PanelContainer, slot: Dictionary) -> void:
 	faction_row.visible = is_mine and claimed
 	ready_row.visible = is_mine and claimed
 	claim_btn.set_meta("actor_id", aid)
+	var server_fid: String = CloudStagingParsersScript.normalize_seat_faction_id(slot.get("faction_id"))
+	panel.set_meta("server_faction_id", server_fid)
+	panel.set_meta("suppress_faction_signal", true)
 	faction_opt.clear()
 	var choices: Array = slot.get("faction_choices", []) as Array
-	var sel: int = 0
 	var ci: int = 0
 	while ci < choices.size():
 		var ch = choices[ci]
@@ -289,19 +354,23 @@ func _render_slot(panel: PanelContainer, slot: Dictionary) -> void:
 		if typeof(ch) != TYPE_DICTIONARY:
 			continue
 		var cd: Dictionary = ch as Dictionary
-		var fid: String = str(cd.get("id", ""))
+		var fid: String = str(cd.get("id", "")).strip_edges()
 		var label: String = str(cd.get("display_name", fid))
 		if bool(cd.get("taken", false)):
 			label += " (taken)"
+		var item_idx: int = faction_opt.item_count
 		faction_opt.add_item(label)
-		faction_opt.set_item_metadata(faction_opt.item_count - 1, fid)
-		faction_opt.set_item_disabled(faction_opt.item_count - 1, bool(cd.get("taken", false)))
-		if fid == str(slot.get("faction_id", "")):
-			sel = faction_opt.item_count - 1
-	if faction_opt.item_count > 0:
-		faction_opt.select(sel)
+		faction_opt.set_item_metadata(item_idx, fid)
+		faction_opt.set_item_disabled(item_idx, bool(cd.get("taken", false)))
+	var sel_idx: int = CloudStagingParsersScript.option_index_for_faction_id(choices, server_fid)
+	if sel_idx >= 0:
+		faction_opt.select(sel_idx)
+	else:
+		faction_opt.select(-1)
+	panel.set_meta("suppress_faction_signal", false)
 	faction_btn.disabled = faction_opt.item_count == 0
-	ready_btn.disabled = str(slot.get("faction_id", "")).is_empty()
+	var pending_fid: String = _faction_id_from_option(faction_opt)
+	ready_btn.disabled = server_fid.is_empty() and pending_fid.is_empty()
 	unready_btn.disabled = not bool(slot.get("ready", false))
 
 
@@ -335,17 +404,35 @@ func _on_claim_pressed(slot_index: int) -> void:
 	await _refresh_from_server()
 
 
+func _on_faction_option_selected(slot_index: int, _item_index: int) -> void:
+	if _busy or _local_actor_id < 0 or slot_index != _local_actor_id:
+		return
+	var panel: PanelContainer = _slot_panels[slot_index] as PanelContainer
+	if bool(panel.get_meta("suppress_faction_signal", false)):
+		return
+	var faction_opt: OptionButton = _slot_faction_option(panel)
+	_debug_log_faction_selected(slot_index, faction_opt)
+	await _post_faction_for_slot(slot_index, _faction_id_from_option(faction_opt))
+
+
 func _on_faction_apply_pressed(slot_index: int) -> void:
 	if _busy or _local_actor_id < 0 or _seat_token.is_empty():
 		return
 	var panel: PanelContainer = _slot_panels[slot_index] as PanelContainer
-	var faction_opt: OptionButton = (
-		((panel.get_child(0) as MarginContainer).get_child(0) as VBoxContainer)
-		.get_node("FactionRow") as HBoxContainer
-	).get_node("FactionOption") as OptionButton
+	var faction_opt: OptionButton = _slot_faction_option(panel)
 	if faction_opt.item_count < 1 or faction_opt.selected < 0:
 		return
-	var fid: String = str(faction_opt.get_item_metadata(faction_opt.selected))
+	await _post_faction_for_slot(slot_index, _faction_id_from_option(faction_opt))
+
+
+func _post_faction_for_slot(slot_index: int, faction_id: String) -> void:
+	var fid: String = str(faction_id).strip_edges()
+	if fid.is_empty() or _busy or _local_actor_id < 0 or _seat_token.is_empty():
+		return
+	var panel: PanelContainer = _slot_panels[slot_index] as PanelContainer
+	var server_fid: String = str(panel.get_meta("server_faction_id", "")).strip_edges()
+	if fid == server_fid:
+		return
 	_set_busy(true)
 	_set_status("Saving faction…")
 	var sess = _make_session()
@@ -357,12 +444,18 @@ func _on_faction_apply_pressed(slot_index: int) -> void:
 		_set_status("Faction failed: %s" % str(parsed.get("_error", "unknown")))
 		await _refresh_from_server()
 		return
-	await _apply_summary(parsed["summary"] as Dictionary)
+	var summary: Dictionary = parsed["summary"] as Dictionary
+	_debug_log_summary("faction_response", summary)
+	await _apply_summary(summary)
 
 
 func _on_ready_pressed(slot_index: int, ready: bool) -> void:
 	if _busy or _local_actor_id < 0 or _seat_token.is_empty():
 		return
+	if ready:
+		var synced: bool = await _ensure_faction_saved_for_slot(slot_index)
+		if not synced:
+			return
 	_set_busy(true)
 	_set_status("Marking ready…" if ready else "Marking not ready…")
 	var sess = _make_session()
@@ -374,11 +467,34 @@ func _on_ready_pressed(slot_index: int, ready: bool) -> void:
 		_set_status("Ready update failed: %s" % str(parsed.get("_error", "unknown")))
 		await _refresh_from_server()
 		return
-	await _apply_summary(parsed["summary"] as Dictionary)
+	var summary: Dictionary = parsed["summary"] as Dictionary
+	_debug_log_summary("ready_response", summary)
+	await _apply_summary(summary)
+
+
+func _ensure_faction_saved_for_slot(slot_index: int) -> bool:
+	var panel: PanelContainer = _slot_panels[slot_index] as PanelContainer
+	var faction_opt: OptionButton = _slot_faction_option(panel)
+	var pending: String = _faction_id_from_option(faction_opt)
+	var server_fid: String = str(panel.get_meta("server_faction_id", "")).strip_edges()
+	if pending.is_empty():
+		if server_fid.is_empty():
+			_set_status("Choose a faction before Ready.")
+			return false
+		return true
+	if pending != server_fid:
+		await _post_faction_for_slot(slot_index, pending)
+		if _busy:
+			return false
+		server_fid = str(panel.get_meta("server_faction_id", "")).strip_edges()
+		if pending != server_fid:
+			return false
+	return true
 
 
 func _apply_summary(summary: Dictionary) -> void:
 	var row: Dictionary = summary.duplicate(true)
+	_debug_log_summary("apply_summary", row)
 	var view: Dictionary = CloudStagingParsersScript.build_staging_view(row, _local_actor_id)
 	if not bool(view.get("ok", false)):
 		await _refresh_from_server()

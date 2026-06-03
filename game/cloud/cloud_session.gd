@@ -257,14 +257,26 @@ func post_claim_seat(actor_id: int) -> Dictionary:
 
 
 func post_seat_faction(actor_id: int, faction_id: String) -> Dictionary:
+	const StagingParsersScript = preload("res://cloud/cloud_staging_parsers.gd")
 	var path: String = CloudClientScript.seat_faction_path(match_id, actor_id)
-	var body: String = JSON.stringify({"faction_id": str(faction_id).strip_edges()})
+	var body: String = JSON.stringify(StagingParsersScript.build_faction_post_body(faction_id))
+	if _cloud_debug_enabled():
+		print(
+			"SliceC14d3 staging_faction_post actor_id=%d body=%s path=%s"
+			% [int(actor_id), body, path]
+		)
 	return await http_json_request(HTTPClient.METHOD_POST, path, body)
 
 
 func post_seat_ready(actor_id: int, ready: bool) -> Dictionary:
+	const StagingParsersScript = preload("res://cloud/cloud_staging_parsers.gd")
 	var path: String = CloudClientScript.seat_ready_path(match_id, actor_id)
-	var body: String = JSON.stringify({"ready": bool(ready)})
+	var body: String = JSON.stringify(StagingParsersScript.build_ready_post_body(ready))
+	if _cloud_debug_enabled():
+		print(
+			"SliceC14d3 staging_ready_post actor_id=%d body=%s path=%s"
+			% [int(actor_id), body, path]
+		)
 	return await http_json_request(HTTPClient.METHOD_POST, path, body)
 
 

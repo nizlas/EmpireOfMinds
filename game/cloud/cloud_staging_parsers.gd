@@ -25,6 +25,63 @@ static func find_lobby_row(matches: Array, match_id: String) -> Dictionary:
 	return {}
 
 
+static func normalize_seat_faction_id(raw) -> String:
+	if raw == null:
+		return ""
+	if typeof(raw) == TYPE_STRING:
+		return str(raw).strip_edges()
+	return str(raw).strip_edges()
+
+
+static func option_index_for_faction_id(faction_choices: Array, faction_id) -> int:
+	var fid: String = normalize_seat_faction_id(faction_id)
+	if fid.is_empty():
+		return -1
+	var i: int = 0
+	while i < faction_choices.size():
+		var row = faction_choices[i]
+		if typeof(row) != TYPE_DICTIONARY:
+			i += 1
+			continue
+		if str((row as Dictionary).get("id", "")).strip_edges() == fid:
+			return i
+		i += 1
+	return -1
+
+
+static func faction_id_for_choice_index(faction_choices: Array, choice_index: int) -> String:
+	if choice_index < 0 or choice_index >= faction_choices.size():
+		return ""
+	var row = faction_choices[choice_index]
+	if typeof(row) != TYPE_DICTIONARY:
+		return ""
+	return str((row as Dictionary).get("id", "")).strip_edges()
+
+
+static func build_faction_post_body(faction_id: String) -> Dictionary:
+	return {"faction_id": normalize_seat_faction_id(faction_id)}
+
+
+static func build_ready_post_body(ready: bool) -> Dictionary:
+	return {"ready": bool(ready)}
+
+
+static func seat_faction_id_from_summary(summary: Dictionary, actor_id: int) -> String:
+	var seats = summary.get("seats", [])
+	if typeof(seats) != TYPE_ARRAY:
+		return ""
+	var i: int = 0
+	while i < (seats as Array).size():
+		var row = (seats as Array)[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row as Dictionary
+		if int(d.get("actor_id", -1)) == int(actor_id):
+			return normalize_seat_faction_id(d.get("faction_id"))
+	return ""
+
+
 static func faction_display_name(available_factions: Array, faction_id: String) -> String:
 	var fid: String = str(faction_id).strip_edges()
 	if fid.is_empty():
@@ -87,7 +144,7 @@ static func build_slot_views(
 				seat_row = cand as Dictionary
 				break
 		var claimed: bool = bool(seat_row.get("claimed", false))
-		var faction_id: String = str(seat_row.get("faction_id", "")).strip_edges()
+		var faction_id: String = normalize_seat_faction_id(seat_row.get("faction_id"))
 		var ready: bool = bool(seat_row.get("ready", false))
 		var is_mine: bool = local_actor_id >= 0 and aid == local_actor_id
 		var faction_choices: Array = []
