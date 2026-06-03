@@ -6,6 +6,7 @@ extends Node2D
 
 const MapViewScript = preload("res://presentation/map_view.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
+const PresentationVisibilityScript = preload("res://presentation/presentation_visibility.gd")
 
 const _PARCHMENT_TEX_PATH: String = (
 	"res://assets/prototype/map_overlays/unexplored_parchment_overlay_prototype.png"
@@ -39,7 +40,7 @@ static func compute_overlay_items(gs, a_layout) -> Array:
 		or gs.scenario.map == null
 	):
 		return []
-	var pid: int = int(gs.turn_state.current_player_id())
+	var pid: int = PresentationVisibilityScript.effective_viewing_player_id(gs)
 	var vis = gs.visibility_state
 	var mp = gs.scenario.map
 	var out: Array = []
@@ -79,7 +80,7 @@ static func _shared_edge_world(uq: int, ur: int, eq: int, er: int, a_layout) -> 
 	}
 
 
-## Pure: unexplored **U** with on-map explored neighbor **E** for **current_player_id** only.
+## Pure: unexplored **U** with on-map explored neighbor **E** for the viewing player only.
 static func compute_unexplored_boundary_edges_for_current_player(gs, a_layout) -> Array:
 	if (
 		gs == null
@@ -90,7 +91,7 @@ static func compute_unexplored_boundary_edges_for_current_player(gs, a_layout) -
 		or gs.scenario.map == null
 	):
 		return []
-	var pid: int = int(gs.turn_state.current_player_id())
+	var pid: int = PresentationVisibilityScript.effective_viewing_player_id(gs)
 	var vis = gs.visibility_state
 	var mp = gs.scenario.map
 	var out: Array = []
@@ -346,7 +347,7 @@ func _draw() -> void:
 		return
 	if game_state.turn_state == null or game_state.visibility_state == null:
 		return
-	var pid: int = int(game_state.turn_state.current_player_id())
+	var pid: int = PresentationVisibilityScript.effective_viewing_player_id(game_state)
 	var vis = game_state.visibility_state
 	var mp = game_state.scenario.map
 

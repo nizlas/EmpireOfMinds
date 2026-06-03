@@ -477,3 +477,13 @@ Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_lobby_po
 - [ ] Two-profile manual flow (C14d-dev): only current seat can act; other sees waiting text.
 
 Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_turn_ownership_c14d4b.gd`**). **`smoke`** if boot plumbing touched.
+
+## Slice C14d-4c — Cloud local perspective + waiting refresh (Godot)
+
+- [ ] Each client sees **own** fog while waiting (not active player’s fog).
+- [ ] Top-right chips still highlight **current** player; waiting text does not switch fog perspective.
+- [ ] Waiting client auto-updates within ~2s when opponent ends turn (no manual **R** required).
+- [ ] **R** still works; active-turn clients do not poll while it is their turn.
+- [ ] Local hotseat unchanged.
+
+Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_turn_ownership_c14d4c.gd`**).

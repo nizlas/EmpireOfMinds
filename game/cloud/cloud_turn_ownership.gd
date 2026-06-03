@@ -2,12 +2,19 @@
 extends RefCounted
 
 const WAITING_STATUS_TEXT: String = "Other player's turn"
+const WAITING_POLL_INTERVAL_SEC: float = 2.0
 
 
 static func current_actor_id_from_turn_state(turn_state) -> int:
 	if turn_state == null:
 		return -1
 	return int(turn_state.current_player_id())
+
+
+static func visibility_actor_id(cloud_mode: bool, local_actor_id: int, turn_state) -> int:
+	if cloud_mode and int(local_actor_id) >= 0:
+		return int(local_actor_id)
+	return current_actor_id_from_turn_state(turn_state)
 
 
 static func is_my_cloud_turn(local_actor_id: int, turn_state) -> bool:
@@ -49,6 +56,24 @@ static func gameplay_actor_id_from_credential(entry: Dictionary) -> int:
 	if aid < 0:
 		return -1
 	return aid
+
+
+static func cloud_waiting_poll_should_run(
+	cloud_mode: bool,
+	poll_stopped: bool,
+	snapshot_fetch_in_flight: bool,
+	local_actor_id: int,
+	turn_state,
+) -> bool:
+	if poll_stopped or snapshot_fetch_in_flight or not cloud_mode:
+		return false
+	if int(local_actor_id) < 0 or turn_state == null:
+		return false
+	return is_cloud_waiting_readonly(cloud_mode, local_actor_id, turn_state)
+
+
+static func cloud_waiting_poll_should_begin_fetch(snapshot_fetch_in_flight: bool) -> bool:
+	return not snapshot_fetch_in_flight
 
 
 static func is_seat_not_allowed_response(response: Dictionary) -> bool:

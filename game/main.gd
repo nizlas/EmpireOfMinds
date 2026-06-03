@@ -24,7 +24,9 @@ const CloudClientScript = preload("res://cloud/cloud_client.gd")
 const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.gd")
 const BootIntentScript = preload("res://cloud/boot_intent.gd")
 const CloudTurnOwnershipScript = preload("res://cloud/cloud_turn_ownership.gd")
+const PresentationVisibilityScript = preload("res://presentation/presentation_visibility.gd")
 const CityProductionPanelScript = preload("res://presentation/city_production_panel.gd")
+const WAITING_POLL_INTERVAL_SEC: float = CloudTurnOwnershipScript.WAITING_POLL_INTERVAL_SEC
 ## Phase 4.5n: mouse-wheel zoom multiplier (center-anchored in layer-local space; not cursor-anchored).
 const ZOOM_STEP: float = 1.10
 
@@ -56,6 +58,9 @@ var _boot_cloud_seat_token: String = ""
 var _boot_cloud_actor_id: int = -1
 ## Slice C14d-4b: claimed seat **actor_id** for cloud gameplay (not host-token identity).
 var _cloud_local_actor_id: int = -1
+var _cloud_waiting_poll_stopped: bool = true
+var _cloud_waiting_poll_timer: Timer = null
+var _cloud_waiting_snapshot_fetch_in_flight: bool = false
 ## Slice C8: true from cloud bootstrap until first server snapshot is applied and presentation refreshed.
 var _cloud_loading: bool = false
 ## Slice C11: blocks map input during cloud combat presentation (presentation-only; snapshot applies after).
@@ -213,7 +218,14 @@ func _ready() -> void:
 		_start_local_hotseat_session()
 
 
+func _exit_tree() -> void:
+	_stop_cloud_waiting_poll()
+	PresentationVisibilityScript.viewing_player_id_override = -1
+
+
 func _start_local_hotseat_session() -> void:
+	_stop_cloud_waiting_poll()
+	PresentationVisibilityScript.viewing_player_id_override = -1
 	var scenario_loc = ScenarioScript.make_prototype_play_scenario()
 	var game_state_loc = GameStateScript.new(scenario_loc)
 	var selection_loc = SelectionStateScript.new()
@@ -429,10 +441,72 @@ func cloud_refresh_turn_ownership_ui() -> void:
 		strip.refresh()
 
 
+func _cloud_sync_viewing_perspective() -> void:
+	if _cloud_mode and _cloud_local_actor_id >= 0:
+		PresentationVisibilityScript.viewing_player_id_override = _cloud_local_actor_id
+	else:
+		PresentationVisibilityScript.viewing_player_id_override = -1
+	var mvv = $MapVisibilityView
+	if mvv != null:
+		mvv.queue_redraw()
+
+
+func _start_cloud_waiting_poll() -> void:
+	if not _cloud_mode or cloud_is_my_turn() or _cloud_local_actor_id < 0:
+		return
+	if _cloud_waiting_poll_timer != null:
+		return
+	_cloud_waiting_poll_stopped = false
+	_cloud_waiting_poll_timer = Timer.new()
+	_cloud_waiting_poll_timer.wait_time = WAITING_POLL_INTERVAL_SEC
+	_cloud_waiting_poll_timer.autostart = true
+	_cloud_waiting_poll_timer.timeout.connect(_on_cloud_waiting_poll_timeout)
+	add_child(_cloud_waiting_poll_timer)
+
+
+func _stop_cloud_waiting_poll() -> void:
+	_cloud_waiting_poll_stopped = true
+	if _cloud_waiting_poll_timer != null:
+		_cloud_waiting_poll_timer.stop()
+		_cloud_waiting_poll_timer.queue_free()
+		_cloud_waiting_poll_timer = null
+
+
+func _on_cloud_waiting_poll_timeout() -> void:
+	if not CloudTurnOwnershipScript.cloud_waiting_poll_should_run(
+		_cloud_mode,
+		_cloud_waiting_poll_stopped,
+		_cloud_waiting_snapshot_fetch_in_flight,
+		_cloud_local_actor_id,
+		_play_game_state.turn_state if _play_game_state != null else null,
+	):
+		return
+	call_deferred("cloud_refresh_match_snapshot_async_entry")
+
+
+func _cloud_after_snapshot_applied(revision_resp: Dictionary = {}) -> void:
+	_cloud_sync_viewing_perspective()
+	cloud_refresh_turn_ownership_ui()
+	if cloud_is_my_turn():
+		_stop_cloud_waiting_poll()
+		call_deferred("cloud_refresh_legal_async_entry")
+	else:
+		_cloud_clear_legal_action_ui()
+		_start_cloud_waiting_poll()
+	if not revision_resp.is_empty():
+		_cloud_touch_credential_revision(CloudCredentialStoreScript.revision_from_response(revision_resp))
+
+
 func cloud_refresh_match_snapshot_async_entry() -> void:
 	if not _cloud_mode or _cloud_session == null or _cloud_loading or _cloud_boot_stranded:
 		return
+	if not CloudTurnOwnershipScript.cloud_waiting_poll_should_begin_fetch(
+		_cloud_waiting_snapshot_fetch_in_flight,
+	):
+		return
+	_cloud_waiting_snapshot_fetch_in_flight = true
 	var resp: Dictionary = await _cloud_session.get_match()
+	_cloud_waiting_snapshot_fetch_in_flight = false
 	if resp.has("_error") or typeof(resp.get("snapshot")) != TYPE_DICTIONARY:
 		return
 	var gs_new = ServerSnapshotAdapterScript.build_game_state_from_api_snapshot(resp["snapshot"])
@@ -440,11 +514,7 @@ func cloud_refresh_match_snapshot_async_entry() -> void:
 		return
 	_rebind_session_to_game_state(gs_new)
 	_refresh_presentation_after_cloud_snap()
-	_cloud_touch_credential_revision(CloudCredentialStoreScript.revision_from_response(resp))
-	if cloud_is_my_turn():
-		call_deferred("cloud_refresh_legal_async_entry")
-	else:
-		_cloud_clear_legal_action_ui()
+	_cloud_after_snapshot_applied(resp)
 
 
 func _cloud_debug_timing(tag: String) -> void:
@@ -514,6 +584,8 @@ func _cloud_fail_session_and_strand(msg: String, resp: Dictionary = {}) -> void:
 	_cloud_mode = false
 	_cloud_loading = false
 	_cloud_boot_stranded = true
+	_stop_cloud_waiting_poll()
+	PresentationVisibilityScript.viewing_player_id_override = -1
 	$SelectionController.use_cloud_server = false
 	$SelectionController.cloud_play_host = null
 	$HudCanvas/CityProductionPanel.use_cloud_server = false
@@ -644,11 +716,8 @@ func _bootstrap_cloud_session() -> void:
 	_cloud_persist_credential_after_bootstrap(resp, reconnecting)
 	_cloud_touch_credential_revision(CloudCredentialStoreScript.revision_from_response(resp))
 	_cloud_init_local_actor_id()
-	cloud_refresh_turn_ownership_ui()
-	if cloud_is_my_turn():
-		call_deferred("cloud_refresh_legal_async_entry")
-	else:
-		_cloud_clear_legal_action_ui()
+	_cloud_sync_viewing_perspective()
+	_cloud_after_snapshot_applied(resp)
 
 
 func _apply_cloud_controller_flags(on: bool) -> void:
@@ -1085,12 +1154,7 @@ func _apply_cloud_post_snapshot(r: Dictionary, action: Dictionary) -> void:
 	_adjust_selection_after_cloud_action(action, gs_new)
 	_refresh_presentation_after_cloud_snap()
 	_cloud_maybe_show_turn_start_banner(gs_new, prev_pid, str(action.get("action_type", "")))
-	_cloud_touch_credential_revision(CloudCredentialStoreScript.revision_from_response(r))
-	cloud_refresh_turn_ownership_ui()
-	if cloud_is_my_turn():
-		call_deferred("cloud_refresh_legal_async_entry")
-	else:
-		_cloud_clear_legal_action_ui()
+	_cloud_after_snapshot_applied(r)
 
 
 func _rebind_session_to_game_state(gs) -> void:
