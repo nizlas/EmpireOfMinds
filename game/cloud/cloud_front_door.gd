@@ -294,6 +294,20 @@ func _on_create_cloud() -> void:
 		requested_name,
 		resp,
 	)
+	var body: Dictionary = CloudClientScript.build_create_match_body("prototype_play", requested_name)
+	if _cloud_debug_enabled():
+		print(
+			(
+				"SliceC14c create_flow requested_display_name=%s body_display_name=%s "
+				+ "response_match_id=%s response_display_name=%s"
+			)
+			% [
+				requested_name,
+				str(body.get("display_name", "")),
+				mid,
+				CloudClientScript.display_name_from_create_response(resp),
+			]
+		)
 	if _cloud_debug_enabled() and display_name != requested_name:
 		push_warning(
 			"SliceC14c2 create using response display_name=%s (requested=%s)"
@@ -306,7 +320,20 @@ func _on_create_cloud() -> void:
 		STORE_PATH,
 	)
 	_save_credential_with_label(entry)
+	if _cloud_debug_enabled():
+		print(
+			(
+				"SliceC14c create_flow saved_credential match_id=%s label=%s "
+				+ "boot_intent_match_id=%s"
+			)
+			% [str(entry.get("match_id", "")), str(entry.get("label", "")), mid]
+		)
 	BootIntentScript.set_cloud_play_from_create_response(_server_url, resp, "prototype_play")
+	if _cloud_debug_enabled():
+		print(
+			"SliceC14c create_flow boot_intent mode=%s match_id=%s"
+			% [BootIntentScript.mode, BootIntentScript.match_id]
+		)
 	_go_main()
 
 
@@ -387,7 +414,25 @@ func _reload_lobby_from_server() -> void:
 	_lobby_claim_targets = CloudClientScript.build_open_staging_claim_targets(matches, resume_ids)
 	_render_saved_list()
 	_render_open_list()
+	_log_resume_rows_debug()
 	_set_lobby_load_status()
+
+
+func _log_resume_rows_debug() -> void:
+	if not _cloud_debug_enabled():
+		return
+	var i: int = 0
+	while i < _saved_rows.size():
+		var view: Dictionary = _saved_rows[i] as Dictionary
+		i += 1
+		print(
+			"SliceC14c lobby_resume_row match_id=%s display_name=%s server_status=%s"
+			% [
+				str(view.get("match_id", "")),
+				str(view.get("display_name", "")),
+				str(view.get("server_status", "")),
+			]
+		)
 
 
 func _render_lobby_load_failed(_detail: String) -> void:

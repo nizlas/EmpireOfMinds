@@ -3,6 +3,7 @@ extends SceneTree
 
 const StoreScript = preload("res://cloud/cloud_credential_store.gd")
 const CloudClientScript = preload("res://cloud/cloud_client.gd")
+const BootIntentScript = preload("res://cloud/boot_intent.gd")
 
 const TEST_PATH: String = "user://test_eom_front_door_flow.json"
 const CUSTOM: String = "Manual Custom Name"
@@ -19,6 +20,11 @@ func _init() -> void:
 	_test_dialog_cancel()
 	_test_close_after_ok_does_not_cancel()
 	_test_create_flow_proceeds_after_ok()
+	_test_create_identity_propagates()
+	_test_persist_bootstrap_preserves_label()
+	_test_resume_row_by_match_id_not_stale_label()
+	_test_distinct_create_row_models()
+	_test_enter_created_status_not_reconnecting()
 	_test_rename_ok_and_cancel()
 	_test_create_body_includes_custom_name()
 	_test_pick_create_uses_response_then_request()
@@ -102,6 +108,95 @@ func _test_close_after_ok_does_not_cancel() -> void:
 	var out: Dictionary = StoreScript.interpret_create_dialog_result(after_close, TEST_PATH)
 	_check(not bool(out.get("cancelled", true)), "interpret after close still proceeds")
 	_check(out["display_name"] == CUSTOM, "name preserved after close guard")
+
+
+func _test_create_identity_propagates() -> void:
+	var resp := {
+		"match_id": "m_id_a",
+		"host_token": "ht_a",
+		"display_name": CUSTOM,
+		"revision": 1,
+	}
+	var trace: Dictionary = CloudClientScript.create_flow_identity(
+		CUSTOM,
+		resp,
+		SERVER,
+		"prototype_play",
+		TEST_PATH,
+	)
+	_check(trace["body_display_name"] == CUSTOM, "POST body display_name")
+	_check(trace["response_match_id"] == "m_id_a", "response match_id")
+	_check(trace["credential_match_id"] == "m_id_a", "credential match_id")
+	_check(trace["boot_intent_match_id"] == "m_id_a", "boot trace match_id")
+	_check(trace["credential_label"] == CUSTOM, "credential label from server name")
+	_check(trace["response_display_name"] == CUSTOM, "response display_name")
+
+
+func _test_persist_bootstrap_preserves_label() -> void:
+	_remove_test_file()
+	StoreScript.upsert(
+		TEST_PATH,
+		StoreScript.make_entry(SERVER, "m_persist", 0, "ht_p", true, -1, StoreScript.STATUS_STAGING, CUSTOM),
+	)
+	StoreScript.persist_after_bootstrap(
+		TEST_PATH,
+		SERVER,
+		"m_persist",
+		"ht_p",
+		true,
+		{"revision": 5, "snapshot": {"revision": 5}},
+	)
+	var found: Dictionary = StoreScript.find(TEST_PATH, SERVER, "m_persist")
+	_check(found["label"] == CUSTOM, "bootstrap persist keeps saved label")
+
+
+func _test_resume_row_by_match_id_not_stale_label() -> void:
+	var cred: Dictionary = StoreScript.make_entry(
+		SERVER,
+		"m_row",
+		0,
+		"ht_r",
+		true,
+		-1,
+		StoreScript.STATUS_STAGING,
+		"Stale Local Label",
+	)
+	var server_row := {
+		"match_id": "m_row",
+		"display_name": CUSTOM,
+		"status": "staging",
+		"revision": 2,
+		"seats": [],
+	}
+	var view: Dictionary = CloudClientScript.build_resume_row_view(server_row, cred, SERVER)
+	_check(view["match_id"] == "m_row", "resume keyed by match_id")
+	_check(view["display_name"] == CUSTOM, "resume uses server display_name not stale label")
+
+
+func _test_distinct_create_row_models() -> void:
+	var cred_map := {
+		"m_a": StoreScript.make_entry(SERVER, "m_a", 0, "ht_a", true, -1, StoreScript.STATUS_STAGING, "A"),
+		"m_b": StoreScript.make_entry(SERVER, "m_b", 0, "ht_b", true, -1, StoreScript.STATUS_STAGING, "B"),
+	}
+	var lobby: Array = [
+		{"match_id": "m_a", "display_name": "Alpha", "status": "staging", "revision": 1, "seats": []},
+		{"match_id": "m_b", "display_name": "Beta", "status": "staging", "revision": 1, "seats": []},
+	]
+	var rows: Array = CloudClientScript.build_resume_rows_from_lobby(lobby, cred_map, SERVER)
+	_check(rows.size() == 2, "two distinct resume rows")
+	_check((rows[0] as Dictionary)["match_id"] == "m_a", "first row match_id")
+	_check((rows[1] as Dictionary)["match_id"] == "m_b", "second row match_id")
+	_check((rows[0] as Dictionary)["display_name"] == "Alpha", "first row server name")
+	_check((rows[1] as Dictionary)["display_name"] == "Beta", "second row server name")
+
+
+func _test_enter_created_status_not_reconnecting() -> void:
+	_check(
+		BootIntentScript.cloud_load_status_message(BootIntentScript.MODE_CLOUD_ENTER_CREATED)
+			!= "Reconnecting to cloud match…",
+		"enter-created message not reconnecting",
+	)
+	_check(BootIntentScript.is_cloud_enter_created(BootIntentScript.MODE_CLOUD_ENTER_CREATED), "flag helper")
 
 
 func _test_create_flow_proceeds_after_ok() -> void:

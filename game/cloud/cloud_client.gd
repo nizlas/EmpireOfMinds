@@ -275,6 +275,31 @@ static func build_create_match_body(scenario_id: String, display_name: String = 
 	return body
 
 
+## Headless/tests: trace create identity from dialog → POST body → response → credential.
+static func create_flow_identity(
+	requested_display_name: String,
+	resp: Dictionary,
+	server_url: String,
+	scenario_id: String = "prototype_play",
+	store_path: String = CloudCredentialStoreScript.DEFAULT_PATH,
+) -> Dictionary:
+	var req: String = str(requested_display_name).strip_edges()
+	var body: Dictionary = build_create_match_body(scenario_id, req)
+	var mid: String = str(resp.get("match_id", "")).strip_edges()
+	var resp_dn: String = display_name_from_create_response(resp)
+	var cred_dn: String = pick_create_credential_display_name(req, resp)
+	var cred: Dictionary = credential_from_create_response(server_url, resp, cred_dn, store_path)
+	return {
+		"requested_display_name": req,
+		"body_display_name": str(body.get("display_name", "")).strip_edges(),
+		"response_match_id": mid,
+		"response_display_name": resp_dn,
+		"credential_match_id": str(cred.get("match_id", "")).strip_edges(),
+		"credential_label": str(cred.get("label", "")).strip_edges(),
+		"boot_intent_match_id": mid,
+	}
+
+
 static func pick_create_credential_display_name(requested: String, resp: Dictionary) -> String:
 	var from_server: String = display_name_from_create_response(resp)
 	var req: String = str(requested).strip_edges()

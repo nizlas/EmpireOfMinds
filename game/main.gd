@@ -49,6 +49,7 @@ var _cloud_legal_stale: bool = false
 var _cloud_last_legal_actions: Array = []
 ## Slice C14c: credentials from consumed **BootIntent** (priority over inspector, below env).
 var _boot_cloud_from_intent: bool = false
+var _boot_cloud_enter_created: bool = false
 var _boot_cloud_match_id: String = ""
 var _boot_cloud_seat_token: String = ""
 ## Slice C8: true from cloud bootstrap until first server snapshot is applied and presentation refreshed.
@@ -186,9 +187,14 @@ func _ready() -> void:
 	var boot_mode: String = str(boot.get("mode", ""))
 	if boot_mode == BootIntentScript.MODE_LOCAL_HOTSEAT:
 		_start_local_hotseat_session()
-	elif boot_mode == BootIntentScript.MODE_CLOUD_CREATE or boot_mode == BootIntentScript.MODE_CLOUD_RECONNECT:
+	elif (
+		boot_mode == BootIntentScript.MODE_CLOUD_CREATE
+		or boot_mode == BootIntentScript.MODE_CLOUD_RECONNECT
+		or boot_mode == BootIntentScript.MODE_CLOUD_ENTER_CREATED
+	):
 		use_cloud_server = true
 		_boot_cloud_from_intent = true
+		_boot_cloud_enter_created = BootIntentScript.is_cloud_enter_created(boot_mode)
 		_boot_cloud_match_id = str(boot.get("match_id", ""))
 		_boot_cloud_seat_token = str(boot.get("seat_token", ""))
 		cloud_base_url = str(boot.get("server_url", cloud_base_url))
@@ -452,7 +458,10 @@ func _bootstrap_cloud_session() -> void:
 	var resp: Dictionary = {}
 	if reconnecting:
 		_cloud_session.match_id = reconnect_mid
-		_set_cloud_overlay_text("Reconnecting to cloud match…")
+		if _boot_cloud_enter_created:
+			_set_cloud_overlay_text("Loading created cloud match…")
+		else:
+			_set_cloud_overlay_text("Reconnecting to cloud match…")
 		resp = await _cloud_session.get_match()
 		if resp.has("_error") or typeof(resp.get("snapshot")) != TYPE_DICTIONARY:
 			_cloud_fail_session_and_strand(

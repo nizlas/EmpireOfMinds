@@ -44,13 +44,26 @@ func _test_local_hotseat_intent() -> void:
 func _test_create_response_boot_intent() -> void:
 	var resp := {"match_id": "m_created", "host_token": "ht_created", "revision": 1}
 	BootIntentScript.set_cloud_play_from_create_response("http://127.0.0.1:8000", resp, "tiny_test")
-	_check(BootIntentScript.mode == BootIntentScript.MODE_CLOUD_RECONNECT, "create response uses reconnect mode")
+	_check(
+		BootIntentScript.mode == BootIntentScript.MODE_CLOUD_ENTER_CREATED,
+		"create response uses enter-created mode",
+	)
 	_check(BootIntentScript.match_id == "m_created", "create response match_id")
 	_check(BootIntentScript.seat_token == "ht_created", "create response host_token")
+	_check(
+		BootIntentScript.cloud_load_status_message(BootIntentScript.MODE_CLOUD_ENTER_CREATED)
+			== "Loading created cloud match…",
+		"enter-created status message",
+	)
+	_check(
+		BootIntentScript.cloud_load_status_message(BootIntentScript.MODE_CLOUD_RECONNECT)
+			== "Reconnecting to cloud match…",
+		"reconnect status message",
+	)
 	var snap: Dictionary = BootIntentScript.consume_for_main()
 	_check(snap["match_id"] == "m_created", "create consume match_id")
 	_check(snap["seat_token"] == "ht_created", "create consume seat_token")
-	_check(snap["mode"] == BootIntentScript.MODE_CLOUD_RECONNECT, "create consume reconnect mode")
+	_check(snap["mode"] == BootIntentScript.MODE_CLOUD_ENTER_CREATED, "create consume enter-created mode")
 
 
 func _test_reconnect_intent() -> void:

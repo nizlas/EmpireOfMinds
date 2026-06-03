@@ -468,6 +468,15 @@ static func persist_after_bootstrap(
 	if tok.is_empty():
 		return
 	var rev: int = revision_from_response(resp)
+	var existing: Dictionary = find(path, server_url, mid)
+	var label: String = ""
+	if not existing.is_empty():
+		label = str(existing.get("label", "")).strip_edges()
+	if label.is_empty() and typeof(resp) == TYPE_DICTIONARY:
+		label = str(resp.get("display_name", "")).strip_edges()
+	var status: String = STATUS_UNKNOWN
+	if not existing.is_empty():
+		status = str(existing.get("last_seen_status", STATUS_UNKNOWN))
 	upsert(
 		path,
 		make_entry(
@@ -477,7 +486,8 @@ static func persist_after_bootstrap(
 			tok,
 			is_host,
 			rev,
-			STATUS_UNKNOWN,
+			status,
+			label,
 		),
 	)
 

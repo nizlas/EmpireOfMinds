@@ -8,6 +8,8 @@ const MODE_NONE: String = ""
 const MODE_LOCAL_HOTSEAT: String = "local_hotseat"
 const MODE_CLOUD_CREATE: String = "cloud_create"
 const MODE_CLOUD_RECONNECT: String = "cloud_reconnect"
+## Front door already **POST /v1/matches**; **main** loads via **GET** (not a second create).
+const MODE_CLOUD_ENTER_CREATED: String = "cloud_enter_created"
 
 static var mode: String = MODE_NONE
 static var server_url: String = ""
@@ -57,7 +59,7 @@ static func set_cloud_reconnect(
 	scenario_id = scen
 
 
-## After front-door **POST /v1/matches** — reconnect via **GET**, not a second create in **main**.
+## After front-door **POST /v1/matches** — **GET** in **main**, not a second create.
 static func set_cloud_play_from_create_response(
 	url: String,
 	resp: Dictionary,
@@ -65,7 +67,25 @@ static func set_cloud_play_from_create_response(
 ) -> void:
 	var mid: String = str(resp.get("match_id", "")).strip_edges()
 	var tok: String = CloudClientScript.host_token_from_create_response(resp)
-	set_cloud_reconnect(url, mid, tok, 0, scen)
+	clear()
+	mode = MODE_CLOUD_ENTER_CREATED
+	server_url = str(url).rstrip("/")
+	match_id = mid
+	seat_token = tok
+	actor_id = 0
+	scenario_id = scen
+
+
+static func is_cloud_enter_created(boot_mode: String) -> bool:
+	return str(boot_mode) == MODE_CLOUD_ENTER_CREATED
+
+
+static func cloud_load_status_message(boot_mode: String) -> String:
+	if is_cloud_enter_created(boot_mode):
+		return "Loading created cloud match…"
+	if str(boot_mode) == MODE_CLOUD_RECONNECT:
+		return "Reconnecting to cloud match…"
+	return "Connecting to cloud match…"
 
 
 ## Dev/test: skip front door when **EOM_CLOUD_CLIENT** is set (same as Main cloud gate).
