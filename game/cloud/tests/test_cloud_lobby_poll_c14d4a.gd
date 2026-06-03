@@ -184,8 +184,8 @@ func _test_pending_faction_preserved_on_poll() -> void:
 			"faction_id": null,
 			"ready": false,
 			"faction_choices": [
-				{"id": "malmo", "display_name": "Malmö", "taken": false},
-				{"id": "vastervik", "display_name": "Västervik", "taken": false},
+				{"id": "malmo", "display_name": "Malmöfubikkarna", "taken": false},
+				{"id": "vastervik", "display_name": "Västerviksjävlarna", "taken": false},
 			],
 		},
 		"staging",
@@ -201,8 +201,8 @@ func _test_pending_faction_preserved_on_poll() -> void:
 			"faction_id": null,
 			"ready": false,
 			"faction_choices": [
-				{"id": "malmo", "display_name": "Malmö", "taken": false},
-				{"id": "vastervik", "display_name": "Västervik", "taken": false},
+				{"id": "malmo", "display_name": "Malmöfubikkarna", "taken": false},
+				{"id": "vastervik", "display_name": "Västerviksjävlarna", "taken": false},
 			],
 		},
 		"staging",
@@ -217,8 +217,8 @@ func _test_pending_faction_preserved_on_poll() -> void:
 			"faction_id": "vastervik",
 			"ready": false,
 			"faction_choices": [
-				{"id": "malmo", "display_name": "Malmö", "taken": true},
-				{"id": "vastervik", "display_name": "Västervik", "taken": false},
+				{"id": "malmo", "display_name": "Malmöfubikkarna", "taken": true},
+				{"id": "vastervik", "display_name": "Västerviksjävlarna", "taken": false},
 			],
 		},
 		"staging",

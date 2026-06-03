@@ -497,3 +497,13 @@ Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_turn_own
 - [ ] Local hotseat: turn banners unchanged on every turn transition.
 
 Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_turn_banner.gd`**). **`smoke`** if **`main.gd`** boot/banner plumbing touched.
+
+## Slice C14d-4e — Staging civilization names & terminology (server + Godot)
+
+- [ ] Staging dropdown placeholder: **Choose civilization…** (or equivalent).
+- [ ] Choices show **Västerviksjävlarna**, **Malmöfubikkarna**, **Pajasarna från Paris** (ids **`vastervik`**, **`malmo`**, **`paris`** unchanged).
+- [ ] Other player’s read-only slot shows same canonical names from server.
+- [ ] Taken/validation messages say **civilization**, not **faction**.
+- [ ] No match_id, tokens, or server URL in normal staging labels.
+
+Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_faction_display_names_c14d4e.py`**); **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_staging_civ_terminology_c14d4e.gd`**, updated staging UI tests).

@@ -1,3 +1,9 @@
+## 2026-06-03 — Slice **C14d-4e** — Staging civilization terminology & display names
+
+- **Decision:** Player-facing staging term is **civilization/civ** (Godot labels/messages). Internal API/schema unchanged: **`faction_id`**, **`available_factions`**, **`faction_taken`**, etc. Server staging registry **`display_name`** values align with **`docs/FACTION_IDENTITY.md`** debug profiles: **`malmo`** → **Malmöfubikkarna**, **`vastervik`** → **Västerviksjävlarna**, **`paris`** → **Pajasarna från Paris** (not the short city names). Godot uses server **`display_name`** in dropdown/read-only slots (no local fallback drift).
+- **Tests:** server **`test_faction_display_names_c14d4e.py`**; Godot **`test_cloud_staging_civ_terminology_c14d4e.gd`** in slice **`c14d`**.
+- **Not in C14d-4e:** gameplay rules, Docker/Caddy, lifecycle, broad **`faction_*` field renames**.
+
 ## 2026-06-03 — Slice **C14d-3** — Godot staging UI + dual-token credential store
 
 - **Decision:** **Create Cloud Match** and **Join/Continue setup** route to **`cloud_staging.tscn`** (not **`main.tscn`**) until server **`status=ongoing`**. One credential store entry per **`(server_url, match_id)`** holds **`host_token`** (admin: rename) and **`seat_token`** (claim, faction, ready, gameplay) via **`merge_entry`** — claim must not overwrite host. Legacy rows with only **`seat_token`** field migrate **`ht_…` → host_token**, **`st_…` → seat_token**.

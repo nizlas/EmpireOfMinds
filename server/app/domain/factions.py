@@ -1,4 +1,8 @@
-"""Staging faction/civ registry (C14d-1). Metadata only — no gameplay effects."""
+"""Staging faction/civ registry (C14d-1). Metadata only — no gameplay effects.
+
+Player-facing term is civilization/civ; API field names remain faction_id (C14d-4e).
+Display names align with docs/FACTION_IDENTITY.md non-canonical debug profiles.
+"""
 
 from __future__ import annotations
 
@@ -8,10 +12,15 @@ FACTION_MALMO = "malmo"
 FACTION_VASTERVIK = "vastervik"
 FACTION_PARIS = "paris"
 
+# Canonical player-facing civilization names (stable ids unchanged).
+DISPLAY_MALMO = "Malmöfubikkarna"
+DISPLAY_VASTERVIK = "Västerviksjävlarna"
+DISPLAY_PARIS = "Pajasarna från Paris"
+
 _FACTIONS: dict[str, str] = {
-    FACTION_MALMO: "Malmö",
-    FACTION_VASTERVIK: "Västervik",
-    FACTION_PARIS: "Paris",
+    FACTION_MALMO: DISPLAY_MALMO,
+    FACTION_VASTERVIK: DISPLAY_VASTERVIK,
+    FACTION_PARIS: DISPLAY_PARIS,
 }
 
 

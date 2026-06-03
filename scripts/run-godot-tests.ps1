@@ -44,6 +44,7 @@ $Script:SliceTests = @{
 		"res://cloud/tests/test_cloud_turn_ownership_c14d4b.gd"
 		"res://cloud/tests/test_cloud_turn_ownership_c14d4c.gd"
 		"res://cloud/tests/test_cloud_turn_banner.gd"
+		"res://cloud/tests/test_cloud_staging_civ_terminology_c14d4e.gd"
 		"res://cloud/tests/test_cloud_credential_store.gd"
 		"res://cloud/tests/test_cloud_front_door_boot_intent.gd"
 		"res://cloud/tests/test_cloud_lobby_parsers.gd"

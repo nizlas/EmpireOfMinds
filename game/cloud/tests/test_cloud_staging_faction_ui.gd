@@ -54,9 +54,9 @@ func _check(cond, message: String) -> void:
 
 func _faction_choices_shuffled() -> Array:
 	return [
-		{"id": "paris", "display_name": "Paris", "taken": false},
-		{"id": "vastervik", "display_name": "Västervik", "taken": false},
-		{"id": "malmo", "display_name": "Malmö", "taken": false},
+		{"id": "paris", "display_name": "Pajasarna från Paris", "taken": false},
+		{"id": "vastervik", "display_name": "Västerviksjävlarna", "taken": false},
+		{"id": "malmo", "display_name": "Malmöfubikkarna", "taken": false},
 	]
 
 
@@ -67,9 +67,9 @@ func _unconfigured_summary() -> Dictionary:
 		"status": "staging",
 		"seats": [{"actor_id": 0, "claimed": true, "faction_id": null, "ready": false}],
 		"available_factions": [
-			{"id": "malmo", "display_name": "Malmö"},
-			{"id": "vastervik", "display_name": "Västervik"},
-			{"id": "paris", "display_name": "Paris"},
+			{"id": "malmo", "display_name": "Malmöfubikkarna"},
+			{"id": "vastervik", "display_name": "Västerviksjävlarna"},
+			{"id": "paris", "display_name": "Pajasarna från Paris"},
 		],
 	}
 
@@ -134,8 +134,8 @@ func _test_ready_response_renders_vastervik() -> void:
 			{"actor_id": 1, "claimed": true, "faction_id": "malmo", "ready": false},
 		],
 		"available_factions": [
-			{"id": "malmo", "display_name": "Malmö"},
-			{"id": "vastervik", "display_name": "Västervik"},
+			{"id": "malmo", "display_name": "Malmöfubikkarna"},
+			{"id": "vastervik", "display_name": "Västerviksjävlarna"},
 		],
 	}
 	var view: Dictionary = CloudStagingParsersScript.build_staging_view(summary, 0)
@@ -190,7 +190,7 @@ func _test_unready_and_ready_lock_controls() -> void:
 		"claimed": true,
 		"ready": true,
 		"faction_id": "vastervik",
-		"faction_choices": [{"id": "vastervik", "display_name": "Västervik", "taken": false}],
+		"faction_choices": [{"id": "vastervik", "display_name": "Västerviksjävlarna", "taken": false}],
 	}
 	var controls: Dictionary = CloudStagingParsersScript.build_my_slot_ui_controls(slot, "vastervik")
 	_check(not bool(controls.get("faction_dropdown_editable")), "locked when ready")
@@ -259,8 +259,8 @@ func _test_taken_faction_blocks_can_ready() -> void:
 		"ready": false,
 		"is_mine": true,
 		"faction_choices": [
-			{"id": "malmo", "display_name": "Malmö", "taken": false},
-			{"id": "paris", "display_name": "Paris", "taken": true},
+			{"id": "malmo", "display_name": "Malmöfubikkarna", "taken": false},
+			{"id": "paris", "display_name": "Pajasarna från Paris", "taken": true},
 		],
 	}
 	var state: RefCounted = _state_from_slot(slot)
@@ -389,8 +389,8 @@ func _test_own_faction_not_taken_by_self() -> void:
 		"ready": false,
 		"is_mine": true,
 		"faction_choices": [
-			{"id": "malmo", "display_name": "Malmö", "taken": false},
-			{"id": "vastervik", "display_name": "Västervik", "taken": true},
+			{"id": "malmo", "display_name": "Malmöfubikkarna", "taken": false},
+			{"id": "vastervik", "display_name": "Västerviksjävlarna", "taken": true},
 		],
 	}
 	var state: RefCounted = _state_from_slot(slot, 0)
@@ -541,7 +541,7 @@ func _test_symmetric_slot_layout_text() -> void:
 		"actor_id": 0,
 		"claimed": true,
 		"is_mine": true,
-		"faction_display": "Västervik",
+		"faction_display": "Västerviksjävlarna",
 		"ready": true,
 	}
 	var status_ready: String = CloudStagingParsersScript.slot_status_line(mine_ready, true)
@@ -550,12 +550,12 @@ func _test_symmetric_slot_layout_text() -> void:
 		not CloudStagingParsersScript.slot_status_combines_faction_and_ready(status_ready),
 		"no vastervik ready combined",
 	)
-	_check(status_ready != "Västervik — Ready", "status not combined string")
+	_check(status_ready != "Västerviksjävlarna — Ready", "status not combined string")
 	var other_not_ready: Dictionary = {
 		"actor_id": 1,
 		"claimed": true,
 		"is_mine": false,
-		"faction_display": "Malmö",
+		"faction_display": "Malmöfubikkarna",
 		"ready": false,
 	}
 	_check(
@@ -563,8 +563,8 @@ func _test_symmetric_slot_layout_text() -> void:
 		"other not ready status",
 	)
 	_check(
-		CloudStagingParsersScript.slot_readonly_faction_display_text(other_not_ready) == "Malmö",
-		"other readonly faction malmo",
+		CloudStagingParsersScript.slot_readonly_faction_display_text(other_not_ready) == "Malmöfubikkarna",
+		"other readonly civilization malmo",
 	)
 	_check(
 		not CloudStagingParsersScript.slot_faction_field_interactive(false, true),

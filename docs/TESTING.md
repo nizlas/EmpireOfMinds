@@ -96,8 +96,8 @@ Equivalent manual full run: `cd server` then `pytest -q`.
 - **cloud** — API/action flows: create match, move, end turn, found city, production, attack, combat rules, legal-actions, production/food/science ticks, snapshot v2, player visibility, seats / seat-token flow.
 - **slice c13a** — `test_seats.py`, `test_seat_token_flow.py`.
 - **slice c14b** — `test_lobby_list.py`, `test_seat_claim.py`, `test_seats.py`, `test_display_name.py`.
-- **slice c14d** (server) — `test_faction_select.py`, `test_seat_ready.py`, `test_auto_start.py`, `test_action_status_gate.py`, `test_seat_claim.py`, `test_seats.py`, `test_lobby_list.py`.
-- **slice c14d** (Godot) — `test_cloud_staging_c14d.gd`, `test_cloud_staging_faction_ui.gd`, `test_cloud_lobby_poll_c14d4a.gd`, `test_cloud_turn_ownership_c14d4b.gd`, `test_cloud_turn_ownership_c14d4c.gd`, `test_cloud_turn_banner.gd`, `test_cloud_credential_store.gd`, `test_cloud_front_door_boot_intent.gd`, `test_cloud_lobby_parsers.gd`.
+- **slice c14d** (server) — `test_faction_display_names_c14d4e.py`, `test_faction_select.py`, `test_seat_ready.py`, `test_auto_start.py`, `test_action_status_gate.py`, `test_seat_claim.py`, `test_seats.py`, `test_lobby_list.py`.
+- **slice c14d** (Godot) — `test_cloud_staging_c14d.gd`, `test_cloud_staging_faction_ui.gd`, `test_cloud_staging_civ_terminology_c14d4e.gd`, `test_cloud_lobby_poll_c14d4a.gd`, `test_cloud_turn_ownership_c14d4b.gd`, `test_cloud_turn_ownership_c14d4c.gd`, `test_cloud_turn_banner.gd`, `test_cloud_credential_store.gd`, `test_cloud_front_door_boot_intent.gd`, `test_cloud_lobby_parsers.gd`.
 - **slice c14d-dev** (Godot) — `test_cloud_credential_profile.gd` (**`EOM_CLOUD_PROFILE`** credential store paths; dev/test only).
 
 Unknown slice ids print supported ids and exit non-zero.
@@ -128,7 +128,7 @@ From the **repository root** (requires Godot console build; see script header fo
 - **slice c13a** — `test_cloud_seat_token.gd`.
 - **slice c14a** — `test_cloud_credential_store.gd`.
 - **slice c14c** — `test_cloud_lobby_parsers.gd`, `test_cloud_front_door_boot_intent.gd`, `test_main_cloud_boot_intent_reconnect.gd`, `test_cloud_match_labels.gd`, `test_cloud_display_name.gd`.
-- **slice c14d** (Godot) — `test_cloud_staging_c14d.gd`, `test_cloud_staging_faction_ui.gd`, `test_cloud_lobby_poll_c14d4a.gd`, `test_cloud_turn_ownership_c14d4b.gd`, `test_cloud_turn_ownership_c14d4c.gd`, `test_cloud_turn_banner.gd`, `test_cloud_credential_store.gd`, `test_cloud_front_door_boot_intent.gd`, `test_cloud_lobby_parsers.gd`.
+- **slice c14d** (Godot) — `test_cloud_staging_c14d.gd`, `test_cloud_staging_faction_ui.gd`, `test_cloud_staging_civ_terminology_c14d4e.gd`, `test_cloud_lobby_poll_c14d4a.gd`, `test_cloud_turn_ownership_c14d4b.gd`, `test_cloud_turn_ownership_c14d4c.gd`, `test_cloud_turn_banner.gd`, `test_cloud_credential_store.gd`, `test_cloud_front_door_boot_intent.gd`, `test_cloud_lobby_parsers.gd`.
 - **slice c14d-dev** (Godot) — `test_cloud_credential_profile.gd` (**`EOM_CLOUD_PROFILE`** credential store paths; dev/test only).
 
 ## Known noisy output (not hidden)

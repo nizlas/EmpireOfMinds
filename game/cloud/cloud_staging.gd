@@ -426,7 +426,7 @@ func _refresh_from_server(silent: bool = false) -> void:
 			_set_status("Could not refresh staging state. Will retry…")
 		else:
 			if err == "missing_available_factions":
-				_set_status("Server did not provide available factions.")
+				_set_status("Server did not provide available civilizations.")
 			else:
 				_set_status("Could not read staging state.")
 			_render_empty_slots()
@@ -456,7 +456,7 @@ func _apply_staging_view(view: Dictionary, lobby_row: Dictionary) -> void:
 		if bool(view.get("ready_to_start", false)):
 			_set_status("All players ready — waiting for server to start…")
 		else:
-			_set_status("Staging — claim a slot, choose a faction, then Ready.")
+			_set_status("Staging — claim a slot, choose a civilization, then Ready.")
 	else:
 		_set_status("Match status: %s" % status)
 	var slots: Array = view.get("slots", []) as Array
@@ -767,9 +767,9 @@ func _post_faction_for_slot(slot_index: int, faction_id: String) -> void:
 	if not bool(parsed.get("ok", false)):
 		var err: String = str(parsed.get("_error", "unknown"))
 		if err == "faction_taken":
-			_set_status("That faction is already taken — choose another.")
+			_set_status("That civilization is already taken — choose another.")
 		else:
-			_set_status("Faction failed: %s" % err)
+			_set_status("Civilization failed: %s" % err)
 		await _refresh_from_server(false)
 		return
 	var summary: Dictionary = parsed["summary"] as Dictionary
@@ -807,7 +807,7 @@ func _ensure_faction_saved_for_slot(slot_index: int, state: RefCounted) -> bool:
 	var plan: Dictionary = state.plan_ready_commit()
 	_debug_log_ready_commit(state, plan)
 	if not bool(plan.get("ok", false)):
-		_set_status("Choose a faction before Ready.")
+		_set_status("Choose a civilization before Ready.")
 		return false
 	if bool(plan.get("post_faction", false)):
 		await _post_faction_for_slot(slot_index, str(plan.get("faction_id", "")))

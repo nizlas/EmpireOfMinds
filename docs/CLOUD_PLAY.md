@@ -88,7 +88,7 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 - There is **no** “host starts match” button in normal UX.
 - Each player: **claims a seat → chooses an available faction/civ → presses Ready**.
 - When **all required seats** are **claimed + faction-selected + ready**, the **server** automatically transitions the match to **`ongoing`** and selects the first player. The host does **not** auto-start first.
-- **Alpha shape:** exactly **2 seats**; initial factions/civs **Malmö** and **Västervik** (add **Paris** if easy, otherwise treat as near-future).
+- **Alpha shape:** exactly **2 seats**; initial civilizations **Malmöfubikkarna** and **Västerviksjävlarna** (**Pajasarna från Paris** available in registry for 3-way staging tests).
 
 **4. Status model (prefer derived `ready_to_start`, not a separate `ready` status).**
 - **`status=staging`** — players can claim slots, choose faction/civ, ready/unready; in the **final** lifecycle, gameplay actions are **not** accepted while staging.
@@ -117,7 +117,7 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 
 ### Staging seat config — faction & ready (Slice C14d-1 — server-only)
 
-- **`meta.json` v2 (additive):** per-seat **`faction_id`** (default **`null`**), **`ready`** (default **`false`**), optional **`claimed_at`** / **`ready_at`**; match-level **`match_seed`** at create (for future deterministic first-player in C14d-2). Faction registry (lobby metadata only — **no** gameplay effects): **`malmo`** → Malmö, **`vastervik`** → Västervik, **`paris`** → Paris.
+- **`meta.json` v2 (additive):** per-seat **`faction_id`** (default **`null`**, internal field name — player-facing term is **civilization/civ**), **`ready`** (default **`false`**), optional **`claimed_at`** / **`ready_at`**; match-level **`match_seed`** at create (for future deterministic first-player in C14d-2). Staging civilization registry (lobby metadata only — **no** gameplay effects): **`malmo`** → **Malmöfubikkarna**, **`vastervik`** → **Västerviksjävlarna**, **`paris`** → **Pajasarna från Paris** (see **`docs/FACTION_IDENTITY.md`**).
 - **Lobby summaries** (`GET /v1/matches` and faction/ready POST responses): **`available_factions`**, per-seat **`faction_id`** / **`ready`**, derived **`ready_to_start`** (true while **`status=staging`** when every seat is claimed, has a faction, and **`ready=true`**). Still **no** tokens in summaries.
 - **`POST /v1/matches/{id}/seats/{actor_id}/faction`** — body **`{"faction_id":"malmo"}`**; **`POST …/ready`** — body **`{"ready":true}`** or **`false`**. Both require **`X-Empire-Seat-Token`** for **that** seat (**seat token only** — host token → **`invalid_seat_token`**). Return updated token-free lobby summary for that match.
 - **Rejects:** **`faction_unknown`**, **`faction_taken`**, **`seat_not_claimed`**, **`faction_required`** (ready without faction), **`match_not_in_staging`**, **`missing_seat_token`** / **`invalid_seat_token`** / **`seat_not_allowed`** (wrong seat token for path `actor_id`).
@@ -136,7 +136,7 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 
 - **Create Cloud Match** → **`cloud_staging.tscn`** (not direct gameplay). **Join** open staging match → staging. **Continue setup** (saved staging credential) → staging. **Resume match** (saved + server **`ongoing`** + **seat_token**) → **`main.tscn`** gameplay.
 - **Credentials (`user://cloud_matches.json`):** one row per **`(server_url, match_id)`** with **`host_token`** + **`seat_token`** (merge on claim; legacy single-token rows migrated). Rename uses **host**; claim/faction/ready/gameplay use **seat** only.
-- **Staging scene:** match title, status, **Refresh**, two seats — claim, faction picker from server **`available_factions`**, Ready/Unready. When server returns **`ongoing`**, client enters gameplay if **seat_token** is present.
+- **Staging scene:** match title, status, **Refresh**, two seats — claim, civilization picker from server **`available_factions`** (canonical **`display_name`** per id), Ready/Unready. When server returns **`ongoing`**, client enters gameplay if **seat_token** is present. **C14d-4e:** player-facing labels say **civilization/civ** (not faction); internal API fields remain **`faction_id`** / **`available_factions`**.
 - **UI:** no match_id, tokens, or server URL in normal labels. **C14d-4a:** front door polls **`GET /v1/matches`** every **2s**; staging polls every **1s** (no overlap; manual Refresh still available). **C14d-4b:** ongoing gameplay uses **seat `actor_id`** vs snapshot **`turn_state.current_index`** — out-of-turn clients stay on the map (pan/zoom) with small **“Other player’s turn”** under top-right player chips; actions blocked; **`R`** refreshes match snapshot. **C14d-4c:** fog/presentation use **local seat `actor_id`** (not current player); waiting clients poll **`GET` match** every **2s** until their turn. No polling while it is your turn. **C14d-4d:** large **“Your turn …”** scroll banner only when **local `actor_id` == new current player** (not on every turn change in every window). Local hotseat unchanged.
 - **Not in C14d-3:** waiting-on-opponent UX (C14d-4), server changes (requires C14d-1/C14d-2 deployed on target server).
 

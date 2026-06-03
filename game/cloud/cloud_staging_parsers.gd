@@ -7,7 +7,7 @@ const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.g
 const EXPECTED_SLOT_COUNT: int = 2
 const STATUS_STAGING: String = CloudCredentialStoreScript.STATUS_STAGING
 const STATUS_ONGOING: String = "ongoing"
-const DROPDOWN_PLACEHOLDER_LABEL: String = "Choose faction…"
+const DROPDOWN_PLACEHOLDER_LABEL: String = "Choose civilization…"
 const DROPDOWN_PLACEHOLDER_INDEX: int = 0
 
 
@@ -350,14 +350,14 @@ static func build_my_slot_ui_controls(slot: Dictionary, selected_faction_id: Str
 
 static func staging_user_visible_messages() -> Array:
 	return [
-		"Staging — claim a slot, choose a faction, then Ready.",
+		"Staging — claim a slot, choose a civilization, then Ready.",
 		"All players ready — waiting for server to start…",
-		"Choose a faction before Ready.",
-		"That faction is already taken — choose another.",
+		"Choose a civilization before Ready.",
+		"That civilization is already taken — choose another.",
 		"Claim a slot before entering the match.",
 		"Choose a player slot before entering the match.",
 		"Loading staging state…",
-		"Saving faction…",
+		"Saving civilization…",
 		"Marking ready…",
 		"Marking not ready…",
 	]
@@ -570,7 +570,7 @@ static func slot_ui_text_has_no_secrets(header: String, status: String) -> bool:
 
 static func slot_status_has_redundant_choose_instruction(status: String) -> bool:
 	var lower: String = str(status).to_lower()
-	return lower.contains("choose a faction") or lower.begins_with("your slot")
+	return lower.contains("choose a civilization") or lower.begins_with("your slot")
 
 
 static func open_staging_row_text(lobby_row: Dictionary) -> String:

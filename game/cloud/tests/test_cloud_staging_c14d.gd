@@ -172,9 +172,9 @@ func _test_staging_view_two_slots() -> void:
 			{"actor_id": 1, "claimed": false, "faction_id": null, "ready": false},
 		],
 		"available_factions": [
-			{"id": "malmo", "display_name": "Malmö"},
-			{"id": "vastervik", "display_name": "Västervik"},
-			{"id": "paris", "display_name": "Paris"},
+			{"id": "malmo", "display_name": "Malmöfubikkarna"},
+			{"id": "vastervik", "display_name": "Västerviksjävlarna"},
+			{"id": "paris", "display_name": "Pajasarna från Paris"},
 		],
 	}
 	var view_mine: Dictionary = CloudStagingParsersScript.build_staging_view(lobby_row, 0)
