@@ -50,12 +50,49 @@ static func option_index_for_faction_id(faction_choices: Array, faction_id) -> i
 
 
 static func faction_id_for_choice_index(faction_choices: Array, choice_index: int) -> String:
-	if choice_index < 0 or choice_index >= faction_choices.size():
+	return faction_id_for_dropdown_option_index(faction_choices, choice_index)
+
+
+static func faction_id_for_dropdown_option_index(faction_choices: Array, option_index: int) -> String:
+	if option_index < 0:
 		return ""
-	var row = faction_choices[choice_index]
-	if typeof(row) != TYPE_DICTIONARY:
-		return ""
-	return str((row as Dictionary).get("id", "")).strip_edges()
+	var seen: int = 0
+	var i: int = 0
+	while i < faction_choices.size():
+		var row = faction_choices[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		if seen == option_index:
+			return str((row as Dictionary).get("id", "")).strip_edges()
+		seen += 1
+	return ""
+
+
+static func dropdown_option_index_for_faction_id(faction_choices: Array, faction_id) -> int:
+	var fid: String = normalize_seat_faction_id(faction_id)
+	if fid.is_empty():
+		return -1
+	var seen: int = 0
+	var i: int = 0
+	while i < faction_choices.size():
+		var row = faction_choices[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		if str((row as Dictionary).get("id", "")).strip_edges() == fid:
+			return seen
+		seen += 1
+	return -1
+
+
+static func ready_enabled_after_dropdown_select(
+	server_faction_id,
+	faction_choices: Array,
+	option_index: int,
+) -> bool:
+	var selected_fid: String = faction_id_for_dropdown_option_index(faction_choices, option_index)
+	return can_press_ready(server_faction_id, selected_fid)
 
 
 static func build_faction_post_body(faction_id: String) -> Dictionary:
@@ -66,13 +103,13 @@ static func build_ready_post_body(ready: bool) -> Dictionary:
 	return {"ready": bool(ready)}
 
 
-static func can_press_ready(server_faction_id: String, selected_faction_id: String) -> bool:
+static func can_press_ready(server_faction_id, selected_faction_id) -> bool:
 	var server_fid: String = normalize_seat_faction_id(server_faction_id)
 	var selected_fid: String = normalize_seat_faction_id(selected_faction_id)
 	return not server_fid.is_empty() or not selected_fid.is_empty()
 
 
-static func plan_ready_commit(server_faction_id: String, selected_faction_id: String) -> Dictionary:
+static func plan_ready_commit(server_faction_id, selected_faction_id) -> Dictionary:
 	var server_fid: String = normalize_seat_faction_id(server_faction_id)
 	var selected_fid: String = normalize_seat_faction_id(selected_faction_id)
 	if selected_fid.is_empty() and server_fid.is_empty():

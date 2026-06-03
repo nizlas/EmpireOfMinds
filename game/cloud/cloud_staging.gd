@@ -165,13 +165,28 @@ func _slot_faction_option(panel: PanelContainer) -> OptionButton:
 	return faction_row.get_node("FactionOption") as OptionButton
 
 
-func _faction_id_from_option(faction_opt: OptionButton) -> String:
+func _faction_id_from_option_index(faction_opt: OptionButton, option_index: int) -> String:
 	if faction_opt == null or faction_opt.item_count < 1:
 		return ""
-	var idx: int = faction_opt.selected
-	if idx < 0 or idx >= faction_opt.item_count:
+	if option_index < 0 or option_index >= faction_opt.item_count:
 		return ""
-	return str(faction_opt.get_item_metadata(idx)).strip_edges()
+	var meta = faction_opt.get_item_metadata(option_index)
+	if meta == null:
+		return ""
+	return str(meta).strip_edges()
+
+
+func _faction_id_from_option(faction_opt: OptionButton) -> String:
+	if faction_opt == null:
+		return ""
+	return _faction_id_from_option_index(faction_opt, faction_opt.selected)
+
+
+func _pending_faction_id_for_panel(panel: PanelContainer, faction_opt: OptionButton) -> String:
+	var pending: String = str(panel.get_meta("pending_faction_id", "")).strip_edges()
+	if not pending.is_empty():
+		return pending
+	return _faction_id_from_option(faction_opt)
 
 
 func _faction_display_from_option(faction_opt: OptionButton) -> String:
@@ -180,21 +195,23 @@ func _faction_display_from_option(faction_opt: OptionButton) -> String:
 	return faction_opt.get_item_text(faction_opt.selected)
 
 
-func _debug_log_faction_selected(slot_index: int, faction_opt: OptionButton) -> void:
+func _debug_log_faction_selected(
+	slot_index: int,
+	faction_opt: OptionButton,
+	option_index: int,
+	faction_id: String,
+) -> void:
 	if not _staging_debug_enabled():
 		return
+	var display_name: String = ""
+	if option_index >= 0 and option_index < faction_opt.item_count:
+		display_name = faction_opt.get_item_text(option_index)
 	print(
 		(
 			"SliceC14d3 staging_faction_selected match_id=%s actor_id=%d slot=%d "
-			+ "display_name=%s faction_id=%s"
+			+ "option_index=%d display_name=%s faction_id=%s"
 		)
-		% [
-			_match_id,
-			_local_actor_id,
-			slot_index,
-			_faction_display_from_option(faction_opt),
-			_faction_id_from_option(faction_opt),
-		]
+		% [_match_id, _local_actor_id, slot_index, option_index, display_name, faction_id]
 	)
 
 
@@ -357,14 +374,15 @@ func _render_slot(panel: PanelContainer, slot: Dictionary) -> void:
 		faction_opt.add_item(label)
 		faction_opt.set_item_metadata(item_idx, fid)
 		faction_opt.set_item_disabled(item_idx, bool(cd.get("taken", false)))
-	var sel_idx: int = CloudStagingParsersScript.option_index_for_faction_id(choices, server_fid)
+	var sel_idx: int = CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, server_fid)
 	if sel_idx >= 0:
 		faction_opt.select(sel_idx)
 	else:
 		faction_opt.select(-1)
 	panel.set_meta("suppress_faction_signal", false)
+	panel.set_meta("pending_faction_id", server_fid if not server_fid.is_empty() else "")
 	faction_opt.disabled = is_ready or faction_opt.item_count == 0
-	var pending_fid: String = _faction_id_from_option(faction_opt)
+	var pending_fid: String = _pending_faction_id_for_panel(panel, faction_opt)
 	ready_btn.visible = is_mine and claimed and not is_ready
 	unready_btn.visible = is_mine and claimed and is_ready
 	ready_btn.disabled = not CloudStagingParsersScript.can_press_ready(server_fid, pending_fid)
@@ -401,7 +419,7 @@ func _on_claim_pressed(slot_index: int) -> void:
 	await _refresh_from_server()
 
 
-func _on_faction_option_selected(slot_index: int, _item_index: int) -> void:
+func _on_faction_option_selected(slot_index: int, item_index: int) -> void:
 	if _busy or _local_actor_id < 0 or slot_index != _local_actor_id:
 		return
 	var panel: PanelContainer = _slot_panels[slot_index] as PanelContainer
@@ -410,17 +428,21 @@ func _on_faction_option_selected(slot_index: int, _item_index: int) -> void:
 	var faction_opt: OptionButton = _slot_faction_option(panel)
 	if faction_opt.disabled:
 		return
-	_debug_log_faction_selected(slot_index, faction_opt)
-	_sync_ready_button_for_panel(panel)
+	var selected_fid: String = _faction_id_from_option_index(faction_opt, item_index)
+	panel.set_meta("pending_faction_id", selected_fid)
+	_debug_log_faction_selected(slot_index, faction_opt, item_index, selected_fid)
+	_sync_ready_button_for_panel(panel, selected_fid)
 
 
-func _sync_ready_button_for_panel(panel: PanelContainer) -> void:
+func _sync_ready_button_for_panel(panel: PanelContainer, selected_faction_id: String = "") -> void:
 	var vb: VBoxContainer = (panel.get_child(0) as MarginContainer).get_child(0) as VBoxContainer
 	var ready_row: HBoxContainer = vb.get_node("ReadyRow") as HBoxContainer
 	var ready_btn: Button = ready_row.get_node("ReadyBtn") as Button
 	var faction_opt: OptionButton = _slot_faction_option(panel)
 	var server_fid: String = str(panel.get_meta("server_faction_id", "")).strip_edges()
-	var pending_fid: String = _faction_id_from_option(faction_opt)
+	var pending_fid: String = str(selected_faction_id).strip_edges()
+	if pending_fid.is_empty():
+		pending_fid = _pending_faction_id_for_panel(panel, faction_opt)
 	ready_btn.disabled = not CloudStagingParsersScript.can_press_ready(server_fid, pending_fid)
 
 
@@ -478,7 +500,7 @@ func _on_ready_pressed(slot_index: int, ready: bool) -> void:
 func _ensure_faction_saved_for_slot(slot_index: int) -> bool:
 	var panel: PanelContainer = _slot_panels[slot_index] as PanelContainer
 	var faction_opt: OptionButton = _slot_faction_option(panel)
-	var pending: String = _faction_id_from_option(faction_opt)
+	var pending: String = _pending_faction_id_for_panel(panel, faction_opt)
 	var server_fid: String = str(panel.get_meta("server_faction_id", "")).strip_edges()
 	var plan: Dictionary = CloudStagingParsersScript.plan_ready_commit(server_fid, pending)
 	if not bool(plan.get("ok", false)):
