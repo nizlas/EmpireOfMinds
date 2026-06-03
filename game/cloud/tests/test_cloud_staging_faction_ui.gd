@@ -27,6 +27,8 @@ func _init() -> void:
 	_test_option_button_set_block_signals_api()
 	_test_dropdown_bounds_and_apply_selection()
 	_test_non_owned_slot_selection_ignored()
+	_test_ready_enable_chain_after_claim()
+	_test_own_faction_not_taken_by_self()
 	_test_placeholder_dropdown_mapping()
 	_test_first_selection_from_empty_placeholder()
 	_test_render_preserves_pending_then_user_select()
@@ -75,8 +77,8 @@ func _unconfigured_slot_view() -> Dictionary:
 	return (view["slots"] as Array)[0] as Dictionary
 
 
-func _state_from_slot(slot: Dictionary) -> RefCounted:
-	return SlotStateScript.from_slot_view(slot, "staging")
+func _state_from_slot(slot: Dictionary, local_actor_id: int = 0) -> RefCounted:
+	return SlotStateScript.from_slot_view(slot, "staging", local_actor_id)
 
 
 func _test_option_index_by_id_not_display_order() -> void:
@@ -324,6 +326,79 @@ func _test_dropdown_bounds_and_apply_selection() -> void:
 		true,
 	)
 	_check(apply_p.get("faction_id") == "paris", "paris index 3")
+
+
+func _test_ready_enable_chain_after_claim() -> void:
+	var slot0: Dictionary = _unconfigured_slot_view()
+	for fid in ["malmo", "vastervik", "paris"]:
+		var state: RefCounted = _state_from_slot(slot0, 0)
+		_check(state.owned_by_me, "owned after claim actor 0")
+		var idx: int = CloudStagingParsersScript.dropdown_option_index_for_faction_id(
+			state.faction_choices,
+			fid,
+			true,
+		)
+		var apply: Dictionary = CloudStagingParsersScript.apply_faction_dropdown_selection(
+			state.owned_by_me,
+			0,
+			0,
+			idx,
+			state.faction_choices,
+			true,
+		)
+		_check(bool(apply.get("apply")), "apply %s" % fid)
+		state.pending_faction_id = str(apply.get("faction_id", ""))
+		state.recompute_can_ready()
+		var dbg: Dictionary = CloudStagingParsersScript.ready_enable_debug(
+			state.owned_by_me,
+			state.match_staging,
+			state.ready,
+			state.pending_faction_id,
+			state.faction_choices,
+		)
+		_check(bool(dbg.get("can_ready")), "can_ready %s" % fid)
+		_check(not bool(dbg.get("taken")), "not taken %s" % fid)
+	var other_slot: Dictionary = {
+		"actor_id": 1,
+		"claimed": true,
+		"faction_id": null,
+		"ready": false,
+		"is_mine": false,
+		"faction_choices": slot0["faction_choices"],
+	}
+	var other_state: RefCounted = _state_from_slot(other_slot, 0)
+	_check(not other_state.owned_by_me, "other slot not owned")
+	var denied_apply: Dictionary = CloudStagingParsersScript.apply_faction_dropdown_selection(
+		false,
+		1,
+		0,
+		2,
+		other_state.faction_choices,
+		true,
+	)
+	_check(not bool(denied_apply.get("apply")), "other slot apply denied")
+
+
+func _test_own_faction_not_taken_by_self() -> void:
+	var slot: Dictionary = {
+		"actor_id": 0,
+		"claimed": true,
+		"faction_id": "malmo",
+		"ready": false,
+		"is_mine": true,
+		"faction_choices": [
+			{"id": "malmo", "display_name": "Malmö", "taken": false},
+			{"id": "vastervik", "display_name": "Västervik", "taken": true},
+		],
+	}
+	var state: RefCounted = _state_from_slot(slot, 0)
+	_check(
+		not CloudStagingParsersScript.is_faction_taken_for_me("malmo", state.faction_choices),
+		"own malmo not taken",
+	)
+	state.pending_faction_id = "malmo"
+	state.recompute_can_ready()
+	_check(state.can_ready, "can ready with own malmo pending")
 
 
 func _test_non_owned_slot_selection_ignored() -> void:

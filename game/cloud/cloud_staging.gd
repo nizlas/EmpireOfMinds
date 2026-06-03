@@ -132,7 +132,10 @@ func _make_slot_panel(slot_index: int) -> PanelContainer:
 	faction_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	faction_row.add_child(faction_opt)
 	faction_opt.set_meta("panel_slot_index", slot_index)
-	faction_opt.item_selected.connect(_on_faction_option_selected_from_emitter.bind(faction_opt))
+	faction_opt.item_selected.connect(
+		func(dropdown_index: int) -> void:
+			_on_faction_dropdown_changed(panel, dropdown_index)
+	)
 	vb.add_child(faction_row)
 	var ready_row := HBoxContainer.new()
 	ready_row.name = "ReadyRow"
@@ -252,29 +255,34 @@ func _debug_log_faction_dropdown_selected(
 	)
 
 
-func _debug_log_ready_button_state(state: RefCounted, ready_btn: Button) -> void:
+func _debug_log_ready_button_state(state: RefCounted, ready_btn: Button, source: String = "") -> void:
 	if not _staging_debug_enabled() or state == null:
 		return
-	var pending: String = state.pending_faction_id
-	var valid: bool = CloudStagingParsersScript.is_valid_available_faction(pending, state.faction_choices)
-	var taken: bool = CloudStagingParsersScript.is_faction_taken_for_me(pending, state.faction_choices)
+	var dbg: Dictionary = CloudStagingParsersScript.ready_enable_debug(
+		state.owned_by_me,
+		state.match_staging,
+		state.ready,
+		state.pending_faction_id,
+		state.faction_choices,
+	)
 	var ready_disabled: bool = ready_btn.disabled if ready_btn != null else true
 	print(
 		(
-			"SliceC14d3 ready_button_state actor_id=%d owned_by_me=%s match_staging=%s ready=%s "
+			"SliceC14d3 ready_button_state source=%s actor_id=%d owned_by_me=%s match_staging=%s ready=%s "
 			+ "server_faction_id=%s pending_faction_id=%s valid_faction=%s taken=%s "
 			+ "can_ready=%s ready_disabled=%s"
 		)
 		% [
+			source,
 			state.actor_id,
-			str(state.owned_by_me),
-			str(state.match_staging),
-			str(state.ready),
+			str(dbg.get("owned_by_me", false)),
+			str(dbg.get("match_staging", false)),
+			str(dbg.get("ready", false)),
 			state.server_faction_id,
-			pending,
-			str(valid),
-			str(taken),
-			str(state.can_ready),
+			str(dbg.get("pending_faction_id", "")),
+			str(dbg.get("valid_faction", false)),
+			str(dbg.get("taken", false)),
+			str(dbg.get("can_ready", false)),
 			str(ready_disabled),
 		]
 	)
@@ -395,10 +403,11 @@ func _apply_staging_view(view: Dictionary, lobby_row: Dictionary) -> void:
 	var i: int = 0
 	while i < _slot_panels.size() and i < slots.size():
 		var slot: Dictionary = slots[i] as Dictionary
-		_slot_states[i] = SlotStateScript.from_slot_view(slot, status)
+		_slot_states[i] = SlotStateScript.from_slot_view(slot, status, _local_actor_id)
 		_render_slot(_slot_panels[i] as PanelContainer, slot, _slot_states[i] as RefCounted)
 		i += 1
 	_is_rendering_slots = false
+	_debug_log_staging_slots_snapshot("after_refresh")
 
 
 func _render_slot(panel: PanelContainer, slot: Dictionary, state: RefCounted) -> void:
@@ -486,7 +495,68 @@ func _apply_ready_controls(ready_btn: Button, unready_btn: Button, state: RefCou
 	unready_btn.visible = show_mine and state.ready
 	ready_btn.disabled = not state.can_ready
 	unready_btn.disabled = not state.ready
-	_debug_log_ready_button_state(state, ready_btn)
+	_debug_log_ready_button_state(state, ready_btn, "apply_ready_controls")
+
+
+func _debug_log_staging_slots_snapshot(label: String) -> void:
+	if not _staging_debug_enabled():
+		return
+	var has_seat: String = "yes" if not _seat_token.is_empty() else "no"
+	print(
+		"SliceC14d3 staging_snapshot_%s local_actor_id=%d has_seat_token=%s match_status=%s"
+		% [label, _local_actor_id, has_seat, _match_status]
+	)
+	var i: int = 0
+	while i < _slot_states.size():
+		var state: RefCounted = _slot_states[i] as RefCounted
+		if state == null:
+			i += 1
+			continue
+		var panel: PanelContainer = _slot_panels[i] as PanelContainer
+		var ready_disabled: bool = true
+		if panel != null:
+			var vb: VBoxContainer = (panel.get_child(0) as MarginContainer).get_child(0) as VBoxContainer
+			var ready_btn: Button = (vb.get_node("ReadyRow") as HBoxContainer).get_node("ReadyBtn") as Button
+			ready_disabled = ready_btn.disabled
+		var dbg: Dictionary = CloudStagingParsersScript.ready_enable_debug(
+			state.owned_by_me,
+			state.match_staging,
+			state.ready,
+			state.pending_faction_id,
+			state.faction_choices,
+		)
+		var taken_ids: Array = []
+		var ci: int = 0
+		while ci < state.faction_choices.size():
+			var ch = state.faction_choices[ci]
+			ci += 1
+			if typeof(ch) != TYPE_DICTIONARY:
+				continue
+			var cd: Dictionary = ch as Dictionary
+			if bool(cd.get("taken", false)):
+				taken_ids.append(str(cd.get("id", "")))
+		print(
+			(
+				"SliceC14d3 staging_snapshot_%s slot=%d actor_id=%d owned_by_me=%s "
+				+ "server_faction_id=%s pending_faction_id=%s ready=%s match_staging=%s "
+				+ "faction_ids=%s taken_ids=%s can_ready=%s ready_disabled=%s"
+			)
+			% [
+				label,
+				i,
+				state.actor_id,
+				str(state.owned_by_me),
+				state.server_faction_id,
+				state.pending_faction_id,
+				str(state.ready),
+				str(state.match_staging),
+				str(CloudStagingParsersScript.dropdown_option_ids_for_debug(state.faction_choices, true)),
+				str(taken_ids),
+				str(dbg.get("can_ready", false)),
+				str(ready_disabled),
+			]
+		)
+		i += 1
 
 
 func _on_claim_pressed(slot_index: int) -> void:
@@ -517,41 +587,46 @@ func _on_claim_pressed(slot_index: int) -> void:
 		str(parsed.get("display_name", "")),
 	)
 	await _refresh_from_server()
+	_debug_log_staging_slots_snapshot("after_claim")
 
 
-func _on_faction_option_selected_from_emitter(faction_opt: OptionButton, dropdown_index: int) -> void:
+func _on_faction_dropdown_changed(panel: PanelContainer, dropdown_index: int) -> void:
+	if panel == null:
+		return
+	var panel_slot_index: int = int(panel.get_meta("slot_index", -1))
+	var faction_opt: OptionButton = _slot_faction_option(panel)
 	var actor_id: int = _actor_id_from_faction_option(faction_opt)
+	if actor_id < 0:
+		actor_id = panel_slot_index
 	var state: RefCounted = _slot_state_for_actor(actor_id)
-	var choices_size: int = 0
-	if state != null:
-		choices_size = (state.faction_choices as Array).size()
-	if _staging_debug_enabled():
-		print(
-			(
-				"SliceC14d3 faction_dropdown_event emitter=%s resolved_actor_id=%d "
-				+ "dropdown_index=%d choices_size=%d placeholder=true is_rendering=%s"
-			)
-			% [
-				faction_opt.name if faction_opt != null else "",
-				actor_id,
-				dropdown_index,
-				choices_size,
-				str(_is_rendering_slots),
-			]
-		)
 	if _is_rendering_slots:
+		if _staging_debug_enabled():
+			print(
+				"SliceC14d3 faction_dropdown_event IGNORED is_rendering actor_id=%d dropdown_index=%d"
+				% [actor_id, dropdown_index]
+			)
 		return
 	if actor_id < 0 or actor_id >= _slot_panels.size() or state == null:
 		if _staging_debug_enabled():
-			print("SliceC14d3 faction_dropdown_event IGNORED invalid_actor actor_id=%d" % actor_id)
+			print(
+				"SliceC14d3 faction_dropdown_event IGNORED invalid_actor actor_id=%d dropdown_index=%d"
+				% [actor_id, dropdown_index]
+			)
 		return
-	var panel: PanelContainer = _slot_panels[actor_id] as PanelContainer
 	var vb: VBoxContainer = (panel.get_child(0) as MarginContainer).get_child(0) as VBoxContainer
 	var ready_row: HBoxContainer = vb.get_node("ReadyRow") as HBoxContainer
 	var ready_btn: Button = ready_row.get_node("ReadyBtn") as Button
 	var unready_btn: Button = ready_row.get_node("UnreadyBtn") as Button
 	if faction_opt == null or faction_opt.disabled:
 		return
+	var pending_before: String = state.pending_faction_id
+	var dbg_before: Dictionary = CloudStagingParsersScript.ready_enable_debug(
+		state.owned_by_me,
+		state.match_staging,
+		state.ready,
+		pending_before,
+		state.faction_choices,
+	)
 	var apply_result: Dictionary = CloudStagingParsersScript.apply_faction_dropdown_selection(
 		state.owned_by_me,
 		actor_id,
@@ -560,19 +635,34 @@ func _on_faction_option_selected_from_emitter(faction_opt: OptionButton, dropdow
 		state.faction_choices,
 		true,
 	)
-	if not bool(apply_result.get("apply", false)):
-		if _staging_debug_enabled():
-			print(
-				"SliceC14d3 faction_dropdown_event IGNORED reason=%s actor_id=%d owned_by_me=%s"
-				% [str(apply_result.get("reason", "")), actor_id, str(state.owned_by_me)]
+	var faction_id: String = str(apply_result.get("faction_id", "")).strip_edges()
+	if _staging_debug_enabled():
+		print(
+			(
+				"SliceC14d3 faction_dropdown_event emitter=%s panel_slot=%d resolved_actor_id=%d "
+				+ "local_actor_id=%d dropdown_index=%d apply=%s reason=%s faction_id=%s "
+				+ "owned_by_me=%s valid_before=%s taken_before=%s can_ready_before=%s"
 			)
+			% [
+				faction_opt.name,
+				panel_slot_index,
+				actor_id,
+				_local_actor_id,
+				dropdown_index,
+				str(apply_result.get("apply", false)),
+				str(apply_result.get("reason", "")),
+				faction_id,
+				str(state.owned_by_me),
+				str(dbg_before.get("valid_faction", false)),
+				str(dbg_before.get("taken", false)),
+				str(dbg_before.get("can_ready", false)),
+			]
+		)
+	if not bool(apply_result.get("apply", false)):
 		return
 	if _busy or state.ready:
 		return
-	var pending_before: String = state.pending_faction_id
-	var can_ready_before: bool = state.can_ready
 	var ready_disabled_before: bool = ready_btn.disabled
-	var faction_id: String = str(apply_result.get("faction_id", "")).strip_edges()
 	state.pending_faction_id = faction_id
 	state.recompute_can_ready()
 	_debug_log_faction_dropdown_selected(
@@ -580,12 +670,12 @@ func _on_faction_option_selected_from_emitter(faction_opt: OptionButton, dropdow
 		dropdown_index,
 		faction_id,
 		pending_before,
-		can_ready_before,
+		bool(dbg_before.get("can_ready", false)),
 		ready_disabled_before,
 		state,
 		ready_btn,
 	)
-	_apply_ready_controls(ready_btn, unready_btn, state, true)
+	_apply_ready_controls(ready_btn, unready_btn, state, state.owned_by_me)
 
 
 func _post_faction_for_slot(slot_index: int, faction_id: String) -> void:

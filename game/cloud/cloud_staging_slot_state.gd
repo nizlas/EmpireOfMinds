@@ -14,15 +14,17 @@ var faction_choices: Array = []
 var can_ready: bool = false
 
 
-static func from_slot_view(slot: Dictionary, match_status: String) -> RefCounted:
+static func from_slot_view(slot: Dictionary, match_status: String, local_actor_id: int = -1) -> RefCounted:
 	var state: RefCounted = load("res://cloud/cloud_staging_slot_state.gd").new()
-	state.sync_from_server_slot(slot, match_status)
+	state.sync_from_server_slot(slot, match_status, local_actor_id)
 	return state
 
 
-func sync_from_server_slot(slot: Dictionary, match_status: String) -> void:
+func sync_from_server_slot(slot: Dictionary, match_status: String, local_actor_id: int = -1) -> void:
 	actor_id = int(slot.get("actor_id", -1))
 	owned_by_me = bool(slot.get("is_mine", false))
+	if local_actor_id >= 0:
+		owned_by_me = actor_id == local_actor_id
 	ready = bool(slot.get("ready", false))
 	server_faction_id = ParsersScript.normalize_seat_faction_id(slot.get("faction_id"))
 	match_staging = str(match_status).strip_edges() == ParsersScript.STATUS_STAGING

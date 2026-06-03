@@ -140,12 +140,43 @@ static func apply_faction_dropdown_selection(
 ) -> Dictionary:
 	if actor_id < 0 or actor_id >= EXPECTED_SLOT_COUNT:
 		return {"apply": false, "reason": "invalid_actor", "faction_id": ""}
-	if not owned_by_me or local_actor_id < 0 or actor_id != local_actor_id:
+	if not owned_by_me:
 		return {"apply": false, "reason": "not_owned", "faction_id": ""}
+	if local_actor_id >= 0 and actor_id != local_actor_id:
+		return {"apply": false, "reason": "wrong_actor", "faction_id": ""}
 	if not is_valid_dropdown_option_index(faction_choices, dropdown_index, with_placeholder):
 		return {"apply": false, "reason": "invalid_index", "faction_id": ""}
 	var fid: String = faction_id_for_dropdown_option_index(faction_choices, dropdown_index, with_placeholder)
+	if fid.is_empty():
+		return {"apply": false, "reason": "placeholder", "faction_id": ""}
 	return {"apply": true, "reason": "ok", "faction_id": fid}
+
+
+static func ready_enable_debug(
+	owned_by_me: bool,
+	match_staging: bool,
+	seat_ready: bool,
+	pending_faction_id,
+	faction_choices: Array,
+) -> Dictionary:
+	var pending: String = normalize_seat_faction_id(pending_faction_id)
+	var valid: bool = is_valid_available_faction(pending, faction_choices)
+	var taken: bool = is_faction_taken_for_me(pending, faction_choices) if not pending.is_empty() else false
+	return {
+		"owned_by_me": owned_by_me,
+		"match_staging": match_staging,
+		"ready": seat_ready,
+		"pending_faction_id": pending,
+		"valid_faction": valid,
+		"taken": taken,
+		"can_ready": compute_slot_can_ready(
+			owned_by_me,
+			match_staging,
+			seat_ready,
+			pending,
+			faction_choices,
+		),
+	}
 
 
 static func dropdown_option_index_for_faction_id(
@@ -180,7 +211,7 @@ static func ready_enabled_after_dropdown_select(
 	faction_choices: Array,
 	option_index: int,
 ) -> bool:
-	var pending: String = faction_id_for_dropdown_option_index(faction_choices, option_index)
+	var pending: String = faction_id_for_dropdown_option_index(faction_choices, option_index, true)
 	return compute_slot_can_ready(true, true, false, pending, faction_choices)
 
 
@@ -229,7 +260,7 @@ static func is_faction_taken_for_me(faction_id: String, faction_choices: Array) 
 		var d: Dictionary = row as Dictionary
 		if str(d.get("id", "")).strip_edges() == fid:
 			return bool(d.get("taken", false))
-	return true
+	return false
 
 
 static func faction_display_name_from_pending(faction_choices: Array, pending_faction_id: String) -> String:
