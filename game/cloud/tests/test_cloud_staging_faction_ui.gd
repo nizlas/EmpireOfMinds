@@ -24,6 +24,10 @@ func _init() -> void:
 	_test_ready_commit_uses_pending_not_widget()
 	_test_taken_faction_blocks_can_ready()
 	_test_plan_ready_null_server_vastervik()
+	_test_placeholder_dropdown_mapping()
+	_test_first_selection_from_empty_placeholder()
+	_test_render_preserves_pending_then_user_select()
+	_test_sync_does_not_clear_user_pending_without_server_change()
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:
@@ -75,24 +79,25 @@ func _state_from_slot(slot: Dictionary) -> RefCounted:
 func _test_option_index_by_id_not_display_order() -> void:
 	var choices: Array = _faction_choices_shuffled()
 	_check(
-		CloudStagingParsersScript.option_index_for_faction_id(choices, "vastervik") == 1,
-		"vastervik index by id",
+		CloudStagingParsersScript.faction_choice_index_for_faction_id(choices, "vastervik") == 1,
+		"vastervik choice index by id",
 	)
 	_check(
-		CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, "malmo") == 2,
-		"malmo dropdown index not zero when shuffled",
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, "malmo", true) == 3,
+		"malmo dropdown index with placeholder offset",
 	)
 	_check(
-		CloudStagingParsersScript.faction_id_for_dropdown_option_index(choices, 1) == "vastervik",
-		"dropdown index 1 id",
+		CloudStagingParsersScript.faction_id_for_dropdown_option_index(choices, 2, true) == "vastervik",
+		"dropdown index 2 maps vastervik",
 	)
 
 
 func _test_null_faction_id_no_default_index() -> void:
 	var choices: Array = _faction_choices_shuffled()
 	_check(
-		CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, "") == -1,
-		"empty faction no dropdown index",
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, "", true)
+		== CloudStagingParsersScript.DROPDOWN_PLACEHOLDER_INDEX,
+		"empty faction maps to placeholder index",
 	)
 	_check(
 		CloudStagingParsersScript.normalize_seat_faction_id(null).is_empty(),
@@ -131,7 +136,15 @@ func _test_ready_response_renders_vastervik() -> void:
 	var state: RefCounted = _state_from_slot(slot0)
 	_check(state.pending_faction_id == "vastervik", "server vastervik pending")
 	_check(state.can_ready, "vastervik saved not ready can_ready")
-	_check(state.dropdown_option_index_for_pending() == 1, "dropdown selects vastervik")
+	_check(
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(
+			state.faction_choices,
+			"vastervik",
+			true,
+		)
+		== 2,
+		"dropdown selects vastervik with placeholder",
+	)
 
 
 func _test_null_faction_slot_view_no_malmo_display() -> void:
@@ -140,7 +153,10 @@ func _test_null_faction_slot_view_no_malmo_display() -> void:
 	_check(state.server_faction_id.is_empty(), "null server faction")
 	_check(state.pending_faction_id.is_empty(), "null pending after server sync")
 	_check(not state.can_ready, "null cannot ready")
-	_check(state.dropdown_option_index_for_pending() == -1, "null no fake malmo select")
+	_check(
+		state.dropdown_option_index_for_pending() == CloudStagingParsersScript.DROPDOWN_PLACEHOLDER_INDEX,
+		"null uses placeholder not malmo",
+	)
 
 
 func _test_no_apply_faction_button_in_ui_model() -> void:
@@ -180,7 +196,7 @@ func _test_fresh_claimed_slot_selection_enables_ready() -> void:
 	var choices: Array = state.faction_choices
 	for fid in ["malmo", "vastervik", "paris"]:
 		var fresh: RefCounted = _state_from_slot(slot0)
-		var opt_idx: int = CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, fid)
+		var opt_idx: int = CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, fid, true)
 		fresh.on_dropdown_selected(opt_idx)
 		_check(fresh.can_ready, "fresh select %s enables ready" % fid)
 		_check(fresh.pending_faction_id == fid, "pending %s" % fid)
@@ -191,9 +207,12 @@ func _test_slot_state_render_and_select() -> void:
 	var state: RefCounted = _state_from_slot(slot0)
 	var render_before: Dictionary = state.apply_render_select()
 	_check(render_before.cleared_pending, "render null server clears pending")
-	_check(render_before.option_index == -1, "render no default index")
+	_check(
+		render_before.option_index == CloudStagingParsersScript.DROPDOWN_PLACEHOLDER_INDEX,
+		"render placeholder index",
+	)
 	state.on_dropdown_selected(
-		CloudStagingParsersScript.dropdown_option_index_for_faction_id(state.faction_choices, "vastervik")
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(state.faction_choices, "vastervik", true)
 	)
 	_check(state.can_ready, "select vastervik can_ready")
 	state.sync_from_server_slot(slot0, "staging")
@@ -215,13 +234,13 @@ func _test_ready_commit_uses_pending_not_widget() -> void:
 	var slot0: Dictionary = _unconfigured_slot_view()
 	var state: RefCounted = _state_from_slot(slot0)
 	state.on_dropdown_selected(
-		CloudStagingParsersScript.dropdown_option_index_for_faction_id(state.faction_choices, "vastervik")
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(state.faction_choices, "vastervik", true)
 	)
 	var plan: Dictionary = state.plan_ready_commit()
 	_check(bool(plan.get("post_faction")), "commit posts vastervik")
 	_check(plan.get("faction_id") == "vastervik", "commit faction from pending")
 	var stale_widget_selected: int = 0
-	_check(stale_widget_selected != state.dropdown_option_index_for_pending(), "widget index not source")
+	_check(stale_widget_selected == CloudStagingParsersScript.DROPDOWN_PLACEHOLDER_INDEX, "widget placeholder not source")
 	_check(state.pending_faction_id == "vastervik", "pending still vastervik")
 
 
@@ -238,7 +257,9 @@ func _test_taken_faction_blocks_can_ready() -> void:
 		],
 	}
 	var state: RefCounted = _state_from_slot(slot)
-	state.on_dropdown_selected(1)
+	state.on_dropdown_selected(
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(state.faction_choices, "paris", true)
+	)
 	_check(state.pending_faction_id == "paris", "selected paris pending")
 	_check(not state.can_ready, "taken paris blocks ready")
 
@@ -246,13 +267,76 @@ func _test_taken_faction_blocks_can_ready() -> void:
 func _test_plan_ready_null_server_vastervik() -> void:
 	var state: RefCounted = _state_from_slot(_unconfigured_slot_view())
 	state.on_dropdown_selected(
-		CloudStagingParsersScript.dropdown_option_index_for_faction_id(state.faction_choices, "vastervik")
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(state.faction_choices, "vastervik", true)
 	)
 	var plan: Dictionary = state.plan_ready_commit()
 	_check(bool(plan.get("ok")), "plan ok")
 	_check(bool(plan.get("post_faction")), "plan posts faction")
 	_check(plan.get("faction_id") == "vastervik", "plan faction id")
 	_check(bool(plan.get("post_ready")), "plan posts ready")
+
+
+func _test_placeholder_dropdown_mapping() -> void:
+	var choices: Array = (_unconfigured_slot_view()["faction_choices"] as Array)
+	_check(
+		CloudStagingParsersScript.faction_id_for_dropdown_option_index(choices, 0, true).is_empty(),
+		"placeholder metadata empty",
+	)
+	_check(
+		CloudStagingParsersScript.faction_id_for_dropdown_option_index(choices, 1, true) == "malmo",
+		"index 1 malmo",
+	)
+	_check(
+		CloudStagingParsersScript.faction_id_for_dropdown_option_index(choices, 2, true) == "vastervik",
+		"index 2 vastervik",
+	)
+	_check(
+		CloudStagingParsersScript.faction_id_for_dropdown_option_index(choices, 3, true) == "paris",
+		"index 3 paris",
+	)
+
+
+func _test_first_selection_from_empty_placeholder() -> void:
+	var slot0: Dictionary = _unconfigured_slot_view()
+	var choices: Array = slot0["faction_choices"] as Array
+	for fid in ["malmo", "vastervik", "paris"]:
+		var state: RefCounted = _state_from_slot(slot0)
+		_check(
+			state.dropdown_option_index_for_pending() == CloudStagingParsersScript.DROPDOWN_PLACEHOLDER_INDEX,
+			"initial placeholder for %s test" % fid,
+		)
+		var item_index: int = CloudStagingParsersScript.dropdown_option_index_for_faction_id(choices, fid, true)
+		_check(item_index > 0, "faction index above placeholder for %s" % fid)
+		state.on_dropdown_selected(item_index)
+		_check(state.pending_faction_id == fid, "first select pending %s" % fid)
+		_check(state.can_ready, "first select can_ready %s" % fid)
+
+
+func _test_render_preserves_pending_then_user_select() -> void:
+	var slot0: Dictionary = _unconfigured_slot_view()
+	var state: RefCounted = _state_from_slot(slot0)
+	var pending_before: String = state.pending_faction_id
+	var vastervik_idx: int = CloudStagingParsersScript.dropdown_option_index_for_faction_id(
+		state.faction_choices,
+		"vastervik",
+		true,
+	)
+	state.on_dropdown_selected(vastervik_idx)
+	_check(state.pending_faction_id == "vastervik", "user select before re-render")
+	state.pending_faction_id = pending_before
+	state.on_dropdown_selected(vastervik_idx)
+	_check(state.can_ready, "select after simulated render restore")
+
+
+func _test_sync_does_not_clear_user_pending_without_server_change() -> void:
+	var slot0: Dictionary = _unconfigured_slot_view()
+	var state: RefCounted = _state_from_slot(slot0)
+	state.on_dropdown_selected(
+		CloudStagingParsersScript.dropdown_option_index_for_faction_id(state.faction_choices, "paris", true)
+	)
+	_check(state.pending_faction_id == "paris", "user picked paris")
+	state.sync_from_server_slot(slot0, "staging")
+	_check(state.pending_faction_id.is_empty(), "server sync resets pending when server empty")
 
 
 func _test_staging_messages_no_secrets() -> void:

@@ -7,6 +7,8 @@ const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.g
 const EXPECTED_SLOT_COUNT: int = 2
 const STATUS_STAGING: String = CloudCredentialStoreScript.STATUS_STAGING
 const STATUS_ONGOING: String = "ongoing"
+const DROPDOWN_PLACEHOLDER_LABEL: String = "Choose faction…"
+const DROPDOWN_PLACEHOLDER_INDEX: int = 0
 
 
 static func find_lobby_row(matches: Array, match_id: String) -> Dictionary:
@@ -53,8 +55,8 @@ static func faction_id_for_choice_index(faction_choices: Array, choice_index: in
 	return faction_id_for_dropdown_option_index(faction_choices, choice_index)
 
 
-static func faction_id_for_dropdown_option_index(faction_choices: Array, option_index: int) -> String:
-	if option_index < 0:
+static func faction_id_for_faction_choice_index(faction_choices: Array, choice_index: int) -> String:
+	if choice_index < 0:
 		return ""
 	var seen: int = 0
 	var i: int = 0
@@ -63,13 +65,13 @@ static func faction_id_for_dropdown_option_index(faction_choices: Array, option_
 		i += 1
 		if typeof(row) != TYPE_DICTIONARY:
 			continue
-		if seen == option_index:
+		if seen == choice_index:
 			return str((row as Dictionary).get("id", "")).strip_edges()
 		seen += 1
 	return ""
 
 
-static func dropdown_option_index_for_faction_id(faction_choices: Array, faction_id) -> int:
+static func faction_choice_index_for_faction_id(faction_choices: Array, faction_id) -> int:
 	var fid: String = normalize_seat_faction_id(faction_id)
 	if fid.is_empty():
 		return -1
@@ -84,6 +86,45 @@ static func dropdown_option_index_for_faction_id(faction_choices: Array, faction
 			return seen
 		seen += 1
 	return -1
+
+
+static func faction_id_for_dropdown_option_index(
+	faction_choices: Array,
+	option_index: int,
+	with_placeholder: bool = true,
+) -> String:
+	if with_placeholder:
+		if option_index <= DROPDOWN_PLACEHOLDER_INDEX:
+			return ""
+		option_index -= 1
+	return faction_id_for_faction_choice_index(faction_choices, option_index)
+
+
+static func dropdown_option_index_for_faction_id(
+	faction_choices: Array,
+	faction_id,
+	with_placeholder: bool = true,
+) -> int:
+	var choice_idx: int = faction_choice_index_for_faction_id(faction_choices, faction_id)
+	if with_placeholder:
+		if choice_idx < 0:
+			return DROPDOWN_PLACEHOLDER_INDEX
+		return choice_idx + 1
+	return choice_idx
+
+
+static func dropdown_option_ids_for_debug(faction_choices: Array, with_placeholder: bool = true) -> Array:
+	var out: Array = []
+	if with_placeholder:
+		out.append("")
+	var i: int = 0
+	while i < faction_choices.size():
+		var row = faction_choices[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		out.append(str((row as Dictionary).get("id", "")).strip_edges())
+	return out
 
 
 static func ready_enabled_after_dropdown_select(

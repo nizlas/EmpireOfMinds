@@ -38,13 +38,17 @@ func sync_from_server_slot(slot: Dictionary, match_status: String) -> void:
 
 
 func on_dropdown_selected(option_index: int) -> String:
-	pending_faction_id = ParsersScript.faction_id_for_dropdown_option_index(faction_choices, option_index)
+	pending_faction_id = ParsersScript.faction_id_for_dropdown_option_index(
+		faction_choices,
+		option_index,
+		true,
+	)
 	recompute_can_ready()
 	return pending_faction_id
 
 
 func dropdown_option_index_for_pending() -> int:
-	return ParsersScript.dropdown_option_index_for_faction_id(faction_choices, pending_faction_id)
+	return ParsersScript.dropdown_option_index_for_faction_id(faction_choices, pending_faction_id, true)
 
 
 func recompute_can_ready() -> void:

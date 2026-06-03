@@ -177,43 +177,88 @@ func _slot_faction_option(panel: PanelContainer) -> OptionButton:
 	return faction_row.get_node("FactionOption") as OptionButton
 
 
-func _debug_log_faction_dropdown_selected(
-	slot_index: int,
-	item_index: int,
-	faction_id: String,
-	state: RefCounted,
-) -> void:
+func _debug_log_slot_render(state: RefCounted, faction_opt: OptionButton, applied_index: int) -> void:
 	if not _staging_debug_enabled() or state == null:
 		return
+	var option_ids: Array = CloudStagingParsersScript.dropdown_option_ids_for_debug(state.faction_choices, true)
 	print(
 		(
-			"SliceC14d3 faction_dropdown_selected actor_id=%d item_index=%d "
-			+ "faction_id=%s pending_faction_id=%s can_ready=%s"
-		)
-		% [
-			state.actor_id,
-			item_index,
-			faction_id,
-			state.pending_faction_id,
-			str(state.can_ready),
-		]
-	)
-
-
-func _debug_log_ready_button_state(state: RefCounted) -> void:
-	if not _staging_debug_enabled() or state == null:
-		return
-	print(
-		(
-			"SliceC14d3 ready_button_state actor_id=%d server_faction_id=%s "
-			+ "pending_faction_id=%s ready=%s can_ready=%s"
+			"SliceC14d3 slot_render actor_id=%d server_faction_id=%s pending_before=%s "
+			+ "applied_dropdown_index=%d is_rendering=%s option_count=%d option_ids=%s "
+			+ "widget_selected=%d"
 		)
 		% [
 			state.actor_id,
 			state.server_faction_id,
 			state.pending_faction_id,
-			str(state.ready),
+			applied_index,
+			str(_is_rendering_slots),
+			faction_opt.item_count if faction_opt != null else 0,
+			str(option_ids),
+			faction_opt.selected if faction_opt != null else -99,
+		]
+	)
+
+
+func _debug_log_faction_dropdown_selected(
+	slot_index: int,
+	item_index: int,
+	faction_id: String,
+	pending_before: String,
+	can_ready_before: bool,
+	ready_disabled_before: bool,
+	state: RefCounted,
+	ready_btn: Button,
+) -> void:
+	if not _staging_debug_enabled() or state == null:
+		return
+	var ready_disabled_after: bool = ready_btn.disabled if ready_btn != null else true
+	print(
+		(
+			"SliceC14d3 faction_dropdown_selected actor_id=%d slot=%d item_index=%d "
+			+ "is_rendering=%s faction_id=%s pending_before=%s pending_after=%s "
+			+ "can_ready_before=%s can_ready_after=%s ready_disabled_before=%s ready_disabled_after=%s"
+		)
+		% [
+			state.actor_id,
+			slot_index,
+			item_index,
+			str(_is_rendering_slots),
+			faction_id,
+			pending_before,
+			state.pending_faction_id,
+			str(can_ready_before),
 			str(state.can_ready),
+			str(ready_disabled_before),
+			str(ready_disabled_after),
+		]
+	)
+
+
+func _debug_log_ready_button_state(state: RefCounted, ready_btn: Button) -> void:
+	if not _staging_debug_enabled() or state == null:
+		return
+	var pending: String = state.pending_faction_id
+	var valid: bool = CloudStagingParsersScript.is_valid_available_faction(pending, state.faction_choices)
+	var taken: bool = CloudStagingParsersScript.is_faction_taken_for_me(pending, state.faction_choices)
+	var ready_disabled: bool = ready_btn.disabled if ready_btn != null else true
+	print(
+		(
+			"SliceC14d3 ready_button_state actor_id=%d owned_by_me=%s match_staging=%s ready=%s "
+			+ "server_faction_id=%s pending_faction_id=%s valid_faction=%s taken=%s "
+			+ "can_ready=%s ready_disabled=%s"
+		)
+		% [
+			state.actor_id,
+			str(state.owned_by_me),
+			str(state.match_staging),
+			str(state.ready),
+			state.server_faction_id,
+			pending,
+			str(valid),
+			str(taken),
+			str(state.can_ready),
+			str(ready_disabled),
 		]
 	)
 
@@ -375,12 +420,20 @@ func _render_slot(panel: PanelContainer, slot: Dictionary, state: RefCounted) ->
 	faction_row.visible = is_mine and claimed
 	ready_row.visible = is_mine and claimed
 	claim_btn.set_meta("actor_id", state.actor_id)
-	_render_faction_dropdown(faction_opt, state)
+	_render_faction_dropdown(faction_opt, state, is_mine and claimed)
 	_apply_ready_controls(ready_btn, unready_btn, state, is_mine and claimed)
 
 
-func _render_faction_dropdown(faction_opt: OptionButton, state: RefCounted) -> void:
+func _render_faction_dropdown(faction_opt: OptionButton, state: RefCounted, show_mine: bool) -> void:
+	if not show_mine:
+		faction_opt.clear()
+		faction_opt.disabled = true
+		return
+	var pending_before: String = state.pending_faction_id
+	faction_opt.block_signals = true
 	faction_opt.clear()
+	faction_opt.add_item(CloudStagingParsersScript.DROPDOWN_PLACEHOLDER_LABEL)
+	faction_opt.set_item_metadata(CloudStagingParsersScript.DROPDOWN_PLACEHOLDER_INDEX, "")
 	var choices: Array = state.faction_choices
 	var ci: int = 0
 	while ci < choices.size():
@@ -398,11 +451,12 @@ func _render_faction_dropdown(faction_opt: OptionButton, state: RefCounted) -> v
 		faction_opt.set_item_metadata(item_idx, fid)
 		faction_opt.set_item_disabled(item_idx, bool(cd.get("taken", false)))
 	var sel_idx: int = state.dropdown_option_index_for_pending()
-	if sel_idx >= 0:
-		faction_opt.select(sel_idx)
-	else:
-		faction_opt.select(-1)
-	faction_opt.disabled = state.ready or faction_opt.item_count == 0
+	faction_opt.select(sel_idx)
+	faction_opt.block_signals = false
+	faction_opt.disabled = state.ready or faction_opt.item_count <= 1
+	_debug_log_slot_render(state, faction_opt, sel_idx)
+	state.pending_faction_id = pending_before
+	state.recompute_can_ready()
 
 
 func _apply_ready_controls(ready_btn: Button, unready_btn: Button, state: RefCounted, show_mine: bool) -> void:
@@ -410,7 +464,7 @@ func _apply_ready_controls(ready_btn: Button, unready_btn: Button, state: RefCou
 	unready_btn.visible = show_mine and state.ready
 	ready_btn.disabled = not state.can_ready
 	unready_btn.disabled = not state.ready
-	_debug_log_ready_button_state(state)
+	_debug_log_ready_button_state(state, ready_btn)
 
 
 func _on_claim_pressed(slot_index: int) -> void:
@@ -444,18 +498,50 @@ func _on_claim_pressed(slot_index: int) -> void:
 
 
 func _on_faction_option_selected(slot_index: int, item_index: int) -> void:
-	if _is_rendering_slots or _busy or _local_actor_id < 0 or slot_index != _local_actor_id:
-		return
-	var state: RefCounted = _slot_state(slot_index)
-	if state == null or not state.owned_by_me or state.ready:
-		return
-	var faction_id: String = state.on_dropdown_selected(item_index)
-	_debug_log_faction_dropdown_selected(slot_index, item_index, faction_id, state)
 	var panel: PanelContainer = _slot_panels[slot_index] as PanelContainer
 	var vb: VBoxContainer = (panel.get_child(0) as MarginContainer).get_child(0) as VBoxContainer
 	var ready_row: HBoxContainer = vb.get_node("ReadyRow") as HBoxContainer
 	var ready_btn: Button = ready_row.get_node("ReadyBtn") as Button
 	var unready_btn: Button = ready_row.get_node("UnreadyBtn") as Button
+	var state: RefCounted = _slot_state(slot_index)
+	if _is_rendering_slots:
+		if _staging_debug_enabled() and state != null:
+			print(
+				"SliceC14d3 faction_dropdown_selected IGNORED is_rendering actor_id=%d item_index=%d"
+				% [state.actor_id, item_index]
+			)
+		return
+	if _busy or _local_actor_id < 0 or slot_index != _local_actor_id:
+		return
+	if state == null or not state.owned_by_me or state.ready:
+		return
+	var faction_opt: OptionButton = _slot_faction_option(panel)
+	if faction_opt.disabled:
+		return
+	var pending_before: String = state.pending_faction_id
+	var can_ready_before: bool = state.can_ready
+	var ready_disabled_before: bool = ready_btn.disabled
+	var faction_id: String = CloudStagingParsersScript.faction_id_for_dropdown_option_index(
+		state.faction_choices,
+		item_index,
+		true,
+	)
+	if faction_id.is_empty():
+		state.pending_faction_id = ""
+		state.recompute_can_ready()
+	else:
+		state.pending_faction_id = faction_id
+		state.recompute_can_ready()
+	_debug_log_faction_dropdown_selected(
+		slot_index,
+		item_index,
+		faction_id,
+		pending_before,
+		can_ready_before,
+		ready_disabled_before,
+		state,
+		ready_btn,
+	)
 	_apply_ready_controls(ready_btn, unready_btn, state, true)
 
 
