@@ -24,6 +24,7 @@ func _init() -> void:
 	_test_ready_commit_uses_pending_not_widget()
 	_test_taken_faction_blocks_can_ready()
 	_test_plan_ready_null_server_vastervik()
+	_test_option_button_set_block_signals_api()
 	_test_placeholder_dropdown_mapping()
 	_test_first_selection_from_empty_placeholder()
 	_test_render_preserves_pending_then_user_select()
@@ -274,6 +275,14 @@ func _test_plan_ready_null_server_vastervik() -> void:
 	_check(bool(plan.get("post_faction")), "plan posts faction")
 	_check(plan.get("faction_id") == "vastervik", "plan faction id")
 	_check(bool(plan.get("post_ready")), "plan posts ready")
+
+
+func _test_option_button_set_block_signals_api() -> void:
+	var ob := OptionButton.new()
+	_check(ob.has_method("set_block_signals"), "OptionButton exposes set_block_signals")
+	ob.set_block_signals(true)
+	ob.set_block_signals(false)
+	ob.free()
 
 
 func _test_placeholder_dropdown_mapping() -> void:

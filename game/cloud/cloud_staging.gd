@@ -430,7 +430,7 @@ func _render_faction_dropdown(faction_opt: OptionButton, state: RefCounted, show
 		faction_opt.disabled = true
 		return
 	var pending_before: String = state.pending_faction_id
-	faction_opt.block_signals = true
+	faction_opt.set_block_signals(true)
 	faction_opt.clear()
 	faction_opt.add_item(CloudStagingParsersScript.DROPDOWN_PLACEHOLDER_LABEL)
 	faction_opt.set_item_metadata(CloudStagingParsersScript.DROPDOWN_PLACEHOLDER_INDEX, "")
@@ -452,7 +452,7 @@ func _render_faction_dropdown(faction_opt: OptionButton, state: RefCounted, show
 		faction_opt.set_item_disabled(item_idx, bool(cd.get("taken", false)))
 	var sel_idx: int = state.dropdown_option_index_for_pending()
 	faction_opt.select(sel_idx)
-	faction_opt.block_signals = false
+	faction_opt.set_block_signals(false)
 	faction_opt.disabled = state.ready or faction_opt.item_count <= 1
 	_debug_log_slot_render(state, faction_opt, sel_idx)
 	state.pending_faction_id = pending_before
