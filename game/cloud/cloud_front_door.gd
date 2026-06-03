@@ -9,7 +9,9 @@ const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.g
 const MAIN_SCENE: String = "res://main.tscn"
 const STAGING_SCENE: String = "res://cloud/cloud_staging.tscn"
 const CloudStagingParsersScript = preload("res://cloud/cloud_staging_parsers.gd")
+const CloudLobbyPollScript = preload("res://cloud/cloud_lobby_poll.gd")
 const DEFAULT_SERVER_URL: String = "http://127.0.0.1:8000"
+const FRONT_DOOR_POLL_INTERVAL_SEC: float = 2.0
 
 var _server_url: String = DEFAULT_SERVER_URL
 var _status_label: Label
@@ -18,6 +20,9 @@ var _saved_list: ItemList
 var _saved_resume_btn: Button
 var _saved_rename_btn: Button
 var _busy: bool = false
+var _lobby_fetch_in_flight: bool = false
+var _poll_stopped: bool = true
+var _poll_timer: Timer = null
 var _lobby_join_targets: Array = []
 ## Resume rows: server lobby summaries filtered by local credentials for active server_url.
 var _saved_rows: Array = []
@@ -36,7 +41,41 @@ func _ready() -> void:
 		return
 	_build_ui()
 	CloudCredentialStoreScript.log_resolved_store_if_debug("front_door")
+	_start_front_door_polling()
 	call_deferred("_reload_lobby_from_server")
+
+
+func _exit_tree() -> void:
+	_stop_front_door_polling()
+
+
+func _start_front_door_polling() -> void:
+	if _poll_timer != null:
+		return
+	_poll_stopped = false
+	_poll_timer = Timer.new()
+	_poll_timer.wait_time = FRONT_DOOR_POLL_INTERVAL_SEC
+	_poll_timer.autostart = true
+	_poll_timer.timeout.connect(_on_front_door_poll_timeout)
+	add_child(_poll_timer)
+
+
+func _stop_front_door_polling() -> void:
+	_poll_stopped = true
+	if _poll_timer != null:
+		_poll_timer.stop()
+		_poll_timer.queue_free()
+		_poll_timer = null
+
+
+func _on_front_door_poll_timeout() -> void:
+	if not CloudLobbyPollScript.front_door_should_run_poll(
+		_poll_stopped,
+		_lobby_fetch_in_flight,
+		_busy,
+	):
+		return
+	_reload_lobby_from_server(true)
 
 
 func _resolve_server_url() -> String:
@@ -127,10 +166,12 @@ func _set_busy(on: bool) -> void:
 
 
 func _go_main() -> void:
+	_stop_front_door_polling()
 	get_tree().change_scene_to_file(MAIN_SCENE)
 
 
 func _go_staging() -> void:
+	_stop_front_door_polling()
 	get_tree().change_scene_to_file(STAGING_SCENE)
 
 
@@ -382,7 +423,7 @@ func _on_create_cloud() -> void:
 
 
 func _on_refresh_lobby() -> void:
-	await _reload_lobby_from_server()
+	await _reload_lobby_from_server(false)
 
 
 func _on_lobby_item_selected(index: int) -> void:
@@ -406,29 +447,35 @@ func _enter_staging_for_match(target: Dictionary) -> void:
 	_go_staging()
 
 
-func _reload_lobby_from_server() -> void:
-	if _busy:
+func _reload_lobby_from_server(silent: bool = false) -> void:
+	if not CloudLobbyPollScript.front_door_should_begin_fetch(_lobby_fetch_in_flight):
 		return
-	_set_busy(true)
+	if not silent and _busy:
+		return
+	_lobby_fetch_in_flight = true
 	_server_lobby_load_failed = false
-	_set_status("Loading matches from server…")
-	_saved_rows.clear()
-	_lobby_join_targets.clear()
-	_saved_list.clear()
-	_lobby_list.clear()
-	_saved_selected_index = -1
-	if _saved_resume_btn != null:
-		_saved_resume_btn.disabled = true
-	if _saved_rename_btn != null:
-		_saved_rename_btn.disabled = true
+	if not silent:
+		_set_status("Loading matches from server…")
+		_saved_rows.clear()
+		_lobby_join_targets.clear()
+		_saved_list.clear()
+		_lobby_list.clear()
+		_saved_selected_index = -1
+		if _saved_resume_btn != null:
+			_saved_resume_btn.disabled = true
+		if _saved_rename_btn != null:
+			_saved_rename_btn.disabled = true
 	var sess = _make_session()
 	var raw: Dictionary = await sess.get_matches_list("")
 	sess.queue_free()
-	_set_busy(false)
+	_lobby_fetch_in_flight = false
 	var parsed: Dictionary = CloudClientScript.parse_lobby_list_response(raw)
 	if parsed.has("_error"):
 		_server_lobby_load_failed = true
-		_render_lobby_load_failed(str(parsed["_error"]))
+		if silent:
+			_set_status("Unable to refresh cloud matches. Will retry…")
+		else:
+			_render_lobby_load_failed(str(parsed["_error"]))
 		return
 	var matches: Array = parsed.get("matches", []) as Array
 	_lobby_matches = matches
@@ -628,5 +675,5 @@ func _on_rename_saved() -> void:
 			_saved_resume_btn.disabled = false
 		if _saved_rename_btn != null:
 			_saved_rename_btn.disabled = false
-	await _reload_lobby_from_server()
+	await _reload_lobby_from_server(false)
 	_set_status("Renamed to \"%s\"." % server_name)

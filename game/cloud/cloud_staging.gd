@@ -7,9 +7,11 @@ const CloudClientScript = preload("res://cloud/cloud_client.gd")
 const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.gd")
 const CloudStagingParsersScript = preload("res://cloud/cloud_staging_parsers.gd")
 const SlotStateScript = preload("res://cloud/cloud_staging_slot_state.gd")
+const CloudLobbyPollScript = preload("res://cloud/cloud_lobby_poll.gd")
 
 const FRONT_DOOR_SCENE: String = "res://cloud/cloud_front_door.tscn"
 const MAIN_SCENE: String = "res://main.tscn"
+const STAGING_POLL_INTERVAL_SEC: float = 1.0
 
 var _server_url: String = ""
 var _match_id: String = ""
@@ -18,6 +20,9 @@ var _seat_token: String = ""
 var _local_actor_id: int = -1
 var _display_name: String = ""
 var _busy: bool = false
+var _server_refresh_in_flight: bool = false
+var _poll_stopped: bool = true
+var _poll_timer: Timer = null
 var _is_rendering_slots: bool = false
 var _match_status: String = ""
 
@@ -42,7 +47,42 @@ func _ready() -> void:
 	_hydrate_from_store()
 	_build_ui()
 	CloudCredentialStoreScript.log_resolved_store_if_debug("staging")
+	_start_staging_polling()
 	call_deferred("_refresh_from_server")
+
+
+func _exit_tree() -> void:
+	_stop_staging_polling()
+
+
+func _start_staging_polling() -> void:
+	if _poll_timer != null:
+		return
+	_poll_stopped = false
+	_poll_timer = Timer.new()
+	_poll_timer.wait_time = STAGING_POLL_INTERVAL_SEC
+	_poll_timer.autostart = true
+	_poll_timer.timeout.connect(_on_staging_poll_timeout)
+	add_child(_poll_timer)
+
+
+func _stop_staging_polling() -> void:
+	_poll_stopped = true
+	if _poll_timer != null:
+		_poll_timer.stop()
+		_poll_timer.queue_free()
+		_poll_timer = null
+
+
+func _on_staging_poll_timeout() -> void:
+	if not CloudLobbyPollScript.staging_should_run_poll(
+		_poll_stopped,
+		_server_refresh_in_flight,
+		_busy,
+		_match_status,
+	):
+		return
+	_refresh_from_server(true)
 
 
 func _hydrate_from_store() -> void:
@@ -331,11 +371,12 @@ func _make_session(gameplay_token: String = "") -> Node:
 
 
 func _on_back() -> void:
+	_stop_staging_polling()
 	get_tree().change_scene_to_file(FRONT_DOOR_SCENE)
 
 
 func _on_refresh() -> void:
-	await _refresh_from_server()
+	await _refresh_from_server(false)
 
 
 func _title_text(lobby_row: Dictionary) -> String:
@@ -345,36 +386,50 @@ func _title_text(lobby_row: Dictionary) -> String:
 	return CloudCredentialStoreScript.player_visible_display_name(dn)
 
 
-func _refresh_from_server() -> void:
-	if _busy or _match_id.is_empty():
+func _refresh_from_server(silent: bool = false) -> void:
+	if not CloudLobbyPollScript.staging_should_begin_refresh(_server_refresh_in_flight):
 		return
-	_set_busy(true)
-	_set_status("Loading staging state…")
+	if _match_id.is_empty():
+		return
+	if not silent and _busy:
+		return
+	_server_refresh_in_flight = true
+	if not silent:
+		_set_status("Loading staging state…")
 	var sess = _make_session()
 	var raw: Dictionary = await sess.get_matches_list("")
 	sess.queue_free()
-	_set_busy(false)
+	_server_refresh_in_flight = false
 	var parsed: Dictionary = CloudClientScript.parse_lobby_list_response(raw)
 	if parsed.has("_error"):
-		_set_status("Could not load match from server.")
-		_render_empty_slots()
+		if silent:
+			_set_status("Could not refresh staging from server. Will retry…")
+		else:
+			_set_status("Could not load match from server.")
+			_render_empty_slots()
 		return
 	var row: Dictionary = CloudStagingParsersScript.find_lobby_row(
 		parsed.get("matches", []) as Array,
 		_match_id,
 	)
 	if row.is_empty():
-		_set_status("This match is not on the server list.")
-		_render_empty_slots()
+		if silent:
+			_set_status("This match is not on the server list. Will retry…")
+		else:
+			_set_status("This match is not on the server list.")
+			_render_empty_slots()
 		return
 	var view: Dictionary = CloudStagingParsersScript.build_staging_view(row, _local_actor_id)
 	if not bool(view.get("ok", false)):
 		var err: String = str(view.get("error", "unknown"))
-		if err == "missing_available_factions":
-			_set_status("Server did not provide available factions.")
+		if silent:
+			_set_status("Could not refresh staging state. Will retry…")
 		else:
-			_set_status("Could not read staging state.")
-		_render_empty_slots()
+			if err == "missing_available_factions":
+				_set_status("Server did not provide available factions.")
+			else:
+				_set_status("Could not read staging state.")
+			_render_empty_slots()
 		return
 	await _apply_staging_view(view, row)
 
@@ -389,6 +444,8 @@ func _apply_staging_view(view: Dictionary, lobby_row: Dictionary) -> void:
 		_title_label.text = _title_text(lobby_row)
 	_match_status = str(view.get("status", "")).strip_edges()
 	var status: String = _match_status
+	if CloudLobbyPollScript.staging_stop_poll_on_status(status):
+		_stop_staging_polling()
 	var has_seat: bool = not _seat_token.is_empty()
 	if CloudStagingParsersScript.can_enter_gameplay_from_staging(has_seat, status):
 		_enter_gameplay()
@@ -407,8 +464,13 @@ func _apply_staging_view(view: Dictionary, lobby_row: Dictionary) -> void:
 	var i: int = 0
 	while i < _slot_panels.size() and i < slots.size():
 		var slot: Dictionary = slots[i] as Dictionary
-		_slot_states[i] = SlotStateScript.from_slot_view(slot, status, _local_actor_id)
-		_render_slot(_slot_panels[i] as PanelContainer, slot, _slot_states[i] as RefCounted)
+		var state: RefCounted = _slot_states[i] as RefCounted
+		if state == null:
+			state = SlotStateScript.from_slot_view(slot, status, _local_actor_id)
+		else:
+			state.sync_from_server_slot_preserving_local_pending(slot, status, _local_actor_id)
+		_slot_states[i] = state
+		_render_slot(_slot_panels[i] as PanelContainer, slot, state)
 		i += 1
 	_is_rendering_slots = false
 	_debug_log_staging_slots_snapshot("after_refresh")
@@ -596,7 +658,7 @@ func _on_claim_pressed(slot_index: int) -> void:
 		_local_actor_id,
 		str(parsed.get("display_name", "")),
 	)
-	await _refresh_from_server()
+	await _refresh_from_server(false)
 	_debug_log_staging_slots_snapshot("after_claim")
 
 
@@ -708,7 +770,7 @@ func _post_faction_for_slot(slot_index: int, faction_id: String) -> void:
 			_set_status("That faction is already taken — choose another.")
 		else:
 			_set_status("Faction failed: %s" % err)
-		await _refresh_from_server()
+		await _refresh_from_server(false)
 		return
 	var summary: Dictionary = parsed["summary"] as Dictionary
 	_debug_log_summary("faction_response", summary)
@@ -734,7 +796,7 @@ func _on_ready_pressed(slot_index: int, ready: bool) -> void:
 	var parsed: Dictionary = CloudClientScript.parse_staging_summary_response(raw)
 	if not bool(parsed.get("ok", false)):
 		_set_status("Ready update failed: %s" % str(parsed.get("_error", "unknown")))
-		await _refresh_from_server()
+		await _refresh_from_server(false)
 		return
 	var summary: Dictionary = parsed["summary"] as Dictionary
 	_debug_log_summary("ready_response", summary)
@@ -762,12 +824,13 @@ func _apply_summary(summary: Dictionary) -> void:
 	_debug_log_summary("apply_summary", row)
 	var view: Dictionary = CloudStagingParsersScript.build_staging_view(row, _local_actor_id)
 	if not bool(view.get("ok", false)):
-		await _refresh_from_server()
+		await _refresh_from_server(false)
 		return
 	await _apply_staging_view(view, row)
 
 
 func _enter_gameplay() -> void:
+	_stop_staging_polling()
 	if _seat_token.is_empty() or _local_actor_id < 0:
 		_set_status("Claim a slot before entering the match.")
 		return

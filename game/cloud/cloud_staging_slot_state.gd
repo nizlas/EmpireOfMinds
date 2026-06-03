@@ -39,6 +39,24 @@ func sync_from_server_slot(slot: Dictionary, match_status: String, local_actor_i
 	recompute_can_ready()
 
 
+## Poll refresh: keep uncommitted local faction pick until server confirms a new faction_id.
+func sync_from_server_slot_preserving_local_pending(
+	slot: Dictionary,
+	match_status: String,
+	local_actor_id: int = -1,
+) -> void:
+	var prev_pending: String = pending_faction_id
+	var prev_server: String = server_faction_id
+	sync_from_server_slot(slot, match_status, local_actor_id)
+	if not owned_by_me or ready or not match_staging:
+		return
+	if not server_faction_id.is_empty() and server_faction_id != prev_server:
+		return
+	if not prev_pending.is_empty() and prev_pending != server_faction_id:
+		pending_faction_id = prev_pending
+		recompute_can_ready()
+
+
 func on_dropdown_selected(option_index: int) -> String:
 	pending_faction_id = ParsersScript.faction_id_for_dropdown_option_index(
 		faction_choices,

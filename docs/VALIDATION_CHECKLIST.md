@@ -455,3 +455,14 @@ Validation: **`scripts/run-godot-tests.ps1 slice c14d`**; **`smoke`** if boot pl
 - [ ] No server/API/Docker/Caddy/gameplay/hotseat changes.
 
 Validation: **`scripts/run-godot-tests.ps1 slice c14d-dev`** (**`test_cloud_credential_profile.gd`**). **`smoke`** only if shared boot/session plumbing changed.
+
+## Slice C14d-4a — Front door + staging polling (Godot)
+
+- [ ] Front door auto-updates resume + open staging lists (~2s) without manual Refresh.
+- [ ] Staging auto-updates other player claim/faction/ready (~1s).
+- [ ] No overlapping GET requests; screen stays usable on transient errors.
+- [ ] When server returns **ongoing** + local **seat_token**, client enters gameplay; host-only sees claim message; polling stops on staging exit.
+- [ ] Two-profile manual flow (C14d-dev): B on front door sees A’s new match; A sees B’s staging updates; both enter gameplay after auto-start.
+- [ ] No server/API/Docker/gameplay polling/hotseat changes.
+
+Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_lobby_poll_c14d4a.gd`**).

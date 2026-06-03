@@ -137,7 +137,7 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 - **Create Cloud Match** → **`cloud_staging.tscn`** (not direct gameplay). **Join** open staging match → staging. **Continue setup** (saved staging credential) → staging. **Resume match** (saved + server **`ongoing`** + **seat_token**) → **`main.tscn`** gameplay.
 - **Credentials (`user://cloud_matches.json`):** one row per **`(server_url, match_id)`** with **`host_token`** + **`seat_token`** (merge on claim; legacy single-token rows migrated). Rename uses **host**; claim/faction/ready/gameplay use **seat** only.
 - **Staging scene:** match title, status, **Refresh**, two seats — claim, faction picker from server **`available_factions`**, Ready/Unready. When server returns **`ongoing`**, client enters gameplay if **seat_token** is present.
-- **UI:** no match_id, tokens, or server URL in normal labels; manual refresh only (no polling).
+- **UI:** no match_id, tokens, or server URL in normal labels. **C14d-4a:** front door polls **`GET /v1/matches`** every **2s**; staging polls every **1s** (no overlap; manual Refresh still available). Gameplay has no polling yet.
 - **Not in C14d-3:** waiting-on-opponent UX (C14d-4), server changes (requires C14d-1/C14d-2 deployed on target server).
 
 ### Local two-client credential profiles (Slice C14d-dev, Godot only)
