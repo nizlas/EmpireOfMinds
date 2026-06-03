@@ -103,6 +103,10 @@ func _test_create_saves_credential() -> void:
 		CloudClientScript.credential_from_create_response("http://127.0.0.1:8000", resp),
 	)
 	var found: Dictionary = CloudCredentialStoreScript.find(path, "http://127.0.0.1:8000", "m_fd")
-	_check(found["seat_token"] == "ht_fd", "create credential saved")
+	_check(
+		CloudCredentialStoreScript.host_token_from_entry(found) == "ht_fd",
+		"create credential saved host",
+	)
+	_check(CloudCredentialStoreScript.gameplay_token_from_entry(found).is_empty(), "create no seat yet")
 	if FileAccess.file_exists(path):
 		DirAccess.remove_absolute(path)

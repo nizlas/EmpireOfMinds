@@ -7,6 +7,8 @@ const CloudClientScript = preload("res://cloud/cloud_client.gd")
 const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.gd")
 
 const MAIN_SCENE: String = "res://main.tscn"
+const STAGING_SCENE: String = "res://cloud/cloud_staging.tscn"
+const CloudStagingParsersScript = preload("res://cloud/cloud_staging_parsers.gd")
 const DEFAULT_SERVER_URL: String = "http://127.0.0.1:8000"
 const STORE_PATH: String = CloudCredentialStoreScript.DEFAULT_PATH
 
@@ -17,7 +19,7 @@ var _saved_list: ItemList
 var _saved_resume_btn: Button
 var _saved_rename_btn: Button
 var _busy: bool = false
-var _lobby_claim_targets: Array = []
+var _lobby_join_targets: Array = []
 ## Resume rows: server lobby summaries filtered by local credentials for active server_url.
 var _saved_rows: Array = []
 var _saved_selected_index: int = -1
@@ -126,6 +128,10 @@ func _set_busy(on: bool) -> void:
 
 func _go_main() -> void:
 	get_tree().change_scene_to_file(MAIN_SCENE)
+
+
+func _go_staging() -> void:
+	get_tree().change_scene_to_file(STAGING_SCENE)
 
 
 func _on_local_hotseat() -> void:
@@ -352,28 +358,27 @@ func _on_create_cloud() -> void:
 			"SliceC14c2 create using response display_name=%s (requested=%s)"
 			% [display_name, requested_name]
 		)
-	var entry: Dictionary = CloudClientScript.credential_from_create_response(
+	CloudCredentialStoreScript.merge_host_create(
 		_server_url,
-		resp,
+		mid,
+		host_tok,
 		display_name,
+		CloudCredentialStoreScript.revision_from_response(resp),
+		CloudCredentialStoreScript.STATUS_STAGING,
 		STORE_PATH,
 	)
-	_save_credential_with_label(entry)
 	if _cloud_debug_enabled():
-		print(
-			(
-				"SliceC14c create_flow saved_credential match_id=%s label=%s "
-				+ "boot_intent_match_id=%s"
-			)
-			% [str(entry.get("match_id", "")), str(entry.get("label", "")), mid]
-		)
-	BootIntentScript.set_cloud_play_from_create_response(_server_url, resp, "prototype_play")
-	if _cloud_debug_enabled():
-		print(
-			"SliceC14c create_flow boot_intent mode=%s match_id=%s"
-			% [BootIntentScript.mode, BootIntentScript.match_id]
-		)
-	_go_main()
+		print("SliceC14d3 create_flow staging match_id=%s" % mid)
+	BootIntentScript.set_cloud_staging(
+		_server_url,
+		mid,
+		host_tok,
+		"",
+		-1,
+		display_name,
+		"prototype_play",
+	)
+	_go_staging()
 
 
 func _on_refresh_lobby() -> void:
@@ -381,48 +386,24 @@ func _on_refresh_lobby() -> void:
 
 
 func _on_lobby_item_selected(index: int) -> void:
-	if index < 0 or index >= _lobby_claim_targets.size() or _busy:
+	if index < 0 or index >= _lobby_join_targets.size() or _busy:
 		return
-	var target: Dictionary = _lobby_claim_targets[index] as Dictionary
-	await _claim_and_play(target)
+	var target: Dictionary = _lobby_join_targets[index] as Dictionary
+	_enter_staging_for_match(target)
 
 
-func _claim_and_play(target: Dictionary) -> void:
-	if _busy:
-		return
+func _enter_staging_for_match(target: Dictionary) -> void:
 	var match_id: String = str(target.get("match_id", "")).strip_edges()
-	var actor_id: int = int(target.get("actor_id", -1))
 	var lobby_row: Dictionary = target.get("lobby_row", {}) as Dictionary
-	var claim_name: String = CloudCredentialStoreScript.player_visible_display_name(
-		CloudClientScript.display_name_from_lobby_row(lobby_row)
-	)
-	_set_busy(true)
-	_set_status("Claiming seat for %s…" % claim_name)
-	var sess = _make_session()
-	sess.match_id = match_id
-	var raw: Dictionary = await sess.post_claim_seat(actor_id)
-	sess.queue_free()
-	_set_busy(false)
-	var parsed: Dictionary = CloudClientScript.parse_claim_response(raw)
-	if not bool(parsed.get("ok", false)):
-		_set_status("Claim failed: %s" % str(parsed.get("_error", "unknown")))
-		return
-	var mid: String = str(parsed.get("match_id", "")).strip_edges()
-	var server_name: String = str(parsed.get("display_name", "")).strip_edges()
-	var entry: Dictionary = CloudClientScript.credential_from_claim_response(
-		_server_url,
-		parsed,
-		server_name,
-		STORE_PATH,
-	)
-	_save_credential_with_label(entry)
-	BootIntentScript.set_cloud_reconnect(
-		_server_url,
-		mid,
-		str(parsed["seat_token"]),
-		int(parsed["actor_id"]),
-	)
-	_go_main()
+	var dn: String = CloudClientScript.display_name_from_lobby_row(lobby_row)
+	var cred: Dictionary = CloudCredentialStoreScript.find(STORE_PATH, _server_url, match_id)
+	var host_tok: String = CloudCredentialStoreScript.host_token_from_entry(cred)
+	var seat_tok: String = CloudCredentialStoreScript.gameplay_token_from_entry(cred)
+	var aid: int = int(cred.get("actor_id", -1)) if not cred.is_empty() else -1
+	if seat_tok.is_empty():
+		aid = -1
+	BootIntentScript.set_cloud_staging(_server_url, match_id, host_tok, seat_tok, aid, dn)
+	_go_staging()
 
 
 func _reload_lobby_from_server() -> void:
@@ -432,7 +413,7 @@ func _reload_lobby_from_server() -> void:
 	_server_lobby_load_failed = false
 	_set_status("Loading matches from server…")
 	_saved_rows.clear()
-	_lobby_claim_targets.clear()
+	_lobby_join_targets.clear()
 	_saved_list.clear()
 	_lobby_list.clear()
 	_saved_selected_index = -1
@@ -458,7 +439,7 @@ func _reload_lobby_from_server() -> void:
 	)
 	_saved_rows = CloudClientScript.build_resume_rows_from_lobby(matches, cred_map, _server_url)
 	var resume_ids: Dictionary = CloudClientScript.resume_match_id_set(_saved_rows)
-	_lobby_claim_targets = CloudClientScript.build_open_staging_claim_targets(matches, resume_ids)
+	_lobby_join_targets = CloudClientScript.build_open_staging_join_targets(matches, resume_ids)
 	_render_saved_list()
 	_render_open_list()
 	_log_resume_rows_debug()
@@ -497,21 +478,21 @@ func _render_lobby_load_failed(_detail: String) -> void:
 func _set_lobby_load_status() -> void:
 	if _server_lobby_load_failed:
 		return
-	if _saved_rows.is_empty() and _lobby_claim_targets.is_empty():
-		_set_status("No saved matches on this server. No open staging seats.")
+	if _saved_rows.is_empty() and _lobby_join_targets.is_empty():
+		_set_status("No saved matches on this server. No open staging matches.")
 		return
 	if _saved_rows.is_empty():
 		_set_status(
-			"No saved matches found on this server. Open staging: %d seat(s)."
-			% _lobby_claim_targets.size()
+			"No saved matches found on this server. Open staging: %d match(es)."
+			% _lobby_join_targets.size()
 		)
 		return
-	if _lobby_claim_targets.is_empty():
-		_set_status("Your matches: %d. No open staging seats." % _saved_rows.size())
+	if _lobby_join_targets.is_empty():
+		_set_status("Your matches: %d. No open staging matches." % _saved_rows.size())
 		return
 	_set_status(
-		"Your matches: %d. Open staging: %d claimable seat(s)."
-		% [_saved_rows.size(), _lobby_claim_targets.size()]
+		"Your matches: %d. Open staging: %d match(es)."
+		% [_saved_rows.size(), _lobby_join_targets.size()]
 	)
 
 
@@ -529,13 +510,12 @@ func _render_saved_list() -> void:
 func _render_open_list() -> void:
 	_lobby_list.clear()
 	var i: int = 0
-	while i < _lobby_claim_targets.size():
-		var target: Dictionary = _lobby_claim_targets[i] as Dictionary
+	while i < _lobby_join_targets.size():
+		var target: Dictionary = _lobby_join_targets[i] as Dictionary
 		i += 1
 		var row: Dictionary = target.get("lobby_row", {}) as Dictionary
-		var aid: int = int(target.get("actor_id", -1))
-		_lobby_list.add_item(CloudClientScript.lobby_open_row_text(row, aid))
-	if _lobby_claim_targets.is_empty() and not _server_lobby_load_failed:
+		_lobby_list.add_item(CloudStagingParsersScript.open_staging_row_text(row))
+	if _lobby_join_targets.is_empty() and not _server_lobby_load_failed:
 		_lobby_list.add_item("(No open staging matches on this server.)")
 
 
@@ -551,8 +531,12 @@ func _on_saved_item_selected(index: int) -> void:
 	var view: Dictionary = _saved_rows[index] as Dictionary
 	if _saved_resume_btn != null:
 		_saved_resume_btn.disabled = false
+		var st: String = str(view.get("server_status", "")).strip_edges()
+		var has_seat: bool = not str(view.get("seat_token", "")).strip_edges().is_empty()
+		_saved_resume_btn.text = CloudStagingParsersScript.saved_resume_button_label(st, has_seat)
 	if _saved_rename_btn != null:
-		_saved_rename_btn.disabled = not bool(view.get("is_host", false))
+		var cred_row: Dictionary = view.get("credential", {}) as Dictionary
+		_saved_rename_btn.disabled = CloudCredentialStoreScript.admin_token_from_entry(cred_row).is_empty()
 
 
 func _on_resume_saved() -> void:
@@ -560,30 +544,49 @@ func _on_resume_saved() -> void:
 		return
 	var view: Dictionary = _saved_rows[_saved_selected_index] as Dictionary
 	var mid: String = str(view.get("match_id", ""))
-	var tok: String = str(view.get("seat_token", "")).strip_edges()
-	if mid.is_empty() or tok.is_empty():
+	var cred: Dictionary = view.get("credential", {}) as Dictionary
+	var seat_tok: String = CloudCredentialStoreScript.gameplay_token_from_entry(cred)
+	if seat_tok.is_empty():
+		seat_tok = str(view.get("seat_token", "")).strip_edges()
+	var host_tok: String = CloudCredentialStoreScript.host_token_from_entry(cred)
+	var st: String = str(view.get("server_status", "")).strip_edges()
+	var dn: String = str(view.get("display_name", ""))
+	if mid.is_empty():
 		_set_status("Saved entry is incomplete.")
 		return
-	BootIntentScript.set_cloud_reconnect(
-		_server_url,
-		mid,
-		tok,
-		int(view.get("actor_id", 0)),
-	)
-	_go_main()
+	if st == CloudCredentialStoreScript.STATUS_ONGOING and not seat_tok.is_empty():
+		BootIntentScript.set_cloud_reconnect(
+			_server_url,
+			mid,
+			seat_tok,
+			int(view.get("actor_id", 0)),
+		)
+		_go_main()
+		return
+	if st == CloudCredentialStoreScript.STATUS_STAGING or seat_tok.is_empty():
+		var aid: int = int(view.get("actor_id", -1))
+		if seat_tok.is_empty():
+			aid = -1
+		BootIntentScript.set_cloud_staging(_server_url, mid, host_tok, seat_tok, aid, dn)
+		_go_staging()
+		return
+	_set_status("Claim a slot in staging before resuming this match.")
 
 
 func _on_rename_saved() -> void:
 	if _saved_selected_index < 0 or _saved_selected_index >= _saved_rows.size() or _busy:
 		return
 	var view: Dictionary = _saved_rows[_saved_selected_index] as Dictionary
-	if not bool(view.get("is_host", false)):
+	var mid: String = str(view.get("match_id", ""))
+	var cred: Dictionary = view.get("credential", {}) as Dictionary
+	if CloudCredentialStoreScript.admin_token_from_entry(cred).is_empty():
 		_set_status("Only the host can rename this match on the server.")
 		return
-	var mid: String = str(view.get("match_id", ""))
-	var tok: String = str(view.get("seat_token", "")).strip_edges()
+	var tok: String = CloudCredentialStoreScript.admin_token_from_entry(cred)
+	if tok.is_empty():
+		tok = CloudCredentialStoreScript.host_token_from_entry(cred)
 	if mid.is_empty() or tok.is_empty():
-		_set_status("Saved entry is incomplete.")
+		_set_status("Only the host can rename this match (host credential missing).")
 		return
 	var old_name: String = str(view.get("display_name", ""))
 	var rename_dialog: Dictionary = await _prompt_rename_display_name(old_name, mid)

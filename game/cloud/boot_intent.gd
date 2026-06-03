@@ -10,12 +10,16 @@ const MODE_CLOUD_CREATE: String = "cloud_create"
 const MODE_CLOUD_RECONNECT: String = "cloud_reconnect"
 ## Front door already **POST /v1/matches**; **main** loads via **GET** (not a second create).
 const MODE_CLOUD_ENTER_CREATED: String = "cloud_enter_created"
+## Staging area for a match (C14d-3); may carry host and/or seat token.
+const MODE_CLOUD_STAGING: String = "cloud_staging"
 
 static var mode: String = MODE_NONE
 static var server_url: String = ""
 static var match_id: String = ""
 static var seat_token: String = ""
-static var actor_id: int = 0
+static var host_token: String = ""
+static var actor_id: int = -1
+static var display_name: String = ""
 static var scenario_id: String = "prototype_play"
 
 
@@ -24,7 +28,9 @@ static func clear() -> void:
 	server_url = ""
 	match_id = ""
 	seat_token = ""
-	actor_id = 0
+	host_token = ""
+	actor_id = -1
+	display_name = ""
 	scenario_id = "prototype_play"
 
 
@@ -59,6 +65,26 @@ static func set_cloud_reconnect(
 	scenario_id = scen
 
 
+static func set_cloud_staging(
+	url: String,
+	mid: String,
+	host_tok: String = "",
+	seat_tok: String = "",
+	act_id: int = -1,
+	display: String = "",
+	scen: String = "prototype_play",
+) -> void:
+	clear()
+	mode = MODE_CLOUD_STAGING
+	server_url = str(url).rstrip("/")
+	match_id = str(mid).strip_edges()
+	host_token = str(host_tok).strip_edges()
+	seat_token = str(seat_tok).strip_edges()
+	actor_id = int(act_id)
+	display_name = str(display).strip_edges()
+	scenario_id = scen
+
+
 ## After front-door **POST /v1/matches** — **GET** in **main**, not a second create.
 static func set_cloud_play_from_create_response(
 	url: String,
@@ -80,11 +106,19 @@ static func is_cloud_enter_created(boot_mode: String) -> bool:
 	return str(boot_mode) == MODE_CLOUD_ENTER_CREATED
 
 
+static func is_cloud_staging(boot_mode: String) -> bool:
+	return str(boot_mode) == MODE_CLOUD_STAGING
+
+
 static func cloud_load_status_message(boot_mode: String) -> String:
+	if is_cloud_staging(boot_mode):
+		return "Entering staging…"
 	if is_cloud_enter_created(boot_mode):
 		return "Connecting to new cloud match…"
 	if str(boot_mode) == MODE_CLOUD_RECONNECT:
 		return "Reconnecting to cloud match…"
+	if str(boot_mode) == MODE_CLOUD_CREATE:
+		return "Creating cloud match…"
 	return "Connecting to cloud match…"
 
 
@@ -115,7 +149,9 @@ static func consume_for_main() -> Dictionary:
 		"server_url": server_url,
 		"match_id": match_id,
 		"seat_token": seat_token,
+		"host_token": host_token,
 		"actor_id": actor_id,
+		"display_name": display_name,
 		"scenario_id": scenario_id,
 	}
 	clear()

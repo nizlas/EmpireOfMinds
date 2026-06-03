@@ -92,7 +92,8 @@ func _test_credential_from_create() -> void:
 		resp,
 	)
 	_check(entry["is_host"] == true, "create is_host")
-	_check(entry["seat_token"] == "ht_host", "create token")
+	_check(CloudCredentialStoreScript.host_token_from_entry(entry) == "ht_host", "create host_token")
+	_check(CloudCredentialStoreScript.seat_token_from_entry(entry).is_empty(), "create no seat yet")
 
 
 func _test_credential_from_claim() -> void:

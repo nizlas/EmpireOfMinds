@@ -66,8 +66,12 @@ static func build_resume_row_view(
 		"match_id": mid,
 		"server_url": su,
 		"actor_id": int(credential.get("actor_id", 0)),
-		"is_host": bool(credential.get("is_host", false)),
-		"seat_token": str(credential.get("seat_token", "")).strip_edges(),
+		"is_host": (
+			bool(credential.get("is_host", false))
+			or not CloudCredentialStoreScript.host_token_from_entry(credential).is_empty()
+		),
+		"host_token": CloudCredentialStoreScript.host_token_from_entry(credential),
+		"seat_token": CloudCredentialStoreScript.gameplay_token_from_entry(credential),
 		"display_name": display_full,
 		"label_local": local_lbl,
 		"server_display_name": server_dn,
@@ -120,6 +124,45 @@ static func resume_match_id_set(resume_rows: Array) -> Dictionary:
 
 
 ## Open staging seats from server list; excludes matches already in the resume set.
+## One row per open staging match (claim happens in staging UI, C14d-3).
+static func build_open_staging_join_targets(matches: Array, resume_match_ids: Dictionary) -> Array:
+	var targets: Array = []
+	var seen: Dictionary = {}
+	var i: int = 0
+	while i < matches.size():
+		var row = matches[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var lobby_row: Dictionary = row as Dictionary
+		var mid: String = CloudCredentialStoreScript.normalize_match_id(str(lobby_row.get("match_id", "")))
+		if mid.is_empty() or seen.has(mid):
+			continue
+		if (
+			str(lobby_row.get("status", "")).strip_edges()
+			!= CloudCredentialStoreScript.STATUS_STAGING
+		):
+			continue
+		if typeof(resume_match_ids) == TYPE_DICTIONARY and resume_match_ids.has(mid):
+			continue
+		var seats = lobby_row.get("seats", [])
+		if typeof(seats) != TYPE_ARRAY:
+			continue
+		var has_open: bool = false
+		var si: int = 0
+		while si < (seats as Array).size():
+			var seat = (seats as Array)[si]
+			si += 1
+			if typeof(seat) == TYPE_DICTIONARY and not bool((seat as Dictionary).get("claimed", true)):
+				has_open = true
+				break
+		if not has_open:
+			continue
+		seen[mid] = true
+		targets.append({"match_id": mid, "lobby_row": lobby_row})
+	return targets
+
+
 static func build_open_staging_claim_targets(matches: Array, resume_match_ids: Dictionary) -> Array:
 	var targets: Array = []
 	var i: int = 0
@@ -204,6 +247,14 @@ static func claim_seat_path(match_id: String, actor_id: int) -> String:
 	return "/v1/matches/%s/seats/%d/claim" % [str(match_id).strip_edges(), int(actor_id)]
 
 
+static func seat_faction_path(match_id: String, actor_id: int) -> String:
+	return "/v1/matches/%s/seats/%d/faction" % [str(match_id).strip_edges(), int(actor_id)]
+
+
+static func seat_ready_path(match_id: String, actor_id: int) -> String:
+	return "/v1/matches/%s/seats/%d/ready" % [str(match_id).strip_edges(), int(actor_id)]
+
+
 static func _forbidden_token_keys() -> Array:
 	return ["host_token", "seat_token", "token"]
 
@@ -249,6 +300,16 @@ static func parse_lobby_list_response(resp: Dictionary) -> Dictionary:
 		if lobby_row_has_no_tokens(d):
 			out.append(d)
 	return {"matches": out}
+
+
+static func parse_staging_summary_response(resp: Dictionary) -> Dictionary:
+	if typeof(resp) != TYPE_DICTIONARY:
+		return {"ok": false, "_error": "invalid_response"}
+	if resp.has("_error"):
+		return {"ok": false, "_error": resp["_error"]}
+	if not lobby_row_has_no_tokens(resp):
+		return {"ok": false, "_error": "invalid_response"}
+	return {"ok": true, "summary": resp.duplicate(true)}
 
 
 static func parse_claim_response(resp: Dictionary) -> Dictionary:
@@ -326,12 +387,13 @@ static func credential_from_create_response(
 	return CloudCredentialStoreScript.make_entry(
 		server_url,
 		mid,
-		CloudCredentialStoreScript.HOST_ACTOR_ID,
-		host_tok,
+		CloudCredentialStoreScript.UNSET_ACTOR_ID,
+		"",
 		true,
 		CloudCredentialStoreScript.revision_from_response(resp),
 		CloudCredentialStoreScript.STATUS_STAGING,
 		lbl,
+		host_tok,
 	)
 
 
@@ -346,15 +408,20 @@ static func credential_from_claim_response(
 		lbl = str(parsed.get("display_name", "")).strip_edges()
 	if lbl.is_empty():
 		lbl = CloudCredentialStoreScript.generate_default_label(store_path)
-	return CloudCredentialStoreScript.make_entry(
-		server_url,
-		str(parsed.get("match_id", "")),
-		int(parsed.get("actor_id", 0)),
-		str(parsed.get("seat_token", "")),
-		false,
-		-1,
-		str(parsed.get("status", CloudCredentialStoreScript.STATUS_STAGING)),
-		lbl,
+	var mid: String = str(parsed.get("match_id", ""))
+	var existing: Dictionary = CloudCredentialStoreScript.find(store_path, server_url, mid)
+	return CloudCredentialStoreScript.merge_entry(
+		existing,
+		CloudCredentialStoreScript.make_entry(
+			server_url,
+			mid,
+			int(parsed.get("actor_id", 0)),
+			str(parsed.get("seat_token", "")),
+			bool(existing.get("is_host", false)),
+			-1,
+			str(parsed.get("status", CloudCredentialStoreScript.STATUS_STAGING)),
+			lbl,
+		),
 	)
 
 

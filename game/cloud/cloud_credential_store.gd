@@ -6,8 +6,12 @@ const DEFAULT_PATH: String = "user://cloud_matches.json"
 const STORE_VERSION: int = 1
 const STATUS_UNKNOWN: String = "unknown"
 const STATUS_STAGING: String = "staging"
+const STATUS_ONGOING: String = "ongoing"
 ## Host/dev single-client flow: actor_id 0 when saving host_token from create.
 const HOST_ACTOR_ID: int = 0
+const HOST_TOKEN_PREFIX: String = "ht_"
+const SEAT_TOKEN_PREFIX: String = "st_"
+const UNSET_ACTOR_ID: int = -1
 const DEFAULT_LABEL_PREFIX: String = "Match "
 const MSG_DUPLICATE_DISPLAY_NAME: String = "A match with this name already exists."
 const MSG_EMPTY_DISPLAY_NAME: String = "Match name cannot be empty."
@@ -93,9 +97,10 @@ static func entries_for_server(path: String, server_url: String) -> Array:
 		var d: Dictionary = row as Dictionary
 		if normalize_server_url(str(d.get("server_url", ""))) != su:
 			continue
-		if str(d.get("seat_token", "")).strip_edges().is_empty():
+		var norm: Dictionary = normalize_entry(d)
+		if host_token_from_entry(norm).is_empty() and seat_token_from_entry(norm).is_empty():
 			continue
-		out.append(d.duplicate(true))
+		out.append(norm)
 	return out
 
 
@@ -369,7 +374,8 @@ static func build_saved_row_view(
 		"server_url": su,
 		"actor_id": int(entry.get("actor_id", 0)),
 		"is_host": bool(entry.get("is_host", false)),
-		"seat_token": str(entry.get("seat_token", "")).strip_edges(),
+		"host_token": host_token_from_entry(entry),
+		"seat_token": seat_token_from_entry(entry),
 		"display_name": display_full,
 		"label_local": local_lbl,
 		"server_display_name": server_dn,
@@ -389,10 +395,7 @@ static func player_visible_display_name(raw_name: String) -> String:
 static func format_saved_row_text_from_view(view: Dictionary) -> String:
 	if typeof(view) != TYPE_DICTIONARY:
 		return ""
-	var title: String = player_visible_display_name(str(view.get("display_name", "")))
-	if bool(view.get("is_host", false)):
-		return "%s (host)" % title
-	return title
+	return player_visible_display_name(str(view.get("display_name", "")))
 
 
 static func row_text_hides_match_id(row_text: String, match_id: String) -> bool:
@@ -435,10 +438,11 @@ static func update_label_cache(
 
 
 static func row_text_has_no_token(row_text: String, entry: Dictionary) -> bool:
-	var tok: String = str(entry.get("seat_token", "")).strip_edges()
-	if tok.is_empty():
-		return true
-	return not str(row_text).contains(tok)
+	var norm: Dictionary = normalize_entry(entry)
+	for tok in [host_token_from_entry(norm), seat_token_from_entry(norm)]:
+		if not tok.is_empty() and str(row_text).contains(tok):
+			return false
+	return true
 
 
 static func rename_entry(
@@ -483,7 +487,8 @@ static func upsert(path: String, entry: Dictionary) -> void:
 	var mid := normalize_match_id(str(entry.get("match_id", "")))
 	if mid.is_empty():
 		return
-	var merged: Dictionary = entry.duplicate(true)
+	var existing: Dictionary = find(path, su, mid)
+	var merged: Dictionary = merge_entry(existing, entry)
 	merged["server_url"] = su
 	merged["match_id"] = mid
 	if not merged.has("updated_at") or str(merged.get("updated_at", "")).is_empty():
@@ -510,27 +515,165 @@ static func upsert(path: String, entry: Dictionary) -> void:
 	save_store(path, store)
 
 
+static func normalize_entry(entry: Dictionary) -> Dictionary:
+	if typeof(entry) != TYPE_DICTIONARY:
+		return {}
+	var e: Dictionary = entry.duplicate(true)
+	var ht: String = str(e.get("host_token", "")).strip_edges()
+	var st: String = str(e.get("seat_token", "")).strip_edges()
+	if ht.is_empty() and st.is_empty():
+		var legacy: String = str(e.get("seat_token", "")).strip_edges()
+		if legacy.begins_with(HOST_TOKEN_PREFIX):
+			e["host_token"] = legacy
+			e["seat_token"] = ""
+		elif legacy.begins_with(SEAT_TOKEN_PREFIX):
+			e["seat_token"] = legacy
+	elif st.begins_with(HOST_TOKEN_PREFIX) and ht.is_empty():
+		e["host_token"] = st
+		e["seat_token"] = ""
+	elif ht.begins_with(SEAT_TOKEN_PREFIX) and st.is_empty():
+		e["seat_token"] = ht
+		e["host_token"] = ""
+	e["host_token"] = str(e.get("host_token", "")).strip_edges()
+	e["seat_token"] = str(e.get("seat_token", "")).strip_edges()
+	return e
+
+
+static func host_token_from_entry(entry: Dictionary) -> String:
+	return str(normalize_entry(entry).get("host_token", "")).strip_edges()
+
+
+static func seat_token_from_entry(entry: Dictionary) -> String:
+	var st: String = str(normalize_entry(entry).get("seat_token", "")).strip_edges()
+	if st.begins_with(HOST_TOKEN_PREFIX):
+		return ""
+	return st
+
+
+static func admin_token_from_entry(entry: Dictionary) -> String:
+	return host_token_from_entry(entry)
+
+
+static func gameplay_token_from_entry(entry: Dictionary) -> String:
+	return seat_token_from_entry(entry)
+
+
+static func merge_entry(existing: Dictionary, patch: Dictionary) -> Dictionary:
+	var base: Dictionary = normalize_entry(existing) if not existing.is_empty() else {}
+	var out: Dictionary = base.duplicate(true)
+	if typeof(patch) != TYPE_DICTIONARY:
+		return normalize_entry(out)
+	var p: Dictionary = patch.duplicate(true)
+	if p.has("server_url"):
+		out["server_url"] = normalize_server_url(str(p["server_url"]))
+	if p.has("match_id"):
+		out["match_id"] = normalize_match_id(str(p["match_id"]))
+	if p.has("host_token"):
+		var ht: String = str(p["host_token"]).strip_edges()
+		if not ht.is_empty():
+			out["host_token"] = ht
+	if p.has("seat_token"):
+		var st: String = str(p["seat_token"]).strip_edges()
+		if not st.is_empty() and not st.begins_with(HOST_TOKEN_PREFIX):
+			out["seat_token"] = st
+		elif not st.is_empty() and st.begins_with(HOST_TOKEN_PREFIX) and host_token_from_entry(out).is_empty():
+			out["host_token"] = st
+	if p.has("is_host"):
+		out["is_host"] = bool(p["is_host"])
+	if p.has("actor_id") and int(p["actor_id"]) >= 0:
+		out["actor_id"] = int(p["actor_id"])
+	if p.has("last_seen_revision"):
+		out["last_seen_revision"] = int(p["last_seen_revision"])
+	if p.has("last_seen_status"):
+		out["last_seen_status"] = str(p["last_seen_status"])
+	if p.has("label"):
+		var lbl: String = str(p["label"]).strip_edges()
+		if not lbl.is_empty():
+			out["label"] = lbl
+	if p.has("updated_at"):
+		out["updated_at"] = str(p["updated_at"])
+	return normalize_entry(out)
+
+
 static func make_entry(
 	server_url: String,
 	match_id: String,
-	actor_id: int,
-	seat_token: String,
-	is_host: bool,
+	actor_id: int = UNSET_ACTOR_ID,
+	seat_token: String = "",
+	is_host: bool = false,
 	last_seen_revision: int = -1,
 	last_seen_status: String = STATUS_UNKNOWN,
-	label: String = ""
+	label: String = "",
+	host_token: String = "",
 ) -> Dictionary:
-	return {
-		"server_url": normalize_server_url(server_url),
-		"match_id": normalize_match_id(match_id),
-		"actor_id": actor_id,
-		"seat_token": str(seat_token).strip_edges(),
-		"is_host": is_host,
-		"last_seen_status": str(last_seen_status),
+	var ht: String = str(host_token).strip_edges()
+	var st: String = str(seat_token).strip_edges()
+	if ht.is_empty() and st.begins_with(HOST_TOKEN_PREFIX):
+		ht = st
+		st = ""
+	return normalize_entry(
+		{
+			"server_url": normalize_server_url(server_url),
+			"match_id": normalize_match_id(match_id),
+			"actor_id": int(actor_id),
+			"host_token": ht,
+			"seat_token": st,
+			"is_host": is_host,
+			"last_seen_status": str(last_seen_status),
+			"last_seen_revision": last_seen_revision,
+			"label": str(label),
+			"updated_at": _now_updated_at(),
+		}
+	)
+
+
+static func merge_host_create(
+	server_url: String,
+	match_id: String,
+	host_token: String,
+	label: String = "",
+	last_seen_revision: int = -1,
+	last_seen_status: String = STATUS_STAGING,
+	path: String = DEFAULT_PATH,
+) -> Dictionary:
+	var existing: Dictionary = find(path, server_url, match_id)
+	var patch: Dictionary = {
+		"server_url": server_url,
+		"match_id": match_id,
+		"host_token": host_token,
+		"is_host": true,
 		"last_seen_revision": last_seen_revision,
-		"label": str(label),
-		"updated_at": _now_updated_at(),
+		"last_seen_status": last_seen_status,
 	}
+	if not label.is_empty():
+		patch["label"] = label
+	var merged: Dictionary = merge_entry(existing, patch)
+	upsert(path, merged)
+	return merged
+
+
+static func merge_seat_claim(
+	server_url: String,
+	match_id: String,
+	seat_token: String,
+	actor_id: int,
+	label: String = "",
+	last_seen_status: String = STATUS_STAGING,
+	path: String = DEFAULT_PATH,
+) -> Dictionary:
+	var existing: Dictionary = find(path, server_url, match_id)
+	var patch: Dictionary = {
+		"server_url": server_url,
+		"match_id": match_id,
+		"seat_token": seat_token,
+		"actor_id": int(actor_id),
+		"last_seen_status": last_seen_status,
+	}
+	if not label.is_empty():
+		patch["label"] = label
+	var merged: Dictionary = merge_entry(existing, patch)
+	upsert(path, merged)
+	return merged
 
 
 ## Conservative boot resolution: env → BootIntent → inspector → saved (match_id required for store).
@@ -543,10 +686,10 @@ static func resolve_seat_token_for_boot(
 	boot_token: String = "",
 ) -> Dictionary:
 	var et: String = str(env_token).strip_edges()
-	if et.length() > 0:
+	if et.length() > 0 and et.begins_with(SEAT_TOKEN_PREFIX):
 		return {"value": et, "source": "EOM_CLOUD_SEAT_TOKEN"}
 	var bt: String = str(boot_token).strip_edges()
-	if bt.length() > 0:
+	if bt.length() > 0 and bt.begins_with(SEAT_TOKEN_PREFIX):
 		return {"value": bt, "source": "BootIntent"}
 	var it: String = str(inspector_token).strip_edges()
 	if it.length() > 0:
@@ -557,7 +700,28 @@ static func resolve_seat_token_for_boot(
 	var saved: Dictionary = find(store_path, server_url, mid)
 	if saved.is_empty():
 		return {"value": "", "source": ""}
-	var tok: String = str(saved.get("seat_token", "")).strip_edges()
+	var tok: String = gameplay_token_from_entry(saved)
+	if tok.length() > 0:
+		return {"value": tok, "source": "cloud_credential_store"}
+	return {"value": "", "source": ""}
+
+
+static func resolve_host_token_for_admin(
+	server_url: String,
+	match_id: String,
+	store_path: String = DEFAULT_PATH,
+	boot_host_token: String = "",
+) -> Dictionary:
+	var bt: String = str(boot_host_token).strip_edges()
+	if bt.length() > 0 and bt.begins_with(HOST_TOKEN_PREFIX):
+		return {"value": bt, "source": "BootIntent"}
+	var mid: String = normalize_match_id(match_id)
+	if mid.is_empty():
+		return {"value": "", "source": ""}
+	var saved: Dictionary = find(store_path, server_url, mid)
+	if saved.is_empty():
+		return {"value": "", "source": ""}
+	var tok: String = admin_token_from_entry(saved)
 	if tok.length() > 0:
 		return {"value": tok, "source": "cloud_credential_store"}
 	return {"value": "", "source": ""}
@@ -599,19 +763,22 @@ static func persist_after_bootstrap(
 	var status: String = STATUS_UNKNOWN
 	if not existing.is_empty():
 		status = str(existing.get("last_seen_status", STATUS_UNKNOWN))
-	upsert(
-		path,
-		make_entry(
-			server_url,
-			mid,
-			actor_id,
-			tok,
-			is_host,
-			rev,
-			status,
-			label,
-		),
-	)
+	var patch: Dictionary = {
+		"server_url": server_url,
+		"match_id": mid,
+		"is_host": is_host,
+		"last_seen_revision": rev,
+		"last_seen_status": status,
+	}
+	if not label.is_empty():
+		patch["label"] = label
+	if tok.begins_with(HOST_TOKEN_PREFIX):
+		patch["host_token"] = tok
+	elif tok.begins_with(SEAT_TOKEN_PREFIX):
+		patch["seat_token"] = tok
+		if int(actor_id) >= 0:
+			patch["actor_id"] = int(actor_id)
+	upsert(path, merge_entry(existing, patch))
 
 
 static func touch_revision(
@@ -626,27 +793,22 @@ static func touch_revision(
 	if revision < 0:
 		return
 	var existing: Dictionary = find(path, server_url, match_id)
+	var patch: Dictionary = {
+		"server_url": server_url,
+		"match_id": match_id,
+		"last_seen_revision": revision,
+	}
+	if not existing.is_empty():
+		patch["last_seen_status"] = str(existing.get("last_seen_status", STATUS_UNKNOWN))
+		if str(existing.get("label", "")).strip_edges().length() > 0:
+			patch["label"] = str(existing.get("label", ""))
 	var tok: String = str(seat_token).strip_edges()
 	if tok.is_empty() and not existing.is_empty():
-		tok = str(existing.get("seat_token", "")).strip_edges()
-	if tok.is_empty():
-		return
-	var ih: bool = is_host
-	if not existing.is_empty():
-		ih = bool(existing.get("is_host", is_host))
-	var aid: int = actor_id
-	if not existing.is_empty() and existing.has("actor_id"):
-		aid = int(existing["actor_id"])
-	upsert(
-		path,
-		make_entry(
-			server_url,
-			match_id,
-			aid,
-			tok,
-			ih,
-			revision,
-			str(existing.get("last_seen_status", STATUS_UNKNOWN)) if not existing.is_empty() else STATUS_UNKNOWN,
-			str(existing.get("label", "")) if not existing.is_empty() else "",
-		),
-	)
+		tok = gameplay_token_from_entry(existing)
+	if tok.begins_with(SEAT_TOKEN_PREFIX):
+		patch["seat_token"] = tok
+	if int(actor_id) >= 0:
+		patch["actor_id"] = int(actor_id)
+	if is_host:
+		patch["is_host"] = true
+	upsert(path, merge_entry(existing, patch))

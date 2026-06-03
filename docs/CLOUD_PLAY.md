@@ -62,7 +62,7 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 
 - **Launch:** `run/main_scene` is **`res://cloud/cloud_front_door.tscn`** — choose **Local Hotseat**, **Create Cloud Match**, refresh **Cloud Matches** (staging list), or **Resume** a saved entry for the current server URL.
 - **Join:** select **Join {match_id} as Player N** to **`POST .../claim`**; credential saved; gameplay loads **`main.tscn`** with that seat token.
-- **Create:** host token saved to **`user://cloud_matches.json`**; same create-then-play flow as before (no **`/start`** until C14d).
+- **Create (C14d-3+):** host token saved; opens **staging area** (not gameplay until all-ready auto-start on server).
 - **Resume:** uses C14a store; reconnect via **`GET /v1/matches/{id}`**.
 - **Dev skip:** **`EOM_CLOUD_CLIENT=1`** still jumps straight to **`main.tscn`** with env-based cloud boot (headless tests unchanged).
 - **Lobby list** never displays tokens; only claim/create responses store tokens locally.
@@ -131,6 +131,14 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 - **Action gate:** **`POST /actions`** on v2 **staging** → **`accepted: false`**, **`reason: match_not_ongoing`** (after seat-token gate). **Legacy** (no **`meta.json`**) and **meta v1** remain permissive. Ongoing matches use existing turn/token validation.
 - **Event log:** Optional **`match_started`** row in **`events.jsonl`** (`action_type`, **`first_player_id`**, **`started_at`**).
 - **Not in C14d-2:** Godot staging UI (C14d-3), gameplay/faction effects, Docker/Caddy, accounts/realtime/delete-abandon.
+
+### Godot staging UI + dual-token store (Slice C14d-3)
+
+- **Create Cloud Match** → **`cloud_staging.tscn`** (not direct gameplay). **Join** open staging match → staging. **Continue setup** (saved staging credential) → staging. **Resume match** (saved + server **`ongoing`** + **seat_token**) → **`main.tscn`** gameplay.
+- **Credentials (`user://cloud_matches.json`):** one row per **`(server_url, match_id)`** with **`host_token`** + **`seat_token`** (merge on claim; legacy single-token rows migrated). Rename uses **host**; claim/faction/ready/gameplay use **seat** only.
+- **Staging scene:** match title, status, **Refresh**, two seats — claim, faction picker from server **`available_factions`**, Ready/Unready. When server returns **`ongoing`**, client enters gameplay if **seat_token** is present.
+- **UI:** no match_id, tokens, or server URL in normal labels; manual refresh only (no polling).
+- **Not in C14d-3:** waiting-on-opponent UX (C14d-4), server changes (requires C14d-1/C14d-2 deployed on target server).
 
 ### Server display names (Slice C14b.1 / C14c.2)
 

@@ -1,3 +1,12 @@
+## 2026-06-03 — Slice **C14d-3** — Godot staging UI + dual-token credential store
+
+- **Decision:** **Create Cloud Match** and **Join/Continue setup** route to **`cloud_staging.tscn`** (not **`main.tscn`**) until server **`status=ongoing`**. One credential store entry per **`(server_url, match_id)`** holds **`host_token`** (admin: rename) and **`seat_token`** (claim, faction, ready, gameplay) via **`merge_entry`** — claim must not overwrite host. Legacy rows with only **`seat_token`** field migrate **`ht_…` → host_token**, **`st_…` → seat_token**.
+- **BootIntent:** **`MODE_CLOUD_STAGING`** with **`host_token`**, **`seat_token`**, **`actor_id`**, **`display_name`**; staging status text **"Entering staging…"** (not gameplay reconnect wording). **`set_cloud_reconnect`** unchanged for ongoing resume with **seat token only**.
+- **Staging UI:** two seats, manual **Refresh**, claim / faction / ready via server C14d-1 endpoints; auto-transition to gameplay when summary **`status=ongoing`** and local **seat_token** exists; host-only ongoing shows **"Choose a player slot…"** (no host-as-all-players).
+- **Front door:** saved button **Resume match** vs **Continue setup**; open list **Join {display_name}** (no match_id/tokens in UI).
+- **Not in C14d-3:** waiting/read-only turn UX (C14d-4), polling, server/deploy changes.
+- **Tests:** Godot slice **`c14d`** — **`test_cloud_staging_c14d.gd`** + credential/boot/lobby tests.
+
 ## 2026-06-03 — Slice **C14d-2** — Server lifecycle: auto-start, first player, action gate
 
 - **Decision:** When all seats are claimed, have a valid faction, and **`ready=true`**, the final **`POST …/ready`** auto-starts the match: **`status=ongoing`**, **`started_at`**, **`first_player_id`**, snapshot **`turn_state.current_index`** updated (revision unchanged). First player: **`sha256((match_seed or match_id) + ":first_player")`** → index mod **`len(players)`**; not host/client-chosen. Append optional **`match_started`** event to **`events.jsonl`**.

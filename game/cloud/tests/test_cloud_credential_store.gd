@@ -63,7 +63,8 @@ func _test_round_trip() -> void:
 	_check(matches.size() == 1, "round-trip one row")
 	var row: Dictionary = matches[0] as Dictionary
 	_check(row["match_id"] == "m_round", "round-trip match_id")
-	_check(row["seat_token"] == "ht_abc", "round-trip token")
+	_check(StoreScript.host_token_from_entry(row) == "ht_abc", "round-trip host")
+	_check(StoreScript.seat_token_from_entry(row).is_empty(), "round-trip no seat yet")
 
 
 func _test_upsert_dedupe() -> void:
@@ -79,7 +80,8 @@ func _test_upsert_dedupe() -> void:
 	var loaded: Dictionary = StoreScript.load_store(TEST_PATH)
 	_check((loaded["matches"] as Array).size() == 1, "dedupe single row")
 	var row: Dictionary = (loaded["matches"] as Array)[0] as Dictionary
-	_check(row["seat_token"] == "st_two", "dedupe latest token")
+	_check(StoreScript.host_token_from_entry(row) == "ht_one", "dedupe keeps host")
+	_check(StoreScript.seat_token_from_entry(row) == "st_two", "dedupe adds seat")
 	_check(int(row["actor_id"]) == 1, "dedupe latest actor_id")
 	_check(int(row["last_seen_revision"]) == 2, "dedupe latest revision")
 
@@ -114,11 +116,11 @@ func _test_resolve_conservative() -> void:
 	var env_wins: Dictionary = StoreScript.resolve_seat_token_for_boot(
 		"https://cloud.example.org",
 		"m_saved",
-		"ht_env",
+		"st_env",
 		"st_inspector",
 		TEST_PATH,
 	)
-	_check(env_wins["value"] == "ht_env", "env token wins")
+	_check(env_wins["value"] == "st_env", "env seat token wins")
 	_check(env_wins["source"] == "EOM_CLOUD_SEAT_TOKEN", "env source")
 	var boot_wins: Dictionary = StoreScript.resolve_seat_token_for_boot(
 		"https://cloud.example.org",
@@ -126,9 +128,9 @@ func _test_resolve_conservative() -> void:
 		"",
 		"st_inspector",
 		TEST_PATH,
-		"ht_boot",
+		"st_boot",
 	)
-	_check(boot_wins["value"] == "ht_boot", "boot token beats inspector")
+	_check(boot_wins["value"] == "st_boot", "boot seat token beats inspector")
 	_check(boot_wins["source"] == "BootIntent", "boot source")
 	var insp_wins: Dictionary = StoreScript.resolve_seat_token_for_boot(
 		"https://cloud.example.org",

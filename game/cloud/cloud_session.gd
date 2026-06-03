@@ -256,6 +256,18 @@ func post_claim_seat(actor_id: int) -> Dictionary:
 	)
 
 
+func post_seat_faction(actor_id: int, faction_id: String) -> Dictionary:
+	var path: String = CloudClientScript.seat_faction_path(match_id, actor_id)
+	var body: String = JSON.stringify({"faction_id": str(faction_id).strip_edges()})
+	return await http_json_request(HTTPClient.METHOD_POST, path, body)
+
+
+func post_seat_ready(actor_id: int, ready: bool) -> Dictionary:
+	var path: String = CloudClientScript.seat_ready_path(match_id, actor_id)
+	var body: String = JSON.stringify({"ready": bool(ready)})
+	return await http_json_request(HTTPClient.METHOD_POST, path, body)
+
+
 func get_legal_actions(actor_id: int, selected_unit_id: int = -1, selected_city_id: int = -1) -> Dictionary:
 	var q = "?actor_id=%d" % actor_id
 	if selected_unit_id >= 0:

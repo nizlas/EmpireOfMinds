@@ -431,3 +431,16 @@ Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_faction_selec
 **Manual (local or deployed server):** create → claim both seats → factions → ready seat 0 only (staging) → ready seat 1 (ongoing + **`first_player_id`**) → **`POST /actions`** on fresh staging match rejected → legal action after ongoing succeeds.
 
 Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_auto_start.py`**, **`test_action_status_gate.py`**, plus C14d-1 tests).
+
+## Slice C14d-3 — Godot staging UI + dual-token credential store
+
+- [ ] **Create Cloud Match** opens **staging** (`cloud_staging.tscn`), not gameplay.
+- [ ] **host_token** and **seat_token** coexist in one store entry; claim merges without clearing host.
+- [ ] Staging: claim, faction (`POST …/faction`), ready (`POST …/ready`) with **seat token**; Refresh loads **GET /v1/matches**.
+- [ ] Server **`ongoing`** + local **seat_token** → gameplay via **seat** reconnect; host-only → message to claim a slot.
+- [ ] Front door: **Resume match** / **Continue setup** / **Join {name}** labels; no match_id/tokens/URL in normal UI.
+- [ ] Local hotseat unchanged; no server/Docker changes in this slice.
+
+**Manual (server with C14d-1/C14d-2 deployed):** create → staging → claim → faction → ready seat 0 (still staging) → second seat ready → auto-start → gameplay. Actions blocked while staging.
+
+Validation: **`scripts/run-godot-tests.ps1 slice c14d`**; **`smoke`** if boot plumbing touched.
