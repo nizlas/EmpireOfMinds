@@ -151,7 +151,7 @@ func _test_create_claim_default_labels() -> void:
 		"",
 		TEST_PATH,
 	)
-	_check(str(create_entry.get("label", "")) == "Match 1", "create credential default label")
+	_check(str(create_entry.get("label", "")) == "m_new", "create credential falls back to match_id not local Match N")
 	var claim_parsed := {
 		"ok": true,
 		"match_id": "m_c",

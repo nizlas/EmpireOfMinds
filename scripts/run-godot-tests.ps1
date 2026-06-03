@@ -33,6 +33,7 @@ $Script:SliceTests = @{
 		"res://cloud/tests/test_cloud_match_labels.gd"
 		"res://cloud/tests/test_cloud_display_name.gd"
 		"res://cloud/tests/test_cloud_saved_row_rename.gd"
+		"res://cloud/tests/test_cloud_front_door_data_flow.gd"
 	)
 }
 
@@ -185,6 +186,7 @@ $Script:AllTests = @(
 	"res://cloud/tests/test_cloud_match_labels.gd",
 	"res://cloud/tests/test_cloud_display_name.gd",
 	"res://cloud/tests/test_cloud_saved_row_rename.gd",
+	"res://cloud/tests/test_cloud_front_door_data_flow.gd",
 	"res://cloud/tests/test_cloud_routing_pick.gd",
 	"res://cloud/tests/test_cloud_turn_banner.gd",
 	"res://cloud/tests/test_cloud_combat_animation.gd",

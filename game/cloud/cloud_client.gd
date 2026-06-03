@@ -160,11 +160,27 @@ static func parse_claim_response(resp: Dictionary) -> Dictionary:
 	}
 
 
+static func build_create_match_body(scenario_id: String, display_name: String = "") -> Dictionary:
+	var body: Dictionary = {"scenario_id": scenario_id}
+	var dn: String = str(display_name).strip_edges()
+	if dn.length() > 0:
+		body["display_name"] = dn
+	return body
+
+
+static func pick_create_credential_display_name(requested: String, resp: Dictionary) -> String:
+	var from_server: String = display_name_from_create_response(resp)
+	var req: String = str(requested).strip_edges()
+	if from_server.length() > 0:
+		return from_server
+	return req
+
+
 static func credential_from_create_response(
 	server_url: String,
 	resp: Dictionary,
 	label: String = "",
-	store_path: String = CloudCredentialStoreScript.DEFAULT_PATH,
+	_store_path: String = CloudCredentialStoreScript.DEFAULT_PATH,
 ) -> Dictionary:
 	var mid: String = str(resp.get("match_id", "")).strip_edges()
 	var host_tok: String = host_token_from_create_response(resp)
@@ -172,7 +188,7 @@ static func credential_from_create_response(
 	if lbl.is_empty():
 		lbl = display_name_from_create_response(resp)
 	if lbl.is_empty():
-		lbl = CloudCredentialStoreScript.generate_default_label(store_path)
+		lbl = mid
 	return CloudCredentialStoreScript.make_entry(
 		server_url,
 		mid,

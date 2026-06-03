@@ -116,6 +116,36 @@ static func resolve_label_for_save(user_input: String, path: String = DEFAULT_PA
 	return generate_default_label(path)
 
 
+## After OK, **hide()** must not let **close_requested** overwrite the edited value.
+static func finalize_dialog_text(
+	edited_text: String,
+	prefill: String,
+	confirmed: bool,
+	cancel_to_prefill: bool,
+) -> String:
+	if confirmed:
+		return str(edited_text).strip_edges()
+	if cancel_to_prefill:
+		return str(prefill).strip_edges()
+	return ""
+
+
+static func seed_display_names_from_entries(entries: Array) -> Dictionary:
+	var out: Dictionary = {}
+	var i: int = 0
+	while i < entries.size():
+		var row = entries[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row as Dictionary
+		var mid: String = normalize_match_id(str(d.get("match_id", "")))
+		var lbl: String = str(d.get("label", "")).strip_edges()
+		if mid.length() > 0 and lbl.length() > 0:
+			out[mid] = lbl
+	return out
+
+
 static func display_label(entry: Dictionary) -> String:
 	if typeof(entry) != TYPE_DICTIONARY:
 		return ""
@@ -130,14 +160,15 @@ static func full_display_name(entry: Dictionary, server_names: Dictionary = {}) 
 	if typeof(entry) != TYPE_DICTIONARY:
 		return ""
 	var mid: String = normalize_match_id(str(entry.get("match_id", "")))
-	if mid.length() > 0 and typeof(server_names) == TYPE_DICTIONARY:
-		var from_server: String = str(server_names.get(mid, "")).strip_edges()
-		if from_server.length() > 0:
-			return from_server
 	var lbl: String = str(entry.get("label", "")).strip_edges()
-	if lbl.length() > 0:
-		return lbl
-	return mid
+	var from_server: String = ""
+	if mid.length() > 0 and typeof(server_names) == TYPE_DICTIONARY:
+		from_server = str(server_names.get(mid, "")).strip_edges()
+	if from_server.is_empty():
+		if lbl.length() > 0:
+			return lbl
+		return mid
+	return from_server
 
 
 static func resolved_display_name(entry: Dictionary, server_names: Dictionary = {}) -> String:

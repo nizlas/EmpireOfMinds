@@ -173,12 +173,37 @@ func post_create_match(scenario_id: String, display_name: String = "") -> Dictio
 				% [Time.get_ticks_msec(), base_norm, path, full_url, scenario_id]
 			)
 		)
-	var body: Dictionary = {"scenario_id": scenario_id}
-	var dn: String = str(display_name).strip_edges()
-	if dn.length() > 0:
-		body["display_name"] = dn
+	var body: Dictionary = CloudClientScript.build_create_match_body(scenario_id, display_name)
 	var payload := JSON.stringify(body)
-	return await http_json_request(HTTPClient.METHOD_POST, path, payload)
+	if dbg:
+		var keys: PackedStringArray = PackedStringArray()
+		for k in body.keys():
+			keys.append(str(k))
+		print(
+			(
+				"SliceC14c2 create_match_request scenario_id=%s requested_display_name=%s body_keys=%s"
+				% [scenario_id, str(body.get("display_name", "")), ",".join(keys)]
+			)
+		)
+	var resp: Dictionary = await http_json_request(HTTPClient.METHOD_POST, path, payload)
+	if dbg:
+		if resp.has("_error"):
+			print(
+				"SliceC14c2 create_match_failed error=%s http=%s"
+				% [str(resp.get("_error", "")), str(resp.get("_http_code", ""))]
+			)
+		else:
+			var resp_dn: String = CloudClientScript.display_name_from_create_response(resp)
+			print(
+				"SliceC14c2 create_match_ok match_id=%s response_display_name=%s"
+				% [str(resp.get("match_id", "")), resp_dn]
+			)
+			if body.has("display_name") and resp_dn != str(body["display_name"]):
+				push_warning(
+					"SliceC14c2 create_match display_name mismatch requested=%s response=%s"
+					% [str(body["display_name"]), resp_dn]
+				)
+	return resp
 
 
 func patch_display_name(match_id: String, display_name: String) -> Dictionary:

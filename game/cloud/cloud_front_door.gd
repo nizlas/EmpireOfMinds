@@ -32,7 +32,8 @@ func _ready() -> void:
 		get_tree().change_scene_to_file(MAIN_SCENE)
 		return
 	_build_ui()
-	await _refresh_saved_list()
+	_populate_saved_list_from_store()
+	call_deferred("_enrich_saved_list_from_server")
 
 
 func _resolve_server_url() -> String:
@@ -143,7 +144,8 @@ func _make_session() -> Node:
 
 
 func _await_text_dialog(title: String, hint: String, prefill: String, cancel_to_prefill: bool) -> String:
-	var chosen: String = prefill
+	var edited: String = prefill
+	var confirmed: bool = false
 	var win := Window.new()
 	win.title = title
 	win.unresizable = true
@@ -184,23 +186,29 @@ func _await_text_dialog(title: String, hint: String, prefill: String, cancel_to_
 	edit.caret_column = edit.text.length()
 	ok_btn.pressed.connect(
 		func() -> void:
-			chosen = edit.text
+			edited = edit.text
+			confirmed = true
 			win.hide()
 	)
 	cancel_btn.pressed.connect(
 		func() -> void:
-			chosen = prefill if cancel_to_prefill else ""
+			confirmed = false
 			win.hide()
 	)
 	win.close_requested.connect(
 		func() -> void:
-			chosen = prefill if cancel_to_prefill else ""
-			win.hide()
+			if not confirmed:
+				win.hide()
 	)
 	while win.visible:
 		await get_tree().process_frame
 	win.queue_free()
-	return chosen
+	return CloudCredentialStoreScript.finalize_dialog_text(
+		edited,
+		prefill,
+		confirmed,
+		cancel_to_prefill,
+	)
 
 
 func _prompt_create_display_name(default_label: String) -> String:
@@ -208,8 +216,10 @@ func _prompt_create_display_name(default_label: String) -> String:
 		"Name this cloud match",
 		"Public display name on the server (visible to others in the open match list).",
 		default_label,
-		true,
+		false,
 	)
+	if raw.is_empty():
+		return ""
 	return CloudCredentialStoreScript.resolve_label_for_save(raw, STORE_PATH)
 
 
@@ -230,13 +240,16 @@ func _save_credential_with_label(entry: Dictionary) -> void:
 func _on_create_cloud() -> void:
 	if _busy:
 		return
+	var requested_name: String = await _prompt_create_display_name(
+		CloudCredentialStoreScript.generate_default_label(STORE_PATH)
+	)
+	if requested_name.is_empty():
+		_set_status("Create cancelled.")
+		return
 	_set_busy(true)
 	_set_status("Creating cloud match…")
 	var sess = _make_session()
-	var saved_lbl: String = await _prompt_create_display_name(
-		CloudCredentialStoreScript.generate_default_label(STORE_PATH)
-	)
-	var resp: Dictionary = await sess.post_create_match("prototype_play", saved_lbl)
+	var resp: Dictionary = await sess.post_create_match("prototype_play", requested_name)
 	sess.queue_free()
 	_set_busy(false)
 	if resp.has("_error") or str(resp.get("match_id", "")) == "":
@@ -247,12 +260,20 @@ func _on_create_cloud() -> void:
 		_set_status("Create succeeded but host token was missing.")
 		return
 	var mid: String = str(resp.get("match_id", "")).strip_edges()
-	var server_name: String = CloudClientScript.display_name_from_create_response(resp)
-	_server_display_names[mid] = server_name
+	var display_name: String = CloudClientScript.pick_create_credential_display_name(
+		requested_name,
+		resp,
+	)
+	if _cloud_debug_enabled() and display_name != requested_name:
+		push_warning(
+			"SliceC14c2 create using response display_name=%s (requested=%s)"
+			% [display_name, requested_name]
+		)
+	_server_display_names[mid] = display_name
 	var entry: Dictionary = CloudClientScript.credential_from_create_response(
 		_server_url,
 		resp,
-		server_name,
+		display_name,
 		STORE_PATH,
 	)
 	_save_credential_with_label(entry)
@@ -389,8 +410,12 @@ func _render_saved_list() -> void:
 		_saved_list.add_item("(no saved credentials for this server — create or claim a match)")
 
 
-func _refresh_saved_list() -> void:
-	await _merge_server_display_names_from_lobby()
+func _populate_saved_list_from_store() -> void:
+	var entries: Array = CloudCredentialStoreScript.entries_for_server(STORE_PATH, _server_url)
+	var seeded: Dictionary = CloudCredentialStoreScript.seed_display_names_from_entries(entries)
+	for mid in seeded.keys():
+		if not _server_display_names.has(mid):
+			_server_display_names[mid] = seeded[mid]
 	_load_saved_row_views()
 	_render_saved_list()
 	_saved_selected_index = -1
@@ -398,6 +423,27 @@ func _refresh_saved_list() -> void:
 		_saved_resume_btn.disabled = true
 	if _saved_rename_btn != null:
 		_saved_rename_btn.disabled = true
+
+
+func _enrich_saved_list_from_server() -> void:
+	if _busy:
+		return
+	await _merge_server_display_names_from_lobby()
+	var sel: int = _saved_selected_index
+	_load_saved_row_views()
+	_render_saved_list()
+	if sel >= 0 and sel < _saved_rows.size():
+		_saved_selected_index = sel
+		_saved_list.select(sel)
+		if _saved_resume_btn != null:
+			_saved_resume_btn.disabled = false
+		if _saved_rename_btn != null:
+			_saved_rename_btn.disabled = not bool((_saved_rows[sel] as Dictionary).get("is_host", false))
+
+
+func _refresh_saved_list() -> void:
+	_populate_saved_list_from_store()
+	await _enrich_saved_list_from_server()
 
 
 func _on_saved_item_selected(index: int) -> void:
@@ -476,12 +522,8 @@ func _on_rename_saved() -> void:
 	CloudCredentialStoreScript.update_label_cache(STORE_PATH, _server_url, mid, server_name)
 	_saved_rows[_saved_selected_index] = CloudCredentialStoreScript.apply_rename_to_view(view, server_name)
 	_render_saved_list()
-	await _merge_server_display_names_from_lobby()
-	_load_saved_row_views()
 	var sel: int = _saved_selected_index
-	_render_saved_list()
 	if sel >= 0 and sel < _saved_rows.size():
-		_saved_selected_index = sel
 		_saved_list.select(sel)
 		if _saved_resume_btn != null:
 			_saved_resume_btn.disabled = false
