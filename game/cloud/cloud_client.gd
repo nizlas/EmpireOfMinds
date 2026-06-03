@@ -59,7 +59,9 @@ static func build_resume_row_view(
 	var local_lbl: String = str(credential.get("label", "")).strip_edges()
 	var display_full: String = server_dn
 	if display_full.is_empty():
-		display_full = local_lbl if local_lbl.length() > 0 else mid
+		display_full = local_lbl
+	if display_full.is_empty():
+		display_full = CloudCredentialStoreScript.FALLBACK_UNNAMED_MATCH
 	var view := {
 		"match_id": mid,
 		"server_url": su,
@@ -155,9 +157,9 @@ static func build_open_staging_claim_targets(matches: Array, resume_match_ids: D
 
 
 static func lobby_open_row_text(row: Dictionary, actor_id: int) -> String:
-	var title: String = display_name_from_lobby_row(row)
-	if title.is_empty():
-		title = str(row.get("match_id", "")).strip_edges()
+	var title: String = CloudCredentialStoreScript.player_visible_display_name(
+		display_name_from_lobby_row(row)
+	)
 	return "Join %s as Player %d" % [title, int(actor_id)]
 
 

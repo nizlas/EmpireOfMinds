@@ -35,6 +35,7 @@ $Script:SliceTests = @{
 		"res://cloud/tests/test_cloud_saved_row_rename.gd"
 		"res://cloud/tests/test_cloud_front_door_data_flow.gd"
 		"res://cloud/tests/test_cloud_lobby_server_scoped.gd"
+		"res://cloud/tests/test_cloud_match_name_identity.gd"
 	)
 }
 

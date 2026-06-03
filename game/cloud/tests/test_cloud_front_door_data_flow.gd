@@ -86,12 +86,15 @@ func _test_dialog_ok_custom_name() -> void:
 
 
 func _test_dialog_ok_empty_uses_default() -> void:
-	_remove_test_file()
-	var default_label: String = StoreScript.generate_default_label(TEST_PATH)
-	var result := {"confirmed": true, "text": "   "}
-	var out: Dictionary = StoreScript.interpret_create_dialog_result(result, TEST_PATH)
+	var lobby: Array = [{"match_id": "m1", "display_name": "Match 1", "status": "staging"}]
+	var default_label: String = StoreScript.generate_unique_default_label_from_server(lobby)
+	var keys: Dictionary = StoreScript.display_name_key_map_from_lobby(lobby)
+	var v: Dictionary = StoreScript.validate_create_display_name("   ", default_label, keys)
+	_check(bool(v.get("ok", false)), "empty field validates via default")
+	var result := {"confirmed": true, "text": str(v["effective"])}
+	var out: Dictionary = StoreScript.interpret_create_dialog_result(result, default_label, TEST_PATH)
 	_check(not bool(out.get("cancelled", true)), "OK empty not cancelled")
-	_check(out["display_name"] == default_label, "OK empty uses generated default")
+	_check(out["display_name"] == default_label, "OK empty uses server-suggested default")
 
 
 func _test_dialog_cancel() -> void:

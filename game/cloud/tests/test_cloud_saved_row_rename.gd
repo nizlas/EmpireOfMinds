@@ -72,8 +72,8 @@ func _test_row_text_primary_not_truncated() -> void:
 		LONG_NAME,
 	)
 	var view: Dictionary = StoreScript.build_saved_row_view(entry, "http://a", {})
-	_check(str(view["row_text"]).begins_with(LONG_NAME), "primary name not shortened in row builder")
-	_check(str(view["row_text"]).find("m_row") >= 0, "secondary full match id present")
+	_check(view["row_text"] == LONG_NAME + " (host)", "row is display name only")
+	_check(StoreScript.row_text_hides_match_id(str(view["row_text"]), "m_row"), "row hides match_id")
 
 
 func _test_rename_submit_body_exact() -> void:

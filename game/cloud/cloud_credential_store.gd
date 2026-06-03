@@ -9,6 +9,9 @@ const STATUS_STAGING: String = "staging"
 ## Host/dev single-client flow: actor_id 0 when saving host_token from create.
 const HOST_ACTOR_ID: int = 0
 const DEFAULT_LABEL_PREFIX: String = "Match "
+const MSG_DUPLICATE_DISPLAY_NAME: String = "A match with this name already exists."
+const MSG_EMPTY_DISPLAY_NAME: String = "Match name cannot be empty."
+const FALLBACK_UNNAMED_MATCH: String = "Unnamed match"
 
 
 static func empty_store() -> Dictionary:
@@ -121,8 +124,110 @@ static func next_match_number(path: String = DEFAULT_PATH) -> int:
 	return max_n + 1
 
 
+static func next_match_number_from_display_names(display_names: Array) -> int:
+	var max_n: int = 0
+	var i: int = 0
+	while i < display_names.size():
+		max_n = maxi(max_n, _parse_match_number_from_label(str(display_names[i])))
+		i += 1
+	return max_n + 1
+
+
 static func generate_default_label(path: String = DEFAULT_PATH) -> String:
 	return "%s%d" % [DEFAULT_LABEL_PREFIX, next_match_number(path)]
+
+
+static func normalize_display_name_key(name: String) -> String:
+	return str(name).strip_edges().to_lower()
+
+
+static func lobby_row_display_name(row: Dictionary) -> String:
+	if typeof(row) != TYPE_DICTIONARY:
+		return ""
+	return str(row.get("display_name", "")).strip_edges()
+
+
+## Case-insensitive duplicate map: normalized display_name -> match_id (from server lobby rows).
+static func display_name_key_map_from_lobby(lobby_matches: Array) -> Dictionary:
+	var out: Dictionary = {}
+	var i: int = 0
+	while i < lobby_matches.size():
+		var row = lobby_matches[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = row as Dictionary
+		var dn: String = lobby_row_display_name(d)
+		var key: String = normalize_display_name_key(dn)
+		if key.is_empty():
+			continue
+		out[key] = normalize_match_id(str(d.get("match_id", "")))
+	return out
+
+
+static func display_names_from_lobby(lobby_matches: Array) -> Array:
+	var out: Array = []
+	var i: int = 0
+	while i < lobby_matches.size():
+		var row = lobby_matches[i]
+		i += 1
+		if typeof(row) != TYPE_DICTIONARY:
+			continue
+		var dn: String = lobby_row_display_name(row as Dictionary)
+		if dn.length() > 0:
+			out.append(dn)
+	return out
+
+
+## Suggest **Match N** from server names only; skip keys already taken (case-insensitive).
+static func generate_unique_default_label_from_server(lobby_matches: Array) -> String:
+	var names: Array = display_names_from_lobby(lobby_matches)
+	var key_map: Dictionary = display_name_key_map_from_lobby(lobby_matches)
+	var n: int = next_match_number_from_display_names(names)
+	while n < 100000:
+		var candidate: String = "%s%d" % [DEFAULT_LABEL_PREFIX, n]
+		if not key_map.has(normalize_display_name_key(candidate)):
+			return candidate
+		n += 1
+	return "%s%d" % [DEFAULT_LABEL_PREFIX, n]
+
+
+static func effective_create_display_name(user_text: String, default_label: String) -> String:
+	var trimmed: String = str(user_text).strip_edges()
+	if trimmed.length() > 0:
+		return trimmed
+	return str(default_label).strip_edges()
+
+
+static func validate_create_display_name(
+	user_text: String,
+	default_label: String,
+	name_key_map: Dictionary,
+) -> Dictionary:
+	var effective: String = effective_create_display_name(user_text, default_label)
+	if effective.is_empty():
+		return {"ok": false, "message": MSG_EMPTY_DISPLAY_NAME, "effective": ""}
+	var key: String = normalize_display_name_key(effective)
+	if typeof(name_key_map) == TYPE_DICTIONARY and name_key_map.has(key):
+		return {"ok": false, "message": MSG_DUPLICATE_DISPLAY_NAME, "effective": effective}
+	return {"ok": true, "message": "", "effective": effective}
+
+
+static func validate_rename_display_name(
+	user_text: String,
+	own_match_id: String,
+	name_key_map: Dictionary,
+) -> Dictionary:
+	var effective: String = rename_submit_body(user_text)
+	if effective.is_empty():
+		return {"ok": false, "message": MSG_EMPTY_DISPLAY_NAME, "effective": ""}
+	var key: String = normalize_display_name_key(effective)
+	var own_mid: String = normalize_match_id(own_match_id)
+	if typeof(name_key_map) == TYPE_DICTIONARY and name_key_map.has(key):
+		var owner: String = str(name_key_map[key])
+		if owner != own_mid:
+			return {"ok": false, "message": MSG_DUPLICATE_DISPLAY_NAME, "effective": effective}
+	return {"ok": true, "message": "", "effective": effective}
 
 
 static func resolve_label_for_save(user_input: String, path: String = DEFAULT_PATH) -> String:
@@ -148,11 +253,18 @@ static func apply_close_requested_to_dialog_result(result: Dictionary) -> Dictio
 
 static func interpret_create_dialog_result(
 	result: Dictionary,
+	default_if_empty: String = "",
 	path: String = DEFAULT_PATH,
 ) -> Dictionary:
 	if not bool(result.get("confirmed", false)):
 		return {"cancelled": true, "display_name": ""}
-	var display_name: String = resolve_label_for_save(str(result.get("text", "")), path)
+	var display_name: String = str(result.get("text", "")).strip_edges()
+	if display_name.is_empty():
+		display_name = str(default_if_empty).strip_edges()
+	if display_name.is_empty():
+		display_name = resolve_label_for_save("", path)
+	if display_name.is_empty():
+		return {"cancelled": true, "display_name": ""}
 	return {"cancelled": false, "display_name": display_name}
 
 
@@ -267,17 +379,27 @@ static func build_saved_row_view(
 	return view
 
 
+static func player_visible_display_name(raw_name: String) -> String:
+	var name: String = str(raw_name).strip_edges()
+	if name.is_empty():
+		return FALLBACK_UNNAMED_MATCH
+	return name
+
+
 static func format_saved_row_text_from_view(view: Dictionary) -> String:
 	if typeof(view) != TYPE_DICTIONARY:
 		return ""
-	var host_bit: String = " (host)" if bool(view.get("is_host", false)) else ""
-	var id_hint: String = str(view.get("match_id", ""))
-	return "%s — actor %d%s — %s" % [
-		str(view.get("display_name", "")),
-		int(view.get("actor_id", 0)),
-		host_bit,
-		id_hint,
-	]
+	var title: String = player_visible_display_name(str(view.get("display_name", "")))
+	if bool(view.get("is_host", false)):
+		return "%s (host)" % title
+	return title
+
+
+static func row_text_hides_match_id(row_text: String, match_id: String) -> bool:
+	var mid: String = normalize_match_id(match_id)
+	if mid.is_empty():
+		return true
+	return not str(row_text).contains(mid)
 
 
 static func apply_rename_to_view(view: Dictionary, new_display_name: String) -> Dictionary:

@@ -88,9 +88,8 @@ func _test_display_and_row_text() -> void:
 	)
 	entry["label"] = "Match 2"
 	var row_text: String = StoreScript.format_saved_row_text(entry)
-	_check(row_text.find("Match 2") >= 0, "row shows label")
-	_check(row_text.find("actor 0") >= 0, "row shows actor")
-	_check(row_text.find("(host)") >= 0, "row shows host")
+	_check(row_text == "Match 2 (host)", "row shows display name and host only")
+	_check(StoreScript.row_text_hides_match_id(row_text, "m_row"), "row hides match_id")
 	_check(StoreScript.row_text_has_no_token(row_text, entry), "row text hides token")
 	var lobby_line: String = "Join m_abcdefghijklmnop as Player 1"
 	_check(row_text != lobby_line, "saved row is not server lobby row text")

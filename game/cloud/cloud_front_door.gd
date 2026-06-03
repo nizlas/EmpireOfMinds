@@ -22,6 +22,9 @@ var _lobby_claim_targets: Array = []
 var _saved_rows: Array = []
 var _saved_selected_index: int = -1
 var _server_lobby_load_failed: bool = false
+## Latest token-free **GET /v1/matches** rows for duplicate checks and default naming.
+var _lobby_matches: Array = []
+var _display_name_key_map: Dictionary = {}
 
 
 func _ready() -> void:
@@ -63,10 +66,6 @@ func _build_ui() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 28)
 	vbox.add_child(title)
-	var url_lbl := Label.new()
-	url_lbl.text = "Cloud server: %s" % _server_url
-	url_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vbox.add_child(url_lbl)
 	var row1 := HBoxContainer.new()
 	vbox.add_child(row1)
 	var hotseat_btn := Button.new()
@@ -141,13 +140,21 @@ func _make_session() -> Node:
 	return sess
 
 
-func _await_text_dialog(title: String, hint: String, prefill: String) -> Dictionary:
+func _server_default_create_label() -> String:
+	return CloudCredentialStoreScript.generate_unique_default_label_from_server(_lobby_matches)
+
+
+func _refresh_display_name_key_map() -> void:
+	_display_name_key_map = CloudCredentialStoreScript.display_name_key_map_from_lobby(_lobby_matches)
+
+
+func _await_name_dialog(title: String, hint: String, prefill: String, validate: Callable) -> Dictionary:
 	var result: Dictionary = CloudCredentialStoreScript.empty_dialog_result(prefill)
 	var win := Window.new()
 	win.title = title
 	win.unresizable = true
 	win.popup_window = true
-	win.size = Vector2i(520, 168)
+	win.size = Vector2i(520, 200)
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left", 12)
@@ -169,6 +176,9 @@ func _await_text_dialog(title: String, hint: String, prefill: String) -> Diction
 	edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	edit.expand_to_text_length = true
 	vbox.add_child(edit)
+	var validation_lbl := Label.new()
+	validation_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(validation_lbl)
 	var btn_row := HBoxContainer.new()
 	vbox.add_child(btn_row)
 	var ok_btn := Button.new()
@@ -182,11 +192,19 @@ func _await_text_dialog(title: String, hint: String, prefill: String) -> Diction
 	edit.grab_focus()
 	edit.caret_column = edit.text.length()
 
+	var sync_validation := func() -> void:
+		var v: Dictionary = validate.call(edit.text)
+		ok_btn.disabled = not bool(v.get("ok", false))
+		validation_lbl.text = str(v.get("message", ""))
+
 	var commit_ok := func() -> void:
 		if bool(result.get("confirmed", false)):
 			return
+		var v: Dictionary = validate.call(edit.text)
+		if not bool(v.get("ok", false)):
+			return
 		result["confirmed"] = true
-		result["text"] = edit.text
+		result["text"] = str(v.get("effective", edit.text))
 		win.hide()
 
 	var commit_cancel := func() -> void:
@@ -196,8 +214,13 @@ func _await_text_dialog(title: String, hint: String, prefill: String) -> Diction
 		result["text"] = edit.text
 		win.hide()
 
+	edit.text_changed.connect(func(_new_text: String) -> void: sync_validation.call())
 	ok_btn.pressed.connect(commit_ok)
-	edit.text_submitted.connect(func(_new_text: String) -> void: commit_ok.call())
+	edit.text_submitted.connect(
+		func(_new_text: String) -> void:
+			if not ok_btn.disabled:
+				commit_ok.call()
+	)
 	cancel_btn.pressed.connect(commit_cancel)
 	win.close_requested.connect(
 		func() -> void:
@@ -206,6 +229,7 @@ func _await_text_dialog(title: String, hint: String, prefill: String) -> Diction
 				return
 			win.hide()
 	)
+	sync_validation.call()
 	while win.visible:
 		await get_tree().process_frame
 	win.queue_free()
@@ -213,10 +237,17 @@ func _await_text_dialog(title: String, hint: String, prefill: String) -> Diction
 
 
 func _prompt_create_display_name(default_label: String) -> Dictionary:
-	var dialog_result: Dictionary = await _await_text_dialog(
+	var validate := func(user_text: String) -> Dictionary:
+		return CloudCredentialStoreScript.validate_create_display_name(
+			user_text,
+			default_label,
+			_display_name_key_map,
+		)
+	var dialog_result: Dictionary = await _await_name_dialog(
 		"Name this cloud match",
-		"Public display name on the server (visible to others in the open match list).",
+		"Choose a unique name (visible in the open match list). Empty uses the suggested default.",
 		default_label,
+		validate,
 	)
 	if _cloud_debug_enabled():
 		print(
@@ -229,6 +260,7 @@ func _prompt_create_display_name(default_label: String) -> Dictionary:
 		)
 	var interpreted: Dictionary = CloudCredentialStoreScript.interpret_create_dialog_result(
 		dialog_result,
+		default_label,
 		STORE_PATH,
 	)
 	if _cloud_debug_enabled():
@@ -242,11 +274,18 @@ func _prompt_create_display_name(default_label: String) -> Dictionary:
 	return interpreted
 
 
-func _prompt_rename_display_name(prefill_full: String) -> Dictionary:
-	var dialog_result: Dictionary = await _await_text_dialog(
+func _prompt_rename_display_name(prefill_full: String, own_match_id: String) -> Dictionary:
+	var validate := func(user_text: String) -> Dictionary:
+		return CloudCredentialStoreScript.validate_rename_display_name(
+			user_text,
+			own_match_id,
+			_display_name_key_map,
+		)
+	var dialog_result: Dictionary = await _await_name_dialog(
 		"Rename cloud match",
-		"Public display name on the server (visible to others in the open match list).",
+		"Choose a unique name (visible in the open match list).",
 		prefill_full,
+		validate,
 	)
 	if _cloud_debug_enabled():
 		print(
@@ -267,7 +306,7 @@ func _save_credential_with_label(entry: Dictionary) -> void:
 func _on_create_cloud() -> void:
 	if _busy:
 		return
-	var default_label: String = CloudCredentialStoreScript.generate_default_label(STORE_PATH)
+	var default_label: String = _server_default_create_label()
 	var create_dialog: Dictionary = await _prompt_create_display_name(default_label)
 	if bool(create_dialog.get("cancelled", true)):
 		_set_status("Create cancelled.")
@@ -345,14 +384,20 @@ func _on_lobby_item_selected(index: int) -> void:
 	if index < 0 or index >= _lobby_claim_targets.size() or _busy:
 		return
 	var target: Dictionary = _lobby_claim_targets[index] as Dictionary
-	await _claim_and_play(str(target.get("match_id", "")), int(target.get("actor_id", -1)))
+	await _claim_and_play(target)
 
 
-func _claim_and_play(match_id: String, actor_id: int) -> void:
+func _claim_and_play(target: Dictionary) -> void:
 	if _busy:
 		return
+	var match_id: String = str(target.get("match_id", "")).strip_edges()
+	var actor_id: int = int(target.get("actor_id", -1))
+	var lobby_row: Dictionary = target.get("lobby_row", {}) as Dictionary
+	var claim_name: String = CloudCredentialStoreScript.player_visible_display_name(
+		CloudClientScript.display_name_from_lobby_row(lobby_row)
+	)
 	_set_busy(true)
-	_set_status("Claiming seat %d on %s…" % [actor_id, match_id])
+	_set_status("Claiming seat for %s…" % claim_name)
 	var sess = _make_session()
 	sess.match_id = match_id
 	var raw: Dictionary = await sess.post_claim_seat(actor_id)
@@ -405,6 +450,8 @@ func _reload_lobby_from_server() -> void:
 		_render_lobby_load_failed(str(parsed["_error"]))
 		return
 	var matches: Array = parsed.get("matches", []) as Array
+	_lobby_matches = matches
+	_refresh_display_name_key_map()
 	var cred_map: Dictionary = CloudCredentialStoreScript.credentials_map_for_server(
 		STORE_PATH,
 		_server_url,
@@ -436,6 +483,8 @@ func _log_resume_rows_debug() -> void:
 
 
 func _render_lobby_load_failed(_detail: String) -> void:
+	_lobby_matches.clear()
+	_display_name_key_map.clear()
 	_saved_list.clear()
 	_lobby_list.clear()
 	_set_status("Unable to load cloud matches. Could not reach cloud server.")
@@ -537,7 +586,7 @@ func _on_rename_saved() -> void:
 		_set_status("Saved entry is incomplete.")
 		return
 	var old_name: String = str(view.get("display_name", ""))
-	var rename_dialog: Dictionary = await _prompt_rename_display_name(old_name)
+	var rename_dialog: Dictionary = await _prompt_rename_display_name(old_name, mid)
 	if bool(rename_dialog.get("cancelled", true)):
 		_set_status("Rename cancelled.")
 		return
@@ -576,4 +625,5 @@ func _on_rename_saved() -> void:
 			_saved_resume_btn.disabled = false
 		if _saved_rename_btn != null:
 			_saved_rename_btn.disabled = false
+	await _reload_lobby_from_server()
 	_set_status("Renamed to \"%s\"." % server_name)
