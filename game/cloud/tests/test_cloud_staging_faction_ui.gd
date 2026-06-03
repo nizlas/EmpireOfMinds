@@ -25,6 +25,8 @@ func _init() -> void:
 	_test_taken_faction_blocks_can_ready()
 	_test_plan_ready_null_server_vastervik()
 	_test_option_button_set_block_signals_api()
+	_test_dropdown_bounds_and_apply_selection()
+	_test_non_owned_slot_selection_ignored()
 	_test_placeholder_dropdown_mapping()
 	_test_first_selection_from_empty_placeholder()
 	_test_render_preserves_pending_then_user_select()
@@ -283,6 +285,77 @@ func _test_option_button_set_block_signals_api() -> void:
 	ob.set_block_signals(true)
 	ob.set_block_signals(false)
 	ob.free()
+
+
+func _test_dropdown_bounds_and_apply_selection() -> void:
+	var choices: Array = (_unconfigured_slot_view()["faction_choices"] as Array)
+	_check(
+		CloudStagingParsersScript.dropdown_item_count_for_choices(choices, true) == 4,
+		"placeholder plus three factions",
+	)
+	_check(
+		CloudStagingParsersScript.is_valid_dropdown_option_index(choices, 2, true),
+		"index 2 valid",
+	)
+	_check(
+		not CloudStagingParsersScript.is_valid_dropdown_option_index(choices, 99, true),
+		"index 99 invalid",
+	)
+	_check(
+		CloudStagingParsersScript.faction_id_for_dropdown_option_index(choices, 99, true).is_empty(),
+		"out of range returns empty faction id",
+	)
+	var apply_v: Dictionary = CloudStagingParsersScript.apply_faction_dropdown_selection(
+		true,
+		0,
+		0,
+		2,
+		choices,
+		true,
+	)
+	_check(bool(apply_v.get("apply")), "apply vastervik index 2")
+	_check(apply_v.get("faction_id") == "vastervik", "vastervik id")
+	var apply_p: Dictionary = CloudStagingParsersScript.apply_faction_dropdown_selection(
+		true,
+		0,
+		0,
+		3,
+		choices,
+		true,
+	)
+	_check(apply_p.get("faction_id") == "paris", "paris index 3")
+
+
+func _test_non_owned_slot_selection_ignored() -> void:
+	var choices: Array = (_unconfigured_slot_view()["faction_choices"] as Array)
+	var denied: Dictionary = CloudStagingParsersScript.apply_faction_dropdown_selection(
+		false,
+		1,
+		0,
+		2,
+		choices,
+		true,
+	)
+	_check(not bool(denied.get("apply")), "non-owned ignored")
+	_check(denied.get("reason") == "not_owned", "not_owned reason")
+	var wrong_actor: Dictionary = CloudStagingParsersScript.apply_faction_dropdown_selection(
+		true,
+		1,
+		0,
+		2,
+		choices,
+		true,
+	)
+	_check(not bool(wrong_actor.get("apply")), "other actor slot ignored")
+	var other_slot: Dictionary = {
+		"is_mine": false,
+		"claimed": true,
+		"ready": false,
+		"faction_id": null,
+		"faction_choices": choices,
+	}
+	var controls: Dictionary = CloudStagingParsersScript.build_my_slot_ui_controls(other_slot, "")
+	_check(not bool(controls.get("show_faction_row", true)), "non-owned hides faction row")
 
 
 func _test_placeholder_dropdown_mapping() -> void:

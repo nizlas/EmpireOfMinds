@@ -88,16 +88,64 @@ static func faction_choice_index_for_faction_id(faction_choices: Array, faction_
 	return -1
 
 
+static func count_faction_choice_rows(faction_choices: Array) -> int:
+	var seen: int = 0
+	var i: int = 0
+	while i < faction_choices.size():
+		var row = faction_choices[i]
+		i += 1
+		if typeof(row) == TYPE_DICTIONARY:
+			seen += 1
+	return seen
+
+
+static func dropdown_item_count_for_choices(faction_choices: Array, with_placeholder: bool = true) -> int:
+	var count: int = count_faction_choice_rows(faction_choices)
+	if with_placeholder:
+		count += 1
+	return count
+
+
+static func is_valid_dropdown_option_index(
+	faction_choices: Array,
+	option_index: int,
+	with_placeholder: bool = true,
+) -> bool:
+	if option_index < 0:
+		return false
+	return option_index < dropdown_item_count_for_choices(faction_choices, with_placeholder)
+
+
 static func faction_id_for_dropdown_option_index(
 	faction_choices: Array,
 	option_index: int,
 	with_placeholder: bool = true,
 ) -> String:
+	if not is_valid_dropdown_option_index(faction_choices, option_index, with_placeholder):
+		return ""
 	if with_placeholder:
 		if option_index <= DROPDOWN_PLACEHOLDER_INDEX:
 			return ""
 		option_index -= 1
 	return faction_id_for_faction_choice_index(faction_choices, option_index)
+
+
+static func apply_faction_dropdown_selection(
+	owned_by_me: bool,
+	actor_id: int,
+	local_actor_id: int,
+	dropdown_index: int,
+	faction_choices: Array,
+	with_placeholder: bool = true,
+) -> Dictionary:
+	if actor_id < 0 or actor_id >= EXPECTED_SLOT_COUNT:
+		return {"apply": false, "reason": "invalid_actor", "faction_id": ""}
+	if not owned_by_me or local_actor_id < 0 or actor_id != local_actor_id:
+		return {"apply": false, "reason": "not_owned", "faction_id": ""}
+	if not is_valid_dropdown_option_index(faction_choices, dropdown_index, with_placeholder):
+		return {"apply": false, "reason": "invalid_index", "faction_id": ""}
+	var fid: String = faction_id_for_dropdown_option_index(faction_choices, dropdown_index, with_placeholder)
+	return {"apply": true, "reason": "ok", "faction_id": fid}
 
 
 static func dropdown_option_index_for_faction_id(
