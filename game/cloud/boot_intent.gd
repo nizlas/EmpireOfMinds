@@ -152,8 +152,29 @@ static func consume_for_main() -> Dictionary:
 		"display_name": display_name,
 		"scenario_id": scenario_id,
 	}
+	debug_log_consume(snap)
 	clear()
 	return snap
+
+
+static func debug_log_consume(snap: Dictionary) -> void:
+	if OS.get_environment("EOM_CLOUD_DEBUG").strip_edges() != "1":
+		return
+	var st: String = str(snap.get("seat_token", "")).strip_edges()
+	var ht: String = str(snap.get("host_token", "")).strip_edges()
+	print(
+		(
+			"SliceC14dReconnect boot_intent_consume mode=%s match_id=%s actor_id=%d "
+			+ "has_seat_token=%s has_host_token=%s"
+		)
+		% [
+			str(snap.get("mode", "")),
+			str(snap.get("match_id", "")),
+			int(snap.get("actor_id", -1)),
+			str(st.begins_with("st_")),
+			str(ht.begins_with("ht_")),
+		]
+	)
 
 
 static func has_pending() -> bool:

@@ -328,6 +328,14 @@ func _cloud_persist_credential_after_bootstrap(resp: Dictionary, reconnecting: b
 			is_host = bool(existing.get("is_host", false))
 		else:
 			is_host = tok.begins_with("ht_")
+	var persist_aid: int = _cloud_local_actor_id
+	if persist_aid < 0:
+		var cred_p: Dictionary = CloudCredentialStoreScript.find(
+			CloudCredentialStoreScript.resolved_store_path(),
+			_cloud_resolve_base_url(),
+			_cloud_session.match_id,
+		)
+		persist_aid = CloudTurnOwnershipScript.gameplay_actor_id_from_credential(cred_p)
 	CloudCredentialStoreScript.persist_after_bootstrap(
 		CloudCredentialStoreScript.resolved_store_path(),
 		_cloud_resolve_base_url(),
@@ -335,10 +343,14 @@ func _cloud_persist_credential_after_bootstrap(resp: Dictionary, reconnecting: b
 		tok,
 		is_host,
 		resp,
+		persist_aid,
 	)
 
 
-func _cloud_touch_credential_revision(revision: int) -> void:
+func _cloud_touch_credential_revision(
+	revision: int,
+	actor_id: int = CloudCredentialStoreScript.UNSET_ACTOR_ID,
+) -> void:
 	if not _cloud_mode or _cloud_session == null:
 		return
 	CloudCredentialStoreScript.touch_revision(
@@ -347,6 +359,8 @@ func _cloud_touch_credential_revision(revision: int) -> void:
 		_cloud_session.match_id,
 		_cloud_session.seat_token,
 		revision,
+		false,
+		actor_id if int(actor_id) >= 0 else CloudCredentialStoreScript.UNSET_ACTOR_ID,
 	)
 
 
@@ -378,6 +392,47 @@ func cloud_blocks_gameplay_actions() -> bool:
 		_cloud_mode,
 		_cloud_local_actor_id,
 		_play_game_state.turn_state if _play_game_state != null else null,
+	)
+
+
+func _cloud_has_gameplay_identity() -> bool:
+	if _cloud_session == null:
+		return false
+	var tok: String = _cloud_session.seat_token.strip_edges()
+	if not tok.begins_with("st_"):
+		return false
+	return _cloud_local_actor_id >= 0
+
+
+func _cloud_log_bootstrap_identity(phase: String, reconnecting: bool) -> void:
+	if not _cloud_debug_enabled():
+		return
+	var seat_tok: String = ""
+	if _cloud_session != null:
+		seat_tok = _cloud_session.seat_token.strip_edges()
+	var cur: int = -1
+	if _play_game_state != null and _play_game_state.turn_state != null:
+		cur = CloudTurnOwnershipScript.current_actor_id_from_turn_state(_play_game_state.turn_state)
+	var vis: int = CloudTurnOwnershipScript.visibility_actor_id(
+		_cloud_mode,
+		_cloud_local_actor_id,
+		_play_game_state.turn_state if _play_game_state != null else null,
+	)
+	print(
+		(
+			"SliceC14dReconnect %s reconnect=%s local_actor_id=%d current_actor_id=%d "
+			+ "visibility_actor_id=%d can_act=%s has_seat_token=%s use_cloud_server=%s"
+		)
+		% [
+			phase,
+			str(reconnecting),
+			_cloud_local_actor_id,
+			cur,
+			vis,
+			str(cloud_is_my_turn()),
+			str(not seat_tok.is_empty()),
+			str(use_cloud_server),
+		]
 	)
 
 
@@ -457,6 +512,14 @@ func _cloud_sync_viewing_perspective() -> void:
 		PresentationVisibilityScript.viewing_player_id_override = _cloud_local_actor_id
 	else:
 		PresentationVisibilityScript.viewing_player_id_override = -1
+	if _cloud_debug_enabled():
+		var eff: int = -1
+		if _play_game_state != null:
+			eff = PresentationVisibilityScript.effective_viewing_player_id(_play_game_state)
+		print(
+			"SliceC14dReconnect presentation_visibility override=%d effective_viewing_player_id=%d"
+			% [PresentationVisibilityScript.viewing_player_id_override, eff]
+		)
 	var mvv = $MapVisibilityView
 	if mvv != null:
 		mvv.queue_redraw()
@@ -514,8 +577,34 @@ func _cloud_after_snapshot_applied(
 	else:
 		_cloud_clear_legal_action_ui()
 		_start_cloud_waiting_poll()
+	if _cloud_debug_enabled():
+		var new_cur: int = -1
+		if _play_game_state != null and _play_game_state.turn_state != null:
+			new_cur = CloudTurnOwnershipScript.current_actor_id_from_turn_state(_play_game_state.turn_state)
+		var show_b: bool = CloudClientScript.should_show_turn_start_banner(
+			previous_player_id_for_banner,
+			new_cur,
+			_cloud_mode,
+			_cloud_local_actor_id,
+		)
+		print(
+			(
+				"SliceC14dReconnect after_snapshot_apply ctx=%s waiting_poll_active=%s "
+				+ "show_turn_banner=%s prev_banner=%s new_current=%s"
+			)
+			% [
+				banner_action_type,
+				str(_cloud_waiting_poll_timer != null),
+				str(show_b),
+				str(previous_player_id_for_banner),
+				new_cur,
+			]
+		)
 	if not revision_resp.is_empty():
-		_cloud_touch_credential_revision(CloudCredentialStoreScript.revision_from_response(revision_resp))
+		_cloud_touch_credential_revision(
+			CloudCredentialStoreScript.revision_from_response(revision_resp),
+			_cloud_local_actor_id,
+		)
 
 
 func cloud_refresh_match_snapshot_async_entry() -> void:
@@ -664,6 +753,22 @@ func _bootstrap_cloud_session() -> void:
 		)
 	var reconnect_mid: String = _cloud_resolve_match_id()
 	var reconnecting: bool = not CloudClientScript.should_create_match(reconnect_mid)
+	if _cloud_debug_enabled():
+		var pre_tok: String = str(seat_meta.get("value", "")).strip_edges()
+		print(
+			(
+				"SliceC14dReconnect cloud_bootstrap_before_get reconnect=%s match_id=%s "
+				+ "boot_actor_id=%d has_seat_token=%s has_boot_seat_token=%s use_cloud_server=%s"
+			)
+			% [
+				str(reconnecting),
+				reconnect_mid,
+				_boot_cloud_actor_id,
+				str(pre_tok.begins_with("st_")),
+				str(_boot_cloud_seat_token.strip_edges().begins_with("st_")),
+				str(use_cloud_server),
+			]
+		)
 	var resp: Dictionary = {}
 	if reconnecting:
 		_cloud_session.match_id = reconnect_mid
@@ -701,6 +806,19 @@ func _bootstrap_cloud_session() -> void:
 		_cloud_fail_session_and_strand("Could not load match data from the server.", resp)
 		return
 	_cloud_mode = true
+	_stop_cloud_waiting_poll()
+	_cloud_init_local_actor_id()
+	_cloud_log_bootstrap_identity("before_presentation", reconnecting)
+	if reconnecting and not _cloud_has_gameplay_identity():
+		_cloud_fail_session_and_strand(
+			(
+				"Reconnect needs a saved seat token and actor id for this profile. "
+				+ "Claim your seat in staging, or check EOM_CLOUD_PROFILE matches the profile you used before."
+			),
+			resp,
+		)
+		return
+	_cloud_sync_viewing_perspective()
 	var selection_cloud = SelectionStateScript.new()
 	var city_vs_cloud = CityViewStateScript.new()
 	_cloud_debug_timing("presentation_rebind_start")
@@ -708,6 +826,7 @@ func _bootstrap_cloud_session() -> void:
 	_cloud_debug_timing("presentation_rebind_done")
 	_apply_cloud_controller_flags(true)
 	_refresh_presentation_after_cloud_snap()
+	_cloud_log_bootstrap_identity("after_first_presentation", reconnecting)
 	_set_cloud_gameplay_presentation_visible(true)
 	_cloud_loading = false
 	_set_cloud_overlay_visible(false)
@@ -736,10 +855,15 @@ func _bootstrap_cloud_session() -> void:
 				)
 			)
 	_cloud_persist_credential_after_bootstrap(resp, reconnecting)
-	_cloud_touch_credential_revision(CloudCredentialStoreScript.revision_from_response(resp))
-	_cloud_init_local_actor_id()
+	_cloud_touch_credential_revision(
+		CloudCredentialStoreScript.revision_from_response(resp),
+		_cloud_local_actor_id,
+	)
 	var banner_ctx: String = "cloud_reconnect" if reconnecting else "cloud_bootstrap"
-	_cloud_after_snapshot_applied(resp, banner_ctx, null)
+	var prev_banner = null
+	if reconnecting and _play_game_state != null and _play_game_state.turn_state != null:
+		prev_banner = _play_game_state.turn_state.current_player_id()
+	_cloud_after_snapshot_applied(resp, banner_ctx, prev_banner)
 
 
 func _apply_cloud_controller_flags(on: bool) -> void:

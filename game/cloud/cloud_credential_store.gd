@@ -427,7 +427,7 @@ static func build_saved_row_view(
 	var view := {
 		"match_id": mid,
 		"server_url": su,
-		"actor_id": int(entry.get("actor_id", 0)),
+		"actor_id": int(entry.get("actor_id", UNSET_ACTOR_ID)),
 		"is_host": bool(entry.get("is_host", false)),
 		"host_token": host_token_from_entry(entry),
 		"seat_token": seat_token_from_entry(entry),
@@ -752,7 +752,7 @@ static func resolve_seat_token_for_boot(
 	if bt.length() > 0 and bt.begins_with(SEAT_TOKEN_PREFIX):
 		return {"value": bt, "source": "BootIntent"}
 	var it: String = str(inspector_token).strip_edges()
-	if it.length() > 0:
+	if it.length() > 0 and it.begins_with(SEAT_TOKEN_PREFIX):
 		return {"value": it, "source": "Main.cloud_seat_token"}
 	var mid: String = normalize_match_id(match_id)
 	if mid.is_empty():
@@ -806,7 +806,7 @@ static func persist_after_bootstrap(
 	seat_token: String,
 	is_host: bool,
 	resp: Dictionary,
-	actor_id: int = HOST_ACTOR_ID
+	actor_id: int = UNSET_ACTOR_ID
 ) -> void:
 	path = _effective_store_path(path)
 	var mid := normalize_match_id(match_id)
@@ -850,7 +850,7 @@ static func touch_revision(
 	seat_token: String,
 	revision: int,
 	is_host: bool = false,
-	actor_id: int = HOST_ACTOR_ID
+	actor_id: int = UNSET_ACTOR_ID
 ) -> void:
 	path = _effective_store_path(path)
 	if revision < 0:

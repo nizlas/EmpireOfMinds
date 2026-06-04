@@ -89,6 +89,34 @@ func _cloud_debug_enabled() -> bool:
 	return OS.get_environment("EOM_CLOUD_DEBUG").strip_edges() == "1"
 
 
+func _debug_log_resume_saved(
+	view: Dictionary,
+	match_id: String,
+	actor_id: int,
+	seat_tok: String,
+	host_tok: String,
+	status: String,
+) -> void:
+	if not _cloud_debug_enabled():
+		return
+	CloudCredentialStoreScript.log_resolved_store_if_debug("front_door_resume")
+	print(
+		(
+			"SliceC14dReconnect front_door_resume profile=%s store_path=%s match_id=%s "
+			+ "actor_id=%d has_seat_token=%s has_host_token=%s status=%s"
+		)
+		% [
+			CloudCredentialStoreScript.profile_from_environment(),
+			CloudCredentialStoreScript.resolved_store_path(),
+			match_id,
+			actor_id,
+			str(seat_tok.begins_with(CloudCredentialStoreScript.SEAT_TOKEN_PREFIX)),
+			str(host_tok.begins_with(CloudCredentialStoreScript.HOST_TOKEN_PREFIX)),
+			status,
+		]
+	)
+
+
 func _build_ui() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var root := MarginContainer.new()
@@ -602,12 +630,15 @@ func _on_resume_saved() -> void:
 		_set_status("Saved entry is incomplete.")
 		return
 	if st == CloudCredentialStoreScript.STATUS_ONGOING and not seat_tok.is_empty():
-		BootIntentScript.set_cloud_reconnect(
-			_server_url,
-			mid,
-			seat_tok,
-			int(view.get("actor_id", 0)),
-		)
+		var aid: int = int(view.get("actor_id", CloudCredentialStoreScript.UNSET_ACTOR_ID))
+		if not seat_tok.begins_with(CloudCredentialStoreScript.SEAT_TOKEN_PREFIX):
+			_set_status("Saved entry is missing a seat token. Claim a slot in staging first.")
+			return
+		if aid < 0:
+			_set_status("Saved entry is missing seat actor identity. Re-claim your slot in staging.")
+			return
+		_debug_log_resume_saved(view, mid, aid, seat_tok, host_tok, st)
+		BootIntentScript.set_cloud_reconnect(_server_url, mid, seat_tok, aid)
 		_go_main()
 		return
 	if st == CloudCredentialStoreScript.STATUS_STAGING or seat_tok.is_empty():

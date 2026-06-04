@@ -65,7 +65,7 @@ static func build_resume_row_view(
 	var view := {
 		"match_id": mid,
 		"server_url": su,
-		"actor_id": int(credential.get("actor_id", 0)),
+		"actor_id": int(credential.get("actor_id", CloudCredentialStoreScript.UNSET_ACTOR_ID)),
 		"is_host": (
 			bool(credential.get("is_host", false))
 			or not CloudCredentialStoreScript.host_token_from_entry(credential).is_empty()
