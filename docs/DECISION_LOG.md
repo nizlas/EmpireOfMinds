@@ -1,3 +1,10 @@
+## 2026-06-03 — Slice **C14d-final** — Cloud alpha external test passed (docs-only checkpoint)
+
+- **Decision:** Treat **C14d** cloud-alpha as **validated for external play** after a successful two-player test: exported **Windows** zip + **`Start Empire Cloud Alpha.bat`** → **`https://cloud.thewizardsapprentice.org`**, second tester on another home network (Niklas). Full capability list and limitations: **`docs/CLOUD_PLAY.md`** (C14d cloud-alpha milestone), **`docs/CLOUD_ALPHA_RELEASE.md`**, **`docs/VALIDATION_CHECKLIST.md`** (C14d-final).
+- **Distribution:** **Zip + batch launcher** for alpha; **installer** and **code signing** **deferred** (unsigned exe; Smart App Control blocked first external launch — documented as Windows policy, not game bug).
+- **`EOM_CLOUD_PROFILE`:** local credential-store path only; **not** sent to server; required for two Godot instances on one PC; optional across machines.
+- **Not in C14d-final:** runtime/code/server/Docker/Caddy/gameplay changes; automated test runs (T2 docs-only).
+
 ## 2026-06-03 — Slice **C14d-4g** — Staging civ → ongoing player identity
 
 - **Decision:** On auto-start, copy per-seat staging **`faction_id`** into snapshot **`player_factions`** (`{"0":"paris",…}`). Godot **`CloudPlayerIdentity`** registry (via **`PlaytestPlayerDisplay`**) drives contact strip, turn labels/banners, and accents from chosen civ — not hardcoded actor 0/1 → Västervik/Malmö. Unknown ids → **"Unknown civilization"** + warning (no silent Malmö/Paris swap). Hotseat unchanged when registry empty.

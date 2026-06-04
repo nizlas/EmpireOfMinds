@@ -526,3 +526,71 @@ Validation: **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_turn_pan
 - [ ] Fog/turn authority still use **`actor_id`**; C14d-4c local perspective unchanged.
 
 Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_player_factions_c14d4g.py`**); **`scripts/run-godot-tests.ps1 slice c14d`** (**`test_cloud_player_identity_c14d4g.gd`**).
+
+## Slice C14d-final — Cloud alpha external test checkpoint (docs-only)
+
+**Purpose:** Record the first successful **external** two-player cloud-alpha test and the **zip + .bat** distribution model. **No** automated tests for this slice (T2 docs-only). See **[CLOUD_ALPHA_RELEASE.md](CLOUD_ALPHA_RELEASE.md)** for tester-facing notes.
+
+### Organizer / server
+
+- [ ] Hetzner stack clean: API reachable at **`https://cloud.thewizardsapprentice.org`** (health + create match).
+- [ ] Caddy TLS valid; no stale local-only URL in published `.bat`.
+- [ ] Server data volume healthy; no manual corruption of `meta.json` / snapshots before test.
+
+### Build & package
+
+- [ ] Godot **Windows** export from current `game/` tree (release preset used by team).
+- [ ] Zip includes **`EmpireOfMinds.exe`** (+ **`.pck`** if separate).
+- [ ] Zip includes **`Start Empire Cloud Alpha.bat`** with **`EOM_CLOUD_BASE_URL=https://cloud.thewizardsapprentice.org`**.
+- [ ] **Do not** bake **`EOM_CLOUD_MATCH_ID`** / **`EOM_CLOUD_SEAT_TOKEN`** into the package for testers.
+- [ ] Document optional **`EOM_CLOUD_PROFILE`** only when two instances on **one** PC are needed.
+
+### External tester — first launch (Windows)
+
+- [ ] Tester unzips and runs **`.bat`** (not undocumented exe-only launch).
+- [ ] If Windows blocks immediately: check **Smart App Control** (see below) before blaming server/network.
+- [ ] Front door loads; **Cloud Matches** list populates (server polling).
+
+### Two-player flow (different machines / networks)
+
+- [ ] **Host** creates match with **display name**; match appears on guest lobby within poll interval (~2s).
+- [ ] **Guest** joins **open staging** match from another machine/network.
+- [ ] Each player **claims a different seat**.
+- [ ] Each chooses a **different** civilization (**Malmöfubikkarna**, **Västerviksjävlarna**, or **Pajasarna från Paris**); duplicate civ **blocked**.
+- [ ] **Ready** on both seats → **auto-start** (no host Start button).
+- [ ] **First player** is server-chosen (not assumed host); both clients enter ongoing gameplay with correct civ labels.
+
+### Ongoing play
+
+- [ ] Only **current actor** can move/act; other sees **Other player's turn** (small text).
+- [ ] Waiting client map remains **visible/pannable**; updates when turn becomes theirs (**~2s poll**, no Space required).
+- [ ] Each client sees **own fog**, not the current player's fog.
+- [ ] Large **“Your turn …”** banner only on the client whose **seat `actor_id`** matches current player.
+- [ ] **End turn** handoff: previous active becomes waiting; new active can act without restart.
+
+### Reconnect / resume
+
+- [ ] Both clients **close** completely.
+- [ ] Each reopens via **`.bat`** (same **`EOM_CLOUD_PROFILE`** as before if used).
+- [ ] Each **Resume match** on front door.
+- [ ] Seat identity, fog perspective, waiting/active state, and banner behavior match pre-close session (no dual-active, no shared fog).
+
+### Credential model sanity
+
+- [ ] Gameplay uses **`st_` seat token**; **`ht_` host token** not used as gameplay identity in normal UX.
+- [ ] **`EOM_CLOUD_PROFILE`** (if used) only changes **local** `user://cloud_matches_*.json` — not visible to server.
+
+### Known external setup issue — Smart App Control
+
+- [ ] Record if tester hit SAC block (executable refused despite unzip).
+- [ ] **`Unblock-File`** noted as **insufficient** in first external test.
+- [ ] Workaround documented: test on machine where SAC does not block unknown apps, or disable SAC for session.
+- [ ] Distinguish from SmartScreen **“More info → Run anyway”** (separate UI).
+- [ ] Alpha remains **unsigned**; code signing / installer = **future**, not C14d-final.
+
+### Explicitly not required for C14d-final validation
+
+- Godot/server **`full`**, **`cloud`**, or **`presentation`** test profiles (docs-only slice).
+- Installer creation, code signing, Docker/Caddy changes, gameplay-rule changes.
+
+**Passed (2026-06-03):** external Windows client + Niklas cross-network staging → ongoing → turn handoff → reconnect/resume (after SAC workaround on tester machine).

@@ -4,6 +4,40 @@
 
 **Authority pivot:** The project is **migrating** canonical gameplay authority to **Python/FastAPI** under `server/` while preserving a **legacy** Godot-domain path until cutover is proven. **Slices, rollback, and “local = localhost authority”** are defined in [AUTHORITY_PIVOT.md](AUTHORITY_PIVOT.md). Local hotseat and future cloud play share the **same** server rules; they differ only by **base URL / transport**.
 
+## C14d cloud-alpha milestone (external test passed — C14d-final)
+
+**Checkpoint date:** 2026-06-03. **First meaningful external validation:** two-player cloud flow with a second tester (**Niklas**) on **Windows** from **another home network**, using an exported client zip + **`Start Empire Cloud Alpha.bat`** against **`https://cloud.thewizardsapprentice.org`** (Hetzner FastAPI + Caddy). Distribution and tester notes: **[CLOUD_ALPHA_RELEASE.md](CLOUD_ALPHA_RELEASE.md)**. Manual checklist: **[VALIDATION_CHECKLIST.md](VALIDATION_CHECKLIST.md)** (Slice C14d-final).
+
+### What works in this alpha
+
+| Area | Behavior |
+|------|----------|
+| **Infrastructure** | Hetzner-hosted FastAPI; HTTPS via Caddy; remote URL above. |
+| **Client** | Exported **Windows** Godot build connects to production URL via `.bat` **`EOM_CLOUD_BASE_URL`**. |
+| **Lobby** | Front door lists **server-owned** matches; **~2s polling** shows newly created matches without manual refresh. |
+| **Create / join** | Host sets **display name**; other player **joins open staging** from another machine. |
+| **Staging** | Two seats; **claim** separate seats; choose civs (**Malmöfubikkarna**, **Västerviksjävlarna**, **Pajasarna från Paris**); **duplicate civ blocked**; **Ready/Unready**; **all-ready auto-start** (no host Start). |
+| **Start & identity** | Server picks **first player** deterministically; staging **`faction_id`** → ongoing **display names**; **`actor_id`** = seat identity for turn order, fog, tokens, actions; civ id/name **separate** from **`actor_id`**. |
+| **Ongoing UX** | Each client sees **own fog** (local seat perspective); **only current actor** acts; waiting clients: small **“Other player’s turn”**, map stays visible; **~2s waiting poll** until their turn; **“Your turn …”** banner only on the seat whose turn it is. |
+| **Credentials** | **`ht_` host token** = owner/admin only; **`st_` seat token** = gameplay identity. |
+| **Reconnect** | **Resume** restores seat **`actor_id`**, fog perspective, waiting/active state, and banner gating (C14d reconnect parity). |
+| **Local hotseat** | Unchanged in the same codebase; not the cloud-alpha path. |
+
+### Alpha distribution (summary)
+
+- **Zip**, not installer; **unsigned** exe (code signing/installer deferred).
+- Package: **`EmpireOfMinds.exe`** (+ **`.pck`** if split), **`Start Empire Cloud Alpha.bat`** setting **`EOM_CLOUD_BASE_URL=https://cloud.thewizardsapprentice.org`**.
+- Optional **`EOM_CLOUD_PROFILE`** per tester or per same-PC instance — **local credential file only**, not sent to server.
+- Normal testers: **do not** set **`EOM_CLOUD_MATCH_ID`** or **`EOM_CLOUD_SEAT_TOKEN`**.
+
+### External Windows setup issue (Smart App Control)
+
+First external test: Windows **blocked** the export because **Smart App Control** was enabled — **not** a server/client defect. **`Unblock-File`** did not fix it. Testers may need a machine/policy where unknown apps are allowed, or SAC disabled for the session. Distinct from SmartScreen “Run anyway.” Details: **[CLOUD_ALPHA_RELEASE.md](CLOUD_ALPHA_RELEASE.md)**.
+
+### Still out of scope for this milestone
+
+Accounts, invite/private matches, host delete/abandon UI, encryption for local credentials, realtime push, AI cloud turns, installer, code signing, and gameplay-rule changes.
+
 ## Vision
 
 Empire of Minds should support asynchronous play-by-cloud.
@@ -137,7 +171,7 @@ The **shipping playable embryo** today is a **local hotseat prototype**: **one**
 - **Create Cloud Match** → **`cloud_staging.tscn`** (not direct gameplay). **Join** open staging match → staging. **Continue setup** (saved staging credential) → staging. **Resume match** (saved + server **`ongoing`** + **seat_token**) → **`main.tscn`** gameplay.
 - **Credentials (`user://cloud_matches.json`):** one row per **`(server_url, match_id)`** with **`host_token`** + **`seat_token`** (merge on claim; legacy single-token rows migrated). Rename uses **host**; claim/faction/ready/gameplay use **seat** only.
 - **Staging scene:** match title, status, **Refresh**, two seats — claim, civilization picker from server **`available_factions`** (canonical **`display_name`** per id), Ready/Unready. When server returns **`ongoing`**, client enters gameplay if **seat_token** is present. **C14d-4e:** player-facing labels say **civilization/civ** (not faction); internal API fields remain **`faction_id`** / **`available_factions`**.
-- **UI:** no match_id, tokens, or server URL in normal labels. **C14d-4a:** front door polls **`GET /v1/matches`** every **2s**; staging polls every **1s** (no overlap; manual Refresh still available). **C14d-4b:** ongoing gameplay uses **seat `actor_id`** vs snapshot **`turn_state.current_index`** — out-of-turn clients stay on the map (pan/zoom) with small **“Other player’s turn”** under top-right player chips; actions blocked; **`R`** refreshes match snapshot. **C14d-4c:** fog/presentation use **local seat `actor_id`** (not current player); waiting clients poll **`GET` match** every **2s** until their turn. No polling while it is your turn. **C14d-4d:** large **“Your turn …”** scroll banner only when **local `actor_id` == new current player** (not on every turn change in every window). Local hotseat unchanged. **C14d-4f:** hide lower-right **TurnStatusPanel** (“{Civ}'s turn” / “Turn N”) in cloud ongoing play; chips + small waiting text remain. **C14d-4g:** ongoing UI names/accent colors follow staging **`faction_id`** per **`actor_id`** via snapshot **`player_factions`** (any 2 of 3 civs).
+- **UI:** no match_id, tokens, or server URL in normal labels. **C14d-4a:** front door polls **`GET /v1/matches`** every **2s**; staging polls every **1s** (no overlap; manual Refresh still available). **C14d-4b:** ongoing gameplay uses **seat `actor_id`** vs snapshot **`turn_state.current_index`** — out-of-turn clients stay on the map (pan/zoom) with small **“Other player’s turn”** under top-right player chips; actions blocked; **`R`** refreshes match snapshot. **C14d-4c:** fog/presentation use **local seat `actor_id`** (not current player); waiting clients poll **`GET` match** every **2s** until their turn. No polling while it is your turn. **C14d-4d:** large **“Your turn …”** scroll banner only when **local `actor_id` == new current player** (not on every turn change in every window). Local hotseat unchanged. **C14d-4f:** hide lower-right **TurnStatusPanel** (“{Civ}'s turn” / “Turn N”) in cloud ongoing play; chips + small waiting text remain. **C14d-4g:** ongoing UI names/accent colors follow staging **`faction_id`** per **`actor_id`** via snapshot **`player_factions`** (any 2 of 3 civs). **Reconnect parity (pre–C14d-final code):** resume restores local **`actor_id`**, fog perspective, waiting poll, and banner gating before first presentation bind — externally validated in **C14d-final**.
 - **Not in C14d-3:** waiting-on-opponent UX (C14d-4), server changes (requires C14d-1/C14d-2 deployed on target server).
 
 ### Local two-client credential profiles (Slice C14d-dev, Godot only)
