@@ -12,6 +12,14 @@ const CloudLobbyPollScript = preload("res://cloud/cloud_lobby_poll.gd")
 const FRONT_DOOR_SCENE: String = "res://cloud/cloud_front_door.tscn"
 const MAIN_SCENE: String = "res://main.tscn"
 const STAGING_POLL_INTERVAL_SEC: float = 1.0
+## C14d-visual: full-viewport staging backdrop (aspect-preserving cover).
+const STAGING_BACKGROUND_TEXTURE_PATH: String = (
+	"res://assets/prototype/ui/backgrounds/staging_background.png"
+)
+const STAGING_BACKGROUND_NODE_NAME: String = "StagingBackground"
+const STAGING_UI_ROOT_NODE_NAME: String = "StagingUiRoot"
+## Center column width as a fraction of the viewport (one-third).
+const STAGING_UI_WIDTH_FRACTION: float = 1.0 / 3.0
 
 var _server_url: String = ""
 var _match_id: String = ""
@@ -106,14 +114,40 @@ func _hydrate_from_store() -> void:
 		_display_name = CloudCredentialStoreScript.full_display_name(cred, {})
 
 
+func _build_staging_background() -> void:
+	var tex: Texture2D = load(STAGING_BACKGROUND_TEXTURE_PATH) as Texture2D
+	if tex == null:
+		push_warning("Cloud staging: missing background at %s" % STAGING_BACKGROUND_TEXTURE_PATH)
+		return
+	var bg := TextureRect.new()
+	bg.name = STAGING_BACKGROUND_NODE_NAME
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	bg.grow_vertical = Control.GROW_DIRECTION_BOTH
+	bg.texture = tex
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(bg)
+
+
 func _build_ui() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	_build_staging_background()
 	var root := MarginContainer.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("margin_left", 24)
-	root.add_theme_constant_override("margin_right", 24)
-	root.add_theme_constant_override("margin_top", 24)
-	root.add_theme_constant_override("margin_bottom", 24)
+	root.name = STAGING_UI_ROOT_NODE_NAME
+	var col_left: float = (1.0 - STAGING_UI_WIDTH_FRACTION) * 0.5
+	var col_right: float = col_left + STAGING_UI_WIDTH_FRACTION
+	root.anchor_left = col_left
+	root.anchor_top = 0.0
+	root.anchor_right = col_right
+	root.anchor_bottom = 1.0
+	root.offset_left = 0
+	root.offset_top = 24
+	root.offset_right = 0
+	root.offset_bottom = -24
+	root.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	root.grow_vertical = Control.GROW_DIRECTION_BOTH
 	add_child(root)
 	var vbox := VBoxContainer.new()
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -124,9 +158,11 @@ func _build_ui() -> void:
 	back_btn.pressed.connect(_on_back)
 	vbox.add_child(back_btn)
 	_title_label = Label.new()
+	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_label.add_theme_font_size_override("font_size", 24)
 	vbox.add_child(_title_label)
 	_status_label = Label.new()
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(_status_label)
 	var refresh_btn := Button.new()

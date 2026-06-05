@@ -12,6 +12,28 @@ const CloudStagingParsersScript = preload("res://cloud/cloud_staging_parsers.gd"
 const CloudLobbyPollScript = preload("res://cloud/cloud_lobby_poll.gd")
 const DEFAULT_SERVER_URL: String = "http://127.0.0.1:8000"
 const FRONT_DOOR_POLL_INTERVAL_SEC: float = 2.0
+## C14d-visual: full-viewport backdrop; menus in lower half only.
+const FRONT_DOOR_BACKGROUND_TEXTURE_PATH: String = (
+	"res://assets/prototype/ui/backgrounds/empire_of_minds_title_page.png"
+)
+const FRONT_DOOR_BACKGROUND_NODE_NAME: String = "FrontDoorBackground"
+const FRONT_DOOR_UI_ROOT_NODE_NAME: String = "FrontDoorUiRoot"
+const FRONT_DOOR_UI_WIDTH_FRACTION: float = 0.25
+const FRONT_DOOR_UI_TOP_ANCHOR: float = 0.5
+const FRONT_DOOR_LOBBY_ROW_HEIGHT_PX: int = 24
+const FRONT_DOOR_LOBBY_MIN_VISIBLE_ROWS: int = 3
+const FRONT_DOOR_LOBBY_LIST_MIN_HEIGHT_PX: int = (
+	FRONT_DOOR_LOBBY_MIN_VISIBLE_ROWS * FRONT_DOOR_LOBBY_ROW_HEIGHT_PX + 8
+)
+const FRONT_DOOR_LOBBY_LIST_MAX_HEIGHT_PX: int = 168
+const FRONT_DOOR_SAVED_MIN_VISIBLE_ROWS: int = 2
+const FRONT_DOOR_SAVED_MAX_VISIBLE_ROWS: int = 7
+const FRONT_DOOR_SAVED_LIST_MIN_HEIGHT_PX: int = (
+	FRONT_DOOR_SAVED_MIN_VISIBLE_ROWS * FRONT_DOOR_LOBBY_ROW_HEIGHT_PX + 8
+)
+const FRONT_DOOR_SAVED_LIST_MAX_HEIGHT_PX: int = (
+	FRONT_DOOR_SAVED_MAX_VISIBLE_ROWS * FRONT_DOOR_LOBBY_ROW_HEIGHT_PX + 8
+)
 
 var _server_url: String = DEFAULT_SERVER_URL
 var _status_label: Label
@@ -117,50 +139,77 @@ func _debug_log_resume_saved(
 	)
 
 
+func _build_front_door_background() -> void:
+	var tex: Texture2D = load(FRONT_DOOR_BACKGROUND_TEXTURE_PATH) as Texture2D
+	if tex == null:
+		push_warning("Front door: missing background at %s" % FRONT_DOOR_BACKGROUND_TEXTURE_PATH)
+		return
+	var bg := TextureRect.new()
+	bg.name = FRONT_DOOR_BACKGROUND_NODE_NAME
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	bg.grow_vertical = Control.GROW_DIRECTION_BOTH
+	bg.texture = tex
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(bg)
+
+
 func _build_ui() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	_build_front_door_background()
+	var col_left: float = (1.0 - FRONT_DOOR_UI_WIDTH_FRACTION) * 0.5
+	var col_right: float = col_left + FRONT_DOOR_UI_WIDTH_FRACTION
 	var root := MarginContainer.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("margin_left", 24)
-	root.add_theme_constant_override("margin_right", 24)
-	root.add_theme_constant_override("margin_top", 24)
-	root.add_theme_constant_override("margin_bottom", 24)
+	root.name = FRONT_DOOR_UI_ROOT_NODE_NAME
+	root.anchor_left = col_left
+	root.anchor_top = FRONT_DOOR_UI_TOP_ANCHOR
+	root.anchor_right = col_right
+	root.anchor_bottom = 1.0
+	root.offset_left = 0
+	root.offset_top = 16
+	root.offset_right = 0
+	root.offset_bottom = -24
+	root.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	root.grow_vertical = Control.GROW_DIRECTION_BOTH
 	add_child(root)
 	var vbox := VBoxContainer.new()
 	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
 	root.add_child(vbox)
-	var title := Label.new()
-	title.text = "Empire of Minds"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
-	vbox.add_child(title)
-	var row1 := HBoxContainer.new()
-	vbox.add_child(row1)
+	var actions_col := VBoxContainer.new()
+	actions_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(actions_col)
 	var hotseat_btn := Button.new()
 	hotseat_btn.text = "Local Hotseat"
+	hotseat_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hotseat_btn.pressed.connect(_on_local_hotseat)
-	row1.add_child(hotseat_btn)
+	actions_col.add_child(hotseat_btn)
 	var create_btn := Button.new()
 	create_btn.text = "Create Cloud Match"
+	create_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	create_btn.pressed.connect(_on_create_cloud)
-	row1.add_child(create_btn)
+	actions_col.add_child(create_btn)
 	var lobby_btn := Button.new()
 	lobby_btn.text = "Refresh cloud matches"
+	lobby_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lobby_btn.pressed.connect(_on_refresh_lobby)
-	row1.add_child(lobby_btn)
+	actions_col.add_child(lobby_btn)
 	_status_label = Label.new()
 	_status_label.text = "Choose an option."
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(_status_label)
 	var saved_hdr := Label.new()
 	saved_hdr.text = "Your matches on this server"
+	saved_hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(saved_hdr)
 	_saved_list = ItemList.new()
-	_saved_list.custom_minimum_size = Vector2(0, 120)
 	_saved_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_saved_list.item_selected.connect(_on_saved_item_selected)
 	vbox.add_child(_saved_list)
+	_resize_saved_list()
 	var saved_row := HBoxContainer.new()
 	vbox.add_child(saved_row)
 	_saved_resume_btn = Button.new()
@@ -175,13 +224,37 @@ func _build_ui() -> void:
 	saved_row.add_child(_saved_rename_btn)
 	var lobby_hdr := Label.new()
 	lobby_hdr.text = "Open staging matches"
+	lobby_hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(lobby_hdr)
 	_lobby_list = ItemList.new()
-	_lobby_list.custom_minimum_size = Vector2(0, 180)
 	_lobby_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_lobby_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_lobby_list.item_selected.connect(_on_lobby_item_selected)
 	vbox.add_child(_lobby_list)
+	_resize_lobby_list()
+
+
+func _resize_lobby_list() -> void:
+	if _lobby_list == null:
+		return
+	var rows: int = maxi(_lobby_list.item_count, FRONT_DOOR_LOBBY_MIN_VISIBLE_ROWS)
+	var h: int = clampi(
+		rows * FRONT_DOOR_LOBBY_ROW_HEIGHT_PX + 8,
+		FRONT_DOOR_LOBBY_LIST_MIN_HEIGHT_PX,
+		FRONT_DOOR_LOBBY_LIST_MAX_HEIGHT_PX,
+	)
+	_lobby_list.custom_minimum_size = Vector2(0, h)
+
+
+func _resize_saved_list() -> void:
+	if _saved_list == null:
+		return
+	var rows: int = maxi(_saved_list.item_count, FRONT_DOOR_SAVED_MIN_VISIBLE_ROWS)
+	var h: int = clampi(
+		rows * FRONT_DOOR_LOBBY_ROW_HEIGHT_PX + 8,
+		FRONT_DOOR_SAVED_LIST_MIN_HEIGHT_PX,
+		FRONT_DOOR_SAVED_LIST_MAX_HEIGHT_PX,
+	)
+	_saved_list.custom_minimum_size = Vector2(0, h)
 
 
 func _set_status(msg: String) -> void:
@@ -543,6 +616,8 @@ func _render_lobby_load_failed(_detail: String) -> void:
 	_display_name_key_map.clear()
 	_saved_list.clear()
 	_lobby_list.clear()
+	_resize_saved_list()
+	_resize_lobby_list()
 	_set_status("Unable to load cloud matches. Could not reach cloud server.")
 	if _saved_resume_btn != null:
 		_saved_resume_btn.disabled = true
@@ -580,6 +655,7 @@ func _render_saved_list() -> void:
 		_saved_list.add_item(str(view.get("row_text", "")))
 	if _saved_rows.is_empty() and not _server_lobby_load_failed:
 		_saved_list.add_item("(No saved matches found on this server.)")
+	_resize_saved_list()
 
 
 func _render_open_list() -> void:
@@ -592,6 +668,7 @@ func _render_open_list() -> void:
 		_lobby_list.add_item(CloudStagingParsersScript.open_staging_row_text(row))
 	if _lobby_join_targets.is_empty() and not _server_lobby_load_failed:
 		_lobby_list.add_item("(No open staging matches on this server.)")
+	_resize_lobby_list()
 
 
 func _on_saved_item_selected(index: int) -> void:
