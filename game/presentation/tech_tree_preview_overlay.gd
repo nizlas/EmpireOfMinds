@@ -7,13 +7,23 @@ const SEGMENT_PATHS: Array[String] = [
 	"res://assets/prototype/tech_tree/tech_tree_bg_2.png",
 	"res://assets/prototype/tech_tree/tech_tree_bg_3.png",
 ]
+const TECH_ITEM_PATH: String = "res://assets/prototype/tech_tree/tech_item.png"
+const STONE_TOOLS_PATH: String = "res://assets/prototype/tech_tree/stone_tools.png"
+const TECH_ITEM_POS: Vector2 = Vector2(220.0, 200.0)
+const TECH_ITEM_DISPLAY_HEIGHT: float = 260.0
+const STONE_ICON_HEIGHT_RATIO: float = 1.0 / 3.0
+const STONE_ICON_X_FRAC: float = 0.08
+const STONE_ICON_Y_FRAC: float = 0.32
 const WHEEL_SCROLL_STEP_PX: int = 120
 const ROW_HEIGHT_VIEWPORT_FRACTION: float = 0.82
 ## HudCanvas siblings hidden while preview is open (Science / seat chips bleed through a dim plate).
 const _HUD_HIDE_NAMES: Array[String] = ["PlayerContactStrip", "SciencePanel"]
 
 var _scroll: ScrollContainer
+var _scroll_content: Control
 var _segment_row: HBoxContainer
+var _tech_item: TextureRect
+var _stone_icon: TextureRect
 
 
 func _ready() -> void:
@@ -87,6 +97,26 @@ func segment_row_separation() -> int:
 	return int(_segment_row.get_theme_constant("separation", "HBoxContainer"))
 
 
+static func scaled_texture_size(tex: Texture2D, display_height: float) -> Vector2:
+	if tex == null or display_height <= 0.0:
+		return Vector2.ZERO
+	var th: float = float(tex.get_height())
+	if th <= 0.0:
+		return Vector2.ZERO
+	var tw: float = float(tex.get_width())
+	var w: float = tw * display_height / th
+	return Vector2(w, display_height)
+
+
+static func stone_icon_layout(item_size: Vector2) -> Dictionary:
+	var icon_h: float = item_size.y * STONE_ICON_HEIGHT_RATIO
+	return {
+		"height": icon_h,
+		"x": item_size.x * STONE_ICON_X_FRAC,
+		"y": item_size.y * STONE_ICON_Y_FRAC,
+	}
+
+
 func _build_ui() -> void:
 	var dim := ColorRect.new()
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -125,10 +155,15 @@ func _build_ui() -> void:
 	close_btn.offset_right = 0.0
 	close_btn.offset_bottom = 36.0
 	close_btn.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_scroll_content = Control.new()
+	_scroll_content.name = "ScrollContent"
+	_scroll_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_scroll.add_child(_scroll_content)
 	_segment_row = HBoxContainer.new()
+	_segment_row.name = "SegmentRow"
 	_segment_row.add_theme_constant_override("separation", 0)
 	_segment_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_scroll.add_child(_segment_row)
+	_scroll_content.add_child(_segment_row)
 	var i: int = 0
 	while i < SEGMENT_PATHS.size():
 		var seg := TextureRect.new()
@@ -139,6 +174,20 @@ func _build_ui() -> void:
 		seg.texture = load(SEGMENT_PATHS[i]) as Texture2D
 		_segment_row.add_child(seg)
 		i += 1
+	_tech_item = TextureRect.new()
+	_tech_item.name = "TechItemPrototype"
+	_tech_item.stretch_mode = TextureRect.STRETCH_SCALE
+	_tech_item.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_tech_item.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tech_item.texture = load(TECH_ITEM_PATH) as Texture2D
+	_scroll_content.add_child(_tech_item)
+	_stone_icon = TextureRect.new()
+	_stone_icon.name = "StoneToolsIcon"
+	_stone_icon.stretch_mode = TextureRect.STRETCH_SCALE
+	_stone_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_stone_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stone_icon.texture = load(STONE_TOOLS_PATH) as Texture2D
+	_tech_item.add_child(_stone_icon)
 	_rebuild_segment_sizes()
 
 
@@ -153,19 +202,38 @@ func _rebuild_segment_sizes() -> void:
 	if _segment_row == null:
 		return
 	var display_h: int = _segment_display_height()
+	var total_w: int = 0
 	var i: int = 0
 	while i < _segment_row.get_child_count():
 		var seg := _segment_row.get_child(i) as TextureRect
 		if seg != null and seg.texture != null:
-			var tex: Texture2D = seg.texture
-			var tw: float = float(tex.get_width())
-			var th: float = float(tex.get_height())
-			var scaled_w: int = display_h
-			if th > 0.0:
-				scaled_w = int(round(tw * float(display_h) / th))
+			var scaled: Vector2 = scaled_texture_size(seg.texture, float(display_h))
+			var scaled_w: int = int(round(scaled.x))
 			seg.custom_minimum_size = Vector2(scaled_w, display_h)
 			seg.size = Vector2(scaled_w, display_h)
+			total_w += scaled_w
 		i += 1
+	if _scroll_content != null:
+		_scroll_content.custom_minimum_size = Vector2(total_w, display_h)
+		_scroll_content.size = Vector2(total_w, display_h)
+	_layout_tech_item()
+
+
+func _layout_tech_item() -> void:
+	if _tech_item == null or _tech_item.texture == null:
+		return
+	var item_size: Vector2 = scaled_texture_size(_tech_item.texture, TECH_ITEM_DISPLAY_HEIGHT)
+	_tech_item.custom_minimum_size = item_size
+	_tech_item.size = item_size
+	_tech_item.position = TECH_ITEM_POS
+	if _stone_icon == null or _stone_icon.texture == null:
+		return
+	var icon_layout: Dictionary = stone_icon_layout(item_size)
+	var icon_h: float = float(icon_layout["height"])
+	var icon_size: Vector2 = scaled_texture_size(_stone_icon.texture, icon_h)
+	_stone_icon.custom_minimum_size = icon_size
+	_stone_icon.size = icon_size
+	_stone_icon.position = Vector2(float(icon_layout["x"]), float(icon_layout["y"]))
 
 
 func _wheel_hover_rect() -> Rect2:

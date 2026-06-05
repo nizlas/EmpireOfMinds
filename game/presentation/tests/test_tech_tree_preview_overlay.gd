@@ -13,8 +13,10 @@ func _init() -> void:
 
 func _run() -> void:
 	_test_segment_paths_exist()
+	_test_prototype_asset_paths_exist()
 	_test_main_scene_wiring()
 	await _test_overlay_open_close()
+	await _test_tech_item_layout()
 	if _any_fail:
 		call_deferred("quit", 1)
 	else:
@@ -39,6 +41,13 @@ func _test_segment_paths_exist() -> void:
 		var path: String = TechTreeOverlayScript.SEGMENT_PATHS[i]
 		_check(ResourceLoader.exists(path), "segment exists: %s" % path)
 		i += 1
+
+
+func _test_prototype_asset_paths_exist() -> void:
+	_check(ResourceLoader.exists(TechTreeOverlayScript.TECH_ITEM_PATH), "tech_item exists")
+	_check(ResourceLoader.exists(TechTreeOverlayScript.STONE_TOOLS_PATH), "stone_tools exists")
+	_check(load(TechTreeOverlayScript.TECH_ITEM_PATH) is Texture2D, "tech_item loads as texture")
+	_check(load(TechTreeOverlayScript.STONE_TOOLS_PATH) is Texture2D, "stone_tools loads as texture")
 
 
 func _test_main_scene_wiring() -> void:
@@ -121,10 +130,53 @@ func _test_overlay_open_close() -> void:
 	hud.queue_free()
 
 
+func _test_tech_item_layout() -> void:
+	var overlay: TechTreeOverlayScript = TechTreeOverlayScript.new()
+	get_root().add_child(overlay)
+	for _i in 2:
+		await process_frame
+	overlay.open_overlay()
+	var item: TextureRect = overlay._tech_item
+	_check(item != null, "tech item TextureRect exists")
+	_check(item.texture != null, "tech item texture loaded")
+	_check(item.get_parent() == overlay._scroll_content, "tech item under scroll content")
+	_check(item.mouse_filter == Control.MOUSE_FILTER_IGNORE, "tech item ignores mouse")
+	var icon: TextureRect = overlay._stone_icon
+	_check(icon != null, "stone icon TextureRect exists")
+	_check(icon.texture != null, "stone icon texture loaded")
+	_check(icon.get_parent() == item, "stone icon child of tech item")
+	_check(icon.mouse_filter == Control.MOUSE_FILTER_IGNORE, "stone icon ignores mouse")
+	var item_h: float = item.size.y
+	var icon_h: float = icon.size.y
+	_check(item_h > 0.0, "tech item has display height")
+	_check(
+		absf(icon_h - item_h * TechTreeOverlayScript.STONE_ICON_HEIGHT_RATIO) < 1.0,
+		"icon height is one third of tech item height",
+	)
+	var expected_item: Vector2 = TechTreeOverlayScript.scaled_texture_size(
+		item.texture,
+		TechTreeOverlayScript.TECH_ITEM_DISPLAY_HEIGHT,
+	)
+	_check(
+		absf(item.size.x - expected_item.x) < 1.0 and absf(item.size.y - expected_item.y) < 1.0,
+		"tech item size from aspect ratio",
+	)
+	overlay.queue_free()
+
+
 func _collect_hbox_segment_row(node: Node, out: Array) -> void:
-	if node is HBoxContainer and node.get_parent() is ScrollContainer:
+	if node is HBoxContainer and _has_scroll_container_ancestor(node):
 		out.append(node)
 	var i: int = 0
 	while i < node.get_child_count():
 		_collect_hbox_segment_row(node.get_child(i), out)
 		i += 1
+
+
+func _has_scroll_container_ancestor(node: Node) -> bool:
+	var p: Node = node.get_parent()
+	while p != null:
+		if p is ScrollContainer:
+			return true
+		p = p.get_parent()
+	return false
