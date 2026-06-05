@@ -137,6 +137,7 @@ func _ready() -> void:
 		$SelectionView,
 		$UnitsView,
 		$TerrainForegroundView,
+		$MapVisibilityView,
 		$LightningTreeView,
 		$TileYieldOverlayView,
 		$CityWorkedTilesView,
@@ -257,6 +258,15 @@ func _install_ui_chrome_once() -> void:
 	var yields_toggle = $HudCanvas/YieldsToggle as CheckButton
 	if yields_toggle != null and not yields_toggle.toggled.is_connected(_on_yields_toggle_toggled):
 		yields_toggle.toggled.connect(_on_yields_toggle_toggled)
+	var tech_tree_btn = $HudCanvas/TechTreeButton as Button
+	var tech_tree_overlay = $HudCanvas/TechTreePreviewOverlay
+	if (
+		tech_tree_btn != null
+		and tech_tree_overlay != null
+		and tech_tree_overlay.has_method("open_overlay")
+		and not tech_tree_btn.pressed.is_connected(tech_tree_overlay.open_overlay)
+	):
+		tech_tree_btn.pressed.connect(tech_tree_overlay.open_overlay)
 	if _faction_banner_gallery == null:
 		_faction_banner_gallery = FactionBannerGalleryScript.new()
 		add_child(_faction_banner_gallery)

@@ -29,7 +29,7 @@
 [ext_resource type="Script" uid="uid://xj4nn3otlmdr" path="res://presentation/map_visibility_view.gd" id="27_map_visibility"]
 [ext_resource type="Script" uid="uid://b20n12tws838c" path="res://presentation/turn_start_banner_view.gd" id="28_turn_banner"]
 [ext_resource type="Script" uid="uid://c2hr15ccjp7yx" path="res://presentation/combat_clash_burst_view.gd" id="29_combat_clash"]
-
+[ext_resource type="Script" path="res://presentation/tech_tree_preview_overlay.gd" id="30_tech_tree"]
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
 
@@ -147,6 +147,26 @@ offset_bottom = 580.0
 grow_horizontal = 0
 grow_vertical = 0
 text = "Yields"
+
+[node name="TechTreeButton" type="Button" parent="HudCanvas"]
+offset_left = 228.0
+offset_top = 548.0
+offset_right = 348.0
+offset_bottom = 580.0
+grow_horizontal = 0
+grow_vertical = 0
+text = "Tech Tree"
+
+[node name="TechTreePreviewOverlay" type="Control" parent="HudCanvas"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("30_tech_tree")
 
 [node name="MapView" type="Node2D" parent="." unique_id=1063845021]
 position = Vector2(400, 428)
