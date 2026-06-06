@@ -31,6 +31,14 @@ const ORDERED_SCIENCE_IDS: Array[String] = [
 
 static var _SCIENCES: Dictionary = {}
 
+const UNIT_UNLOCK_TYPES: Array[String] = [
+	"unit",
+	"support_unit",
+	"naval_unit",
+]
+
+const EXOPLANET_EXPEDITION_ID: String = "exoplanet_expedition"
+
 
 static func _registry() -> Dictionary:
 	if not _SCIENCES.is_empty():
@@ -55,12 +63,6 @@ static func _registry() -> Dictionary:
 				"+food from wilderness, forest, and berries.",
 			),
 		],
-		[
-			"Wild food gathering",
-			"Scout camp & foraging camp",
-			"Survival outside cities",
-			"+food from wilderness",
-		],
 	),
 	"stone_tools": _science(
 		"stone_tools",
@@ -68,6 +70,7 @@ static func _registry() -> Dictionary:
 		ERA_ANCIENT_FOUNDATIONS,
 		[
 			_u("unit", "unit_worker", "Worker", "Basic worker unit for improvements and extraction."),
+			_u("unit", "unit_slinger", "Slinger", "Primitive ranged unit using thrown stones."),
 			_u("tile_improvement", "improvement_quarry", "Quarry", "Extract stone from hills."),
 			_u(
 				"modifier",
@@ -75,12 +78,6 @@ static func _registry() -> Dictionary:
 				"Stone Production",
 				"+production from stone and hills.",
 			),
-		],
-		[
-			"Basic stoneworking",
-			"Worker enablement",
-			"Quarry / mine precursor",
-			"Production from hills & stone",
 		],
 	),
 	"controlled_fire": _science(
@@ -96,12 +93,6 @@ static func _registry() -> Dictionary:
 				"Hearth Support",
 				"Faster healing and small city growth support.",
 			),
-		],
-		[
-			"Hearth",
-			"Camp clearing",
-			"Health & survival bonus",
-			"New settlement support",
 		],
 	),
 	"oral_surveying": _science(
@@ -123,12 +114,6 @@ static func _registry() -> Dictionary:
 				"Scout sight memory and faster revisits.",
 			),
 		],
-		[
-			"Landmark markers",
-			"Map notes",
-			"Scout memory bonus",
-			"Revisit movement bonus",
-		],
 	),
 	"animal_tracking": _science(
 		"animal_tracking",
@@ -143,12 +128,6 @@ static func _registry() -> Dictionary:
 				"Animal Awareness",
 				"Reveal animal resources and ambush detection.",
 			),
-		],
-		[
-			"Tracker / scout bonus",
-			"Hunting camp",
-			"Reveal animals",
-			"Better pursuit and hunting",
 		],
 	),
 	"seasonal_calendars": _science(
@@ -170,12 +149,6 @@ static func _registry() -> Dictionary:
 				"Food stability and reduced famine risk.",
 			),
 		],
-		[
-			"Seasonal harvest timing",
-			"Planting cycle bonus",
-			"Planting windows",
-			"Natural year cycles",
-		],
 	),
 	"pottery_craft": _science(
 		"pottery_craft",
@@ -190,12 +163,6 @@ static func _registry() -> Dictionary:
 				"Storage Growth",
 				"Storage-based growth support.",
 			),
-		],
-		[
-			"Storage vessels",
-			"Pottery workshop",
-			"Growth / food buffer",
-			"Preserved supplies",
 		],
 	),
 	"textile_work": _science(
@@ -213,12 +180,6 @@ static func _registry() -> Dictionary:
 				"Rough-weather movement; enables fishing support.",
 			),
 		],
-		[
-			"Weaver hut",
-			"Rope production",
-			"Tents for mobile units",
-			"Rough weather movement",
-		],
 	),
 	"agrarian_practice": _science(
 		"agrarian_practice",
@@ -234,12 +195,6 @@ static func _registry() -> Dictionary:
 				"Stable food production from farms.",
 			),
 		],
-		[
-			"Farm improvement",
-			"Farmer specialist",
-			"Settler support bonus",
-			"Stable food production",
-		],
 	),
 	"pastoral_herding": _science(
 		"pastoral_herding",
@@ -247,24 +202,13 @@ static func _registry() -> Dictionary:
 		ERA_ANCIENT_FOUNDATIONS,
 		[
 			_u("tile_improvement", "improvement_pasture", "Pasture", "Pasture tiles for livestock."),
-			_u(
-				"unit",
-				"unit_mounted_scout_precursor",
-				"Mounted Scout Precursor",
-				"Early mounted scout capability.",
-			),
+			_u("unit", "unit_mounted_scout", "Mounted Scout", "Early mounted scout capability."),
 			_u(
 				"modifier",
 				"modifier_livestock_yield",
 				"Livestock Yield",
 				"Food and production from livestock.",
 			),
-		],
-		[
-			"Pasture improvement",
-			"Herder action",
-			"Mounted scout precursor",
-			"Livestock food + production",
 		],
 	),
 	"river_irrigation": _science(
@@ -280,12 +224,6 @@ static func _registry() -> Dictionary:
 				"River Food",
 				"+food near rivers and drought resistance.",
 			),
-		],
-		[
-			"Irrigated farm",
-			"Canal ditch",
-			"Food near rivers",
-			"Drought resistance",
 		],
 	),
 	"fishing_methods": _science(
@@ -322,12 +260,6 @@ static func _registry() -> Dictionary:
 				"+food from coasts and lakes.",
 			),
 		],
-		[
-			"Fishing boats",
-			"Coastal village",
-			"Food from coast/lakes",
-			"Early naval scout",
-		],
 	),
 	"basic_mining": _science(
 		"basic_mining",
@@ -343,12 +275,6 @@ static func _registry() -> Dictionary:
 				"+production from hills.",
 			),
 		],
-		[
-			"Mines",
-			"Ore awareness",
-			"Hill production",
-			"Early extraction",
-		],
 	),
 	"timber_working": _science(
 		"timber_working",
@@ -357,8 +283,8 @@ static func _registry() -> Dictionary:
 		[
 			_u("tile_improvement", "improvement_lumber_camp", "Lumber Camp", "Camp for timber extraction."),
 			_u("city_building", "building_palisade", "Palisade", "Early wooden city defense."),
+			_u("unit", "unit_archer", "Archer", "Primitive bow-armed ranged unit."),
 			_u("naval_unit", "unit_war_canoe", "War Canoe", "Early offensive canoe; no cargo."),
-			_u("naval_unit", "unit_raft", "Raft", "Simple raft for river crossings."),
 			_u(
 				"rule",
 				"rule_war_canoe_no_cargo_v0",
@@ -372,12 +298,6 @@ static func _registry() -> Dictionary:
 				"Timber Construction",
 				"Faster early buildings and frames.",
 			),
-		],
-		[
-			"Woodwright shop",
-			"Wood production bonus",
-			"Timber frames",
-			"Structural carpentry",
 		],
 	),
 	"mudbrick_construction": _science(
@@ -394,12 +314,6 @@ static func _registry() -> Dictionary:
 				"Housing Capacity",
 				"+housing and urban capacity.",
 			),
-		],
-		[
-			"Mudbrick walls",
-			"City durability bonus",
-			"Sun-dried bricks",
-			"Simple civic structures",
 		],
 	),
 	"counting_marks": _science(
@@ -421,12 +335,6 @@ static func _registry() -> Dictionary:
 				"+gold and administration from surplus.",
 			),
 		],
-		[
-			"Tally ledger",
-			"Allocation marks",
-			"Administrative memory",
-			"Corruption resistance",
-		],
 	),
 	"glyphic_records": _science(
 		"glyphic_records",
@@ -441,12 +349,6 @@ static func _registry() -> Dictionary:
 				"Administrative Science",
 				"+science and culture from administration.",
 			),
-		],
-		[
-			"Archive hut",
-			"Monument inscriptions",
-			"Science from administration",
-			"Written orders",
 		],
 	),
 	"bronze_alloying": _science(
@@ -463,12 +365,6 @@ static func _registry() -> Dictionary:
 				"Bronze Power",
 				"Improved mine production and stronger melee.",
 			),
-		],
-		[
-			"Bronze tools",
-			"Armory",
-			"Bronze-armed warriors",
-			"Improved mine production",
 		],
 	),
 	"wheelwrighting": _science(
@@ -490,12 +386,6 @@ static func _registry() -> Dictionary:
 				"Faster settler movement on roads.",
 			),
 		],
-		[
-			"Cart support unit",
-			"Road cargo bonus",
-			"Faster road movement",
-			"Trade capacity",
-		],
 	),
 	"simple_levers": _science(
 		"simple_levers",
@@ -510,12 +400,6 @@ static func _registry() -> Dictionary:
 				"Construction Efficiency",
 				"Faster walls, monuments, and construction.",
 			),
-		],
-		[
-			"Stone-lifting project",
-			"Faster monuments",
-			"Siege precursor",
-			"Construction efficiency",
 		],
 	),
 	"exoplanet_expedition": _science(
@@ -536,12 +420,12 @@ static func _registry() -> Dictionary:
 				"First civilization to complete this science wins.",
 			),
 		],
+		{"end_science": true, "special": "minimatch_end_science"},
 		[
 			"Final horizon mission",
 			"Launch beyond the known world",
 			"Victory to the first civilization to reach this point",
 		],
-		{"end_science": true, "special": "minimatch_end_science"},
 	),
 	}
 	return _SCIENCES
@@ -570,8 +454,8 @@ static func _science(
 	title: String,
 	era: String,
 	unlocks: Array,
-	ui_bullets: Array,
 	flags: Dictionary = {},
+	ui_bullets: Array = [],
 ) -> Dictionary:
 	return {
 		"id": id,
@@ -616,10 +500,34 @@ static func unlocks_for(science_id: String) -> Array:
 
 
 static func ui_bullets_for(science_id: String) -> Array:
-	var science: Dictionary = get_science(science_id)
+	return tech_card_bullets_for(science_id)
+
+
+## Tech-tree card bullets: unit/support/naval display names only; Exoplanet keeps manual ui_bullets.
+static func tech_card_bullets_for(science_id: String) -> Array:
+	var key: String = str(science_id).strip_edges()
+	if key == EXOPLANET_EXPEDITION_ID:
+		var science: Dictionary = get_science(key)
+		if science.is_empty():
+			return []
+		return (science.get("ui_bullets", []) as Array).duplicate()
+	return _unit_unlock_names_from_science(get_science(key))
+
+
+static func _unit_unlock_names_from_science(science: Dictionary) -> Array:
 	if science.is_empty():
 		return []
-	return (science.get("ui_bullets", []) as Array).duplicate()
+	var unlocks: Array = science.get("unlocks", [])
+	var out: Array = []
+	var ui: int = 0
+	while ui < unlocks.size():
+		var unlock: Dictionary = unlocks[ui] as Dictionary
+		if UNIT_UNLOCK_TYPES.has(str(unlock.get("type", ""))):
+			var name: String = str(unlock.get("name", "")).strip_edges()
+			if not name.is_empty():
+				out.append(name)
+		ui += 1
+	return out
 
 
 static func find_unlock(unlock_id: String) -> Dictionary:

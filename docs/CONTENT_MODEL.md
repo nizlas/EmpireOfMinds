@@ -3,7 +3,7 @@
 ## Status
 
 - **Phase 3.0** established this **engineering envelope** (IDs, boundaries, registry shape). Later phase-labeled slices **implemented** GDScript registries and wiring rather than superseding those rules.
-- **Today**, `game/domain/content/` holds authoritative definition modules (**e.g.** **`UnitDefinitions`**, **`CityProjectDefinitions`**, **`ProgressDefinitions`**, **`TerrainRuleDefinitions`**, **`FactionDefinitions`**) with **`class_name`** + **static** read-only lookup, per the pillars below.
+- **Today**, `game/domain/content/` holds authoritative definition modules (**e.g.** **`UnitDefinitions`**, **`CityProjectDefinitions`**, **`ProgressDefinitions`**, **`ScienceUnlocks`**, **`TerrainRuleDefinitions`**, **`FactionDefinitions`**) with **`class_name`** + **static** read-only lookup, per the pillars below.
 - **`EffectiveRules`** exists in code (`game/domain/effective_rules.gd`) as a **thin façade** over baseline registries; gameplay reads **toward** that boundary per [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md). Further call sites migrate in small slices.
 - **`RuleSet`** (validated match snapshot compiling to effective rules for play) remains **architecture direction** in § RuleSet / EffectiveRules below, [CLOUD_PLAY.md](CLOUD_PLAY.md), and [DECISION_LOG.md](DECISION_LOG.md). There is **no `RuleSet` GDScript type** yet—only registries plus **`EffectiveRules`**.
 - The **Phase 2.x** loop shape (**`try_apply`**, turn order, core actions) persists; richer **content rows and gating** landed under later phases. Behavior and tests stay aligned with [CORE_LOOP.md](CORE_LOOP.md).
@@ -26,7 +26,9 @@ Authoritative genre/IP boundaries for public-facing identity remain in [PROJECT_
 ## Where definitions live
 
 - **Path:** **`game/domain/content/`** (implemented).
-- **Form:** **`class_name`** + **static** methods on **RefCounted**-extending scripts, built from **`const`** tables or small helpers (**e.g.** **`progress_definitions.gd`**).
+- **Form:** **`class_name`** + **static** methods on **RefCounted**-extending scripts, built from **`const`** tables or small helpers (**e.g.** **`progress_definitions.gd`**, **`science_unlocks.gd`**).
+- **`ScienceUnlocks`** ([science_unlocks.gd](../game/domain/content/science_unlocks.gd)) — canonical **Ancient/Foundation** science rows with typed **unlock bundles** (`city_building`, `tile_improvement`, `unit`, `support_unit`, `naval_unit`, `project`, `modifier`, `rule`, …). **Tech-tree preview** card text is derived from this registry (**science title** + **science-unlocked unit display names** + **Exoplanet Expedition** manual copy only). Full unlock **`summary`** strings remain in data for **City View** / inspection UIs, not as tech-card flavor bullets.
+- **`StartingUnits`** ([starting_units.gd](../game/domain/content/starting_units.gd)) — baseline producerable **`unit_settler`** / **`unit_warrior`** rows for **City View** inspection (content only; not production rules).
 - **Typical API shape** (exact names vary per registry):
   - `get(id: String) -> Dictionary` — deep **read** view or **`null`** if unknown
   - `has(id: String) -> bool`

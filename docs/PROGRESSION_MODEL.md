@@ -418,128 +418,38 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 - Prefer **structured** condition types over **free-string** predicates.
 - Use **arrays** for `conditions` and `effects` even when length is 1.
 
-## Seed Science examples — Ancient / Foundations
+## Canonical Ancient / Foundation unlock bundles
 
-**Explicitly non-final, non-canonical** — brainstorming anchors, not shipped content.
+**Registry truth:** [science_unlocks.gd](../game/domain/content/science_unlocks.gd) (**`ScienceUnlocks`**) — **21** sciences (**20** Ancient/Foundation + **`exoplanet_expedition`**). Each row has **`title`**, **`era`**, typed **`unlocks`** (`id`, `type`, `name`, `summary`, optional `metadata`), and optional **`flags`**.
 
-### 1. `foraging_systems`
+**Tech-tree preview copy (presentation only):**
 
-- **Display name:** Foraging Systems
-- **Era bucket:** Ancient / Foundations
-- **Description:** early food gathering, camps, simple survival practices.
-- **Concrete unlocks**
-  - `building` or `tile_improvement`: `scout_camp`
-  - `specialist`: `forager`
-- **Systemic effects**
-  - `modifier`: `forest_food_bonus`
-  - `modifier`: `outside_borders_healing`
-- **Future dependency hooks**
-  - `science`: `survival_knowledge`
-  - `science`: `woodland_logistics`
+- **Card title** — science **`title`** from **`ScienceUnlocks`**.
+- **Card bullets** — **unit / support_unit / naval_unit** **`name`** only when that science unlocks trainable units; otherwise **no** bullets on the card.
+- **`exoplanet_expedition`** — keeps manual victory copy (not derived from unlock rows).
 
-### 2. `stone_tools`
+**Trainable unit display names on tech cards today:**
 
-- **Concrete unlocks**
-  - `unit`: `worker`
-  - `tile_improvement`: `quarry`
-  - `unit_upgrade`: `basic_melee_equipment`
-- **Systemic effects**
-  - `modifier`: `stone_production_bonus`
-- **Future dependency hooks**
-  - `science`: `masonry`
-  - `science`: `mining`
-  - `science`: `toolmaking`
+**Baseline producerable units** ([starting_units.gd](../game/domain/content/starting_units.gd)): **`unit_settler`** (Settler), **`unit_warrior`** (Warrior). City View labels source **`Baseline`**. Default city projects **`produce_unit:settler`** and **`produce_unit:warrior`** ship via **`ProgressState.with_default_unlocks_for_players`**.
 
-### 3. `controlled_fire`
+| Science id | Unit bullet(s) |
+| --- | --- |
+| `stone_tools` | Worker, Slinger |
+| `animal_tracking` | Tracker Scout |
+| `pastoral_herding` | Mounted Scout |
+| `fishing_methods` | Reed Boat |
+| `timber_working` | Archer, War Canoe |
+| `bronze_alloying` | Bronze-Armed Warrior |
+| `wheelwrighting` | Cart Support Unit |
+| `simple_levers` | Siege Precursor |
 
-- **Concrete unlocks**
-  - `building`: `hearth`
-  - `action`: `camp_clearing`
-- **Systemic effects**
-  - `modifier`: `cold_terrain_growth_bonus`
-  - `modifier`: `small_health_bonus`
-- **Future dependency hooks**
-  - `science`: `pottery`
-  - `science`: `metallurgy`
-  - `science`: `settlement_comfort`
+**Science-unlocked unit ids:** `unit_worker`, `unit_slinger`, `unit_tracker_scout`, `unit_mounted_scout`, `unit_reed_boat`, `unit_archer`, `unit_war_canoe`, `unit_bronze_armed_warrior`, `unit_cart_support`, `unit_siege_precursor`.
 
-### 4. `oral_surveying`
+**Removed:** `unit_raft` is not an active producerable unit unlock.
 
-- **Concrete unlocks**
-  - `map_feature`: `landmark_markers`
-  - `action`: `map_notes`
-- **Systemic effects**
-  - `modifier`: `improved_scout_sight_memory`
-  - `modifier`: `revisit_terrain_movement_bonus`
-- **Future dependency hooks**
-  - `science`: `cartography`
-  - `science`: `administration`
-  - `science`: `writing`
+**Inspection UIs** (e.g. **City View prototype**, unlock details) read full **`unlocks`** from **`ScienceUnlocks`** — not the shortened tech-card bullet list.
 
-### 5. `animal_tracking`
-
-- **Concrete unlocks**
-  - `unit`: `tracker`
-  - `tile_improvement`: `hunting_camp`
-- **Systemic effects**
-  - `resource_visibility`: `reveal_animal_resources`
-  - `modifier`: `ambush_detection_bonus`
-- **Future dependency hooks**
-  - `science`: `animal_domestication`
-  - `science`: `riding`
-  - `science`: `hunting_traditions`
-
-## Candidate unlock catalog samples
-
-**Small sample only** — not a full catalog, not registry truth.
-
-**Buildings**
-
-- `hearth`
-- `scout_camp`
-- `armory`
-- `library`
-- `freight_station`
-
-**Districts**
-
-- `harbor_district`
-- `market_district`
-- `workshop_quarter`
-- `academy_quarter`
-
-**Tile improvements**
-
-- `farm`
-- `quarry`
-- `road`
-- `railroad`
-
-**Units**
-
-- `basic_melee_warrior`
-- `bronze_armed_warrior`
-- `archer`
-- `mounted_scout`
-- `rifle_infantry`
-
-**Modifiers**
-
-- `forest_food_bonus`
-- `outside_borders_healing`
-- `troop_redeployment_bonus`
-- `automated_route_optimization`
-
-**Systems**
-
-- `trade_routes`
-- `supply_network`
-- `shared_projects`
-- `cyber_operations`
-
-**Promotion rule**
-
-- Samples become **shipped IDs** only via a **future subphase** plus **[DECISION_LOG.md](DECISION_LOG.md)** entry — never by silent doc edit alone.
+**Gameplay costs / prerequisites** for the playable loop remain in **`ProgressDefinitions`** until a later slice merges or cross-links both registries. Do **not** duplicate unlock definitions in this doc.
 
 ## Phase 5.1.12 — Ancient science tree (documentation checkpoint)
 
@@ -603,7 +513,7 @@ Dependency rules for this doc table:
 - **[CONTENT_MODEL.md](CONTENT_MODEL.md)** — general **content contract** (registries, IDs, duplication rules).
 - **[CONTENT_BACKLOG.md](CONTENT_BACKLOG.md)** & workbook — **non-canonical** raw lists and brainstorms.
 - **`PROGRESSION_MODEL.md`** (this file) — **systematic model** for progression / unlocks / detection vocabulary.
-- **Implemented registries today:** `UnitDefinitions`, `TerrainRuleDefinitions`, `CityProjectDefinitions`, and **`ProgressDefinitions`** (**Phase 3.4b** — **metadata-only** progression seed; **no** gameplay enforcement).
+- **Implemented registries today:** `UnitDefinitions`, `TerrainRuleDefinitions`, `CityProjectDefinitions`, **`ProgressDefinitions`** (**Phase 3.4b** — costs/prerequisites for the playable loop), and **`ScienceUnlocks`** (canonical Ancient/Foundation unlock bundles + tech-tree preview copy rules above).
 - **Implemented session state:** **`GameState.progress_state`** (**Phase 3.4c**) — player-specific **`unlocked_targets`** (**Phase 5.1.12d:** baseline **`city_project` / `produce_unit:warrior`** and **`produce_unit:settler`**) and **`completed_progress_ids`** (**Phase 3.4d**); **Phase 5.1.9** adds **`science_progress`** and **`science_observation_flags`**; **Phase 5.1.12c** adds **`current_research_id`** (**`""`** = auto-target) and **`SetCurrentResearch`** through **`try_apply`**; **`ScienceTick.apply_for_player`** routes **summed city science** from **`CityYields.science_for_player`** to **explicit** target when set **and** available, else **first** **`ScienceAvailability.available_for`** (alphabetical), with **`science_no_target`** when none remain; lightning **`science_bonus`** remains **`controlled_fire`**-only; **Phase 5.1.16d** **`ProductionTick`** advances **`produce_unit`** **`progress`** by **`CityYields.city_total_yield`** **production**; **deterministic** **`SetCityProduction`** gating (**`project_not_unlocked`** in **`try_apply`**); **`complete_progress`** (**Phase 3.4e**) applies definition unlocks via **`ProgressUnlockResolver`**; **Phase 3.4f** adds **`KEY_G`** in **`SelectionController`** for **manual** **`CompleteProgress`** (**still** **outside** **`LegalActions`** / **AI**); **Phase 3.4g** adds **`ProgressDetector`** (**read-only** candidates from **`ActionLog`**; **Phase 5.1.8a** gates **`controlled_fire`** detector on optional **`scenario.lightning_tree_hex`** + observation); **Phase 3.4h** adds **`ProgressCandidateFilter`** + **`KEY_H`** (**still** **outside** **`LegalActions`** / **AI**).
 - **[FACTION_IDENTITY.md](FACTION_IDENTITY.md)** defines the predefined/custom civilisation **identity layer** that may later **bias** progression **interpretation**, **presentation**, and trait-driven tuning; in **3.5a** it is **documentation-only** and **does not modify** the progression model.
 - **Phase 3.4a** changes **no** gameplay behavior.

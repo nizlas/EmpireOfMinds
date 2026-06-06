@@ -30,13 +30,6 @@ const TECH_ITEM_WIDTH_PER_HEIGHT: float = GridLayoutScript.TECH_ITEM_WIDTH_PER_H
 const STONE_ICON_HEIGHT_RATIO: float = 1.0 / 3.0
 const STONE_ICON_X_FRAC: float = 0.08
 const STONE_ICON_Y_FRAC: float = 0.32
-const TECH_TITLE_TEXT: String = "Stone Tools"
-const TECH_BODY_TEXT: String = (
-	"• Basic stoneworking\n"
-	+ "• Worker enablement\n"
-	+ "• Quarry / mine precursor\n"
-	+ "• Production from hills & stone"
-)
 const TITLE_Y_FRAC: float = 0.097
 const TITLE_W_FRAC: float = 0.62
 const TITLE_H_FRAC: float = 0.13

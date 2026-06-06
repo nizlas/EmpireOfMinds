@@ -62,7 +62,7 @@ static func tech_by_id(tech_id: String) -> Dictionary:
 		"id": key,
 		"title": str(science.get("title", "")),
 		"icon_path": str(TECH_ICON_PATH_BY_ID[key]),
-		"bullets": (science.get("ui_bullets", []) as Array).duplicate(),
+		"bullets": ScienceUnlocksScript.tech_card_bullets_for(key),
 	}
 	var flags: Dictionary = science.get("flags", {}) as Dictionary
 	var fi: int = 0

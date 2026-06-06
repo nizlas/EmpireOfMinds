@@ -269,6 +269,9 @@ func _install_ui_chrome_once() -> void:
 		and not tech_tree_btn.pressed.is_connected(tech_tree_overlay.open_overlay)
 	):
 		tech_tree_btn.pressed.connect(tech_tree_overlay.open_overlay)
+	var city_view_btn = $HudCanvas/CityViewButton as Button
+	if city_view_btn != null and not city_view_btn.pressed.is_connected(_open_city_view_prototype):
+		city_view_btn.pressed.connect(_open_city_view_prototype)
 	if _faction_banner_gallery == null:
 		_faction_banner_gallery = FactionBannerGalleryScript.new()
 		add_child(_faction_banner_gallery)
@@ -1093,7 +1096,16 @@ func _wire_play_session(game_state, selection, city_view_state) -> void:
 	turn_start_banner.set_game_state(game_state)
 	if not _cloud_mode:
 		turn_start_banner.show_for_current_player(game_state)
+	var city_view_overlay = $HudCanvas/CityViewPrototypeOverlay
+	if city_view_overlay != null and city_view_overlay.has_method("bind_session"):
+		city_view_overlay.bind_session(game_state, selection)
 	_redraw_map_layers()
+
+
+func _open_city_view_prototype() -> void:
+	var overlay = $HudCanvas/CityViewPrototypeOverlay
+	if overlay != null and overlay.has_method("open_overlay"):
+		overlay.open_overlay()
 
 
 func cloud_legal_actions_pending() -> bool:
@@ -1547,6 +1559,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			YieldOverlayToggleScript.toggle_from_keyboard(
 				$TileYieldOverlayView, $HudCanvas/YieldsToggle as CheckButton
 			)
+			return
+		if ek.pressed and not ek.echo and ek.keycode == KEY_C:
+			_open_city_view_prototype()
+			get_viewport().set_input_as_handled()
 			return
 		if ek.pressed and not ek.echo and ek.keycode == KEY_F1:
 			if _faction_banner_gallery != null:
