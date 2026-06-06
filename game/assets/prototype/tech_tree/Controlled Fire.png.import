@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://tfccspwb7wq5"
-path="res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"
+uid="uid://bum4yv52elmr2"
+path="res://.godot/imported/Controlled Fire.png-7451bd6118076deede9a68c3e6df9d86.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/prototype/tech_tree/tech_item (22).png"
-dest_files=["res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"]
+source_file="res://assets/prototype/tech_tree/Controlled Fire.png"
+dest_files=["res://.godot/imported/Controlled Fire.png-7451bd6118076deede9a68c3e6df9d86.ctex"]
 
 [params]
 

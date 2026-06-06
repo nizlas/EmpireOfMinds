@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://tfccspwb7wq5"
-path="res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"
+uid="uid://bf1lyrcpyv813"
+path="res://.godot/imported/Seasonal Calendars.png-e51134bda8aa1333f55d4c3aac29a05e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/prototype/tech_tree/tech_item (22).png"
-dest_files=["res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"]
+source_file="res://assets/prototype/tech_tree/Seasonal Calendars.png"
+dest_files=["res://.godot/imported/Seasonal Calendars.png-e51134bda8aa1333f55d4c3aac29a05e.ctex"]
 
 [params]
 

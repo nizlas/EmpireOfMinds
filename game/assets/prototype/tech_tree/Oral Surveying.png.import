@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://tfccspwb7wq5"
-path="res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"
+uid="uid://b4jlgf0u5x7j5"
+path="res://.godot/imported/Oral Surveying.png-f3a8754aba2e09cae8098a9abad7674e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/prototype/tech_tree/tech_item (22).png"
-dest_files=["res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"]
+source_file="res://assets/prototype/tech_tree/Oral Surveying.png"
+dest_files=["res://.godot/imported/Oral Surveying.png-f3a8754aba2e09cae8098a9abad7674e.ctex"]
 
 [params]
 

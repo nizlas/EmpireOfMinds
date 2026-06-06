@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://tfccspwb7wq5"
-path="res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"
+uid="uid://dpab55v2kwoqh"
+path="res://.godot/imported/Basic Mining.png-0d1a252eb879fb096ce01a5a95f8d37d.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/prototype/tech_tree/tech_item (22).png"
-dest_files=["res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"]
+source_file="res://assets/prototype/tech_tree/Basic Mining.png"
+dest_files=["res://.godot/imported/Basic Mining.png-0d1a252eb879fb096ce01a5a95f8d37d.ctex"]
 
 [params]
 

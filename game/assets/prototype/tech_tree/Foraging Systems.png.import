@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://tfccspwb7wq5"
-path="res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"
+uid="uid://bs445rpebhlxo"
+path="res://.godot/imported/Foraging Systems.png-e36a1744aec6e8d3ead886cc8f6a8fcd.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/prototype/tech_tree/tech_item (22).png"
-dest_files=["res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"]
+source_file="res://assets/prototype/tech_tree/Foraging Systems.png"
+dest_files=["res://.godot/imported/Foraging Systems.png-e36a1744aec6e8d3ead886cc8f6a8fcd.ctex"]
 
 [params]
 

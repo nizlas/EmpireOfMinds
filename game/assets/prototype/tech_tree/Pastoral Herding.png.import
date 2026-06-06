@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://tfccspwb7wq5"
-path="res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"
+uid="uid://bd7eha0p20ce3"
+path="res://.godot/imported/Pastoral Herding.png-f30bc003505d499d057061c11ad58f98.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/prototype/tech_tree/tech_item (22).png"
-dest_files=["res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"]
+source_file="res://assets/prototype/tech_tree/Pastoral Herding.png"
+dest_files=["res://.godot/imported/Pastoral Herding.png-f30bc003505d499d057061c11ad58f98.ctex"]
 
 [params]
 

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://tfccspwb7wq5"
-path="res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"
+uid="uid://c3hkfsw55vg8e"
+path="res://.godot/imported/River Irrigation.png-d2734ceb7d23fd6a383a57beff85b5bf.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/prototype/tech_tree/tech_item (22).png"
-dest_files=["res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"]
+source_file="res://assets/prototype/tech_tree/River Irrigation.png"
+dest_files=["res://.godot/imported/River Irrigation.png-d2734ceb7d23fd6a383a57beff85b5bf.ctex"]
 
 [params]
 

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://tfccspwb7wq5"
-path="res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"
+uid="uid://cblhl4jq76ig2"
+path="res://.godot/imported/Animal Tracking.png-461c18311979ca9a2354c5f52dabd971.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/prototype/tech_tree/tech_item (22).png"
-dest_files=["res://.godot/imported/tech_item (22).png-535c991664e4519a677c8216c21909f1.ctex"]
+source_file="res://assets/prototype/tech_tree/Animal Tracking.png"
+dest_files=["res://.godot/imported/Animal Tracking.png-461c18311979ca9a2354c5f52dabd971.ctex"]
 
 [params]
 

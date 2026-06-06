@@ -8,6 +8,7 @@ const SEGMENT_PATHS: Array[String] = [
 	"res://assets/prototype/tech_tree/tech_tree_bg_3.png",
 ]
 const GridLayoutScript = preload("res://presentation/tech_tree_grid_layout.gd")
+const ContentScript = preload("res://presentation/tech_tree_preview_content.gd")
 const TECH_ITEM_PATH: String = "res://assets/prototype/tech_tree/tech_item.png"
 const STONE_TOOLS_PATH: String = "res://assets/prototype/tech_tree/stone_tools.png"
 const TECH_COLUMN_COUNT: int = GridLayoutScript.COLUMN_COUNT
@@ -15,6 +16,7 @@ const COLUMN_X_START: float = GridLayoutScript.COLUMN_X_START
 const COLUMN_X_STEP: float = GridLayoutScript.COLUMN_X_STEP
 const TECH_ITEM_GROUP_OFFSET: Vector2 = GridLayoutScript.TECH_ITEM_GROUP_OFFSET
 const COLUMN_LAYOUT_4: Array[float] = GridLayoutScript.COLUMN_LAYOUT_4
+## Segment 0 column counts kept for layout regression helpers / tests.
 const PROTOTYPE_COLUMN_SPECS: Array = [
 	{"count": 4},
 	{"count": 2},
@@ -55,7 +57,6 @@ var _scroll: ScrollContainer
 var _scroll_content: Control
 var _segment_row: HBoxContainer
 var _tech_item_tex: Texture2D
-var _stone_icon_tex: Texture2D
 var _tech_items: Array[TextureRect] = []
 var _tech_item_placements: Array[Vector3i] = []
 var _segment_display_widths: Array[float] = []
@@ -163,6 +164,11 @@ static func scaled_texture_size(tex: Texture2D, display_height: float) -> Vector
 	return Vector2(w, display_height)
 
 
+static func configure_scaled_texture_filter(node: CanvasItem) -> void:
+	## Matches **UnitsView** marker downscale: linear + mipmaps on icon **.import** files.
+	node.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+
+
 static func stone_icon_layout(item_size: Vector2) -> Dictionary:
 	var icon_h: float = item_size.y * STONE_ICON_HEIGHT_RATIO
 	return {
@@ -196,8 +202,8 @@ static func column_layout(count: int) -> Array:
 	return GridLayoutScript.column_layout(count)
 
 
-static func prototype_column_spec_count(col: int) -> int:
-	return int(PROTOTYPE_COLUMN_SPECS[col]["count"])
+static func prototype_column_spec_count(col: int, segment_index: int = 0) -> int:
+	return ContentScript.column_layout_count(segment_index, col)
 
 
 static func prototype_segment_spec_count() -> int:
@@ -252,13 +258,8 @@ static func grid_x_offset_design_for_segment(
 	)
 
 
-static func items_per_segment() -> int:
-	var total: int = 0
-	var i: int = 0
-	while i < PROTOTYPE_COLUMN_SPECS.size():
-		total += int(PROTOTYPE_COLUMN_SPECS[i]["count"])
-		i += 1
-	return total
+static func items_per_segment(segment_index: int = 0) -> int:
+	return ContentScript.items_in_segment(segment_index)
 
 
 static func grid_content_width_scaled(viewport_height: float = -1.0) -> float:
@@ -280,7 +281,11 @@ static func segment_local_grid_position(
 	row_in_column: int,
 	item_count: int = -1,
 ) -> Vector2:
-	var count: int = item_count if item_count >= 0 else prototype_column_spec_count(col)
+	var count: int = (
+		item_count
+		if item_count >= 0
+		else prototype_column_spec_count(col, 0)
+	)
 	return GridLayoutScript.segment_local_grid_position(col, row_in_column, count)
 
 
@@ -305,7 +310,11 @@ static func segment_local_grid_position_resolved(
 	item_count: int = -1,
 	viewport_height: float = -1.0,
 ) -> Vector2:
-	var count: int = item_count if item_count >= 0 else prototype_column_spec_count(col)
+	var count: int = (
+		item_count
+		if item_count >= 0
+		else prototype_column_spec_count(col, segment_index)
+	)
 	return GridLayoutScript.segment_local_grid_position_resolved(
 		col,
 		row_in_column,
@@ -328,7 +337,7 @@ static func tech_item_base_position(
 	return GridLayoutScript.tech_item_base_position(
 		col,
 		row_in_column,
-		prototype_column_spec_count(col),
+		prototype_column_spec_count(col, segment_index),
 		segment_index,
 		segment_display_widths,
 		center_grid,
@@ -345,7 +354,7 @@ static func column_x_position(
 ) -> float:
 	return GridLayoutScript.column_x_position(
 		col,
-		prototype_column_spec_count(col),
+		prototype_column_spec_count(col, segment_index),
 		segment_index,
 		segment_display_widths,
 		center_grid,
@@ -363,7 +372,11 @@ static func tech_item_position(
 	mirror_grid: bool = false,
 	viewport_height: float = -1.0,
 ) -> Vector2:
-	var count: int = item_count if item_count >= 0 else prototype_column_spec_count(col)
+	var count: int = (
+		item_count
+		if item_count >= 0
+		else prototype_column_spec_count(col, segment_index)
+	)
 	return GridLayoutScript.tech_item_position(
 		segment_index,
 		col,
@@ -377,7 +390,15 @@ static func tech_item_position(
 
 
 static func tech_item_count() -> int:
-	return items_per_segment() * prototype_segment_spec_count()
+	return ContentScript.total_item_count()
+
+
+static func prototype_content_for_placement(
+	segment_index: int,
+	col: int,
+	row_in_column: int,
+) -> Dictionary:
+	return ContentScript.content_for_placement(segment_index, col, row_in_column)
 
 
 func _build_ui() -> void:
@@ -435,10 +456,10 @@ func _build_ui() -> void:
 		seg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		seg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		seg.texture = load(SEGMENT_PATHS[i]) as Texture2D
+		configure_scaled_texture_filter(seg)
 		_segment_row.add_child(seg)
 		i += 1
 	_tech_item_tex = load(TECH_ITEM_PATH) as Texture2D
-	_stone_icon_tex = load(STONE_TOOLS_PATH) as Texture2D
 	_build_tech_columns()
 	_rebuild_segment_sizes()
 
@@ -452,21 +473,37 @@ func _build_tech_columns() -> void:
 		var segment_index: int = prototype_segment_index(segment_slot)
 		var center_grid: bool = prototype_segment_center_grid(segment_slot)
 		var mirror_grid: bool = prototype_segment_mirror_grid(segment_slot)
+		var columns: Array = ContentScript.columns_for_segment(segment_index)
 		var col: int = 0
-		while col < TECH_COLUMN_COUNT:
-			var item_count: int = prototype_column_spec_count(col)
+		while col < columns.size():
+			var col_spec: Dictionary = columns[col] as Dictionary
+			var layout_count: int = int(col_spec.get("count", 0))
+			var tech_ids: Array = col_spec.get("tech_ids", []) as Array
+			if layout_count <= 0 or tech_ids.is_empty():
+				col += 1
+				continue
 			var row_in_column: int = 0
-			while row_in_column < item_count:
+			while row_in_column < tech_ids.size():
+				var content: Dictionary = ContentScript.tech_by_id(str(tech_ids[row_in_column]))
+				if content.is_empty():
+					row_in_column += 1
+					continue
 				var pos: Vector2 = tech_item_position(
 					segment_index,
 					col,
 					row_in_column,
 					_segment_display_widths,
-					item_count,
+					layout_count,
 					center_grid,
 					mirror_grid,
 				)
-				var item: TextureRect = _create_tech_item_at(pos, _stone_icon_tex, item_index)
+				var icon_tex: Texture2D = load(str(content["icon_path"])) as Texture2D
+				var item: TextureRect = _create_tech_item_at_with_content(
+					pos,
+					content,
+					icon_tex,
+					item_index,
+				)
 				_scroll_content.add_child(item)
 				_tech_items.append(item)
 				_tech_item_placements.append(Vector3i(segment_index, col, row_in_column))
@@ -476,12 +513,9 @@ func _build_tech_columns() -> void:
 		segment_slot += 1
 
 
-func _create_tech_item_at(pos: Vector2, icon_texture: Texture2D, item_index: int = -1) -> TextureRect:
-	return _create_tech_item_at_with_icon(pos, icon_texture, item_index)
-
-
-func _create_tech_item_at_with_icon(
+func _create_tech_item_at_with_content(
 	pos: Vector2,
+	content: Dictionary,
 	icon_texture: Texture2D,
 	item_index: int = -1,
 ) -> TextureRect:
@@ -492,9 +526,10 @@ func _create_tech_item_at_with_icon(
 	item.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	item.texture = _tech_item_tex
 	item.position = pos
+	configure_scaled_texture_filter(item)
 	if icon_texture != null:
 		_attach_icon(item, icon_texture)
-	_attach_tech_labels(item)
+	_attach_tech_labels(item, content)
 	return item
 
 
@@ -505,14 +540,15 @@ func _attach_icon(item: TextureRect, icon_texture: Texture2D) -> TextureRect:
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	icon.texture = icon_texture
+	configure_scaled_texture_filter(icon)
 	item.add_child(icon)
 	return icon
 
 
-func _attach_tech_labels(item: TextureRect) -> void:
+func _attach_tech_labels(item: TextureRect, content: Dictionary) -> void:
 	var title := Label.new()
 	title.name = "TechTitleLabel"
-	title.text = TECH_TITLE_TEXT
+	title.text = str(content.get("title", ""))
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -520,7 +556,7 @@ func _attach_tech_labels(item: TextureRect) -> void:
 	item.add_child(title)
 	var body := Label.new()
 	body.name = "TechBodyLabel"
-	body.text = TECH_BODY_TEXT
+	body.text = ContentScript.body_text_from_content(content)
 	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	body.vertical_alignment = VERTICAL_ALIGNMENT_TOP
@@ -585,12 +621,13 @@ func _layout_tech_items() -> void:
 		var item: TextureRect = _tech_items[i]
 		item.custom_minimum_size = item_size
 		item.size = item_size
+		var layout_count: int = ContentScript.column_layout_count(segment_index, col)
 		item.position = tech_item_position(
 			segment_index,
 			col,
 			row_in_column,
 			_segment_display_widths,
-			-1,
+			layout_count,
 			center_grid,
 			mirror_grid,
 			viewport_h,

@@ -91,50 +91,50 @@ func _test_single_item_centered_y() -> void:
 
 
 func _test_overlay_position_parity() -> void:
+	const ContentScript = preload("res://presentation/tech_tree_preview_content.gd")
 	var widths: Array = GridScript.reference_segment_display_widths()
 	var viewport_h: float = GridScript.LAYOUT_REFERENCE_VIEWPORT_HEIGHT
-	var segment_slot: int = 0
-	while segment_slot < GridScript.segment_spec_count():
-		var segment_index: int = GridScript.segment_index_for_slot(segment_slot)
+	var placements: Array[Vector3i] = ContentScript.all_placements()
+	var pi: int = 0
+	while pi < placements.size():
+		var placement: Vector3i = placements[pi]
+		var segment_index: int = placement.x
+		var col: int = placement.y
+		var row: int = placement.z
+		var segment_slot: int = GridScript.segment_slot_for_index(segment_index)
 		var center_grid: bool = GridScript.segment_center_grid(segment_slot)
 		var mirror_grid: bool = GridScript.segment_mirror_grid(segment_slot)
-		var col: int = 0
-		while col < GridScript.COLUMN_COUNT:
-			var count: int = OverlayScript.prototype_column_spec_count(col)
-			var row: int = 0
-			while row < count:
-				var overlay_pos: Vector2 = OverlayScript.tech_item_position(
-					segment_index,
-					col,
-					row,
-					widths,
-					count,
-					center_grid,
-					mirror_grid,
-					viewport_h,
-				)
-				var grid_pos: Vector2 = GridScript.tech_item_position(
-					segment_index,
-					col,
-					row,
-					widths,
-					count,
-					center_grid,
-					mirror_grid,
-					viewport_h,
-				)
-				_check(
-					overlay_pos.is_equal_approx(grid_pos),
-					"overlay/grid parity seg=%d col=%d row=%d count=%d" % [
-						segment_index,
-						col,
-						row,
-						count,
-					],
-				)
-				row += 1
-			col += 1
-		segment_slot += 1
+		var count: int = ContentScript.column_layout_count(segment_index, col)
+		var overlay_pos: Vector2 = OverlayScript.tech_item_position(
+			segment_index,
+			col,
+			row,
+			widths,
+			count,
+			center_grid,
+			mirror_grid,
+			viewport_h,
+		)
+		var grid_pos: Vector2 = GridScript.tech_item_position(
+			segment_index,
+			col,
+			row,
+			widths,
+			count,
+			center_grid,
+			mirror_grid,
+			viewport_h,
+		)
+		_check(
+			overlay_pos.is_equal_approx(grid_pos),
+			"overlay/grid parity seg=%d col=%d row=%d count=%d" % [
+				segment_index,
+				col,
+				row,
+				count,
+			],
+		)
+		pi += 1
 
 
 func _test_json_export_roundtrip() -> void:
