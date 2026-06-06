@@ -33,7 +33,7 @@ const TECH_BODY_TEXT: String = (
 	+ "• Quarry / mine precursor\n"
 	+ "• Production from hills & stone"
 )
-const TITLE_Y_FRAC: float = 0.107
+const TITLE_Y_FRAC: float = 0.097
 const TITLE_W_FRAC: float = 0.62
 const TITLE_H_FRAC: float = 0.13
 const BODY_X_FRAC: float = 0.34
@@ -46,6 +46,10 @@ const TITLE_FONT_COLOR: Color = Color(0.95, 0.9, 0.72)
 const BODY_FONT_COLOR: Color = Color(0.2, 0.14, 0.08)
 const WHEEL_SCROLL_STEP_PX: int = 120
 const ROW_HEIGHT_VIEWPORT_FRACTION: float = 0.82
+## Readability boost applied uniformly to parchment segments and tech items.
+const TECH_TREE_CONTENT_SCALE_MULTIPLIER: float = 1.5
+## Column layout was tuned at this viewport height; parchment stays fixed so bg/items stay aligned when the window is resized.
+const LAYOUT_REFERENCE_VIEWPORT_HEIGHT: float = 1500.0
 ## HudCanvas siblings hidden while preview is open (Science / seat chips bleed through a dim plate).
 const _HUD_HIDE_NAMES: Array[String] = ["PlayerContactStrip", "SciencePanel"]
 
@@ -129,6 +133,18 @@ func segment_row_separation() -> int:
 	return int(_segment_row.get_theme_constant("separation", "HBoxContainer"))
 
 
+static func content_scale(_viewport_height: float = -1.0) -> float:
+	return TECH_TREE_CONTENT_SCALE_MULTIPLIER
+
+
+static func scale_design_vector(design: Vector2, viewport_height: float = -1.0) -> Vector2:
+	return design * content_scale(viewport_height)
+
+
+static func tech_item_display_height(viewport_height: float = -1.0) -> float:
+	return TECH_ITEM_DISPLAY_HEIGHT * content_scale(viewport_height)
+
+
 static func scaled_texture_size(tex: Texture2D, display_height: float) -> Vector2:
 	if tex == null or display_height <= 0.0:
 		return Vector2.ZERO
@@ -152,7 +168,7 @@ static func stone_icon_layout(item_size: Vector2) -> Dictionary:
 static func tech_title_label_layout(item_size: Vector2) -> Dictionary:
 	return {
 		"x": item_size.x * (1.0 - TITLE_W_FRAC) * 0.5,
-		"y": item_size.y * TITLE_Y_FRAC,
+		"y": item_size.y * TITLE_Y_FRAC - 2.0,
 		"width": item_size.x * TITLE_W_FRAC,
 		"height": item_size.y * TITLE_H_FRAC,
 		"font_size": maxi(int(round(item_size.y * TITLE_FONT_HEIGHT_RATIO)), 8),
@@ -213,24 +229,37 @@ static func prototype_column_spec_count(col: int) -> int:
 	return int(PROTOTYPE_COLUMN_SPECS[col]["count"])
 
 
-static func tech_item_base_position(col: int, row_in_column: int) -> Vector2:
+static func tech_item_base_position(col: int, row_in_column: int, viewport_height: float = -1.0) -> Vector2:
 	var layout: Array = _get_column_layout(prototype_column_spec_count(col))
-	return Vector2(
-		COLUMN_X_START + float(col) * COLUMN_X_STEP,
-		float(layout[row_in_column]),
+	return scale_design_vector(
+		Vector2(
+			COLUMN_X_START + float(col) * COLUMN_X_STEP,
+			float(layout[row_in_column]),
+		),
+		viewport_height,
 	)
 
 
-static func column_x_position(col: int) -> float:
-	return COLUMN_X_START + float(col) * COLUMN_X_STEP + TECH_ITEM_GROUP_OFFSET.x
+static func column_x_position(col: int, viewport_height: float = -1.0) -> float:
+	return (
+		COLUMN_X_START + float(col) * COLUMN_X_STEP + TECH_ITEM_GROUP_OFFSET.x
+	) * content_scale(viewport_height)
 
 
-static func tech_item_position(col: int, row_in_column: int, item_count: int = -1) -> Vector2:
+static func tech_item_position(
+	col: int,
+	row_in_column: int,
+	item_count: int = -1,
+	viewport_height: float = -1.0,
+) -> Vector2:
 	var count: int = item_count if item_count >= 0 else prototype_column_spec_count(col)
 	var layout: Array = _get_column_layout(count)
-	return Vector2(
-		COLUMN_X_START + float(col) * COLUMN_X_STEP + TECH_ITEM_GROUP_OFFSET.x,
-		float(layout[row_in_column]),
+	return scale_design_vector(
+		Vector2(
+			COLUMN_X_START + float(col) * COLUMN_X_STEP + TECH_ITEM_GROUP_OFFSET.x,
+			float(layout[row_in_column]),
+		),
+		viewport_height,
 	)
 
 
@@ -377,11 +406,19 @@ func _attach_tech_labels(item: TextureRect) -> void:
 	item.add_child(body)
 
 
+static func scaled_segment_display_height(_viewport_height: float) -> int:
+	return maxi(
+		int(
+			LAYOUT_REFERENCE_VIEWPORT_HEIGHT
+			* ROW_HEIGHT_VIEWPORT_FRACTION
+			* content_scale()
+		),
+		1,
+	)
+
+
 func _segment_display_height() -> int:
-	var vh: float = get_viewport_rect().size.y
-	if vh < 1.0:
-		vh = 720.0
-	return maxi(int(vh * ROW_HEIGHT_VIEWPORT_FRACTION), 120)
+	return scaled_segment_display_height(get_viewport_rect().size.y)
 
 
 func _rebuild_segment_sizes() -> void:
@@ -408,7 +445,11 @@ func _rebuild_segment_sizes() -> void:
 func _layout_tech_items() -> void:
 	if _tech_item_tex == null:
 		return
-	var item_size: Vector2 = scaled_texture_size(_tech_item_tex, TECH_ITEM_DISPLAY_HEIGHT)
+	var viewport_h: float = get_viewport_rect().size.y
+	var item_size: Vector2 = scaled_texture_size(
+		_tech_item_tex,
+		tech_item_display_height(viewport_h),
+	)
 	var i: int = 0
 	while i < _tech_items.size():
 		var placement: Vector2i = _tech_item_placements[i]
@@ -417,7 +458,7 @@ func _layout_tech_items() -> void:
 		var item: TextureRect = _tech_items[i]
 		item.custom_minimum_size = item_size
 		item.size = item_size
-		item.position = tech_item_position(col, row_in_column)
+		item.position = tech_item_position(col, row_in_column, -1, viewport_h)
 		var icon: TextureRect = item.get_node_or_null("TechIcon") as TextureRect
 		if icon != null:
 			_layout_icon_on_item(item, icon)

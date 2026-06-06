@@ -142,9 +142,31 @@ func _test_tech_item_layout() -> void:
 	)
 	_check(TechTreeOverlayScript.tech_item_count() == 9, "tech item count is 4 + 2 + 3")
 	_check(TechTreeOverlayScript.COLUMN_X_STEP == 390.0, "accepted column x step preserved")
+	var viewport_h: float = overlay.get_viewport_rect().size.y
+	var content_scale: float = TechTreeOverlayScript.content_scale(viewport_h)
+	_check(
+		absf(content_scale - TechTreeOverlayScript.TECH_TREE_CONTENT_SCALE_MULTIPLIER) < 0.01,
+		"content scale is constant 1.5x for parchment and tech items",
+	)
+	var expected_seg_h: int = TechTreeOverlayScript.scaled_segment_display_height(viewport_h)
+	var expected_ref_seg_h: float = (
+		TechTreeOverlayScript.LAYOUT_REFERENCE_VIEWPORT_HEIGHT
+		* TechTreeOverlayScript.ROW_HEIGHT_VIEWPORT_FRACTION
+		* TechTreeOverlayScript.TECH_TREE_CONTENT_SCALE_MULTIPLIER
+	)
+	_check(
+		absf(float(expected_seg_h) - expected_ref_seg_h) < 1.0,
+		"segment height fixed at layout reference viewport, not live resize",
+	)
+	var first_seg := overlay._segment_row.get_child(0) as TextureRect
+	if first_seg != null:
+		_check(
+			absf(first_seg.size.y - float(expected_seg_h)) < 1.0,
+			"segment height uses shared content scale",
+		)
 	var expected_item: Vector2 = TechTreeOverlayScript.scaled_texture_size(
 		overlay._tech_item_tex,
-		TechTreeOverlayScript.TECH_ITEM_DISPLAY_HEIGHT,
+		TechTreeOverlayScript.tech_item_display_height(viewport_h),
 	)
 	var min_x: float = INF
 	var column_first_item_index: Array[int] = [-1, -1, -1]
@@ -159,14 +181,16 @@ func _test_tech_item_layout() -> void:
 		_check(item.texture != null, "tech item %d texture loaded" % gi)
 		_check(item.get_parent() == overlay._scroll_content, "tech item %d under scroll content" % gi)
 		_check(item.mouse_filter == Control.MOUSE_FILTER_IGNORE, "tech item %d ignores mouse" % gi)
-		var expected_pos: Vector2 = TechTreeOverlayScript.tech_item_position(item_col, item_row, item_count)
+		var expected_pos: Vector2 = TechTreeOverlayScript.tech_item_position(
+			item_col, item_row, item_count, viewport_h,
+		)
 		_check(
 			item.position.is_equal_approx(expected_pos),
 			"tech item %d at column=%d row=%d" % [gi, item_col, item_row],
 		)
 		var layout: Array = TechTreeOverlayScript.column_layout(item_count)
 		_check(
-			absf(item.position.y - float(layout[item_row])) < 0.5,
+			absf(item.position.y - float(layout[item_row]) * content_scale) < 0.5,
 			"tech item %d uses column layout for count=%d" % [gi, item_count],
 		)
 		if column_first_item_index[item_col] < 0:
@@ -211,7 +235,7 @@ func _test_tech_item_layout() -> void:
 		_check(
 			absf(
 				overlay._tech_items[col0_row].position.y
-					- TechTreeOverlayScript.COLUMN_LAYOUT_4[col0_row]
+					- TechTreeOverlayScript.COLUMN_LAYOUT_4[col0_row] * content_scale
 			) < 0.5,
 			"column 1 row %d uses COLUMN_LAYOUT_4" % col0_row,
 		)
@@ -237,7 +261,9 @@ func _test_tech_item_layout() -> void:
 	while col1_row < layout_2.size():
 		var col1_item: TextureRect = overlay._tech_items[4 + col1_row]
 		_check(
-			absf(col1_item.position.y - float(layout_2[col1_row])) < 0.5,
+			absf(
+				col1_item.position.y - float(layout_2[col1_row]) * content_scale
+			) < 0.5,
 			"column 2 row %d uses derived 2-item layout" % col1_row,
 		)
 		col1_row += 1
@@ -245,17 +271,20 @@ func _test_tech_item_layout() -> void:
 	while col2_row < layout_3.size():
 		var col2_item: TextureRect = overlay._tech_items[6 + col2_row]
 		_check(
-			absf(col2_item.position.y - float(layout_3[col2_row])) < 0.5,
+			absf(
+				col2_item.position.y - float(layout_3[col2_row]) * content_scale
+			) < 0.5,
 			"column 3 row %d uses derived 3-item layout" % col2_row,
 		)
 		col2_row += 1
-	var base_left_x: float = TechTreeOverlayScript.tech_item_base_position(0, 0).x
+	var base_left_x: float = TechTreeOverlayScript.tech_item_base_position(0, 0, viewport_h).x
 	_check(
-		min_x >= base_left_x + TechTreeOverlayScript.TECH_ITEM_GROUP_OFFSET.x - 0.5,
+		min_x
+			>= base_left_x + TechTreeOverlayScript.TECH_ITEM_GROUP_OFFSET.x * content_scale - 0.5,
 		"tech items shifted right by group offset",
 	)
 	_check(
-		min_x > base_left_x + 50.0,
+		min_x > base_left_x + 50.0 * content_scale,
 		"tech items moved right away from old left edge",
 	)
 	var col: int = 0
@@ -265,7 +294,11 @@ func _test_tech_item_layout() -> void:
 		var h_gap: float = right_item.position.x - (left_item.position.x + left_item.size.x)
 		_check(h_gap > 1.0, "positive horizontal gap between column %d and %d" % [col, col + 1])
 		_check(
-			absf(right_item.position.x - left_item.position.x - TechTreeOverlayScript.COLUMN_X_STEP) < 1.0,
+			absf(
+				right_item.position.x
+					- left_item.position.x
+					- TechTreeOverlayScript.COLUMN_X_STEP * content_scale
+			) < 1.0,
 			"column step preserved between column %d and %d" % [col, col + 1],
 		)
 		col += 1
@@ -282,7 +315,7 @@ func _test_tech_item_layout() -> void:
 					- (
 						TechTreeOverlayScript.COLUMN_LAYOUT_4[1]
 						- TechTreeOverlayScript.COLUMN_LAYOUT_4[0]
-					)
+					) * content_scale
 			) < 1.0,
 			"4-item row step preserved between row %d and %d" % [row, row + 1],
 		)

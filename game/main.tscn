@@ -244,8 +244,8 @@ script = ExtResource("7_endturncontroller")
 script = ExtResource("8_aiturncontroller")
 
 [node name="LogView" type="Label" parent="." unique_id=292342215]
-offset_left = 20.0
-offset_top = 1220.0
-offset_right = 1180.0
-offset_bottom = 1475.0
+offset_left = 32.0
+offset_top = 1659.0
+offset_right = 1888.0
+offset_bottom = 2006.0
 script = ExtResource("9_logview")
