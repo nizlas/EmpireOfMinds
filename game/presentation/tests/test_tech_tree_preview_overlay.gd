@@ -136,31 +136,157 @@ func _test_tech_item_layout() -> void:
 	for _i in 2:
 		await process_frame
 	overlay.open_overlay()
-	var item: TextureRect = overlay._tech_item
-	_check(item != null, "tech item TextureRect exists")
-	_check(item.texture != null, "tech item texture loaded")
-	_check(item.get_parent() == overlay._scroll_content, "tech item under scroll content")
-	_check(item.mouse_filter == Control.MOUSE_FILTER_IGNORE, "tech item ignores mouse")
-	var icon: TextureRect = overlay._stone_icon
-	_check(icon != null, "stone icon TextureRect exists")
-	_check(icon.texture != null, "stone icon texture loaded")
-	_check(icon.get_parent() == item, "stone icon child of tech item")
-	_check(icon.mouse_filter == Control.MOUSE_FILTER_IGNORE, "stone icon ignores mouse")
-	var item_h: float = item.size.y
-	var icon_h: float = icon.size.y
-	_check(item_h > 0.0, "tech item has display height")
 	_check(
-		absf(icon_h - item_h * TechTreeOverlayScript.STONE_ICON_HEIGHT_RATIO) < 1.0,
-		"icon height is one third of tech item height",
+		overlay._tech_items.size() == TechTreeOverlayScript.tech_item_count(),
+		"nine prototype tech items created",
 	)
+	_check(TechTreeOverlayScript.tech_item_count() == 9, "tech item count is 4 + 2 + 3")
+	_check(TechTreeOverlayScript.COLUMN_X_STEP == 390.0, "accepted column x step preserved")
 	var expected_item: Vector2 = TechTreeOverlayScript.scaled_texture_size(
-		item.texture,
+		overlay._tech_item_tex,
 		TechTreeOverlayScript.TECH_ITEM_DISPLAY_HEIGHT,
 	)
+	var min_x: float = INF
+	var column_first_item_index: Array[int] = [-1, -1, -1]
+	var gi: int = 0
+	while gi < overlay._tech_items.size():
+		var placement: Vector2i = overlay._tech_item_placements[gi]
+		var item_col: int = placement.x
+		var item_row: int = placement.y
+		var item_count: int = TechTreeOverlayScript.prototype_column_spec_count(item_col)
+		var item: TextureRect = overlay._tech_items[gi]
+		_check(item != null, "tech item %d exists" % gi)
+		_check(item.texture != null, "tech item %d texture loaded" % gi)
+		_check(item.get_parent() == overlay._scroll_content, "tech item %d under scroll content" % gi)
+		_check(item.mouse_filter == Control.MOUSE_FILTER_IGNORE, "tech item %d ignores mouse" % gi)
+		var expected_pos: Vector2 = TechTreeOverlayScript.tech_item_position(item_col, item_row, item_count)
+		_check(
+			item.position.is_equal_approx(expected_pos),
+			"tech item %d at column=%d row=%d" % [gi, item_col, item_row],
+		)
+		var layout: Array = TechTreeOverlayScript.column_layout(item_count)
+		_check(
+			absf(item.position.y - float(layout[item_row])) < 0.5,
+			"tech item %d uses column layout for count=%d" % [gi, item_count],
+		)
+		if column_first_item_index[item_col] < 0:
+			column_first_item_index[item_col] = gi
+		min_x = minf(min_x, item.position.x)
+		_check(
+			absf(item.size.x - expected_item.x) < 1.0 and absf(item.size.y - expected_item.y) < 1.0,
+			"tech item %d size from aspect ratio" % gi,
+		)
+		var icon: TextureRect = item.get_node_or_null("TechIcon") as TextureRect
+		_check(icon != null, "tech item %d has icon" % gi)
+		if icon != null:
+			_check(icon.texture != null, "tech item %d icon texture loaded" % gi)
+			_check(icon.mouse_filter == Control.MOUSE_FILTER_IGNORE, "tech item %d icon ignores mouse" % gi)
+			_check(
+				absf(icon.size.y - item.size.y * TechTreeOverlayScript.STONE_ICON_HEIGHT_RATIO) < 1.0,
+				"tech item %d icon height is one third of item height" % gi,
+			)
+		var title: Label = item.get_node_or_null("TechTitleLabel") as Label
+		_check(title != null, "tech item %d has title label" % gi)
+		if title != null:
+			_check(title.text == TechTreeOverlayScript.TECH_TITLE_TEXT, "tech item %d title text" % gi)
+			_check(title.mouse_filter == Control.MOUSE_FILTER_IGNORE, "tech item %d title ignores mouse" % gi)
+		var body: Label = item.get_node_or_null("TechBodyLabel") as Label
+		_check(body != null, "tech item %d has body label" % gi)
+		if body != null:
+			_check(body.text == TechTreeOverlayScript.TECH_BODY_TEXT, "tech item %d body text" % gi)
+			_check(body.text.contains("Basic stoneworking"), "tech item %d body has stoneworking line" % gi)
+			_check(body.text.contains("Worker enablement"), "tech item %d body has worker line" % gi)
+			_check(body.text.contains("Quarry / mine precursor"), "tech item %d body has quarry line" % gi)
+			_check(
+				body.text.contains("Production from hills & stone"),
+				"tech item %d body has production line" % gi,
+			)
+			_check(body.mouse_filter == Control.MOUSE_FILTER_IGNORE, "tech item %d body ignores mouse" % gi)
+		gi += 1
+	_check(TechTreeOverlayScript.prototype_column_spec_count(0) == 4, "column 1 has four items")
+	_check(TechTreeOverlayScript.prototype_column_spec_count(1) == 2, "column 2 has two items")
+	_check(TechTreeOverlayScript.prototype_column_spec_count(2) == 3, "column 3 has three items")
+	var col0_row: int = 0
+	while col0_row < TechTreeOverlayScript.COLUMN_LAYOUT_4.size():
+		_check(
+			absf(
+				overlay._tech_items[col0_row].position.y
+					- TechTreeOverlayScript.COLUMN_LAYOUT_4[col0_row]
+			) < 0.5,
+			"column 1 row %d uses COLUMN_LAYOUT_4" % col0_row,
+		)
+		col0_row += 1
+	var layout_2: Array = TechTreeOverlayScript.column_layout(2)
+	var layout_3: Array = TechTreeOverlayScript.column_layout(3)
+	var y0: float = TechTreeOverlayScript.COLUMN_LAYOUT_4[0]
+	var y1: float = TechTreeOverlayScript.COLUMN_LAYOUT_4[1]
+	var y2: float = TechTreeOverlayScript.COLUMN_LAYOUT_4[2]
+	var y3: float = TechTreeOverlayScript.COLUMN_LAYOUT_4[3]
+	_check(absf(float(layout_2[0]) - (y0 + y1) * 0.5) < 0.5, "2-item first y midway between y0 and y1")
+	_check(absf(float(layout_2[1]) - (y2 + y3) * 0.5) < 0.5, "2-item second y midway between y2 and y3")
 	_check(
-		absf(item.size.x - expected_item.x) < 1.0 and absf(item.size.y - expected_item.y) < 1.0,
-		"tech item size from aspect ratio",
+		absf(float(layout_3[0]) - (y0 + float(layout_2[0])) * 0.5) < 0.5,
+		"3-item first y between y0 and 2-item first y",
 	)
+	_check(absf(float(layout_3[1]) - (y0 + y3) * 0.5) < 0.5, "3-item second y at span center")
+	_check(
+		absf(float(layout_3[2]) - (float(layout_2[1]) + y3) * 0.5) < 0.5,
+		"3-item third y between 2-item second y and y3",
+	)
+	var col1_row: int = 0
+	while col1_row < layout_2.size():
+		var col1_item: TextureRect = overlay._tech_items[4 + col1_row]
+		_check(
+			absf(col1_item.position.y - float(layout_2[col1_row])) < 0.5,
+			"column 2 row %d uses derived 2-item layout" % col1_row,
+		)
+		col1_row += 1
+	var col2_row: int = 0
+	while col2_row < layout_3.size():
+		var col2_item: TextureRect = overlay._tech_items[6 + col2_row]
+		_check(
+			absf(col2_item.position.y - float(layout_3[col2_row])) < 0.5,
+			"column 3 row %d uses derived 3-item layout" % col2_row,
+		)
+		col2_row += 1
+	var base_left_x: float = TechTreeOverlayScript.tech_item_base_position(0, 0).x
+	_check(
+		min_x >= base_left_x + TechTreeOverlayScript.TECH_ITEM_GROUP_OFFSET.x - 0.5,
+		"tech items shifted right by group offset",
+	)
+	_check(
+		min_x > base_left_x + 50.0,
+		"tech items moved right away from old left edge",
+	)
+	var col: int = 0
+	while col < TechTreeOverlayScript.TECH_COLUMN_COUNT - 1:
+		var left_item: TextureRect = overlay._tech_items[column_first_item_index[col]]
+		var right_item: TextureRect = overlay._tech_items[column_first_item_index[col + 1]]
+		var h_gap: float = right_item.position.x - (left_item.position.x + left_item.size.x)
+		_check(h_gap > 1.0, "positive horizontal gap between column %d and %d" % [col, col + 1])
+		_check(
+			absf(right_item.position.x - left_item.position.x - TechTreeOverlayScript.COLUMN_X_STEP) < 1.0,
+			"column step preserved between column %d and %d" % [col, col + 1],
+		)
+		col += 1
+	var row: int = 0
+	while row < TechTreeOverlayScript.COLUMN_LAYOUT_4.size() - 1:
+		var top_item: TextureRect = overlay._tech_items[row]
+		var bottom_item: TextureRect = overlay._tech_items[row + 1]
+		var v_gap: float = bottom_item.position.y - (top_item.position.y + top_item.size.y)
+		_check(v_gap > 1.0, "positive vertical gap between row %d and %d in column 1" % [row, row + 1])
+		_check(
+			absf(
+				bottom_item.position.y
+					- top_item.position.y
+					- (
+						TechTreeOverlayScript.COLUMN_LAYOUT_4[1]
+						- TechTreeOverlayScript.COLUMN_LAYOUT_4[0]
+					)
+			) < 1.0,
+			"4-item row step preserved between row %d and %d" % [row, row + 1],
+		)
+		row += 1
 	overlay.queue_free()
 
 
