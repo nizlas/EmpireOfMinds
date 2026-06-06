@@ -238,7 +238,7 @@ const TECH_BY_ID: Dictionary = {
 		"bullets": [
 			"Final horizon mission",
 			"Launch beyond the known world",
-			"Victory belongs to the first light",
+			"Victory to the first civilization to reach this point",
 		],
 	},
 }

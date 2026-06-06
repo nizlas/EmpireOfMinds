@@ -41,9 +41,7 @@ const SEGMENT_SPECS: Array = [
 		"segment_index": 2,
 		"background_label": "bg_3",
 		"center_grid": false,
-		"mirror_grid": true,
-		"mirror_right_inset_design": 35.0,
-		"mirror_left_margin_reduce_fraction": 1.0 / 3.0,
+		"mirror_grid": false,
 	},
 ]
 

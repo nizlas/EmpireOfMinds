@@ -44,7 +44,12 @@ const BODY_X_FRAC: float = 0.34
 const BODY_Y_FRAC: float = 0.28
 const BODY_W_FRAC: float = 0.58
 const BODY_H_FRAC: float = 0.60
-const TITLE_FONT_HEIGHT_RATIO: float = 0.074
+const TITLE_FONT_HEIGHT_RATIO: float = 0.068
+const TITLE_FONT_HEIGHT_RATIO_COMPACT: float = 0.060
+const COMPACT_TITLE_TEXTS: Array[String] = [
+	"Mudbrick Construction",
+	"Exoplanet Expedition",
+]
 const BODY_FONT_HEIGHT_RATIO: float = 0.060
 const TITLE_FONT_COLOR: Color = Color(0.95, 0.9, 0.72)
 const BODY_FONT_COLOR: Color = Color(0.2, 0.14, 0.08)
@@ -183,13 +188,24 @@ static func stone_icon_layout(item_size: Vector2) -> Dictionary:
 	}
 
 
-static func tech_title_label_layout(item_size: Vector2) -> Dictionary:
+static func uses_compact_title_font(title_text: String) -> bool:
+	return COMPACT_TITLE_TEXTS.has(title_text.strip_edges())
+
+
+static func tech_title_font_size(item_size: Vector2, title_text: String = "") -> int:
+	var ratio: float = TITLE_FONT_HEIGHT_RATIO
+	if uses_compact_title_font(title_text):
+		ratio = TITLE_FONT_HEIGHT_RATIO_COMPACT
+	return maxi(int(round(item_size.y * ratio)), 8)
+
+
+static func tech_title_label_layout(item_size: Vector2, title_text: String = "") -> Dictionary:
 	return {
 		"x": item_size.x * (1.0 - TITLE_W_FRAC) * 0.5,
 		"y": item_size.y * TITLE_Y_FRAC - 2.0,
 		"width": item_size.x * TITLE_W_FRAC,
 		"height": item_size.y * TITLE_H_FRAC,
-		"font_size": maxi(int(round(item_size.y * TITLE_FONT_HEIGHT_RATIO)), 8),
+		"font_size": tech_title_font_size(item_size, title_text),
 	}
 
 
@@ -712,7 +728,7 @@ func _layout_labels_on_item(item: TextureRect) -> void:
 
 
 func _layout_title_label_on_item(item: TextureRect, title: Label) -> void:
-	var layout: Dictionary = tech_title_label_layout(item.size)
+	var layout: Dictionary = tech_title_label_layout(item.size, title.text)
 	title.position = Vector2(float(layout["x"]), float(layout["y"]))
 	title.size = Vector2(float(layout["width"]), float(layout["height"]))
 	title.add_theme_color_override("font_color", TITLE_FONT_COLOR)

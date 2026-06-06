@@ -7,7 +7,22 @@ const GridScript = preload("res://presentation/tech_tree_grid_layout.gd")
 const CANONICAL_COLUMN_COUNT: int = 9
 const CANONICAL_ROW_COUNT: int = 4
 const LINE_STROKE_DESIGN_PX: float = 4.0
+## Pull line ends inward into card rects (behind items) so connectors visibly meet the panel.
+const LINE_ENDPOINT_OVERLAP_DESIGN_PX: float = 28.0
 const FINAL_BUS_AFTER_COLUMN: int = 8
+## Baked segment-local design X for columns 1..9 (1.5x scale applied at display time).
+## C1..C3 include bg1 shift; C4..C6 use centered bg2 grid; C7..C9 are tuned bg3 slot X values.
+const CANONICAL_COLUMN_DESIGN_X: Array[float] = [
+	334.375,
+	724.375,
+	1114.375,
+	265.0,
+	655.0,
+	1045.0,
+	138.75,
+	528.75,
+	918.75,
+]
 
 const NODE_LAYOUT_BY_TITLE: Dictionary = {
 	"Foraging Systems": {"column": 1, "row": 1},
@@ -67,18 +82,19 @@ static func local_column_index(column_1_indexed: int) -> int:
 	return (column_1_indexed - 1) % 3
 
 
-## bg3 mirrors slot X positions; canonical C7..C9 labels flip against local 0..2 only.
-static func local_column_index_for_node(column_1_indexed: int) -> int:
-	var segment_index: int = segment_index_for_column(column_1_indexed)
-	var local_col: int = local_column_index(column_1_indexed)
-	var slot: int = GridScript.segment_slot_for_index(segment_index)
-	if slot >= 0 and GridScript.segment_mirror_grid(slot):
-		return GridScript.COLUMN_COUNT - 1 - local_col
-	return local_col
-
-
 static func row_layout_index(row_1_indexed: int) -> int:
 	return row_1_indexed - 1
+
+
+static func column_design_x(column_1_indexed: int) -> float:
+	var index: int = column_1_indexed - 1
+	if index < 0 or index >= CANONICAL_COLUMN_DESIGN_X.size():
+		return 0.0
+	return CANONICAL_COLUMN_DESIGN_X[index]
+
+
+static func row_design_y(row_1_indexed: int) -> float:
+	return float(GridScript.COLUMN_LAYOUT_4[row_layout_index(row_1_indexed)])
 
 
 static func layout_for_title(title: String) -> Dictionary:
@@ -132,6 +148,10 @@ static func line_stroke_width(viewport_height: float = -1.0) -> float:
 	return LINE_STROKE_DESIGN_PX * GridScript.content_scale(viewport_height)
 
 
+static func line_endpoint_overlap(viewport_height: float = -1.0) -> float:
+	return LINE_ENDPOINT_OVERLAP_DESIGN_PX * GridScript.content_scale(viewport_height)
+
+
 static func tech_item_position_for_node(
 	column_1_indexed: int,
 	row_1_indexed: int,
@@ -139,29 +159,33 @@ static func tech_item_position_for_node(
 	viewport_height: float = -1.0,
 ) -> Vector2:
 	var segment_index: int = segment_index_for_column(column_1_indexed)
-	var local_col: int = local_column_index_for_node(column_1_indexed)
-	var row_in_column: int = row_layout_index(row_1_indexed)
 	var slot: int = GridScript.segment_slot_for_index(segment_index)
 	var center_grid: bool = GridScript.segment_center_grid(slot) if slot >= 0 else false
-	var mirror_grid: bool = GridScript.segment_mirror_grid(slot) if slot >= 0 else false
-	return GridScript.tech_item_position(
+	var seg_offset: float = GridScript.segment_scroll_offset_x(
 		segment_index,
-		local_col,
-		row_in_column,
 		segment_display_widths,
-		CANONICAL_ROW_COUNT,
 		center_grid,
-		mirror_grid,
 		viewport_height,
+	)
+	var design_local: Vector2 = Vector2(
+		column_design_x(column_1_indexed),
+		row_design_y(row_1_indexed),
+	)
+	return Vector2(seg_offset, 0.0) + design_local * GridScript.content_scale(viewport_height)
+
+
+static func node_output_point(rect: Rect2, overlap: float = 0.0) -> Vector2:
+	return Vector2(
+		rect.position.x + rect.size.x - overlap,
+		rect.position.y + rect.size.y * 0.5,
 	)
 
 
-static func node_output_point(rect: Rect2) -> Vector2:
-	return Vector2(rect.position.x + rect.size.x, rect.position.y + rect.size.y * 0.5)
-
-
-static func node_input_point(rect: Rect2) -> Vector2:
-	return Vector2(rect.position.x, rect.position.y + rect.size.y * 0.5)
+static func node_input_point(rect: Rect2, overlap: float = 0.0) -> Vector2:
+	return Vector2(
+		rect.position.x + overlap,
+		rect.position.y + rect.size.y * 0.5,
+	)
 
 
 static func bend_x_after_column_scroll(
@@ -249,8 +273,9 @@ static func _polyline_for_edge(
 		return PackedVector2Array()
 	var from_rect: Rect2 = rects_by_title[from_title] as Rect2
 	var to_rect: Rect2 = rects_by_title[to_title] as Rect2
-	var start: Vector2 = node_output_point(from_rect)
-	var end: Vector2 = node_input_point(to_rect)
+	var overlap: float = line_endpoint_overlap(viewport_height)
+	var start: Vector2 = node_output_point(from_rect, overlap)
+	var end: Vector2 = node_input_point(to_rect, overlap)
 	var route: String = str(edge.get("route", "straight"))
 	if route == "bend":
 		var bend_after: int = int(edge.get("bend_after", 0))
@@ -287,7 +312,8 @@ static func _final_bus_polylines(
 	if not rects_by_title.has(target_title):
 		return []
 	var target_rect: Rect2 = rects_by_title[target_title] as Rect2
-	var target_in: Vector2 = node_input_point(target_rect)
+	var overlap: float = line_endpoint_overlap(viewport_height)
+	var target_in: Vector2 = node_input_point(target_rect, overlap)
 	var bus_x: float = final_bus_x_scroll(segment_display_widths, viewport_height)
 	var source_ys: Array[float] = []
 	var i: int = 0
@@ -310,7 +336,7 @@ static func _final_bus_polylines(
 			i += 1
 			continue
 		var from_rect: Rect2 = rects_by_title[from_title] as Rect2
-		var start: Vector2 = node_output_point(from_rect)
+		var start: Vector2 = node_output_point(from_rect, overlap)
 		out.append({
 			"points": PackedVector2Array([start, Vector2(bus_x, start.y)]),
 			"width": stroke,

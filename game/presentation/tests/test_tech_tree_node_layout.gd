@@ -71,8 +71,9 @@ func _polyline_for_edge(edge: Dictionary, rects: Dictionary, widths: Array, view
 	var to_title: String = str(edge.get("to", ""))
 	if not rects.has(from_title) or not rects.has(to_title):
 		return PackedVector2Array()
-	var start: Vector2 = NodeLayoutScript.node_output_point(rects[from_title])
-	var end: Vector2 = NodeLayoutScript.node_input_point(rects[to_title])
+	var overlap: float = NodeLayoutScript.line_endpoint_overlap(viewport_h)
+	var start: Vector2 = NodeLayoutScript.node_output_point(rects[from_title], overlap)
+	var end: Vector2 = NodeLayoutScript.node_input_point(rects[to_title], overlap)
 	var i: int = 0
 	while i < all.size():
 		var entry: Dictionary = all[i]
@@ -123,6 +124,7 @@ func _test_prototype_nodes() -> void:
 func _test_segment_three_column_order() -> void:
 	var widths: Array = GridScript.reference_segment_display_widths()
 	var viewport_h: float = GridScript.LAYOUT_REFERENCE_VIEWPORT_HEIGHT
+	var scale: float = GridScript.content_scale(viewport_h)
 	var c7: Vector2 = NodeLayoutScript.tech_item_position_for_node(7, 2, widths, viewport_h)
 	var c8_levers: Vector2 = NodeLayoutScript.tech_item_position_for_node(8, 3, widths, viewport_h)
 	var c8_glyph: Vector2 = NodeLayoutScript.tech_item_position_for_node(8, 4, widths, viewport_h)
@@ -131,37 +133,31 @@ func _test_segment_three_column_order() -> void:
 	_check(c8_levers.x < c9.x, "segment 3 column 8 is left of column 9 (Exoplanet)")
 	_check(c8_glyph.x < c9.x, "segment 3 column 8 glyph column is left of column 9")
 	_check(
-		GridScript.segment_layout_mode_for_index(2) == "mirror",
-		"segment 3 still uses mirrored slot coordinates on bg3",
-	)
-	var old_c9_slot: Vector2 = GridScript.tech_item_position(
-		2,
-		2,
-		1,
-		widths,
-		NodeLayoutScript.CANONICAL_ROW_COUNT,
-		false,
-		true,
-		viewport_h,
-	)
-	var old_c7_slot: Vector2 = GridScript.tech_item_position(
-		2,
-		0,
-		1,
-		widths,
-		NodeLayoutScript.CANONICAL_ROW_COUNT,
-		false,
-		true,
-		viewport_h,
+		absf(NodeLayoutScript.column_design_x(7) - 138.75) < 0.01,
+		"C7 uses baked bg3 design X",
 	)
 	_check(
-		c7.is_equal_approx(old_c9_slot),
-		"C7 keeps former mirrored local-slot-2 pixel (label flip only)",
+		absf(NodeLayoutScript.column_design_x(9) - 918.75) < 0.01,
+		"C9 uses baked bg3 design X",
 	)
-	_check(
-		c9.is_equal_approx(old_c7_slot),
-		"C9 keeps former mirrored local-slot-0 pixel (label flip only)",
-	)
+	var col: int = 1
+	while col <= NodeLayoutScript.CANONICAL_COLUMN_COUNT:
+		var expected_design_x: float = NodeLayoutScript.column_design_x(col)
+		var pos: Vector2 = NodeLayoutScript.tech_item_position_for_node(col, 1, widths, viewport_h)
+		var segment_index: int = NodeLayoutScript.segment_index_for_column(col)
+		var slot: int = GridScript.segment_slot_for_index(segment_index)
+		var center_grid: bool = GridScript.segment_center_grid(slot) if slot >= 0 else false
+		var seg_offset: float = GridScript.segment_scroll_offset_x(
+			segment_index,
+			widths,
+			center_grid,
+			viewport_h,
+		)
+		_check(
+			absf(pos.x - seg_offset - expected_design_x * scale) < 0.5,
+			"column %d position comes from baked design X" % col,
+		)
+		col += 1
 
 
 func _test_edge_references() -> void:
@@ -238,7 +234,8 @@ func _test_final_bus_routing() -> void:
 	var polylines: Array = NodeLayoutScript.build_dependency_polylines(rects, widths, viewport_h)
 	_check(polylines.size() >= 6, "final_bus emits stubs, bus, and target connector")
 	var bus_x: float = NodeLayoutScript.final_bus_x_scroll(widths, viewport_h)
-	var target_in: Vector2 = NodeLayoutScript.node_input_point(rects["Exoplanet Expedition"])
+	var overlap: float = NodeLayoutScript.line_endpoint_overlap(viewport_h)
+	var target_in: Vector2 = NodeLayoutScript.node_input_point(rects["Exoplanet Expedition"], overlap)
 	var bus_vertical_found: bool = false
 	var target_connector_found: bool = false
 	var stub_count: int = 0

@@ -63,11 +63,17 @@ func _test_prototype_asset_paths_exist() -> void:
 func _test_scaled_texture_imports_use_mipmaps() -> void:
 	var paths: Array[String] = [
 		TechTreeOverlayScript.TECH_ITEM_PATH + ".import",
+		TechTreeOverlayScript.STONE_TOOLS_PATH + ".import",
 	]
 	var i: int = 0
 	while i < TechTreeOverlayScript.SEGMENT_PATHS.size():
 		paths.append(TechTreeOverlayScript.SEGMENT_PATHS[i] + ".import")
 		i += 1
+	var icon_paths: Array[String] = ContentScript.all_icon_paths()
+	var ii: int = 0
+	while ii < icon_paths.size():
+		paths.append(icon_paths[ii] + ".import")
+		ii += 1
 	var pi: int = 0
 	while pi < paths.size():
 		var import_path: String = paths[pi]
@@ -77,6 +83,10 @@ func _test_scaled_texture_imports_use_mipmaps() -> void:
 			_check(
 				text.contains("mipmaps/generate=true"),
 				"import mipmaps enabled: %s" % import_path,
+			)
+			_check(
+				not text.contains("mipmaps/generate=false"),
+				"import mipmaps not disabled: %s" % import_path,
 			)
 		pi += 1
 
