@@ -4,6 +4,7 @@ extends Control
 
 const ScienceUnlocksScript = preload("res://domain/content/science_unlocks.gd")
 const StartingUnitsScript = preload("res://domain/content/starting_units.gd")
+const UnitUnlockAssetsScript = preload("res://domain/content/unit_unlock_assets.gd")
 const CityProductionPanelScript = preload("res://presentation/city_production_panel.gd")
 
 ## Temporary display scaffolding when no completed science IDs exist on ProgressState yet.
@@ -110,7 +111,7 @@ static func collect_unlock_rows(
 			var unlock: Dictionary = unlocks[ui] as Dictionary
 			var unlock_type: String = str(unlock.get("type", ""))
 			if allowed_types.has(unlock_type):
-				rows.append({
+				var row: Dictionary = {
 					"id": str(unlock.get("id", "")),
 					"name": str(unlock.get("name", "")),
 					"type": unlock_type,
@@ -118,7 +119,8 @@ static func collect_unlock_rows(
 					"science_title": str(science.get("title", "")),
 					"summary": str(unlock.get("summary", "")),
 					"metadata": unlock.get("metadata", {}),
-				})
+				}
+				rows.append(UnitUnlockAssetsScript.enrich_unlock_row(row))
 			ui += 1
 		si += 1
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -496,8 +498,12 @@ static func _format_details(row: Dictionary) -> String:
 	var meta_line: String = ""
 	if not metadata.is_empty():
 		meta_line = "\nMetadata: %s" % str(metadata)
+	var asset_line: String = ""
+	var asset_path: String = str(row.get("asset_path", ""))
+	if not asset_path.is_empty():
+		asset_line = "\nAsset: %s" % asset_path
 	return (
-		"Name: %s\nType: %s\nScience: %s (%s)\nSummary: %s\nID: %s%s"
+		"Name: %s\nType: %s\nScience: %s (%s)\nSummary: %s\nID: %s%s%s"
 		% [
 			str(row.get("name", "")),
 			str(row.get("type", "")),
@@ -506,6 +512,7 @@ static func _format_details(row: Dictionary) -> String:
 			str(row.get("summary", "")),
 			str(row.get("id", "")),
 			meta_line,
+			asset_line,
 		]
 	)
 

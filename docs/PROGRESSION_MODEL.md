@@ -443,7 +443,9 @@ Families for **how** we might detect a breakthrough (design vocabulary — not s
 | `wheelwrighting` | Cart Support Unit |
 | `simple_levers` | Siege Precursor |
 
-**Science-unlocked unit ids:** `unit_worker`, `unit_slinger`, `unit_tracker_scout`, `unit_mounted_scout`, `unit_reed_boat`, `unit_archer`, `unit_war_canoe`, `unit_bronze_armed_warrior`, `unit_cart_support`, `unit_siege_precursor`.
+**Science-unlocked unit ids:** `unit_worker`, `unit_slinger`, `unit_tracker_scout`, `unit_mounted_scout_precursor`, `unit_reed_boat`, `unit_archer`, `unit_war_canoe`, `unit_bronze_armed_warrior`, `unit_cart_support`, `unit_siege_precursor`.
+
+**Unit marker assets:** [unit_unlock_assets.gd](../game/domain/content/unit_unlock_assets.gd) maps each **`unit_*`** unlock id to **`res://assets/prototype/map_markers/`** PNGs for City View details and future presentation use.
 
 **Removed:** `unit_raft` is not an active producerable unit unlock.
 

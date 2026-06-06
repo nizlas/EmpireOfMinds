@@ -2,6 +2,8 @@
 class_name StartingUnits
 extends RefCounted
 
+const UnitUnlockAssetsScript = preload("res://domain/content/unit_unlock_assets.gd")
+
 const BASELINE_SOURCE_LABEL: String = "Baseline"
 
 const ORDERED_UNIT_IDS: Array[String] = [
@@ -35,7 +37,7 @@ static func unit_rows() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var i: int = 0
 	while i < _ROWS.size():
-		out.append((_ROWS[i] as Dictionary).duplicate(true))
+		out.append(UnitUnlockAssetsScript.enrich_unlock_row((_ROWS[i] as Dictionary).duplicate(true)))
 		i += 1
 	return out
 

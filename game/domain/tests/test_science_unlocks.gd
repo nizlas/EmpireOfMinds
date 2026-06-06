@@ -15,7 +15,7 @@ const _SCIENCE_UNIT_UNLOCK_IDS: Array[String] = [
 	"unit_worker",
 	"unit_slinger",
 	"unit_tracker_scout",
-	"unit_mounted_scout",
+	"unit_mounted_scout_precursor",
 	"unit_reed_boat",
 	"unit_archer",
 	"unit_war_canoe",
@@ -213,9 +213,16 @@ func _test_science_to_unit_mappings() -> void:
 		_unit_ids_for("timber_working") == ["unit_archer", "unit_war_canoe"],
 		"Timber Working unit unlock ids",
 	)
-	_check(_unit_ids_for("pastoral_herding") == ["unit_mounted_scout"], "Pastoral Herding unit unlock ids")
-	var mounted: Dictionary = ScienceUnlocksScript.find_unlock("unit_mounted_scout")
+	_check(
+		_unit_ids_for("pastoral_herding") == ["unit_mounted_scout_precursor"],
+		"Pastoral Herding unit unlock ids",
+	)
+	var mounted: Dictionary = ScienceUnlocksScript.find_unlock("unit_mounted_scout_precursor")
 	_check(str(mounted.get("name", "")) == "Mounted Scout", "Mounted Scout display name")
+	_check(
+		ScienceUnlocksScript.find_unlock("unit_mounted_scout").is_empty(),
+		"legacy unit_mounted_scout id removed",
+	)
 
 
 func _test_raft_removed() -> void:

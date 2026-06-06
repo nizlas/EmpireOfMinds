@@ -202,7 +202,12 @@ static func _registry() -> Dictionary:
 		ERA_ANCIENT_FOUNDATIONS,
 		[
 			_u("tile_improvement", "improvement_pasture", "Pasture", "Pasture tiles for livestock."),
-			_u("unit", "unit_mounted_scout", "Mounted Scout", "Early mounted scout capability."),
+			_u(
+				"unit",
+				"unit_mounted_scout_precursor",
+				"Mounted Scout",
+				"Early mounted scout capability.",
+			),
 			_u(
 				"modifier",
 				"modifier_livestock_yield",
