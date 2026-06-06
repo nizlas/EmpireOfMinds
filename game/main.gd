@@ -23,6 +23,7 @@ const TurnViewSyncScript = preload("res://presentation/turn_view_sync.gd")
 const CloudClientScript = preload("res://cloud/cloud_client.gd")
 const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.gd")
 const BootIntentScript = preload("res://cloud/boot_intent.gd")
+const DisplayResolutionSettingsScript = preload("res://presentation/display_resolution_settings.gd")
 const CloudTurnOwnershipScript = preload("res://cloud/cloud_turn_ownership.gd")
 const PresentationVisibilityScript = preload("res://presentation/presentation_visibility.gd")
 const PlaytestPlayerDisplayScript = preload("res://presentation/playtest_player_display.gd")
@@ -124,6 +125,7 @@ func _refresh_turn_hud_after_turn_label() -> void:
 
 
 func _ready() -> void:
+	DisplayResolutionSettingsScript.bootstrap_at_start(get_window())
 	_map_projection = MapPlaneProjectionScript.new()
 	_map_projection.vanishing_pres = (get_viewport_rect().size * 0.5) - MAP_LAYER_ORIGIN
 	_map_camera = MapCameraScript.new()

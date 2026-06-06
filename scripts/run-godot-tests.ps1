@@ -37,6 +37,7 @@ $Script:SliceTests = @{
 		"res://cloud/tests/test_cloud_front_door_data_flow.gd"
 		"res://cloud/tests/test_cloud_lobby_server_scoped.gd"
 		"res://cloud/tests/test_cloud_match_name_identity.gd"
+		"res://presentation/tests/test_display_resolution_settings.gd"
 	)
 	"c14d" = @(
 		"res://cloud/tests/test_cloud_staging_c14d.gd"
@@ -194,6 +195,7 @@ $Script:AllTests = @(
 	"res://presentation/tests/test_tfv_depth_merge_city_unit_sort_keys.gd",
 	"res://presentation/tests/test_main_hud_yields_toggle.gd",
 	"res://presentation/tests/test_tech_tree_preview_overlay.gd",
+	"res://presentation/tests/test_display_resolution_settings.gd",
 	"res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd",
 	"res://presentation/tests/test_city_view_state.gd",
 	"res://presentation/tests/test_city_worked_tiles_view.gd",

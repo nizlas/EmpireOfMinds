@@ -2,6 +2,7 @@
 extends Control
 
 const BootIntentScript = preload("res://cloud/boot_intent.gd")
+const DisplayResolutionSettingsScript = preload("res://presentation/display_resolution_settings.gd")
 const CloudSessionScript = preload("res://cloud/cloud_session.gd")
 const CloudClientScript = preload("res://cloud/cloud_client.gd")
 const CloudCredentialStoreScript = preload("res://cloud/cloud_credential_store.gd")
@@ -34,8 +35,11 @@ const FRONT_DOOR_SAVED_LIST_MIN_HEIGHT_PX: int = (
 const FRONT_DOOR_SAVED_LIST_MAX_HEIGHT_PX: int = (
 	FRONT_DOOR_SAVED_MAX_VISIBLE_ROWS * FRONT_DOOR_LOBBY_ROW_HEIGHT_PX + 8
 )
+const FRONT_DOOR_DISPLAY_MODE_BUTTON_NAME: String = "DisplayModeButton"
 
 var _server_url: String = DEFAULT_SERVER_URL
+var _display_mode: String = DisplayResolutionSettingsScript.default_mode()
+var _display_mode_btn: Button
 var _status_label: Label
 var _lobby_list: ItemList
 var _saved_list: ItemList
@@ -56,6 +60,7 @@ var _display_name_key_map: Dictionary = {}
 
 
 func _ready() -> void:
+	_display_mode = DisplayResolutionSettingsScript.bootstrap_at_start(get_window())
 	_server_url = _resolve_server_url()
 	if BootIntentScript.should_skip_front_door_for_env():
 		BootIntentScript.apply_env_cloud_to_boot_intent()
@@ -181,6 +186,12 @@ func _build_ui() -> void:
 	var actions_col := VBoxContainer.new()
 	actions_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_child(actions_col)
+	_display_mode_btn = Button.new()
+	_display_mode_btn.name = FRONT_DOOR_DISPLAY_MODE_BUTTON_NAME
+	_display_mode_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_display_mode_btn.pressed.connect(_on_toggle_display_mode)
+	_refresh_display_mode_button()
+	actions_col.add_child(_display_mode_btn)
 	var hotseat_btn := Button.new()
 	hotseat_btn.text = "Local Hotseat"
 	hotseat_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -274,6 +285,27 @@ func _go_main() -> void:
 func _go_staging() -> void:
 	_stop_front_door_polling()
 	get_tree().change_scene_to_file(STAGING_SCENE)
+
+
+func _refresh_display_mode_button() -> void:
+	if _display_mode_btn == null:
+		return
+	_display_mode_btn.text = DisplayResolutionSettingsScript.mode_menu_button_text(_display_mode)
+
+
+func _on_toggle_display_mode() -> void:
+	var applied: Dictionary = DisplayResolutionSettingsScript.save_and_apply_mode(
+		DisplayResolutionSettingsScript.toggle_mode(_display_mode),
+		get_window(),
+	)
+	_display_mode = str(applied.get("mode", _display_mode))
+	_refresh_display_mode_button()
+	_set_status(
+		DisplayResolutionSettingsScript.apply_status_message(
+			_display_mode,
+			bool(applied.get("embedded", false)),
+		)
+	)
 
 
 func _on_local_hotseat() -> void:
