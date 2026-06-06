@@ -66,6 +66,7 @@ $Script:SmokeTests = @(
 	"res://presentation/tests/test_tech_tree_preview_overlay.gd"
 	"res://presentation/tests/test_tech_tree_grid_layout.gd"
 	"res://presentation/tests/test_tech_tree_node_layout.gd"
+	"res://domain/tests/test_science_unlocks.gd"
 	"res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd"
 )
 
@@ -90,6 +91,7 @@ $Script:AllTests = @(
 	"res://domain/tests/test_terrain_rule_definitions.gd",
 	"res://domain/tests/test_city_project_definitions.gd",
 	"res://domain/tests/test_progress_definitions.gd",
+	"res://domain/tests/test_science_unlocks.gd",
 	"res://domain/tests/test_science_availability.gd",
 	"res://domain/tests/test_faction_definitions.gd",
 	"res://domain/tests/test_progress_state.gd",

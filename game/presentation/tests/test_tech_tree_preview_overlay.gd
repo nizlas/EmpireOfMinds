@@ -4,6 +4,7 @@ extends SceneTree
 const TechTreeOverlayScript = preload("res://presentation/tech_tree_preview_overlay.gd")
 const ContentScript = preload("res://presentation/tech_tree_preview_content.gd")
 const NodeLayoutScript = preload("res://presentation/tech_tree_node_layout.gd")
+const ScienceUnlocksScript = preload("res://domain/content/science_unlocks.gd")
 
 var _total = 0
 var _any_fail = false
@@ -89,6 +90,16 @@ func _test_scaled_texture_imports_use_mipmaps() -> void:
 				"import mipmaps not disabled: %s" % import_path,
 			)
 		pi += 1
+
+
+func _test_preview_science_ids_resolve() -> void:
+	var ids: Array[String] = ContentScript.all_tech_ids()
+	var i: int = 0
+	while i < ids.size():
+		var tech_id: String = ids[i]
+		_check(ScienceUnlocksScript.has_science(tech_id), "preview tech id resolves in ScienceUnlocks: %s" % tech_id)
+		_check(not ContentScript.tech_by_id(tech_id).is_empty(), "preview content entry for %s" % tech_id)
+		i += 1
 
 
 func _test_main_scene_wiring() -> void:
