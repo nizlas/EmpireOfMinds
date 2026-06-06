@@ -138,9 +138,17 @@ func _test_tech_item_layout() -> void:
 	overlay.open_overlay()
 	_check(
 		overlay._tech_items.size() == TechTreeOverlayScript.tech_item_count(),
-		"nine prototype tech items created",
+		"prototype tech items created for each segment page",
 	)
-	_check(TechTreeOverlayScript.tech_item_count() == 9, "tech item count is 4 + 2 + 3")
+	_check(TechTreeOverlayScript.items_per_segment() == 9, "segment item count is 4 + 2 + 3")
+	_check(
+		TechTreeOverlayScript.tech_item_count() == 27,
+		"three segment pages duplicate the nine-item prototype grid",
+	)
+	_check(
+		TechTreeOverlayScript.prototype_segment_spec_count() == 3,
+		"prototype covers all three background segments",
+	)
 	_check(TechTreeOverlayScript.COLUMN_X_STEP == 390.0, "accepted column x step preserved")
 	var viewport_h: float = overlay.get_viewport_rect().size.y
 	var content_scale: float = TechTreeOverlayScript.content_scale(viewport_h)
@@ -168,21 +176,32 @@ func _test_tech_item_layout() -> void:
 		overlay._tech_item_tex,
 		TechTreeOverlayScript.tech_item_display_height(viewport_h),
 	)
-	var min_x: float = INF
+	var min_x_seg0: float = INF
 	var column_first_item_index: Array[int] = [-1, -1, -1]
+	var seg_widths: Array = overlay._segment_display_widths
 	var gi: int = 0
 	while gi < overlay._tech_items.size():
-		var placement: Vector2i = overlay._tech_item_placements[gi]
-		var item_col: int = placement.x
-		var item_row: int = placement.y
+		var placement: Vector3i = overlay._tech_item_placements[gi]
+		var item_segment: int = placement.x
+		var item_col: int = placement.y
+		var item_row: int = placement.z
 		var item_count: int = TechTreeOverlayScript.prototype_column_spec_count(item_col)
+		var center_grid: bool = overlay._segment_center_grid_for_index(item_segment)
+		var mirror_grid: bool = overlay._segment_mirror_grid_for_index(item_segment)
 		var item: TextureRect = overlay._tech_items[gi]
 		_check(item != null, "tech item %d exists" % gi)
 		_check(item.texture != null, "tech item %d texture loaded" % gi)
 		_check(item.get_parent() == overlay._scroll_content, "tech item %d under scroll content" % gi)
 		_check(item.mouse_filter == Control.MOUSE_FILTER_IGNORE, "tech item %d ignores mouse" % gi)
 		var expected_pos: Vector2 = TechTreeOverlayScript.tech_item_position(
-			item_col, item_row, item_count, viewport_h,
+			item_segment,
+			item_col,
+			item_row,
+			seg_widths,
+			item_count,
+			center_grid,
+			mirror_grid,
+			viewport_h,
 		)
 		_check(
 			item.position.is_equal_approx(expected_pos),
@@ -193,9 +212,10 @@ func _test_tech_item_layout() -> void:
 			absf(item.position.y - float(layout[item_row]) * content_scale) < 0.5,
 			"tech item %d uses column layout for count=%d" % [gi, item_count],
 		)
-		if column_first_item_index[item_col] < 0:
+		if item_segment == 0 and column_first_item_index[item_col] < 0:
 			column_first_item_index[item_col] = gi
-		min_x = minf(min_x, item.position.x)
+		if item_segment == 0:
+			min_x_seg0 = minf(min_x_seg0, item.position.x)
 		_check(
 			absf(item.size.x - expected_item.x) < 1.0 and absf(item.size.y - expected_item.y) < 1.0,
 			"tech item %d size from aspect ratio" % gi,
@@ -277,16 +297,134 @@ func _test_tech_item_layout() -> void:
 			"column 3 row %d uses derived 3-item layout" % col2_row,
 		)
 		col2_row += 1
-	var base_left_x: float = TechTreeOverlayScript.tech_item_base_position(0, 0, viewport_h).x
+	var base_left_x: float = TechTreeOverlayScript.tech_item_base_position(
+		0, 0, 0, seg_widths, false, viewport_h,
+	).x
 	_check(
-		min_x
+		min_x_seg0
 			>= base_left_x + TechTreeOverlayScript.TECH_ITEM_GROUP_OFFSET.x * content_scale - 0.5,
-		"tech items shifted right by group offset",
+		"segment 1 tech items shifted right by group offset",
 	)
 	_check(
-		min_x > base_left_x + 50.0 * content_scale,
-		"tech items moved right away from old left edge",
+		min_x_seg0 > base_left_x + 50.0 * content_scale,
+		"segment 1 tech items moved right away from old left edge",
 	)
+	if seg_widths.size() >= 2:
+		var seg1_left: float = float(seg_widths[0])
+		var seg1_right: float = seg1_left + float(seg_widths[1])
+		var seg1_grid_w: float = TechTreeOverlayScript.grid_content_width_scaled(viewport_h)
+		var seg1_center_offset: float = maxf((float(seg_widths[1]) - seg1_grid_w) * 0.5, 0.0)
+		var seg1_item0: TextureRect = overlay._tech_items[9]
+		var seg1_col2_item: TextureRect = overlay._tech_items[15]
+		var seg1_grid_left: float = seg1_item0.position.x
+		var seg1_grid_right: float = seg1_col2_item.position.x + seg1_col2_item.size.x
+		_check(
+			absf(
+				seg1_grid_left
+					- (
+						seg1_left
+						+ seg1_center_offset
+					)
+			) < 1.5,
+			"segment 2 grid left edge is centered on background 2",
+		)
+		_check(
+			seg1_grid_left >= seg1_left - 0.5,
+			"segment 2 items start inside background 2",
+		)
+		_check(
+			seg1_grid_right <= seg1_right + 1.0,
+			"segment 2 grid fits inside background 2 width",
+		)
+		var seg1_grid_mid: float = (seg1_grid_left + seg1_grid_right) * 0.5
+		var seg1_page_mid: float = (seg1_left + seg1_right) * 0.5
+		_check(
+			absf(seg1_grid_mid - seg1_page_mid) < 2.0,
+			"segment 2 grid is centered on background 2",
+		)
+	if seg_widths.size() >= 3:
+		var seg2_left: float = float(seg_widths[0]) + float(seg_widths[1])
+		var seg2_right: float = seg2_left + float(seg_widths[2])
+		var seg2_design_w: float = TechTreeOverlayScript.segment_design_width_from_display(
+			float(seg_widths[2]),
+			viewport_h,
+		)
+		var seg2_col0: TextureRect = overlay._tech_items[18]
+		var seg2_col2: TextureRect = overlay._tech_items[24]
+		var mirror_inset: float = TechTreeOverlayScript.mirror_right_inset_design_for_segment(2)
+		var reduce_frac: float = TechTreeOverlayScript.mirror_left_margin_reduce_fraction_for_segment(
+			2,
+		)
+		var seg2_local_col0: Vector2 = TechTreeOverlayScript.segment_local_grid_position_resolved(
+			0,
+			0,
+			2,
+			seg_widths,
+			true,
+			4,
+			viewport_h,
+		)
+		_check(
+			absf(
+				seg2_col0.position.x
+					- (
+						seg2_left
+						+ seg2_local_col0.x * content_scale
+					)
+			) < 1.5,
+			"segment 3 col 0 uses tuned mirrored grid position",
+		)
+		_check(
+			seg2_col0.position.x > seg2_col2.position.x,
+			"segment 3 mirrors column order horizontally",
+		)
+		_check(
+			seg2_col0.position.x >= seg2_left - 0.5,
+			"segment 3 mirrored grid stays inside background 3",
+		)
+		_check(
+			seg2_col2.position.x + seg2_col2.size.x <= seg2_right + 1.0,
+			"segment 3 mirrored grid right edge stays inside background 3",
+		)
+		_check(mirror_inset > 0.0, "segment 3 mirror uses right-border inset")
+		_check(
+			absf(reduce_frac - 1.0 / 3.0) < 0.001,
+			"segment 3 reduces mirrored left-column margin by one third",
+		)
+		var left_col: int = TechTreeOverlayScript.leftmost_mirrored_column_index()
+		var pure_left_local: Vector2 = TechTreeOverlayScript.mirror_local_grid_position(
+			TechTreeOverlayScript.segment_local_grid_position(left_col, 0),
+			seg2_design_w,
+			mirror_inset,
+		)
+		var pure_left_margin_scaled: float = pure_left_local.x * content_scale
+		var actual_left_margin: float = seg2_col2.position.x - seg2_left
+		_check(
+			absf(actual_left_margin - pure_left_margin_scaled * (1.0 - reduce_frac)) < 2.0,
+			"segment 3 left-column margin is one-third smaller than pure mirror",
+		)
+		var sym_shift: float = TechTreeOverlayScript.grid_x_offset_design_for_segment(
+			0,
+			seg_widths,
+			viewport_h,
+		)
+		_check(sym_shift > 0.0, "segment 1 shifts right using symmetric mirror tune from segment 3")
+		_check(
+			absf(sym_shift - TechTreeOverlayScript.mirror_left_margin_shift_design(
+				seg2_design_w,
+				mirror_inset,
+				reduce_frac,
+			)) < 0.01,
+			"segment 1 shift matches segment 3 mirror left-margin reduction",
+		)
+		var seg0_unshifted_margin: float = (
+			TechTreeOverlayScript.segment_local_grid_position(0, 0).x * content_scale
+		)
+		var seg0_left_margin: float = overlay._tech_items[0].position.x
+		_check(
+			absf(seg0_left_margin - seg0_unshifted_margin - sym_shift * content_scale) < 2.0,
+			"segment 1 grid shifts right by symmetric mirror-tune amount",
+		)
 	var col: int = 0
 	while col < TechTreeOverlayScript.TECH_COLUMN_COUNT - 1:
 		var left_item: TextureRect = overlay._tech_items[column_first_item_index[col]]

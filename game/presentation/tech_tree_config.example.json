@@ -1,0 +1,36 @@
+{
+	"comment": "Example tech tree layout config. Items are placed in dependency order; pick slot_id and column_item_count (1-4 rows) per column for readability.",
+	"segment_column_row_counts": [4, 2, 3],
+	"items": [
+		{
+			"tech_id": "stone_tools",
+			"slot_id": "bg1_c0_r0_n4",
+			"depends_on": []
+		},
+		{
+			"tech_id": "mining",
+			"slot_id": "bg1_c1_r0_n2",
+			"depends_on": ["stone_tools"]
+		},
+		{
+			"tech_id": "bronze_working",
+			"slot_id": "bg1_c2_r0_n3",
+			"depends_on": ["mining"]
+		},
+		{
+			"tech_id": "writing",
+			"slot_id": "bg2_c0_r0_n4",
+			"depends_on": ["bronze_working"]
+		},
+		{
+			"tech_id": "calendar",
+			"slot_id": "bg2_c1_r0_n1",
+			"depends_on": ["writing"]
+		},
+		{
+			"tech_id": "philosophy",
+			"slot_id": "bg3_c2_r0_n3",
+			"depends_on": ["calendar"]
+		}
+	]
+}

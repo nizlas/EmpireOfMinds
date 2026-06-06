@@ -1,0 +1,1958 @@
+{
+	"column_layout_y": {
+		"1": [
+			493.0
+		],
+		"2": [
+			263.0,
+			723.0
+		],
+		"3": [
+			205.5,
+			493.0,
+			780.5
+		],
+		"4": [
+			148.0,
+			378.0,
+			608.0,
+			838.0
+		]
+	},
+	"column_row_count_options": [
+		1,
+		2,
+		3,
+		4
+	],
+	"column_x_start": 180.0,
+	"column_x_step": 390.0,
+	"content_scale": 1.5,
+	"reference_parchment_display_height": 1845.0,
+	"reference_segment_display_widths": [
+		2305.40055248619,
+		2144.00552486188,
+		2312.19613259668
+	],
+	"segment_specs": [
+		{
+			"background_label": "bg_1",
+			"center_grid": false,
+			"mirror_grid": false,
+			"segment_index": 0,
+			"symmetric_mirror_shift_from_segment": 2
+		},
+		{
+			"background_label": "bg_2",
+			"center_grid": true,
+			"mirror_grid": false,
+			"segment_index": 1
+		},
+		{
+			"background_label": "bg_3",
+			"center_grid": false,
+			"mirror_grid": true,
+			"mirror_left_margin_reduce_fraction": 0.333333333333333,
+			"mirror_right_inset_design": 35.0,
+			"segment_index": 2
+		}
+	],
+	"slots": [
+		{
+			"background_label": "bg_1",
+			"column_index": 0,
+			"column_item_count": 1,
+			"design_local": {
+				"x": 334.376922607422,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 334.376922607422,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 501.565368652344,
+				"y": 739.5
+			},
+			"layout_mode": "left",
+			"row_in_column": 0,
+			"segment_index": 0,
+			"slot_id": "bg1_c0_r0_n1"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 0,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 334.376922607422,
+				"y": 263.0
+			},
+			"design_scroll": {
+				"x": 334.376922607422,
+				"y": 263.0
+			},
+			"display_scroll": {
+				"x": 501.565368652344,
+				"y": 394.5
+			},
+			"layout_mode": "left",
+			"row_in_column": 0,
+			"segment_index": 0,
+			"slot_id": "bg1_c0_r0_n2"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 0,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 334.376922607422,
+				"y": 723.0
+			},
+			"design_scroll": {
+				"x": 334.376922607422,
+				"y": 723.0
+			},
+			"display_scroll": {
+				"x": 501.565368652344,
+				"y": 1084.5
+			},
+			"layout_mode": "left",
+			"row_in_column": 1,
+			"segment_index": 0,
+			"slot_id": "bg1_c0_r1_n2"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 0,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 334.376922607422,
+				"y": 205.5
+			},
+			"design_scroll": {
+				"x": 334.376922607422,
+				"y": 205.5
+			},
+			"display_scroll": {
+				"x": 501.565368652344,
+				"y": 308.25
+			},
+			"layout_mode": "left",
+			"row_in_column": 0,
+			"segment_index": 0,
+			"slot_id": "bg1_c0_r0_n3"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 0,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 334.376922607422,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 334.376922607422,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 501.565368652344,
+				"y": 739.5
+			},
+			"layout_mode": "left",
+			"row_in_column": 1,
+			"segment_index": 0,
+			"slot_id": "bg1_c0_r1_n3"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 0,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 334.376922607422,
+				"y": 780.5
+			},
+			"design_scroll": {
+				"x": 334.376922607422,
+				"y": 780.5
+			},
+			"display_scroll": {
+				"x": 501.565368652344,
+				"y": 1170.75
+			},
+			"layout_mode": "left",
+			"row_in_column": 2,
+			"segment_index": 0,
+			"slot_id": "bg1_c0_r2_n3"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 0,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 334.376922607422,
+				"y": 148.0
+			},
+			"design_scroll": {
+				"x": 334.376922607422,
+				"y": 148.0
+			},
+			"display_scroll": {
+				"x": 501.565368652344,
+				"y": 222.0
+			},
+			"layout_mode": "left",
+			"row_in_column": 0,
+			"segment_index": 0,
+			"slot_id": "bg1_c0_r0_n4"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 0,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 334.376922607422,
+				"y": 378.0
+			},
+			"design_scroll": {
+				"x": 334.376922607422,
+				"y": 378.0
+			},
+			"display_scroll": {
+				"x": 501.565368652344,
+				"y": 567.0
+			},
+			"layout_mode": "left",
+			"row_in_column": 1,
+			"segment_index": 0,
+			"slot_id": "bg1_c0_r1_n4"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 0,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 334.376922607422,
+				"y": 608.0
+			},
+			"design_scroll": {
+				"x": 334.376922607422,
+				"y": 608.0
+			},
+			"display_scroll": {
+				"x": 501.565368652344,
+				"y": 912.0
+			},
+			"layout_mode": "left",
+			"row_in_column": 2,
+			"segment_index": 0,
+			"slot_id": "bg1_c0_r2_n4"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 0,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 334.376922607422,
+				"y": 838.0
+			},
+			"design_scroll": {
+				"x": 334.376922607422,
+				"y": 838.0
+			},
+			"display_scroll": {
+				"x": 501.565368652344,
+				"y": 1257.0
+			},
+			"layout_mode": "left",
+			"row_in_column": 3,
+			"segment_index": 0,
+			"slot_id": "bg1_c0_r3_n4"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 1,
+			"column_item_count": 1,
+			"design_local": {
+				"x": 724.376892089844,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 724.376892089844,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 1086.56530761719,
+				"y": 739.5
+			},
+			"layout_mode": "left",
+			"row_in_column": 0,
+			"segment_index": 0,
+			"slot_id": "bg1_c1_r0_n1"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 1,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 724.376892089844,
+				"y": 263.0
+			},
+			"design_scroll": {
+				"x": 724.376892089844,
+				"y": 263.0
+			},
+			"display_scroll": {
+				"x": 1086.56530761719,
+				"y": 394.5
+			},
+			"layout_mode": "left",
+			"row_in_column": 0,
+			"segment_index": 0,
+			"slot_id": "bg1_c1_r0_n2"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 1,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 724.376892089844,
+				"y": 723.0
+			},
+			"design_scroll": {
+				"x": 724.376892089844,
+				"y": 723.0
+			},
+			"display_scroll": {
+				"x": 1086.56530761719,
+				"y": 1084.5
+			},
+			"layout_mode": "left",
+			"row_in_column": 1,
+			"segment_index": 0,
+			"slot_id": "bg1_c1_r1_n2"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 1,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 724.376892089844,
+				"y": 205.5
+			},
+			"design_scroll": {
+				"x": 724.376892089844,
+				"y": 205.5
+			},
+			"display_scroll": {
+				"x": 1086.56530761719,
+				"y": 308.25
+			},
+			"layout_mode": "left",
+			"row_in_column": 0,
+			"segment_index": 0,
+			"slot_id": "bg1_c1_r0_n3"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 1,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 724.376892089844,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 724.376892089844,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 1086.56530761719,
+				"y": 739.5
+			},
+			"layout_mode": "left",
+			"row_in_column": 1,
+			"segment_index": 0,
+			"slot_id": "bg1_c1_r1_n3"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 1,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 724.376892089844,
+				"y": 780.5
+			},
+			"design_scroll": {
+				"x": 724.376892089844,
+				"y": 780.5
+			},
+			"display_scroll": {
+				"x": 1086.56530761719,
+				"y": 1170.75
+			},
+			"layout_mode": "left",
+			"row_in_column": 2,
+			"segment_index": 0,
+			"slot_id": "bg1_c1_r2_n3"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 1,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 724.376892089844,
+				"y": 148.0
+			},
+			"design_scroll": {
+				"x": 724.376892089844,
+				"y": 148.0
+			},
+			"display_scroll": {
+				"x": 1086.56530761719,
+				"y": 222.0
+			},
+			"layout_mode": "left",
+			"row_in_column": 0,
+			"segment_index": 0,
+			"slot_id": "bg1_c1_r0_n4"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 1,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 724.376892089844,
+				"y": 378.0
+			},
+			"design_scroll": {
+				"x": 724.376892089844,
+				"y": 378.0
+			},
+			"display_scroll": {
+				"x": 1086.56530761719,
+				"y": 567.0
+			},
+			"layout_mode": "left",
+			"row_in_column": 1,
+			"segment_index": 0,
+			"slot_id": "bg1_c1_r1_n4"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 1,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 724.376892089844,
+				"y": 608.0
+			},
+			"design_scroll": {
+				"x": 724.376892089844,
+				"y": 608.0
+			},
+			"display_scroll": {
+				"x": 1086.56530761719,
+				"y": 912.0
+			},
+			"layout_mode": "left",
+			"row_in_column": 2,
+			"segment_index": 0,
+			"slot_id": "bg1_c1_r2_n4"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 1,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 724.376892089844,
+				"y": 838.0
+			},
+			"design_scroll": {
+				"x": 724.376892089844,
+				"y": 838.0
+			},
+			"display_scroll": {
+				"x": 1086.56530761719,
+				"y": 1257.0
+			},
+			"layout_mode": "left",
+			"row_in_column": 3,
+			"segment_index": 0,
+			"slot_id": "bg1_c1_r3_n4"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 2,
+			"column_item_count": 1,
+			"design_local": {
+				"x": 1114.376953125,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 1114.376953125,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 1671.5654296875,
+				"y": 739.5
+			},
+			"layout_mode": "left",
+			"row_in_column": 0,
+			"segment_index": 0,
+			"slot_id": "bg1_c2_r0_n1"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 2,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 1114.376953125,
+				"y": 263.0
+			},
+			"design_scroll": {
+				"x": 1114.376953125,
+				"y": 263.0
+			},
+			"display_scroll": {
+				"x": 1671.5654296875,
+				"y": 394.5
+			},
+			"layout_mode": "left",
+			"row_in_column": 0,
+			"segment_index": 0,
+			"slot_id": "bg1_c2_r0_n2"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 2,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 1114.376953125,
+				"y": 723.0
+			},
+			"design_scroll": {
+				"x": 1114.376953125,
+				"y": 723.0
+			},
+			"display_scroll": {
+				"x": 1671.5654296875,
+				"y": 1084.5
+			},
+			"layout_mode": "left",
+			"row_in_column": 1,
+			"segment_index": 0,
+			"slot_id": "bg1_c2_r1_n2"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 2,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 1114.376953125,
+				"y": 205.5
+			},
+			"design_scroll": {
+				"x": 1114.376953125,
+				"y": 205.5
+			},
+			"display_scroll": {
+				"x": 1671.5654296875,
+				"y": 308.25
+			},
+			"layout_mode": "left",
+			"row_in_column": 0,
+			"segment_index": 0,
+			"slot_id": "bg1_c2_r0_n3"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 2,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 1114.376953125,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 1114.376953125,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 1671.5654296875,
+				"y": 739.5
+			},
+			"layout_mode": "left",
+			"row_in_column": 1,
+			"segment_index": 0,
+			"slot_id": "bg1_c2_r1_n3"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 2,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 1114.376953125,
+				"y": 780.5
+			},
+			"design_scroll": {
+				"x": 1114.376953125,
+				"y": 780.5
+			},
+			"display_scroll": {
+				"x": 1671.5654296875,
+				"y": 1170.75
+			},
+			"layout_mode": "left",
+			"row_in_column": 2,
+			"segment_index": 0,
+			"slot_id": "bg1_c2_r2_n3"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 2,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 1114.376953125,
+				"y": 148.0
+			},
+			"design_scroll": {
+				"x": 1114.376953125,
+				"y": 148.0
+			},
+			"display_scroll": {
+				"x": 1671.5654296875,
+				"y": 222.0
+			},
+			"layout_mode": "left",
+			"row_in_column": 0,
+			"segment_index": 0,
+			"slot_id": "bg1_c2_r0_n4"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 2,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 1114.376953125,
+				"y": 378.0
+			},
+			"design_scroll": {
+				"x": 1114.376953125,
+				"y": 378.0
+			},
+			"display_scroll": {
+				"x": 1671.5654296875,
+				"y": 567.0
+			},
+			"layout_mode": "left",
+			"row_in_column": 1,
+			"segment_index": 0,
+			"slot_id": "bg1_c2_r1_n4"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 2,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 1114.376953125,
+				"y": 608.0
+			},
+			"design_scroll": {
+				"x": 1114.376953125,
+				"y": 608.0
+			},
+			"display_scroll": {
+				"x": 1671.5654296875,
+				"y": 912.0
+			},
+			"layout_mode": "left",
+			"row_in_column": 2,
+			"segment_index": 0,
+			"slot_id": "bg1_c2_r2_n4"
+		},
+		{
+			"background_label": "bg_1",
+			"column_index": 2,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 1114.376953125,
+				"y": 838.0
+			},
+			"design_scroll": {
+				"x": 1114.376953125,
+				"y": 838.0
+			},
+			"display_scroll": {
+				"x": 1671.5654296875,
+				"y": 1257.0
+			},
+			"layout_mode": "left",
+			"row_in_column": 3,
+			"segment_index": 0,
+			"slot_id": "bg1_c2_r3_n4"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 0,
+			"column_item_count": 1,
+			"design_local": {
+				"x": 265.0,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 2469.9033203125,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 2602.4033203125,
+				"y": 739.5
+			},
+			"layout_mode": "center",
+			"row_in_column": 0,
+			"segment_index": 1,
+			"slot_id": "bg2_c0_r0_n1"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 0,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 265.0,
+				"y": 263.0
+			},
+			"design_scroll": {
+				"x": 2469.9033203125,
+				"y": 263.0
+			},
+			"display_scroll": {
+				"x": 2602.4033203125,
+				"y": 394.5
+			},
+			"layout_mode": "center",
+			"row_in_column": 0,
+			"segment_index": 1,
+			"slot_id": "bg2_c0_r0_n2"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 0,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 265.0,
+				"y": 723.0
+			},
+			"design_scroll": {
+				"x": 2469.9033203125,
+				"y": 723.0
+			},
+			"display_scroll": {
+				"x": 2602.4033203125,
+				"y": 1084.5
+			},
+			"layout_mode": "center",
+			"row_in_column": 1,
+			"segment_index": 1,
+			"slot_id": "bg2_c0_r1_n2"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 0,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 265.0,
+				"y": 205.5
+			},
+			"design_scroll": {
+				"x": 2469.9033203125,
+				"y": 205.5
+			},
+			"display_scroll": {
+				"x": 2602.4033203125,
+				"y": 308.25
+			},
+			"layout_mode": "center",
+			"row_in_column": 0,
+			"segment_index": 1,
+			"slot_id": "bg2_c0_r0_n3"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 0,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 265.0,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 2469.9033203125,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 2602.4033203125,
+				"y": 739.5
+			},
+			"layout_mode": "center",
+			"row_in_column": 1,
+			"segment_index": 1,
+			"slot_id": "bg2_c0_r1_n3"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 0,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 265.0,
+				"y": 780.5
+			},
+			"design_scroll": {
+				"x": 2469.9033203125,
+				"y": 780.5
+			},
+			"display_scroll": {
+				"x": 2602.4033203125,
+				"y": 1170.75
+			},
+			"layout_mode": "center",
+			"row_in_column": 2,
+			"segment_index": 1,
+			"slot_id": "bg2_c0_r2_n3"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 0,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 265.0,
+				"y": 148.0
+			},
+			"design_scroll": {
+				"x": 2469.9033203125,
+				"y": 148.0
+			},
+			"display_scroll": {
+				"x": 2602.4033203125,
+				"y": 222.0
+			},
+			"layout_mode": "center",
+			"row_in_column": 0,
+			"segment_index": 1,
+			"slot_id": "bg2_c0_r0_n4"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 0,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 265.0,
+				"y": 378.0
+			},
+			"design_scroll": {
+				"x": 2469.9033203125,
+				"y": 378.0
+			},
+			"display_scroll": {
+				"x": 2602.4033203125,
+				"y": 567.0
+			},
+			"layout_mode": "center",
+			"row_in_column": 1,
+			"segment_index": 1,
+			"slot_id": "bg2_c0_r1_n4"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 0,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 265.0,
+				"y": 608.0
+			},
+			"design_scroll": {
+				"x": 2469.9033203125,
+				"y": 608.0
+			},
+			"display_scroll": {
+				"x": 2602.4033203125,
+				"y": 912.0
+			},
+			"layout_mode": "center",
+			"row_in_column": 2,
+			"segment_index": 1,
+			"slot_id": "bg2_c0_r2_n4"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 0,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 265.0,
+				"y": 838.0
+			},
+			"design_scroll": {
+				"x": 2469.9033203125,
+				"y": 838.0
+			},
+			"display_scroll": {
+				"x": 2602.4033203125,
+				"y": 1257.0
+			},
+			"layout_mode": "center",
+			"row_in_column": 3,
+			"segment_index": 1,
+			"slot_id": "bg2_c0_r3_n4"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 1,
+			"column_item_count": 1,
+			"design_local": {
+				"x": 655.0,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 2859.9033203125,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 3187.4033203125,
+				"y": 739.5
+			},
+			"layout_mode": "center",
+			"row_in_column": 0,
+			"segment_index": 1,
+			"slot_id": "bg2_c1_r0_n1"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 1,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 655.0,
+				"y": 263.0
+			},
+			"design_scroll": {
+				"x": 2859.9033203125,
+				"y": 263.0
+			},
+			"display_scroll": {
+				"x": 3187.4033203125,
+				"y": 394.5
+			},
+			"layout_mode": "center",
+			"row_in_column": 0,
+			"segment_index": 1,
+			"slot_id": "bg2_c1_r0_n2"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 1,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 655.0,
+				"y": 723.0
+			},
+			"design_scroll": {
+				"x": 2859.9033203125,
+				"y": 723.0
+			},
+			"display_scroll": {
+				"x": 3187.4033203125,
+				"y": 1084.5
+			},
+			"layout_mode": "center",
+			"row_in_column": 1,
+			"segment_index": 1,
+			"slot_id": "bg2_c1_r1_n2"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 1,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 655.0,
+				"y": 205.5
+			},
+			"design_scroll": {
+				"x": 2859.9033203125,
+				"y": 205.5
+			},
+			"display_scroll": {
+				"x": 3187.4033203125,
+				"y": 308.25
+			},
+			"layout_mode": "center",
+			"row_in_column": 0,
+			"segment_index": 1,
+			"slot_id": "bg2_c1_r0_n3"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 1,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 655.0,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 2859.9033203125,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 3187.4033203125,
+				"y": 739.5
+			},
+			"layout_mode": "center",
+			"row_in_column": 1,
+			"segment_index": 1,
+			"slot_id": "bg2_c1_r1_n3"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 1,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 655.0,
+				"y": 780.5
+			},
+			"design_scroll": {
+				"x": 2859.9033203125,
+				"y": 780.5
+			},
+			"display_scroll": {
+				"x": 3187.4033203125,
+				"y": 1170.75
+			},
+			"layout_mode": "center",
+			"row_in_column": 2,
+			"segment_index": 1,
+			"slot_id": "bg2_c1_r2_n3"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 1,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 655.0,
+				"y": 148.0
+			},
+			"design_scroll": {
+				"x": 2859.9033203125,
+				"y": 148.0
+			},
+			"display_scroll": {
+				"x": 3187.4033203125,
+				"y": 222.0
+			},
+			"layout_mode": "center",
+			"row_in_column": 0,
+			"segment_index": 1,
+			"slot_id": "bg2_c1_r0_n4"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 1,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 655.0,
+				"y": 378.0
+			},
+			"design_scroll": {
+				"x": 2859.9033203125,
+				"y": 378.0
+			},
+			"display_scroll": {
+				"x": 3187.4033203125,
+				"y": 567.0
+			},
+			"layout_mode": "center",
+			"row_in_column": 1,
+			"segment_index": 1,
+			"slot_id": "bg2_c1_r1_n4"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 1,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 655.0,
+				"y": 608.0
+			},
+			"design_scroll": {
+				"x": 2859.9033203125,
+				"y": 608.0
+			},
+			"display_scroll": {
+				"x": 3187.4033203125,
+				"y": 912.0
+			},
+			"layout_mode": "center",
+			"row_in_column": 2,
+			"segment_index": 1,
+			"slot_id": "bg2_c1_r2_n4"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 1,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 655.0,
+				"y": 838.0
+			},
+			"design_scroll": {
+				"x": 2859.9033203125,
+				"y": 838.0
+			},
+			"display_scroll": {
+				"x": 3187.4033203125,
+				"y": 1257.0
+			},
+			"layout_mode": "center",
+			"row_in_column": 3,
+			"segment_index": 1,
+			"slot_id": "bg2_c1_r3_n4"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 2,
+			"column_item_count": 1,
+			"design_local": {
+				"x": 1045.0,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 3249.9033203125,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 3772.4033203125,
+				"y": 739.5
+			},
+			"layout_mode": "center",
+			"row_in_column": 0,
+			"segment_index": 1,
+			"slot_id": "bg2_c2_r0_n1"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 2,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 1045.0,
+				"y": 263.0
+			},
+			"design_scroll": {
+				"x": 3249.9033203125,
+				"y": 263.0
+			},
+			"display_scroll": {
+				"x": 3772.4033203125,
+				"y": 394.5
+			},
+			"layout_mode": "center",
+			"row_in_column": 0,
+			"segment_index": 1,
+			"slot_id": "bg2_c2_r0_n2"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 2,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 1045.0,
+				"y": 723.0
+			},
+			"design_scroll": {
+				"x": 3249.9033203125,
+				"y": 723.0
+			},
+			"display_scroll": {
+				"x": 3772.4033203125,
+				"y": 1084.5
+			},
+			"layout_mode": "center",
+			"row_in_column": 1,
+			"segment_index": 1,
+			"slot_id": "bg2_c2_r1_n2"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 2,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 1045.0,
+				"y": 205.5
+			},
+			"design_scroll": {
+				"x": 3249.9033203125,
+				"y": 205.5
+			},
+			"display_scroll": {
+				"x": 3772.4033203125,
+				"y": 308.25
+			},
+			"layout_mode": "center",
+			"row_in_column": 0,
+			"segment_index": 1,
+			"slot_id": "bg2_c2_r0_n3"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 2,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 1045.0,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 3249.9033203125,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 3772.4033203125,
+				"y": 739.5
+			},
+			"layout_mode": "center",
+			"row_in_column": 1,
+			"segment_index": 1,
+			"slot_id": "bg2_c2_r1_n3"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 2,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 1045.0,
+				"y": 780.5
+			},
+			"design_scroll": {
+				"x": 3249.9033203125,
+				"y": 780.5
+			},
+			"display_scroll": {
+				"x": 3772.4033203125,
+				"y": 1170.75
+			},
+			"layout_mode": "center",
+			"row_in_column": 2,
+			"segment_index": 1,
+			"slot_id": "bg2_c2_r2_n3"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 2,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 1045.0,
+				"y": 148.0
+			},
+			"design_scroll": {
+				"x": 3249.9033203125,
+				"y": 148.0
+			},
+			"display_scroll": {
+				"x": 3772.4033203125,
+				"y": 222.0
+			},
+			"layout_mode": "center",
+			"row_in_column": 0,
+			"segment_index": 1,
+			"slot_id": "bg2_c2_r0_n4"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 2,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 1045.0,
+				"y": 378.0
+			},
+			"design_scroll": {
+				"x": 3249.9033203125,
+				"y": 378.0
+			},
+			"display_scroll": {
+				"x": 3772.4033203125,
+				"y": 567.0
+			},
+			"layout_mode": "center",
+			"row_in_column": 1,
+			"segment_index": 1,
+			"slot_id": "bg2_c2_r1_n4"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 2,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 1045.0,
+				"y": 608.0
+			},
+			"design_scroll": {
+				"x": 3249.9033203125,
+				"y": 608.0
+			},
+			"display_scroll": {
+				"x": 3772.4033203125,
+				"y": 912.0
+			},
+			"layout_mode": "center",
+			"row_in_column": 2,
+			"segment_index": 1,
+			"slot_id": "bg2_c2_r2_n4"
+		},
+		{
+			"background_label": "bg_2",
+			"column_index": 2,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 1045.0,
+				"y": 838.0
+			},
+			"design_scroll": {
+				"x": 3249.9033203125,
+				"y": 838.0
+			},
+			"display_scroll": {
+				"x": 3772.4033203125,
+				"y": 1257.0
+			},
+			"layout_mode": "center",
+			"row_in_column": 3,
+			"segment_index": 1,
+			"slot_id": "bg2_c2_r3_n4"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 0,
+			"column_item_count": 1,
+			"design_local": {
+				"x": 918.753845214844,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 5368.16015625,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 5827.537109375,
+				"y": 739.5
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 0,
+			"segment_index": 2,
+			"slot_id": "bg3_c0_r0_n1"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 0,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 918.753845214844,
+				"y": 263.0
+			},
+			"design_scroll": {
+				"x": 5368.16015625,
+				"y": 263.0
+			},
+			"display_scroll": {
+				"x": 5827.537109375,
+				"y": 394.5
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 0,
+			"segment_index": 2,
+			"slot_id": "bg3_c0_r0_n2"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 0,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 918.753845214844,
+				"y": 723.0
+			},
+			"design_scroll": {
+				"x": 5368.16015625,
+				"y": 723.0
+			},
+			"display_scroll": {
+				"x": 5827.537109375,
+				"y": 1084.5
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 1,
+			"segment_index": 2,
+			"slot_id": "bg3_c0_r1_n2"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 0,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 918.753845214844,
+				"y": 205.5
+			},
+			"design_scroll": {
+				"x": 5368.16015625,
+				"y": 205.5
+			},
+			"display_scroll": {
+				"x": 5827.537109375,
+				"y": 308.25
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 0,
+			"segment_index": 2,
+			"slot_id": "bg3_c0_r0_n3"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 0,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 918.753845214844,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 5368.16015625,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 5827.537109375,
+				"y": 739.5
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 1,
+			"segment_index": 2,
+			"slot_id": "bg3_c0_r1_n3"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 0,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 918.753845214844,
+				"y": 780.5
+			},
+			"design_scroll": {
+				"x": 5368.16015625,
+				"y": 780.5
+			},
+			"display_scroll": {
+				"x": 5827.537109375,
+				"y": 1170.75
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 2,
+			"segment_index": 2,
+			"slot_id": "bg3_c0_r2_n3"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 0,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 918.753845214844,
+				"y": 148.0
+			},
+			"design_scroll": {
+				"x": 5368.16015625,
+				"y": 148.0
+			},
+			"display_scroll": {
+				"x": 5827.537109375,
+				"y": 222.0
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 0,
+			"segment_index": 2,
+			"slot_id": "bg3_c0_r0_n4"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 0,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 918.753845214844,
+				"y": 378.0
+			},
+			"design_scroll": {
+				"x": 5368.16015625,
+				"y": 378.0
+			},
+			"display_scroll": {
+				"x": 5827.537109375,
+				"y": 567.0
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 1,
+			"segment_index": 2,
+			"slot_id": "bg3_c0_r1_n4"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 0,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 918.753845214844,
+				"y": 608.0
+			},
+			"design_scroll": {
+				"x": 5368.16015625,
+				"y": 608.0
+			},
+			"display_scroll": {
+				"x": 5827.537109375,
+				"y": 912.0
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 2,
+			"segment_index": 2,
+			"slot_id": "bg3_c0_r2_n4"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 0,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 918.753845214844,
+				"y": 838.0
+			},
+			"design_scroll": {
+				"x": 5368.16015625,
+				"y": 838.0
+			},
+			"display_scroll": {
+				"x": 5827.537109375,
+				"y": 1257.0
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 3,
+			"segment_index": 2,
+			"slot_id": "bg3_c0_r3_n4"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 1,
+			"column_item_count": 1,
+			"design_local": {
+				"x": 528.753845214844,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 4978.16015625,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 5242.537109375,
+				"y": 739.5
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 0,
+			"segment_index": 2,
+			"slot_id": "bg3_c1_r0_n1"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 1,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 528.753845214844,
+				"y": 263.0
+			},
+			"design_scroll": {
+				"x": 4978.16015625,
+				"y": 263.0
+			},
+			"display_scroll": {
+				"x": 5242.537109375,
+				"y": 394.5
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 0,
+			"segment_index": 2,
+			"slot_id": "bg3_c1_r0_n2"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 1,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 528.753845214844,
+				"y": 723.0
+			},
+			"design_scroll": {
+				"x": 4978.16015625,
+				"y": 723.0
+			},
+			"display_scroll": {
+				"x": 5242.537109375,
+				"y": 1084.5
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 1,
+			"segment_index": 2,
+			"slot_id": "bg3_c1_r1_n2"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 1,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 528.753845214844,
+				"y": 205.5
+			},
+			"design_scroll": {
+				"x": 4978.16015625,
+				"y": 205.5
+			},
+			"display_scroll": {
+				"x": 5242.537109375,
+				"y": 308.25
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 0,
+			"segment_index": 2,
+			"slot_id": "bg3_c1_r0_n3"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 1,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 528.753845214844,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 4978.16015625,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 5242.537109375,
+				"y": 739.5
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 1,
+			"segment_index": 2,
+			"slot_id": "bg3_c1_r1_n3"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 1,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 528.753845214844,
+				"y": 780.5
+			},
+			"design_scroll": {
+				"x": 4978.16015625,
+				"y": 780.5
+			},
+			"display_scroll": {
+				"x": 5242.537109375,
+				"y": 1170.75
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 2,
+			"segment_index": 2,
+			"slot_id": "bg3_c1_r2_n3"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 1,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 528.753845214844,
+				"y": 148.0
+			},
+			"design_scroll": {
+				"x": 4978.16015625,
+				"y": 148.0
+			},
+			"display_scroll": {
+				"x": 5242.537109375,
+				"y": 222.0
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 0,
+			"segment_index": 2,
+			"slot_id": "bg3_c1_r0_n4"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 1,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 528.753845214844,
+				"y": 378.0
+			},
+			"design_scroll": {
+				"x": 4978.16015625,
+				"y": 378.0
+			},
+			"display_scroll": {
+				"x": 5242.537109375,
+				"y": 567.0
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 1,
+			"segment_index": 2,
+			"slot_id": "bg3_c1_r1_n4"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 1,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 528.753845214844,
+				"y": 608.0
+			},
+			"design_scroll": {
+				"x": 4978.16015625,
+				"y": 608.0
+			},
+			"display_scroll": {
+				"x": 5242.537109375,
+				"y": 912.0
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 2,
+			"segment_index": 2,
+			"slot_id": "bg3_c1_r2_n4"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 1,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 528.753845214844,
+				"y": 838.0
+			},
+			"design_scroll": {
+				"x": 4978.16015625,
+				"y": 838.0
+			},
+			"display_scroll": {
+				"x": 5242.537109375,
+				"y": 1257.0
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 3,
+			"segment_index": 2,
+			"slot_id": "bg3_c1_r3_n4"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 2,
+			"column_item_count": 1,
+			"design_local": {
+				"x": 138.753829956055,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 4588.16015625,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 4657.537109375,
+				"y": 739.5
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 0,
+			"segment_index": 2,
+			"slot_id": "bg3_c2_r0_n1"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 2,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 138.753829956055,
+				"y": 263.0
+			},
+			"design_scroll": {
+				"x": 4588.16015625,
+				"y": 263.0
+			},
+			"display_scroll": {
+				"x": 4657.537109375,
+				"y": 394.5
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 0,
+			"segment_index": 2,
+			"slot_id": "bg3_c2_r0_n2"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 2,
+			"column_item_count": 2,
+			"design_local": {
+				"x": 138.753829956055,
+				"y": 723.0
+			},
+			"design_scroll": {
+				"x": 4588.16015625,
+				"y": 723.0
+			},
+			"display_scroll": {
+				"x": 4657.537109375,
+				"y": 1084.5
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 1,
+			"segment_index": 2,
+			"slot_id": "bg3_c2_r1_n2"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 2,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 138.753829956055,
+				"y": 205.5
+			},
+			"design_scroll": {
+				"x": 4588.16015625,
+				"y": 205.5
+			},
+			"display_scroll": {
+				"x": 4657.537109375,
+				"y": 308.25
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 0,
+			"segment_index": 2,
+			"slot_id": "bg3_c2_r0_n3"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 2,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 138.753829956055,
+				"y": 493.0
+			},
+			"design_scroll": {
+				"x": 4588.16015625,
+				"y": 493.0
+			},
+			"display_scroll": {
+				"x": 4657.537109375,
+				"y": 739.5
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 1,
+			"segment_index": 2,
+			"slot_id": "bg3_c2_r1_n3"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 2,
+			"column_item_count": 3,
+			"design_local": {
+				"x": 138.753829956055,
+				"y": 780.5
+			},
+			"design_scroll": {
+				"x": 4588.16015625,
+				"y": 780.5
+			},
+			"display_scroll": {
+				"x": 4657.537109375,
+				"y": 1170.75
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 2,
+			"segment_index": 2,
+			"slot_id": "bg3_c2_r2_n3"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 2,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 138.753829956055,
+				"y": 148.0
+			},
+			"design_scroll": {
+				"x": 4588.16015625,
+				"y": 148.0
+			},
+			"display_scroll": {
+				"x": 4657.537109375,
+				"y": 222.0
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 0,
+			"segment_index": 2,
+			"slot_id": "bg3_c2_r0_n4"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 2,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 138.753829956055,
+				"y": 378.0
+			},
+			"design_scroll": {
+				"x": 4588.16015625,
+				"y": 378.0
+			},
+			"display_scroll": {
+				"x": 4657.537109375,
+				"y": 567.0
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 1,
+			"segment_index": 2,
+			"slot_id": "bg3_c2_r1_n4"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 2,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 138.753829956055,
+				"y": 608.0
+			},
+			"design_scroll": {
+				"x": 4588.16015625,
+				"y": 608.0
+			},
+			"display_scroll": {
+				"x": 4657.537109375,
+				"y": 912.0
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 2,
+			"segment_index": 2,
+			"slot_id": "bg3_c2_r2_n4"
+		},
+		{
+			"background_label": "bg_3",
+			"column_index": 2,
+			"column_item_count": 4,
+			"design_local": {
+				"x": 138.753829956055,
+				"y": 838.0
+			},
+			"design_scroll": {
+				"x": 4588.16015625,
+				"y": 838.0
+			},
+			"display_scroll": {
+				"x": 4657.537109375,
+				"y": 1257.0
+			},
+			"layout_mode": "mirror",
+			"row_in_column": 3,
+			"segment_index": 2,
+			"slot_id": "bg3_c2_r3_n4"
+		}
+	],
+	"tech_item_display_height_design": 190.0,
+	"tech_item_group_offset": {
+		"x": 85.0,
+		"y": 18.0
+	},
+	"version": 1
+}
