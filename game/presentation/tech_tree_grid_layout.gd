@@ -276,22 +276,30 @@ static func segment_local_grid_position_resolved(
 ) -> Vector2:
 	var local: Vector2 = segment_local_grid_position(col, row_in_column, column_item_count)
 	var resolved: Vector2 = local
-	if mirror_grid and segment_index < segment_display_widths.size():
+	if segment_index < segment_display_widths.size():
 		var seg_design_w: float = segment_design_width_from_display(
 			float(segment_display_widths[segment_index]),
 			viewport_height,
 		)
 		var right_inset: float = mirror_right_inset_design_for_segment(segment_index)
-		var mirrored: Vector2 = mirror_local_grid_position(local, seg_design_w, right_inset)
 		var reduce_fraction: float = mirror_left_margin_reduce_fraction_for_segment(
 			segment_index,
 		)
-		var shift: float = mirror_left_margin_shift_design(
-			seg_design_w,
-			right_inset,
-			reduce_fraction,
-		)
-		resolved = Vector2(mirrored.x - shift, mirrored.y)
+		if mirror_grid:
+			var mirrored: Vector2 = mirror_local_grid_position(local, seg_design_w, right_inset)
+			var shift: float = mirror_left_margin_shift_design(
+				seg_design_w,
+				right_inset,
+				reduce_fraction,
+			)
+			resolved = Vector2(mirrored.x - shift, mirrored.y)
+		elif reduce_fraction > 0.0:
+			var shift: float = mirror_left_margin_shift_design(
+				seg_design_w,
+				right_inset,
+				reduce_fraction,
+			)
+			resolved = Vector2(local.x - shift, local.y)
 	var x_offset: float = grid_x_offset_design_for_segment(
 		segment_index,
 		segment_display_widths,

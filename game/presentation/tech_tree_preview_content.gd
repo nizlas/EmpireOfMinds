@@ -1,6 +1,8 @@
-# Prototype tech-tree preview item content + per-segment column layout (presentation only).
+# Prototype tech-tree preview item content (presentation only).
 class_name TechTreePreviewContent
 extends RefCounted
+
+const NodeLayoutScript = preload("res://presentation/tech_tree_node_layout.gd")
 
 const ICON_DIR: String = "res://assets/prototype/tech_tree/"
 const STONE_TOOLS_ID: String = "stone_tools"
@@ -241,114 +243,9 @@ const TECH_BY_ID: Dictionary = {
 	},
 }
 
-## Per-segment column layout. Empty columns (count 0) render no items.
-const SEGMENT_LAYOUTS: Array = [
-	{
-		"segment_index": 0,
-		"columns": [
-			{
-				"count": 4,
-				"tech_ids": [
-					"foraging_systems",
-					"controlled_fire",
-					"animal_tracking",
-					"pottery_craft",
-				],
-			},
-			{
-				"count": 2,
-				"tech_ids": ["basic_mining", STONE_TOOLS_ID],
-			},
-			{
-				"count": 3,
-				"tech_ids": ["textile_work", "agrarian_practice", "pastoral_herding"],
-			},
-		],
-	},
-	{
-		"segment_index": 1,
-		"columns": [
-			{
-				"count": 4,
-				"tech_ids": [
-					"river_irrigation",
-					"fishing_methods",
-					"oral_surveying",
-					"seasonal_calendars",
-				],
-			},
-			{
-				"count": 4,
-				"tech_ids": [
-					"timber_working",
-					"mudbrick_construction",
-					"counting_marks",
-					"glyphic_records",
-				],
-			},
-			{
-				"count": 3,
-				"tech_ids": ["bronze_alloying", "wheelwrighting", "simple_levers"],
-			},
-		],
-	},
-	{
-		"segment_index": 2,
-		"columns": [
-			{"count": 0, "tech_ids": []},
-			{"count": 0, "tech_ids": []},
-			{
-				"count": 1,
-				"layout": "single_final",
-				"tech_ids": [EXOPLANET_EXPEDITION_ID],
-			},
-		],
-	},
-]
 
-
-static func segment_layout(segment_index: int) -> Dictionary:
-	var i: int = 0
-	while i < SEGMENT_LAYOUTS.size():
-		var layout: Dictionary = SEGMENT_LAYOUTS[i]
-		if int(layout.get("segment_index", -1)) == segment_index:
-			return layout
-		i += 1
-	return {}
-
-
-static func columns_for_segment(segment_index: int) -> Array:
-	var layout: Dictionary = segment_layout(segment_index)
-	return layout.get("columns", []) as Array
-
-
-static func column_layout_count(segment_index: int, col: int) -> int:
-	var columns: Array = columns_for_segment(segment_index)
-	if col < 0 or col >= columns.size():
-		return 0
-	return int((columns[col] as Dictionary).get("count", 0))
-
-
-static func column_spec(segment_index: int, col: int) -> Dictionary:
-	var columns: Array = columns_for_segment(segment_index)
-	if col < 0 or col >= columns.size():
-		return {}
-	return columns[col] as Dictionary
-
-
-static func tech_id_for_placement(
-	segment_index: int,
-	col: int,
-	row_in_column: int,
-) -> String:
-	var spec: Dictionary = column_spec(segment_index, col)
-	var layout_count: int = int(spec.get("count", 0))
-	if layout_count <= 0:
-		return ""
-	var tech_ids: Array = spec.get("tech_ids", []) as Array
-	if row_in_column < 0 or row_in_column >= tech_ids.size():
-		return ""
-	return str(tech_ids[row_in_column])
+static func prototype_nodes() -> Array[Dictionary]:
+	return NodeLayoutScript.prototype_nodes(TECH_BY_ID)
 
 
 static func tech_by_id(tech_id: String) -> Dictionary:
@@ -358,19 +255,8 @@ static func tech_by_id(tech_id: String) -> Dictionary:
 	return {}
 
 
-static func placement_key(segment_index: int, col: int, row_in_column: int) -> String:
-	return "%d_%d_%d" % [segment_index, col, row_in_column]
-
-
-static func content_for_placement(
-	segment_index: int,
-	col: int,
-	row_in_column: int,
-) -> Dictionary:
-	var tech_id: String = tech_id_for_placement(segment_index, col, row_in_column)
-	if tech_id.is_empty():
-		return {}
-	return tech_by_id(tech_id)
+static func node_layout_for_tech_id(tech_id: String) -> Dictionary:
+	return NodeLayoutScript.layout_for_tech_id(tech_id, TECH_BY_ID)
 
 
 static func body_text_from_content(content: Dictionary) -> String:
@@ -383,72 +269,40 @@ static func body_text_from_content(content: Dictionary) -> String:
 	return "\n".join(lines)
 
 
-static func items_in_segment(segment_index: int) -> int:
-	var total: int = 0
-	var columns: Array = columns_for_segment(segment_index)
-	var col: int = 0
-	while col < columns.size():
-		var spec: Dictionary = columns[col] as Dictionary
-		total += int(spec.get("tech_ids", []).size())
-		col += 1
-	return total
-
-
 static func total_item_count() -> int:
-	var total: int = 0
-	var i: int = 0
-	while i < SEGMENT_LAYOUTS.size():
-		total += items_in_segment(int(SEGMENT_LAYOUTS[i]["segment_index"]))
-		i += 1
-	return total
+	return NodeLayoutScript.total_node_count()
 
 
 static func all_placements() -> Array[Vector3i]:
 	var out: Array[Vector3i] = []
+	var nodes: Array[Dictionary] = prototype_nodes()
 	var i: int = 0
-	while i < SEGMENT_LAYOUTS.size():
-		var layout: Dictionary = SEGMENT_LAYOUTS[i]
-		var segment_index: int = int(layout.get("segment_index", -1))
-		var columns: Array = layout.get("columns", []) as Array
-		var col: int = 0
-		while col < columns.size():
-			var spec: Dictionary = columns[col] as Dictionary
-			var tech_ids: Array = spec.get("tech_ids", []) as Array
-			var row: int = 0
-			while row < tech_ids.size():
-				out.append(Vector3i(segment_index, col, row))
-				row += 1
-			col += 1
+	while i < nodes.size():
+		var node: Dictionary = nodes[i]
+		out.append(Vector3i(int(node["column"]), int(node["row"]), 0))
 		i += 1
 	return out
 
 
+static func content_for_grid(column: int, row: int) -> Dictionary:
+	var nodes: Array[Dictionary] = prototype_nodes()
+	var i: int = 0
+	while i < nodes.size():
+		var node: Dictionary = nodes[i]
+		if int(node["column"]) == column and int(node["row"]) == row:
+			return node["content"] as Dictionary
+		i += 1
+	return {}
+
+
 static func stone_tools_placement() -> Vector3i:
-	return Vector3i(0, 1, 1)
+	var layout: Dictionary = NodeLayoutScript.layout_for_title("Stone Tools")
+	return Vector3i(int(layout["column"]), int(layout["row"]), 0)
 
 
 static func exoplanet_placement() -> Vector3i:
-	return Vector3i(2, 2, 0)
-
-
-static func final_batch_tech_titles() -> Array[String]:
-	return [
-		"Glyphic Records",
-		"Bronze Alloying",
-		"Wheelwrighting",
-		"Simple Levers",
-		"Exoplanet Expedition",
-	]
-
-
-static func final_batch_placements() -> Array[Vector3i]:
-	return [
-		Vector3i(1, 1, 3),
-		Vector3i(1, 2, 0),
-		Vector3i(1, 2, 1),
-		Vector3i(1, 2, 2),
-		Vector3i(2, 2, 0),
-	]
+	var layout: Dictionary = NodeLayoutScript.layout_for_title("Exoplanet Expedition")
+	return Vector3i(int(layout["column"]), int(layout["row"]), 0)
 
 
 static func all_tech_ids() -> Array[String]:

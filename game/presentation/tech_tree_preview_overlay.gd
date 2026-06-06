@@ -9,6 +9,8 @@ const SEGMENT_PATHS: Array[String] = [
 ]
 const GridLayoutScript = preload("res://presentation/tech_tree_grid_layout.gd")
 const ContentScript = preload("res://presentation/tech_tree_preview_content.gd")
+const NodeLayoutScript = preload("res://presentation/tech_tree_node_layout.gd")
+const DependencyLinesScript = preload("res://presentation/tech_tree_dependency_lines.gd")
 const TECH_ITEM_PATH: String = "res://assets/prototype/tech_tree/tech_item.png"
 const STONE_TOOLS_PATH: String = "res://assets/prototype/tech_tree/stone_tools.png"
 const TECH_COLUMN_COUNT: int = GridLayoutScript.COLUMN_COUNT
@@ -57,8 +59,11 @@ var _scroll: ScrollContainer
 var _scroll_content: Control
 var _segment_row: HBoxContainer
 var _tech_item_tex: Texture2D
+var _dependency_lines: Control
 var _tech_items: Array[TextureRect] = []
+## Canonical grid placement: x=column (1..9), y=row (1..4), z unused.
 var _tech_item_placements: Array[Vector3i] = []
+var _tech_item_ids: Array[String] = []
 var _segment_display_widths: Array[float] = []
 
 
@@ -202,8 +207,8 @@ static func column_layout(count: int) -> Array:
 	return GridLayoutScript.column_layout(count)
 
 
-static func prototype_column_spec_count(col: int, segment_index: int = 0) -> int:
-	return ContentScript.column_layout_count(segment_index, col)
+static func prototype_column_spec_count(_col: int, _segment_index: int = 0) -> int:
+	return NodeLayoutScript.CANONICAL_ROW_COUNT
 
 
 static func prototype_segment_spec_count() -> int:
@@ -259,7 +264,16 @@ static func grid_x_offset_design_for_segment(
 
 
 static func items_per_segment(segment_index: int = 0) -> int:
-	return ContentScript.items_in_segment(segment_index)
+	var total: int = 0
+	var nodes: Array[Dictionary] = ContentScript.prototype_nodes()
+	var i: int = 0
+	while i < nodes.size():
+		var node: Dictionary = nodes[i]
+		var column: int = int(node["column"])
+		if NodeLayoutScript.segment_index_for_column(column) == segment_index:
+			total += 1
+		i += 1
+	return total
 
 
 static func grid_content_width_scaled(viewport_height: float = -1.0) -> float:
@@ -394,11 +408,25 @@ static func tech_item_count() -> int:
 
 
 static func prototype_content_for_placement(
-	segment_index: int,
-	col: int,
-	row_in_column: int,
+	_column: int,
+	row: int,
+	_unused: int = 0,
 ) -> Dictionary:
-	return ContentScript.content_for_placement(segment_index, col, row_in_column)
+	return ContentScript.content_for_grid(_column, row)
+
+
+static func tech_item_position_for_grid_node(
+	column: int,
+	row: int,
+	segment_display_widths: Array = [],
+	viewport_height: float = -1.0,
+) -> Vector2:
+	return NodeLayoutScript.tech_item_position_for_node(
+		column,
+		row,
+		segment_display_widths,
+		viewport_height,
+	)
 
 
 func _build_ui() -> void:
@@ -459,58 +487,47 @@ func _build_ui() -> void:
 		configure_scaled_texture_filter(seg)
 		_segment_row.add_child(seg)
 		i += 1
+	_dependency_lines = DependencyLinesScript.new()
+	_dependency_lines.name = "DependencyLines"
+	_dependency_lines.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_scroll_content.add_child(_dependency_lines)
 	_tech_item_tex = load(TECH_ITEM_PATH) as Texture2D
-	_build_tech_columns()
+	_build_tech_nodes()
 	_rebuild_segment_sizes()
 
 
-func _build_tech_columns() -> void:
+func _build_tech_nodes() -> void:
 	_tech_items.clear()
 	_tech_item_placements.clear()
+	_tech_item_ids.clear()
+	var nodes: Array[Dictionary] = ContentScript.prototype_nodes()
 	var item_index: int = 0
-	var segment_slot: int = 0
-	while segment_slot < prototype_segment_spec_count():
-		var segment_index: int = prototype_segment_index(segment_slot)
-		var center_grid: bool = prototype_segment_center_grid(segment_slot)
-		var mirror_grid: bool = prototype_segment_mirror_grid(segment_slot)
-		var columns: Array = ContentScript.columns_for_segment(segment_index)
-		var col: int = 0
-		while col < columns.size():
-			var col_spec: Dictionary = columns[col] as Dictionary
-			var layout_count: int = int(col_spec.get("count", 0))
-			var tech_ids: Array = col_spec.get("tech_ids", []) as Array
-			if layout_count <= 0 or tech_ids.is_empty():
-				col += 1
-				continue
-			var row_in_column: int = 0
-			while row_in_column < tech_ids.size():
-				var content: Dictionary = ContentScript.tech_by_id(str(tech_ids[row_in_column]))
-				if content.is_empty():
-					row_in_column += 1
-					continue
-				var pos: Vector2 = tech_item_position(
-					segment_index,
-					col,
-					row_in_column,
-					_segment_display_widths,
-					layout_count,
-					center_grid,
-					mirror_grid,
-				)
-				var icon_tex: Texture2D = load(str(content["icon_path"])) as Texture2D
-				var item: TextureRect = _create_tech_item_at_with_content(
-					pos,
-					content,
-					icon_tex,
-					item_index,
-				)
-				_scroll_content.add_child(item)
-				_tech_items.append(item)
-				_tech_item_placements.append(Vector3i(segment_index, col, row_in_column))
-				item_index += 1
-				row_in_column += 1
-			col += 1
-		segment_slot += 1
+	var i: int = 0
+	while i < nodes.size():
+		var node: Dictionary = nodes[i]
+		var tech_id: String = str(node["tech_id"])
+		var column: int = int(node["column"])
+		var row: int = int(node["row"])
+		var content: Dictionary = node["content"] as Dictionary
+		var pos: Vector2 = tech_item_position_for_grid_node(
+			column,
+			row,
+			_segment_display_widths,
+		)
+		var icon_tex: Texture2D = load(str(content["icon_path"])) as Texture2D
+		var item: TextureRect = _create_tech_item_at_with_content(
+			pos,
+			content,
+			icon_tex,
+			item_index,
+		)
+		item.z_index = 2
+		_scroll_content.add_child(item)
+		_tech_items.append(item)
+		_tech_item_placements.append(Vector3i(column, row, 0))
+		_tech_item_ids.append(tech_id)
+		item_index += 1
+		i += 1
 
 
 func _create_tech_item_at_with_content(
@@ -600,6 +617,7 @@ func _rebuild_segment_sizes() -> void:
 		_scroll_content.custom_minimum_size = Vector2(total_w, display_h)
 		_scroll_content.size = Vector2(total_w, display_h)
 	_layout_tech_items()
+	_layout_dependency_lines()
 
 
 func _layout_tech_items() -> void:
@@ -613,23 +631,15 @@ func _layout_tech_items() -> void:
 	var i: int = 0
 	while i < _tech_items.size():
 		var placement: Vector3i = _tech_item_placements[i]
-		var segment_index: int = placement.x
-		var col: int = placement.y
-		var row_in_column: int = placement.z
-		var center_grid: bool = _segment_center_grid_for_index(segment_index)
-		var mirror_grid: bool = _segment_mirror_grid_for_index(segment_index)
+		var column: int = placement.x
+		var row: int = placement.y
 		var item: TextureRect = _tech_items[i]
 		item.custom_minimum_size = item_size
 		item.size = item_size
-		var layout_count: int = ContentScript.column_layout_count(segment_index, col)
-		item.position = tech_item_position(
-			segment_index,
-			col,
-			row_in_column,
+		item.position = tech_item_position_for_grid_node(
+			column,
+			row,
 			_segment_display_widths,
-			layout_count,
-			center_grid,
-			mirror_grid,
 			viewport_h,
 		)
 		var icon: TextureRect = item.get_node_or_null("TechIcon") as TextureRect
@@ -637,6 +647,30 @@ func _layout_tech_items() -> void:
 			_layout_icon_on_item(item, icon)
 		_layout_labels_on_item(item)
 		i += 1
+
+
+func _layout_dependency_lines() -> void:
+	if _dependency_lines == null:
+		return
+	var viewport_h: float = get_viewport_rect().size.y
+	var rects_by_title: Dictionary = {}
+	var i: int = 0
+	while i < _tech_items.size():
+		var item: TextureRect = _tech_items[i]
+		var content: Dictionary = ContentScript.tech_by_id(_tech_item_ids[i])
+		var title: String = str(content.get("title", ""))
+		if not title.is_empty():
+			rects_by_title[title] = Rect2(item.position, item.size)
+		i += 1
+	var polylines: Array = NodeLayoutScript.build_dependency_polylines(
+		rects_by_title,
+		_segment_display_widths,
+		viewport_h,
+	)
+	_dependency_lines.position = Vector2.ZERO
+	_dependency_lines.size = _scroll_content.size
+	_dependency_lines.z_index = 1
+	_dependency_lines.set_polylines(polylines)
 
 
 func _segment_center_grid_for_index(segment_index: int) -> bool:

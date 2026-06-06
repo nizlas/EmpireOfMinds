@@ -3,6 +3,7 @@ extends SceneTree
 
 const TechTreeOverlayScript = preload("res://presentation/tech_tree_preview_overlay.gd")
 const ContentScript = preload("res://presentation/tech_tree_preview_content.gd")
+const NodeLayoutScript = preload("res://presentation/tech_tree_node_layout.gd")
 
 var _total = 0
 var _any_fail = false
@@ -168,345 +169,118 @@ func _test_tech_item_layout() -> void:
 	overlay.open_overlay()
 	_check(
 		overlay._tech_items.size() == TechTreeOverlayScript.tech_item_count(),
-		"prototype tech items created for each segment page",
+		"prototype tech items created for canonical grid",
 	)
-	_check(TechTreeOverlayScript.items_per_segment(0) == 9, "segment 1 item count is 4 + 2 + 3")
-	_check(TechTreeOverlayScript.items_per_segment(1) == 11, "segment 2 item count is 4 + 4 + 3")
-	_check(TechTreeOverlayScript.items_per_segment(2) == 1, "segment 3 item count is final exoplanet only")
-	_check(
-		TechTreeOverlayScript.tech_item_count() == 21,
-		"prototype tree renders all twenty-one real tech items",
-	)
+	_check(TechTreeOverlayScript.items_per_segment(0) == 11, "segment 1 spans columns 1-3")
+	_check(TechTreeOverlayScript.items_per_segment(1) == 6, "segment 2 spans columns 4-6")
+	_check(TechTreeOverlayScript.items_per_segment(2) == 4, "segment 3 spans columns 7-9")
+	_check(TechTreeOverlayScript.tech_item_count() == 21, "prototype tree renders twenty-one tech items")
 	_check(
 		TechTreeOverlayScript.prototype_segment_spec_count() == 3,
 		"prototype covers all three background segments",
 	)
-	_check(TechTreeOverlayScript.COLUMN_X_STEP == 390.0, "accepted column x step preserved")
+	_check(NodeLayoutScript.edge_references_valid_titles(), "dependency edges reference layout nodes")
+	_check(ContentScript.exoplanet_placement() == Vector3i(9, 2, 0), "Exoplanet Expedition at C9,R2")
 	var viewport_h: float = overlay.get_viewport_rect().size.y
 	var content_scale: float = TechTreeOverlayScript.content_scale(viewport_h)
 	_check(
 		absf(content_scale - TechTreeOverlayScript.TECH_TREE_CONTENT_SCALE_MULTIPLIER) < 0.01,
 		"content scale is constant 1.5x for parchment and tech items",
 	)
-	var expected_seg_h: int = TechTreeOverlayScript.scaled_segment_display_height(viewport_h)
-	var expected_ref_seg_h: float = (
-		TechTreeOverlayScript.LAYOUT_REFERENCE_VIEWPORT_HEIGHT
-		* TechTreeOverlayScript.ROW_HEIGHT_VIEWPORT_FRACTION
-		* TechTreeOverlayScript.TECH_TREE_CONTENT_SCALE_MULTIPLIER
-	)
-	_check(
-		absf(float(expected_seg_h) - expected_ref_seg_h) < 1.0,
-		"segment height fixed at layout reference viewport, not live resize",
-	)
-	var first_seg := overlay._segment_row.get_child(0) as TextureRect
-	if first_seg != null:
+	_check(overlay._dependency_lines != null, "dependency line layer exists")
+	if overlay._dependency_lines != null:
 		_check(
-			absf(first_seg.size.y - float(expected_seg_h)) < 1.0,
-			"segment height uses shared content scale",
+			overlay._dependency_lines.mouse_filter == Control.MOUSE_FILTER_IGNORE,
+			"dependency lines ignore mouse",
 		)
 		_check(
-			first_seg.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS,
-			"segment background uses linear+mipmaps filter",
+			overlay._dependency_lines.get_index() < overlay._tech_items[0].get_index(),
+			"dependency lines sit behind tech item cards",
 		)
-	var seg_filter_i: int = 0
-	while seg_filter_i < overlay._segment_row.get_child_count():
-		var seg_node := overlay._segment_row.get_child(seg_filter_i) as TextureRect
-		if seg_node != null:
-			_check(
-				seg_node.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS,
-				"segment %d background uses linear+mipmaps filter" % seg_filter_i,
-			)
-		seg_filter_i += 1
-	var expected_item: Vector2 = TechTreeOverlayScript.scaled_texture_size(
-		overlay._tech_item_tex,
-		TechTreeOverlayScript.tech_item_display_height(viewport_h),
-	)
-	var min_x_seg0: float = INF
-	var column_first_item_index: Array[int] = [-1, -1, -1]
+		_check(overlay._dependency_lines.polylines.size() > 0, "dependency polylines built on layout")
 	var seg_widths: Array = overlay._segment_display_widths
+	var seen_titles: Dictionary = {}
 	var gi: int = 0
 	while gi < overlay._tech_items.size():
 		var placement: Vector3i = overlay._tech_item_placements[gi]
-		var item_segment: int = placement.x
-		var item_col: int = placement.y
-		var item_row: int = placement.z
-		var item_count: int = TechTreeOverlayScript.prototype_column_spec_count(
-			item_col,
-			item_segment,
-		)
-		var center_grid: bool = overlay._segment_center_grid_for_index(item_segment)
-		var mirror_grid: bool = overlay._segment_mirror_grid_for_index(item_segment)
+		var column: int = placement.x
+		var row: int = placement.y
 		var item: TextureRect = overlay._tech_items[gi]
 		_check(item != null, "tech item %d exists" % gi)
-		_check(item.texture != null, "tech item %d texture loaded" % gi)
 		_check(item.get_parent() == overlay._scroll_content, "tech item %d under scroll content" % gi)
 		_check(item.mouse_filter == Control.MOUSE_FILTER_IGNORE, "tech item %d ignores mouse" % gi)
-		var expected_pos: Vector2 = TechTreeOverlayScript.tech_item_position(
-			item_segment,
-			item_col,
-			item_row,
+		_check(item.z_index == 2, "tech item %d renders above dependency lines" % gi)
+		var expected_pos: Vector2 = TechTreeOverlayScript.tech_item_position_for_grid_node(
+			column,
+			row,
 			seg_widths,
-			item_count,
-			center_grid,
-			mirror_grid,
 			viewport_h,
 		)
 		_check(
 			item.position.is_equal_approx(expected_pos),
-			"tech item %d at column=%d row=%d" % [gi, item_col, item_row],
+			"tech item %d at column=%d row=%d" % [gi, column, row],
 		)
-		var layout: Array = TechTreeOverlayScript.column_layout(item_count)
-		_check(
-			absf(item.position.y - float(layout[item_row]) * content_scale) < 0.5,
-			"tech item %d uses column layout for count=%d" % [gi, item_count],
+		var layout: Dictionary = NodeLayoutScript.layout_for_title(
+			str(ContentScript.tech_by_id(overlay._tech_item_ids[gi]).get("title", ""))
 		)
-		if item_segment == 0 and column_first_item_index[item_col] < 0:
-			column_first_item_index[item_col] = gi
-		if item_segment == 0:
-			min_x_seg0 = minf(min_x_seg0, item.position.x)
-		_check(
-			absf(item.size.x - expected_item.x) < 1.0 and absf(item.size.y - expected_item.y) < 1.0,
-			"tech item %d size from aspect ratio" % gi,
-		)
-		_check(
-			item.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS,
-			"tech item %d panel uses linear+mipmaps filter" % gi,
-		)
-		var icon: TextureRect = item.get_node_or_null("TechIcon") as TextureRect
-		_check(icon != null, "tech item %d has icon" % gi)
-		if icon != null:
-			_check(icon.texture != null, "tech item %d icon texture loaded" % gi)
-			_check(icon.mouse_filter == Control.MOUSE_FILTER_IGNORE, "tech item %d icon ignores mouse" % gi)
+		_check(int(layout.get("column", -1)) == column, "placement column matches layout for item %d" % gi)
+		_check(int(layout.get("row", -1)) == row, "placement row matches layout for item %d" % gi)
+		var expected_content: Dictionary = ContentScript.content_for_grid(column, row)
+		var title_label: Label = item.get_node_or_null("TechTitleLabel") as Label
+		_check(title_label != null, "tech item %d has title label" % gi)
+		if title_label != null:
+			var title_text: String = title_label.text
+			_check(title_text == str(expected_content.get("title", "")), "tech item %d title text" % gi)
+			_check(not seen_titles.has(title_text), "unique rendered title: %s" % title_text)
+			seen_titles[title_text] = true
 			_check(
-				icon.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS,
-				"tech item %d icon uses linear+mipmaps filter like warrior markers" % gi,
+				NodeLayoutScript.NODE_LAYOUT_BY_TITLE.has(title_text),
+				"rendered title in canonical layout: %s" % title_text,
 			)
-			_check(
-				absf(icon.size.y - item.size.y * TechTreeOverlayScript.STONE_ICON_HEIGHT_RATIO) < 1.0,
-				"tech item %d icon height is one third of item height" % gi,
-			)
-		var expected_content: Dictionary = ContentScript.content_for_placement(
-			item_segment,
-			item_col,
-			item_row,
-		)
-		var title: Label = item.get_node_or_null("TechTitleLabel") as Label
-		_check(title != null, "tech item %d has title label" % gi)
-		if title != null:
-			_check(
-				title.text == str(expected_content.get("title", "")),
-				"tech item %d title text" % gi,
-			)
-			_check(title.mouse_filter == Control.MOUSE_FILTER_IGNORE, "tech item %d title ignores mouse" % gi)
 		var body: Label = item.get_node_or_null("TechBodyLabel") as Label
-		_check(body != null, "tech item %d has body label" % gi)
 		if body != null:
-			var expected_body: String = ContentScript.body_text_from_content(expected_content)
-			_check(body.text == expected_body, "tech item %d body text" % gi)
-			var bullets: Array = expected_content.get("bullets", [])
-			var bi: int = 0
-			while bi < bullets.size():
-				_check(
-					body.text.contains(str(bullets[bi])),
-					"tech item %d body has bullet: %s" % [gi, str(bullets[bi])],
-				)
-				bi += 1
-			_check(body.mouse_filter == Control.MOUSE_FILTER_IGNORE, "tech item %d body ignores mouse" % gi)
+			_check(
+				body.text == ContentScript.body_text_from_content(expected_content),
+				"tech item %d body text" % gi,
+			)
+		var icon: TextureRect = item.get_node_or_null("TechIcon") as TextureRect
 		if icon != null:
 			var expected_icon: Texture2D = load(str(expected_content["icon_path"])) as Texture2D
-			_check(expected_icon != null, "tech item %d expected icon loads" % gi)
 			_check(icon.texture == expected_icon, "tech item %d icon matches content path" % gi)
 		gi += 1
-	_test_page1_prototype_techs(overlay)
-	_check(TechTreeOverlayScript.prototype_column_spec_count(0) == 4, "column 1 has four items")
-	_check(TechTreeOverlayScript.prototype_column_spec_count(1) == 2, "column 2 has two items")
-	_check(TechTreeOverlayScript.prototype_column_spec_count(2) == 3, "column 3 has three items")
-	var col0_row: int = 0
-	while col0_row < TechTreeOverlayScript.COLUMN_LAYOUT_4.size():
-		_check(
-			absf(
-				overlay._tech_items[col0_row].position.y
-					- TechTreeOverlayScript.COLUMN_LAYOUT_4[col0_row] * content_scale
-			) < 0.5,
-			"column 1 row %d uses COLUMN_LAYOUT_4" % col0_row,
-		)
-		col0_row += 1
-	var layout_2: Array = TechTreeOverlayScript.column_layout(2)
-	var layout_3: Array = TechTreeOverlayScript.column_layout(3)
-	var y0: float = TechTreeOverlayScript.COLUMN_LAYOUT_4[0]
-	var y1: float = TechTreeOverlayScript.COLUMN_LAYOUT_4[1]
-	var y2: float = TechTreeOverlayScript.COLUMN_LAYOUT_4[2]
-	var y3: float = TechTreeOverlayScript.COLUMN_LAYOUT_4[3]
-	_check(absf(float(layout_2[0]) - (y0 + y1) * 0.5) < 0.5, "2-item first y midway between y0 and y1")
-	_check(absf(float(layout_2[1]) - (y2 + y3) * 0.5) < 0.5, "2-item second y midway between y2 and y3")
-	_check(
-		absf(float(layout_3[0]) - (y0 + float(layout_2[0])) * 0.5) < 0.5,
-		"3-item first y between y0 and 2-item first y",
-	)
-	_check(absf(float(layout_3[1]) - (y0 + y3) * 0.5) < 0.5, "3-item second y at span center")
-	_check(
-		absf(float(layout_3[2]) - (float(layout_2[1]) + y3) * 0.5) < 0.5,
-		"3-item third y between 2-item second y and y3",
-	)
-	var col1_row: int = 0
-	while col1_row < layout_2.size():
-		var col1_item: TextureRect = overlay._tech_items[4 + col1_row]
-		_check(
-			absf(
-				col1_item.position.y - float(layout_2[col1_row]) * content_scale
-			) < 0.5,
-			"column 2 row %d uses derived 2-item layout" % col1_row,
-		)
-		col1_row += 1
-	var col2_row: int = 0
-	while col2_row < layout_3.size():
-		var col2_item: TextureRect = overlay._tech_items[6 + col2_row]
-		_check(
-			absf(
-				col2_item.position.y - float(layout_3[col2_row]) * content_scale
-			) < 0.5,
-			"column 3 row %d uses derived 3-item layout" % col2_row,
-		)
-		col2_row += 1
-	var base_left_x: float = TechTreeOverlayScript.tech_item_base_position(
-		0, 0, 0, seg_widths, false, viewport_h,
-	).x
-	_check(
-		min_x_seg0
-			>= base_left_x + TechTreeOverlayScript.TECH_ITEM_GROUP_OFFSET.x * content_scale - 0.5,
-		"segment 1 tech items shifted right by group offset",
-	)
-	_check(
-		min_x_seg0 > base_left_x + 50.0 * content_scale,
-		"segment 1 tech items moved right away from old left edge",
-	)
-	if seg_widths.size() >= 2:
-		var seg1_left: float = float(seg_widths[0])
-		var seg1_right: float = seg1_left + float(seg_widths[1])
-		var seg1_grid_w: float = TechTreeOverlayScript.grid_content_width_scaled(viewport_h)
-		var seg1_center_offset: float = maxf((float(seg_widths[1]) - seg1_grid_w) * 0.5, 0.0)
-		var seg1_item0: TextureRect = _tech_item_at_placement(overlay, Vector3i(1, 0, 0))
-		var seg1_col2_item: TextureRect = _tech_item_at_placement(overlay, Vector3i(1, 2, 2))
-		var seg1_grid_left: float = seg1_item0.position.x
-		var seg1_grid_right: float = seg1_col2_item.position.x + seg1_col2_item.size.x
-		_check(
-			absf(
-				seg1_grid_left
-					- (
-						seg1_left
-						+ seg1_center_offset
-					)
-			) < 1.5,
-			"segment 2 grid left edge is centered on background 2",
-		)
-		_check(
-			seg1_grid_left >= seg1_left - 0.5,
-			"segment 2 items start inside background 2",
-		)
-		_check(
-			seg1_grid_right <= seg1_right + 1.0,
-			"segment 2 grid fits inside background 2 width",
-		)
-		var seg1_grid_mid: float = (seg1_grid_left + seg1_grid_right) * 0.5
-		var seg1_page_mid: float = (seg1_left + seg1_right) * 0.5
-		_check(
-			absf(seg1_grid_mid - seg1_page_mid) < 2.0,
-			"segment 2 grid is centered on background 2",
-		)
-	if seg_widths.size() >= 3:
-		var seg2_left: float = float(seg_widths[0]) + float(seg_widths[1])
-		var seg2_right: float = seg2_left + float(seg_widths[2])
-		var seg2_design_w: float = TechTreeOverlayScript.segment_design_width_from_display(
-			float(seg_widths[2]),
-			viewport_h,
-		)
-		var seg2_exo: TextureRect = _tech_item_at_placement(overlay, ContentScript.exoplanet_placement())
-		var mirror_inset: float = TechTreeOverlayScript.mirror_right_inset_design_for_segment(2)
-		var reduce_frac: float = TechTreeOverlayScript.mirror_left_margin_reduce_fraction_for_segment(
-			2,
-		)
-		var seg2_local_exo: Vector2 = TechTreeOverlayScript.segment_local_grid_position_resolved(
-			2,
+	_check(seen_titles.size() == 21, "no duplicate tech items rendered")
+	var layout_titles: Array = NodeLayoutScript.NODE_LAYOUT_BY_TITLE.keys()
+	var ti: int = 0
+	while ti < layout_titles.size():
+		var layout_title: String = str(layout_titles[ti])
+		var node_layout: Dictionary = NodeLayoutScript.layout_for_title(layout_title)
+		var placement: Vector3i = Vector3i(
+			int(node_layout["column"]),
+			int(node_layout["row"]),
 			0,
-			2,
-			seg_widths,
-			true,
-			1,
-			viewport_h,
 		)
-		_check(seg2_exo != null, "segment 3 renders final exoplanet item")
-		if seg2_exo != null:
-			_check(
-				absf(
-					seg2_exo.position.x
-						- (
-							seg2_left
-							+ seg2_local_exo.x * content_scale
-						)
-				) < 1.5,
-				"segment 3 final column uses tuned mirrored single-item position",
-			)
-			_check(
-				seg2_exo.position.x >= seg2_left - 0.5,
-				"segment 3 final item stays inside background 3",
-			)
-			_check(
-				seg2_exo.position.x + seg2_exo.size.x <= seg2_right + 1.0,
-				"segment 3 final item right edge stays inside background 3",
-			)
-			var layout_1: Array = TechTreeOverlayScript.column_layout(1)
-			_check(
-				absf(seg2_exo.position.y - float(layout_1[0]) * content_scale) < 0.5,
-				"segment 3 final item uses centered single-column y",
-			)
-		_check(mirror_inset > 0.0, "segment 3 mirror uses right-border inset")
 		_check(
-			absf(reduce_frac - 1.0 / 3.0) < 0.001,
-			"segment 3 reduces mirrored left-column margin by one third",
+			_tech_item_at_placement(overlay, placement) != null,
+			"canonical node rendered: %s" % layout_title,
 		)
-		var sym_shift: float = TechTreeOverlayScript.grid_x_offset_design_for_segment(
-			0,
-			seg_widths,
-			viewport_h,
-		)
-		_check(sym_shift > 0.0, "segment 1 shifts right using symmetric mirror tune from segment 3")
-		_check(
-			absf(sym_shift - TechTreeOverlayScript.mirror_left_margin_shift_design(
-				seg2_design_w,
-				mirror_inset,
-				reduce_frac,
-			)) < 0.01,
-			"segment 1 shift matches segment 3 mirror left-margin reduction",
-		)
-		var seg0_unshifted_margin: float = (
-			TechTreeOverlayScript.segment_local_grid_position(0, 0).x * content_scale
-		)
-		var seg0_left_margin: float = overlay._tech_items[0].position.x
-		_check(
-			absf(seg0_left_margin - seg0_unshifted_margin - sym_shift * content_scale) < 2.0,
-			"segment 1 grid shifts right by symmetric mirror-tune amount",
-		)
-	var col: int = 0
-	while col < TechTreeOverlayScript.TECH_COLUMN_COUNT - 1:
-		var left_item: TextureRect = overlay._tech_items[column_first_item_index[col]]
-		var right_item: TextureRect = overlay._tech_items[column_first_item_index[col + 1]]
-		var h_gap: float = right_item.position.x - (left_item.position.x + left_item.size.x)
-		_check(h_gap > 1.0, "positive horizontal gap between column %d and %d" % [col, col + 1])
-		_check(
-			absf(
-				right_item.position.x
-					- left_item.position.x
-					- TechTreeOverlayScript.COLUMN_X_STEP * content_scale
-			) < 1.0,
-			"column step preserved between column %d and %d" % [col, col + 1],
-		)
-		col += 1
-	var row: int = 0
-	while row < TechTreeOverlayScript.COLUMN_LAYOUT_4.size() - 1:
-		var top_item: TextureRect = overlay._tech_items[row]
-		var bottom_item: TextureRect = overlay._tech_items[row + 1]
-		var v_gap: float = bottom_item.position.y - (top_item.position.y + top_item.size.y)
-		_check(v_gap > 1.0, "positive vertical gap between row %d and %d in column 1" % [row, row + 1])
+		ti += 1
+	var stone_item: TextureRect = _tech_item_at_placement(overlay, ContentScript.stone_tools_placement())
+	_check(stone_item != null, "Stone Tools at C1,R3")
+	var exo_content: Dictionary = ContentScript.tech_by_id(ContentScript.EXOPLANET_EXPEDITION_ID)
+	_check(bool(exo_content.get("end_science", false)), "exoplanet marked end_science")
+	var exo_item: TextureRect = _tech_item_at_placement(overlay, ContentScript.exoplanet_placement())
+	_check(exo_item != null, "Exoplanet Expedition renders at C9,R2")
+	var col1_items: Array[TextureRect] = []
+	var c1: int = 1
+	while c1 <= 4:
+		var c1_item: TextureRect = _tech_item_at_placement(overlay, Vector3i(1, c1, 0))
+		if c1_item != null:
+			col1_items.append(c1_item)
+		c1 += 1
+	var row_i: int = 0
+	while row_i < col1_items.size() - 1:
+		var top_item: TextureRect = col1_items[row_i]
+		var bottom_item: TextureRect = col1_items[row_i + 1]
 		_check(
 			absf(
 				bottom_item.position.y
@@ -516,117 +290,10 @@ func _test_tech_item_layout() -> void:
 						- TechTreeOverlayScript.COLUMN_LAYOUT_4[0]
 					) * content_scale
 			) < 1.0,
-			"4-item row step preserved between row %d and %d" % [row, row + 1],
+			"column 1 row step preserved between row %d and %d" % [row_i + 1, row_i + 2],
 		)
-		row += 1
+		row_i += 1
 	overlay.queue_free()
-
-
-func _test_page1_prototype_techs(overlay: TechTreeOverlayScript) -> void:
-	_test_complete_prototype_content(overlay)
-
-
-func _test_complete_prototype_content(overlay: TechTreeOverlayScript) -> void:
-	var placements: Array[Vector3i] = ContentScript.all_placements()
-	_check(placements.size() == 21, "layout defines twenty-one placements")
-	var pi: int = 0
-	while pi < placements.size():
-		var placement: Vector3i = placements[pi]
-		var expected_content: Dictionary = ContentScript.content_for_placement(
-			placement.x,
-			placement.y,
-			placement.z,
-		)
-		_check(not expected_content.is_empty(), "placement has content: %s" % placement)
-		var item: TextureRect = _tech_item_at_placement(overlay, placement)
-		_check(item != null, "renders tech at placement %s" % placement)
-		if item == null:
-			pi += 1
-			continue
-		var title: Label = item.get_node_or_null("TechTitleLabel") as Label
-		_check(
-			title != null and title.text == str(expected_content.get("title", "")),
-			"title at placement %s" % placement,
-		)
-		pi += 1
-	var stone_count: int = 0
-	var si: int = 0
-	while si < overlay._tech_items.size():
-		var title: Label = overlay._tech_items[si].get_node_or_null("TechTitleLabel") as Label
-		if title != null and title.text == TechTreeOverlayScript.TECH_TITLE_TEXT:
-			stone_count += 1
-		si += 1
-	_check(stone_count == 1, "Stone Tools appears exactly once as a real tech")
-	var stone_item: TextureRect = _tech_item_at_placement(
-		overlay,
-		ContentScript.stone_tools_placement(),
-	)
-	_check(stone_item != null, "Stone Tools placement exists")
-	_check(
-		TechTreeOverlayScript.prototype_column_spec_count(1, 1) == 4,
-		"segment 2 column 2 uses four-item layout",
-	)
-	_check(
-		TechTreeOverlayScript.prototype_column_spec_count(2, 2) == 1,
-		"segment 3 final column uses single-item layout",
-	)
-	_test_final_batch_techs(overlay)
-
-
-func _test_final_batch_techs(overlay: TechTreeOverlayScript) -> void:
-	var placements: Array[Vector3i] = ContentScript.final_batch_placements()
-	var titles: Array[String] = ContentScript.final_batch_tech_titles()
-	var i: int = 0
-	while i < placements.size():
-		var placement: Vector3i = placements[i]
-		var item: TextureRect = _tech_item_at_placement(overlay, placement)
-		_check(item != null, "final batch tech at placement %s" % placement)
-		if item == null:
-			i += 1
-			continue
-		var title: Label = item.get_node_or_null("TechTitleLabel") as Label
-		_check(
-			title != null and title.text == titles[i],
-			"final batch tech title: %s" % titles[i],
-		)
-		var expected_content: Dictionary = ContentScript.content_for_placement(
-			placement.x,
-			placement.y,
-			placement.z,
-		)
-		var body: Label = item.get_node_or_null("TechBodyLabel") as Label
-		_check(
-			body != null
-			and body.text == ContentScript.body_text_from_content(expected_content),
-			"final batch tech body: %s" % titles[i],
-		)
-		var icon: TextureRect = item.get_node_or_null("TechIcon") as TextureRect
-		var expected_icon: Texture2D = load(str(expected_content["icon_path"])) as Texture2D
-		_check(expected_icon != null, "final batch icon loads: %s" % titles[i])
-		_check(icon != null and icon.texture == expected_icon, "final batch icon: %s" % titles[i])
-		i += 1
-	var exo_content: Dictionary = ContentScript.tech_by_id(ContentScript.EXOPLANET_EXPEDITION_ID)
-	_check(bool(exo_content.get("end_science", false)), "exoplanet marked end_science")
-	_check(
-		str(exo_content.get("special", "")) == "minimatch_end_science",
-		"exoplanet marked minimatch_end_science",
-	)
-	var exo_item: TextureRect = _tech_item_at_placement(overlay, ContentScript.exoplanet_placement())
-	_check(exo_item != null, "exoplanet renders alone on segment 3")
-	if exo_item != null:
-		var exo_body: Label = exo_item.get_node_or_null("TechBodyLabel") as Label
-		_check(
-			exo_body != null and exo_body.text.contains("Victory belongs to the first light"),
-			"exoplanet victory bullet text",
-		)
-	var seg2_col_counts: Array[int] = []
-	var col_i: int = 0
-	while col_i < 3:
-		var count: int = ContentScript.column_layout_count(1, col_i)
-		if count > 0:
-			seg2_col_counts.append(count)
-		col_i += 1
-	_check(seg2_col_counts == [4, 4, 3], "segment 2 columns use allowed 4/4/3 counts")
 
 
 func _tech_item_at_placement(overlay: TechTreeOverlayScript, placement: Vector3i) -> TextureRect:

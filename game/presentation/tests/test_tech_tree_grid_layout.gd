@@ -92,47 +92,30 @@ func _test_single_item_centered_y() -> void:
 
 func _test_overlay_position_parity() -> void:
 	const ContentScript = preload("res://presentation/tech_tree_preview_content.gd")
+	const NodeLayoutScript = preload("res://presentation/tech_tree_node_layout.gd")
 	var widths: Array = GridScript.reference_segment_display_widths()
 	var viewport_h: float = GridScript.LAYOUT_REFERENCE_VIEWPORT_HEIGHT
 	var placements: Array[Vector3i] = ContentScript.all_placements()
 	var pi: int = 0
 	while pi < placements.size():
 		var placement: Vector3i = placements[pi]
-		var segment_index: int = placement.x
-		var col: int = placement.y
-		var row: int = placement.z
-		var segment_slot: int = GridScript.segment_slot_for_index(segment_index)
-		var center_grid: bool = GridScript.segment_center_grid(segment_slot)
-		var mirror_grid: bool = GridScript.segment_mirror_grid(segment_slot)
-		var count: int = ContentScript.column_layout_count(segment_index, col)
-		var overlay_pos: Vector2 = OverlayScript.tech_item_position(
-			segment_index,
-			col,
+		var column: int = placement.x
+		var row: int = placement.y
+		var overlay_pos: Vector2 = OverlayScript.tech_item_position_for_grid_node(
+			column,
 			row,
 			widths,
-			count,
-			center_grid,
-			mirror_grid,
 			viewport_h,
 		)
-		var grid_pos: Vector2 = GridScript.tech_item_position(
-			segment_index,
-			col,
+		var grid_pos: Vector2 = NodeLayoutScript.tech_item_position_for_node(
+			column,
 			row,
 			widths,
-			count,
-			center_grid,
-			mirror_grid,
 			viewport_h,
 		)
 		_check(
 			overlay_pos.is_equal_approx(grid_pos),
-			"overlay/grid parity seg=%d col=%d row=%d count=%d" % [
-				segment_index,
-				col,
-				row,
-				count,
-			],
+			"overlay/grid parity column=%d row=%d" % [column, row],
 		)
 		pi += 1
 

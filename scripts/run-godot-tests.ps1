@@ -65,6 +65,7 @@ $Script:SmokeTests = @(
 	"res://cloud/tests/test_main_default_cloud_base_url.gd"
 	"res://presentation/tests/test_tech_tree_preview_overlay.gd"
 	"res://presentation/tests/test_tech_tree_grid_layout.gd"
+	"res://presentation/tests/test_tech_tree_node_layout.gd"
 	"res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd"
 )
 
@@ -197,6 +198,7 @@ $Script:AllTests = @(
 	"res://presentation/tests/test_main_hud_yields_toggle.gd",
 	"res://presentation/tests/test_tech_tree_preview_overlay.gd",
 	"res://presentation/tests/test_tech_tree_grid_layout.gd",
+	"res://presentation/tests/test_tech_tree_node_layout.gd",
 	"res://presentation/tests/test_display_resolution_settings.gd",
 	"res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd",
 	"res://presentation/tests/test_city_view_state.gd",
