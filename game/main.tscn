@@ -31,6 +31,7 @@
 [ext_resource type="Script" uid="uid://c2hr15ccjp7yx" path="res://presentation/combat_clash_burst_view.gd" id="29_combat_clash"]
 [ext_resource type="Script" path="res://presentation/tech_tree_preview_overlay.gd" id="30_tech_tree"]
 [ext_resource type="Script" path="res://presentation/city_view_prototype_overlay.gd" id="31_city_view"]
+[ext_resource type="Script" path="res://presentation/warrior_3d_unit_markers_view.gd" id="32_warrior_3d"]
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
 
@@ -216,6 +217,10 @@ script = ExtResource("3_selectionview")
 [node name="UnitsView" type="Node2D" parent="." unique_id=1797332227]
 position = Vector2(400, 428)
 script = ExtResource("4_unitsview")
+
+[node name="Warrior3DUnitMarkersView" type="Node2D" parent="."]
+position = Vector2(400, 428)
+script = ExtResource("32_warrior_3d")
 
 [node name="TerrainForegroundView" type="Node2D" parent="." unique_id=555384625]
 position = Vector2(400, 428)

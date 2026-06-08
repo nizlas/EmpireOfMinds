@@ -1683,6 +1683,8 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 ) -> void:
 	if not symbol_scatter_active:
 		return
+	if units_view != null and units_view.warrior_3d_unit_markers_view != null:
+		units_view.warrior_3d_unit_markers_view.prepare_markers_for_draw()
 	_reload_forest_tree_symbols_if_needed()
 	var items: Array = []
 	var ci: int = 0
@@ -1842,7 +1844,8 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 				it["u_anchor"],
 				it["u_pscale"],
 				str(umi.type_id),
-				int(umi.owner_id)
+				int(umi.owner_id),
+				int(umi.id),
 			)
 			var collect_png_bottom: bool = _eom_debug_unit_png_bottom()
 			var collect_unit_effective: bool = (
@@ -2444,7 +2447,8 @@ func _draw() -> void:
 				u_anchor_pres,
 				u_pscale,
 				str(u.type_id),
-				int(u.owner_id)
+				int(u.owner_id),
+				int(u.id),
 			)
 			var collect_png_bottom: bool = _eom_debug_unit_png_bottom()
 			var collect_unit_effective: bool = (

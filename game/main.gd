@@ -157,6 +157,7 @@ func _ready() -> void:
 	$SelectionView.camera = _map_camera
 	$UnitsView.scale = Vector2.ONE
 	$UnitsView.camera = _map_camera
+	$Warrior3DUnitMarkersView.camera = _map_camera
 	# Phase **4.6p:** **`TerrainForegroundView.z_index = 1`** lifts the **entire foreground canvas**
 	# above **`MapView`** / **`CitiesView`** / **`SelectionView`** / **`UnitsView`** node shells so **back**
 	# terrain stays behind **and** forest grid passes + marker pass run in **one** TFV **`_draw`**. **`UnitsView`** /
@@ -942,6 +943,11 @@ func _wire_play_session(game_state, selection, city_view_state) -> void:
 	units_view.scenario = scenario
 	units_view.layout = layout
 	units_view.selection = selection
+	var warrior_3d_view = $Warrior3DUnitMarkersView
+	warrior_3d_view.scenario = scenario
+	warrior_3d_view.layout = layout
+	warrior_3d_view.camera = _map_camera
+	warrior_3d_view.units_view = units_view
 	var terrain_foreground = $TerrainForegroundView
 	map_view.terrain_foreground_view = terrain_foreground
 	terrain_foreground.map = scenario.map
@@ -961,6 +967,8 @@ func _wire_play_session(game_state, selection, city_view_state) -> void:
 	terrain_foreground.cities_view = cities_view
 	cities_view.terrain_foreground_view = terrain_foreground
 	units_view.terrain_foreground_view = terrain_foreground
+	units_view.warrior_3d_unit_markers_view = warrior_3d_view
+	warrior_3d_view.set_blit_via_terrain_foreground(true)
 	var unit_nameplate_view = $UnitNameplateView
 	unit_nameplate_view.scenario = scenario
 	var combat_clash_burst = $CombatClashBurstView
@@ -1350,6 +1358,9 @@ func _rebind_session_to_game_state(gs) -> void:
 	tile_yield_overlay.game_state = gs
 	var units_view = $UnitsView
 	units_view.scenario = scenario
+	var warrior_3d_view = $Warrior3DUnitMarkersView
+	warrior_3d_view.scenario = scenario
+	units_view.warrior_3d_unit_markers_view = warrior_3d_view
 	var terrain_foreground = $TerrainForegroundView
 	terrain_foreground.map = scenario.map
 	terrain_foreground.scenario = scenario
@@ -1399,6 +1410,7 @@ func _rebind_session_to_game_state(gs) -> void:
 		city_worked_tiles_view.layout = layout
 		tile_yield_overlay.layout = layout
 		units_view.layout = layout
+		$Warrior3DUnitMarkersView.layout = layout
 		terrain_foreground.layout = layout
 		unit_nameplate_view.layout = layout
 		city_nameplate_view.layout = layout

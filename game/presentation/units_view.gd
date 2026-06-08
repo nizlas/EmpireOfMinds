@@ -20,6 +20,7 @@ const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const TextureAlphaMetricsClass = preload("res://presentation/texture_alpha_metrics.gd")
+const Warrior3DUnitExperimentScript = preload("res://presentation/warrior_3d_unit_experiment.gd")
 
 const _SETTLER_MARKER_PATH = "res://assets/prototype/map_markers/unit_settler_marker.png"
 const _WARRIOR_MARKER_PATH = "res://assets/prototype/map_markers/unit_warrior_marker.png"
@@ -34,6 +35,8 @@ var camera
 var selection
 ## Phase **4.6p:** when set to a valid **`TerrainForegroundView`** (or any **`CanvasItem`** host), **`_draw`** skips own-canvas markers — **`TerrainForegroundView`** draws them between forest passes.
 var terrain_foreground_view
+## Experimental 3D warrior markers — blit via **`draw_unit_marker_at`** when TFV depth merge is active.
+var warrior_3d_unit_markers_view
 @export var marker_radius_ratio: float = 0.35
 ## Icon height as a fraction of pointy-top hex height (2 * HexLayout.SIZE) when a type icon is loaded. Phase 4.3f.
 @export var unit_icon_height_ratio: float = 0.70
@@ -193,8 +196,15 @@ func draw_unit_marker_at(
 	anchor_pres: Vector2,
 	pscale: float,
 	type_id: String,
-	owner_id: int
+	owner_id: int,
+	unit_id: int = -1,
 ) -> void:
+	if Warrior3DUnitExperimentScript.should_render_warrior_as_3d(type_id):
+		if warrior_3d_unit_markers_view != null and unit_id >= 0:
+			warrior_3d_unit_markers_view.draw_unit_marker_at(
+				canvas, anchor_pres, pscale, type_id, owner_id, unit_id
+			)
+		return
 	var utex = _texture_for_type_id(type_id)
 	if utex != null:
 		var rect: Rect2 = unit_marker_texture_rect_presentation(

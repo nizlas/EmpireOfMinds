@@ -1,6 +1,7 @@
 # Headless: godot --headless --path game -s res://presentation/tests/test_units_view_draw.gd
 extends SceneTree
 const UnitsViewScript = preload("res://presentation/units_view.gd")
+const Warrior3DUnitExperimentScript = preload("res://presentation/warrior_3d_unit_experiment.gd")
 const ScenarioScript = preload("res://domain/scenario.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
@@ -115,16 +116,78 @@ func _init() -> void:
 			"warrior textured effective bottom should match anchor_pres"
 		)
 	uv_align.queue_free()
+	OS.set_environment(Warrior3DUnitExperimentScript.ENV_FLAG, "")
+	_check(not Warrior3DUnitExperimentScript.is_enabled(), "3d warrior experiment off by default")
+	OS.set_environment(Warrior3DUnitExperimentScript.ENV_FLAG, "1")
+	_check(Warrior3DUnitExperimentScript.is_enabled(), "3d warrior experiment flag on")
+	_check(
+		Warrior3DUnitExperimentScript.should_render_warrior_as_3d("warrior"),
+		"warrior uses 3d path when flag on and glb exists",
+	)
+	_check(
+		not Warrior3DUnitExperimentScript.should_render_warrior_as_3d("settler"),
+		"settler stays on 2d path when flag on",
+	)
+	_check(
+		ResourceLoader.exists(Warrior3DUnitExperimentScript.WARRIOR_ANIMATED_GLB_PATH),
+		"warrior animated glb exists for idle experiment",
+	)
+	_check(
+		Warrior3DUnitExperimentScript.warrior_scene_path().ends_with("warrior_3d_animations.glb"),
+		"warrior scene prefers animated glb when present",
+	)
+	var anim_scene: PackedScene = load(
+		Warrior3DUnitExperimentScript.WARRIOR_ANIMATED_GLB_PATH
+	) as PackedScene
+	var anim_root: Node = anim_scene.instantiate()
+	var anim_player: AnimationPlayer = _find_warrior_anim_player(anim_root)
+	_check(anim_player != null, "animated warrior glb has AnimationPlayer")
+	if anim_player != null:
+		_check(
+			anim_player.has_animation(Warrior3DUnitExperimentScript.map_animation_name()),
+			"animated warrior glb has configured map animation",
+		)
+		_check(anim_player.has_animation("Dead"), "animated warrior glb has Dead clip for anim switch test")
+	var WViewScript = preload("res://presentation/warrior_3d_unit_markers_view.gd")
+	var RemapScript = preload("res://presentation/warrior_3d_animation_remap.gd")
+	OS.unset_environment(Warrior3DUnitExperimentScript.ANIM_AUDIT_ENV)
+	OS.set_environment(Warrior3DUnitExperimentScript.ENV_FLAG, "1")
+	var wview = WViewScript.new()
+	wview.map_animation_name = "Idle_3"
+	wview.use_glb_animation_name_remap = true
+	root.add_child(wview)
+	wview._load_warrior_scene()
+	var slot: Node2D = wview._create_slot()
+	root.add_child(slot)
+	call_deferred("_finish_warrior_3d_slot_checks", wview, slot, RemapScript, anim_root, rr)
+	return
+
+
+func _finish_warrior_3d_slot_checks(wview, slot: Node2D, RemapScript, anim_root: Node, rr: Rect2) -> void:
+	wview._ensure_slot_animation(slot, RemapScript.glb_clip_for_visual("Idle_3", true))
+	var slot_player: AnimationPlayer = _find_warrior_anim_player(slot)
+	if slot_player != null:
+		var glb_clip: String = RemapScript.glb_clip_for_visual("Idle_3", true)
+		_check(glb_clip == "Combat_Stance", "Idle_3 visual remaps to Combat_Stance GLB key")
+		_check(
+			slot_player.is_playing() and slot_player.assigned_animation == glb_clip,
+			"Warrior3DUnitMarkersView plays remapped GLB clip for Idle_3 visual",
+		)
+	slot.free()
+	wview.free()
+	anim_root.free()
+	OS.unset_environment(Warrior3DUnitExperimentScript.ENV_FLAG)
+	OS.unset_environment(Warrior3DUnitExperimentScript.ANIM_AUDIT_ENV)
 	var bc = UnitsViewScript.unit_png_bottom_center_from_rect(rr)
 	_check(
 		bc.is_equal_approx(Vector2(120.0, 98.0)),
 		"PNG bottom-center is rect mid-x and position.y+size.y"
 	)
 	if _any_fail:
-		call_deferred("quit", 1)
+		quit(1)
 	else:
 		print("PASS %d/%d" % [_total, _total])
-		call_deferred("quit", 0)
+		quit(0)
 
 func _check(cond, message) -> void:
 	_total = _total + 1
@@ -134,3 +197,15 @@ func _check(cond, message) -> void:
 	var line = "FAIL: %s" % message
 	print(line)
 	push_error(line)
+
+
+func _find_warrior_anim_player(node: Node) -> AnimationPlayer:
+	if node is AnimationPlayer:
+		return node as AnimationPlayer
+	var ci: int = 0
+	while ci < node.get_child_count():
+		var found: AnimationPlayer = _find_warrior_anim_player(node.get_child(ci))
+		if found != null:
+			return found
+		ci += 1
+	return null
