@@ -949,6 +949,7 @@ func _wire_play_session(game_state, selection, city_view_state) -> void:
 	warrior_3d_view.camera = _map_camera
 	warrior_3d_view.units_view = units_view
 	var terrain_foreground = $TerrainForegroundView
+	warrior_3d_view.terrain_foreground_view = terrain_foreground
 	map_view.terrain_foreground_view = terrain_foreground
 	terrain_foreground.map = scenario.map
 	terrain_foreground.layout = layout
@@ -1362,6 +1363,7 @@ func _rebind_session_to_game_state(gs) -> void:
 	warrior_3d_view.scenario = scenario
 	units_view.warrior_3d_unit_markers_view = warrior_3d_view
 	var terrain_foreground = $TerrainForegroundView
+	warrior_3d_view.terrain_foreground_view = terrain_foreground
 	terrain_foreground.map = scenario.map
 	terrain_foreground.scenario = scenario
 	terrain_foreground.game_state = gs
@@ -1430,6 +1432,19 @@ func _adjust_selection_after_cloud_action(action: Dictionary, gs) -> void:
 	elif at == "move_unit":
 		var uid = int(action.get("unit_id", -1))
 		SelectionController.apply_post_accepted_move_unit_selection(_play_selection, gs.scenario, uid)
+		var from_arr = action.get("from", [])
+		var to_arr = action.get("to", [])
+		if from_arr.size() >= 2 and to_arr.size() >= 2:
+			var moved_u = gs.scenario.unit_by_id(uid)
+			if moved_u != null:
+				$UnitsView.present_warrior_hex_move_if_applicable(
+					str(moved_u.type_id),
+					uid,
+					int(from_arr[0]),
+					int(from_arr[1]),
+					int(to_arr[0]),
+					int(to_arr[1]),
+				)
 	elif at == "attack_unit":
 		_play_selection.clear()
 

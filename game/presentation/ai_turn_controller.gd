@@ -9,6 +9,7 @@ const RuleBasedAIPlayerScript = preload("res://ai/rule_based_ai_player.gd")
 const DiscoveryPopupScript = preload("res://presentation/discovery_popup.gd")
 const TurnViewSyncScript = preload("res://presentation/turn_view_sync.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
+const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 
 var game_state
 var selection
@@ -60,6 +61,21 @@ func _unhandled_input(event: InputEvent) -> void:
 			var prev_log_sz = game_state.log.size()
 			var result = game_state.try_apply(action)
 			if result["accepted"]:
+				if str(action.get("action_type", "")) == MoveUnitScript.ACTION_TYPE:
+					var from_arr = action.get("from", [])
+					var to_arr = action.get("to", [])
+					if from_arr.size() >= 2 and to_arr.size() >= 2:
+						var uid: int = int(action.get("unit_id", -1))
+						var moved_u = game_state.scenario.unit_by_id(uid)
+						if moved_u != null:
+							units_view.present_warrior_hex_move_if_applicable(
+								str(moved_u.type_id),
+								uid,
+								int(from_arr[0]),
+								int(from_arr[1]),
+								int(to_arr[0]),
+								int(to_arr[1]),
+							)
 				DiscoveryPopupScript.run_engine_popups_after_apply(
 					game_state,
 					discovery_popup,

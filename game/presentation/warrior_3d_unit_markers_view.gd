@@ -4,6 +4,7 @@ extends Node2D
 
 const Warrior3DExperimentScript = preload("res://presentation/warrior_3d_unit_experiment.gd")
 const Warrior3DAnimationRemapScript = preload("res://presentation/warrior_3d_animation_remap.gd")
+const Warrior3DWalkSyncScript = preload("res://presentation/warrior_3d_walk_sync.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const UnitsViewScript = preload("res://presentation/units_view.gd")
@@ -11,6 +12,9 @@ const UnitsViewScript = preload("res://presentation/units_view.gd")
 const VIEWPORT_PX_MIN: int = 128
 const VIEWPORT_PX_MAX: int = 768
 const VIEWPORT_SIZE_QUANTIZE: int = 32
+const HEX_MOVE_WALK_ANIM_SPEED: float = 0.5
+const SEMANTIC_IDLE_CLIP: String = "Idle_3"
+const SEMANTIC_WALK_CLIP: String = "Walking"
 
 ## GLB bind pose faces -Z at yaw 0 (toward SubViewport camera on +Z). Positive yaw turns screen-right
 ## (~48° matches unit_settler_marker three-quarter; not straight-on, not back-facing).
@@ -29,6 +33,17 @@ const VIEWPORT_SIZE_QUANTIZE: int = 32
 @export var camera_ortho_size: float = 1.85
 ## Extra transparent rows below the feet so soles/shadow are not clipped by the SubViewport edge.
 @export var viewport_bottom_pad_ratio: float = 0.24
+## Extra SubViewport margin while walking screen-down (walk stride extends the leading foot).
+@export var viewport_travel_forward_pad_ratio: float = 0.28
+## Depth-merge lead along on-screen travel while hex-moving down (keeps the front foot above map art).
+@export var depth_sort_forward_lead_ratio: float = 0.28
+@export_group("Hex walk sync")
+## Fraction of one **Idle_02** loop per hex step; position lerp follows this much of the clip timeline.
+@export_range(0.2, 2.0) var hex_stride_cycle_fraction: float = 1.15
+
+@export_group("Travel facing")
+## SubViewport yaw offset paired with **map_bearing** (projected on-screen travel angle).
+@export var travel_facing_yaw_offset_deg: float = 69.0
 
 @export_group("Map animation")
 @export var play_map_animation: bool = true
@@ -50,6 +65,8 @@ var scenario
 var layout
 var camera
 var units_view
+## Presentation redraw target while hex-move tweens run (typically **TerrainForegroundView**).
+var terrain_foreground_view
 
 var _warrior_scene: PackedScene
 var _slot_by_unit_id: Dictionary = {}
@@ -62,6 +79,8 @@ var _audit_clip_names: PackedStringArray = PackedStringArray()
 var _audit_clip_index: int = 0
 var _audit_cycle_timer: float = 0.0
 var _audit_started: bool = false
+var _active_hex_moves: Dictionary = {}
+var _facing_yaw_by_unit_id: Dictionary = {}
 
 
 func _ready() -> void:
@@ -160,6 +179,36 @@ func _log_map_animation_selection() -> void:
 	)
 
 
+func _hex_move_duration_sec() -> float:
+	return Warrior3DWalkSyncScript.hex_move_duration_sec(
+		HEX_MOVE_WALK_ANIM_SPEED,
+		hex_stride_cycle_fraction,
+		_resolved_walk_clip_length_sec(),
+	)
+
+
+func _resolved_walk_clip_length_sec() -> float:
+	return Warrior3DWalkSyncScript.resolved_walk_clip_length_sec()
+
+
+func _prime_walk_clip_length_from_slot(slot: Node2D) -> void:
+	var viewport: SubViewport = _viewport_for_slot(slot)
+	if viewport == null:
+		return
+	var model_root: Node = viewport.find_child("ModelRoot", true, false)
+	if model_root == null:
+		return
+	var ci: int = 0
+	while ci < model_root.get_child_count():
+		var player: AnimationPlayer = _find_animation_player(model_root.get_child(ci) as Node)
+		if player != null:
+			Warrior3DWalkSyncScript.cache_walk_clip_length_from_player(
+				player, use_glb_animation_name_remap and not _is_animation_audit_active()
+			)
+			return
+		ci += 1
+
+
 func _load_warrior_scene() -> void:
 	if _warrior_scene != null:
 		return
@@ -176,6 +225,96 @@ func _process(delta: float) -> void:
 		return
 	if _is_animation_audit_active():
 		_tick_animation_audit(delta)
+	elif _tick_hex_moves(delta):
+		_request_presentation_redraw()
+
+
+func begin_hex_move(
+	unit_id: int,
+	type_id: String,
+	from_q: int,
+	from_r: int,
+	to_q: int,
+	to_r: int,
+) -> void:
+	if not Warrior3DExperimentScript.is_enabled():
+		return
+	if not Warrior3DExperimentScript.should_render_warrior_as_3d(type_id):
+		return
+	if layout == null:
+		return
+	if camera == null:
+		camera = MapCameraScript.new()
+	var from_world: Vector2 = layout.hex_to_world(from_q, from_r)
+	var to_world: Vector2 = layout.hex_to_world(to_q, to_r)
+	var from_pres: Vector2 = camera.to_presentation(from_world)
+	var to_pres: Vector2 = camera.to_presentation(to_world)
+	var pres_dir: Vector2 = to_pres - from_pres
+	var world_dir: Vector2 = to_world - from_world
+	var facing: Dictionary = _travel_facing_from_hex_step(from_world, to_world, pres_dir, unit_id)
+	var facing_yaw: float = float(facing["model_yaw"])
+	_facing_yaw_by_unit_id[unit_id] = facing_yaw
+	var semantic: String = SEMANTIC_WALK_CLIP
+	var glb_clip: String = _glb_clip_for_semantic(semantic)
+	var duration_sec: float = _hex_move_duration_sec()
+	_active_hex_moves[unit_id] = {
+		"from_q": from_q,
+		"from_r": from_r,
+		"to_q": to_q,
+		"to_r": to_r,
+		"progress": 0.0,
+		"anim_elapsed_sec": 0.0,
+		"facing_yaw": facing_yaw,
+		"pres_dir": pres_dir,
+		"duration_sec": duration_sec,
+	}
+	print(
+		(
+			"[Warrior3D hex move] unit=%d source=(%d,%d) target=(%d,%d) "
+			+ "plan_bearing_deg=%.2f map_bearing_deg=%.2f map_skew_deg=%.2f "
+			+ "model_yaw_deg=%.2f duration_sec=%.3f walk_clip_len=%.3f stride_frac=%.2f anim_speed=%.2f "
+			+ "world_dir=%s pres_dir=%s semantic='%s' glb_clip='%s'"
+		)
+		% [
+			unit_id,
+			from_q,
+			from_r,
+			to_q,
+			to_r,
+			float(facing["plan_bearing_deg"]),
+			float(facing["map_bearing_deg"]),
+			float(facing["map_skew_deg"]),
+			facing_yaw,
+			duration_sec,
+			_resolved_walk_clip_length_sec(),
+			hex_stride_cycle_fraction,
+			HEX_MOVE_WALK_ANIM_SPEED,
+			str(world_dir),
+			str(pres_dir),
+			semantic,
+			glb_clip,
+		]
+	)
+	var slot: Node2D = _slot_by_unit_id.get(unit_id) as Node2D
+	if slot != null:
+		slot.set_meta(&"eom_slot_anim", "")
+		_apply_slot_facing(slot, unit_id)
+		_ensure_slot_animation(slot, glb_clip, HEX_MOVE_WALK_ANIM_SPEED)
+	_request_presentation_redraw()
+
+
+func is_unit_hex_move_active(unit_id: int) -> bool:
+	return _active_hex_moves.has(unit_id)
+
+
+func is_unit_screen_down_hex_move_active(unit_id: int) -> bool:
+	return _screen_down_travel_pres_dir(_hex_move_pres_dir_for_unit(unit_id)).length_squared() > 0.0
+
+
+func _hex_move_pres_dir_for_unit(unit_id: int) -> Vector2:
+	if not _active_hex_moves.has(unit_id):
+		return Vector2.ZERO
+	return _hex_move_pres_dir(_active_hex_moves[unit_id])
 
 
 func set_blit_via_terrain_foreground(enabled: bool) -> void:
@@ -193,7 +332,10 @@ func draw_unit_marker_at(
 	if not Warrior3DExperimentScript.should_render_warrior_as_3d(type_id):
 		return
 	_sync_markers_once_per_frame()
-	var rect: Rect2 = _marker_display_rect(anchor_pres, pscale, type_id)
+	var pres_override: Dictionary = _presentation_anchor_for_unit(unit_id, anchor_pres, pscale)
+	anchor_pres = pres_override["anchor"] as Vector2
+	pscale = float(pres_override["pscale"])
+	var rect: Rect2 = _marker_display_rect(anchor_pres, pscale, type_id, unit_id)
 	if rect.size.x <= 0.0:
 		return
 	var slot: Node2D = _slot_by_unit_id.get(unit_id) as Node2D
@@ -202,6 +344,11 @@ func draw_unit_marker_at(
 	var viewport: SubViewport = _viewport_for_slot(slot)
 	if viewport == null:
 		return
+	_apply_slot_facing(slot, unit_id)
+	if _active_hex_moves.has(unit_id):
+		_sync_walk_animation_time_for_slot(
+			slot, float(_active_hex_moves[unit_id].get("anim_elapsed_sec", 0.0))
+		)
 	_apply_viewport_size_for_blit(slot, viewport, rect)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	var tex: Texture2D = viewport.get_texture()
@@ -269,7 +416,6 @@ func _sync_markers() -> void:
 	if camera == null:
 		camera = MapCameraScript.new()
 	var active_ids: Dictionary = {}
-	var clip_name: String = _playback_animation_name()
 	var units: Array = scenario.units()
 	var i: int = 0
 	while i < units.size():
@@ -284,14 +430,17 @@ func _sync_markers() -> void:
 			slot = _create_slot()
 			add_child(slot)
 			_slot_by_unit_id[unit_id] = slot
-			_ensure_slot_animation(slot, clip_name)
-		elif str(slot.get_meta(&"eom_slot_anim", "")) != clip_name:
-			_ensure_slot_animation(slot, clip_name)
+		_sync_unit_slot(slot, unit_id, unit)
 		slot.position = Vector2.ZERO
 		if not _blit_via_terrain_foreground:
 			var world_center: Vector2 = layout.hex_to_world(unit.position.q, unit.position.r)
 			var anchor_pres: Vector2 = camera.to_presentation(world_center)
 			var pscale: float = camera.perspective_scale_at(world_center)
+			var pres_override: Dictionary = _presentation_anchor_for_unit(
+				unit_id, anchor_pres, pscale
+			)
+			anchor_pres = pres_override["anchor"] as Vector2
+			pscale = float(pres_override["pscale"])
 			slot.position = _marker_display_rect(anchor_pres, pscale, "warrior").position
 		i += 1
 	var stale_ids: Array = _slot_by_unit_id.keys()
@@ -303,6 +452,8 @@ func _sync_markers() -> void:
 			if stale_slot != null:
 				stale_slot.queue_free()
 			_slot_by_unit_id.erase(stale_id)
+			_active_hex_moves.erase(stale_id)
+			_facing_yaw_by_unit_id.erase(stale_id)
 		si += 1
 
 
@@ -347,18 +498,76 @@ func _create_slot() -> Node2D:
 	viewport.add_child(model_root)
 	root.add_child(viewport)
 	root.set_meta("viewport", viewport)
+	_prime_walk_clip_length_from_slot(root)
 	return root
 
 
-func _marker_display_rect(anchor_pres: Vector2, pscale: float, type_id: String) -> Rect2:
+func depth_sort_anchor_pres(unit_id: int, hex_anchor_pres: Vector2, pscale: float) -> Vector2:
+	if layout == null or camera == null or not _active_hex_moves.has(unit_id):
+		return hex_anchor_pres
+	var move: Dictionary = _active_hex_moves[unit_id]
+	var pres_dir: Vector2 = _hex_move_pres_dir(move)
+	if pres_dir.length_squared() < 1.0:
+		return hex_anchor_pres
+	var fwd: Vector2 = _screen_down_travel_pres_dir(pres_dir)
+	if fwd.length_squared() < 0.0001:
+		var draw: Dictionary = _presentation_anchor_for_unit(unit_id, hex_anchor_pres, pscale)
+		return draw["anchor"] as Vector2
+	var to_world: Vector2 = layout.hex_to_world(int(move["to_q"]), int(move["to_r"]))
+	var to_pres: Vector2 = camera.to_presentation(to_world)
+	var draw: Dictionary = _presentation_anchor_for_unit(unit_id, hex_anchor_pres, pscale)
+	var draw_pscale: float = float(draw["pscale"])
+	var marker_rect: Rect2 = _marker_rect_for_type(
+		draw["anchor"] as Vector2, draw_pscale, "warrior", units_view
+	)
+	var marker_h: float = marker_rect.size.y
+	if marker_h <= 0.0:
+		marker_h = HexLayoutScript.SIZE * 2.0 * 0.7 * draw_pscale
+	var step_len: float = pres_dir.length()
+	var lead: float = maxf(step_len * 0.55, marker_h * depth_sort_forward_lead_ratio)
+	return to_pres + fwd * lead
+
+
+func _marker_display_rect(
+	anchor_pres: Vector2, pscale: float, type_id: String, unit_id: int = -1
+) -> Rect2:
 	var marker_rect: Rect2 = _marker_rect_for_type(anchor_pres, pscale, type_id, units_view)
 	if marker_rect.size.x <= 0.0 or marker_rect.size.y <= 0.0:
 		return Rect2()
+	var bottom_pad: float = viewport_bottom_pad_ratio
+	var side_pad: float = 0.0
+	if unit_id >= 0 and _active_hex_moves.has(unit_id):
+		bottom_pad += viewport_travel_forward_pad_ratio * 0.55
+		side_pad = viewport_travel_forward_pad_ratio * 0.4
 	var display_size := Vector2(
-		marker_rect.size.x,
-		marker_rect.size.y * (1.0 + viewport_bottom_pad_ratio),
+		marker_rect.size.x * (1.0 + side_pad),
+		marker_rect.size.y * (1.0 + bottom_pad),
 	)
-	return Rect2(marker_rect.position, display_size)
+	var pos := Vector2(
+		marker_rect.position.x - marker_rect.size.x * side_pad * 0.5,
+		marker_rect.position.y,
+	)
+	return Rect2(pos, display_size)
+
+
+func _screen_down_travel_pres_dir(pres_dir: Vector2) -> Vector2:
+	if pres_dir.length_squared() < 1.0:
+		return Vector2.ZERO
+	var fwd: Vector2 = pres_dir.normalized()
+	if fwd.y <= 0.02:
+		return Vector2.ZERO
+	return fwd
+
+
+func _hex_move_pres_dir(move: Dictionary) -> Vector2:
+	var cached: Variant = move.get("pres_dir", null)
+	if cached is Vector2:
+		return cached as Vector2
+	if layout == null or camera == null:
+		return Vector2.ZERO
+	var from_world: Vector2 = layout.hex_to_world(int(move["from_q"]), int(move["from_r"]))
+	var to_world: Vector2 = layout.hex_to_world(int(move["to_q"]), int(move["to_r"]))
+	return camera.to_presentation(to_world) - camera.to_presentation(from_world)
 
 
 func _default_viewport_pixel_size() -> Vector2i:
@@ -406,10 +615,15 @@ static func _marker_rect_for_type(
 	return Rect2(anchor_pres.x - side * 0.5, anchor_pres.y - side * 0.9, side, side)
 
 
-func _ensure_slot_animation(slot: Node2D, clip_name: String) -> void:
+func _ensure_slot_animation(
+	slot: Node2D, clip_name: String, anim_speed_scale: float = 1.0
+) -> void:
 	if not play_map_animation:
 		return
-	if str(slot.get_meta(&"eom_slot_anim", "")) == clip_name:
+	if (
+		str(slot.get_meta(&"eom_slot_anim", "")) == clip_name
+		and is_equal_approx(float(slot.get_meta(&"eom_slot_anim_speed", 1.0)), anim_speed_scale)
+	):
 		return
 	var viewport: SubViewport = _viewport_for_slot(slot)
 	if viewport == null:
@@ -419,12 +633,15 @@ func _ensure_slot_animation(slot: Node2D, clip_name: String) -> void:
 		return
 	var ci: int = 0
 	while ci < model_root.get_child_count():
-		_play_clip_on_model(model_root.get_child(ci), clip_name)
+		_play_clip_on_model(model_root.get_child(ci), clip_name, anim_speed_scale)
 		ci += 1
 	slot.set_meta(&"eom_slot_anim", clip_name)
+	slot.set_meta(&"eom_slot_anim_speed", anim_speed_scale)
 
 
-func _play_clip_on_model(model: Node, clip_name: String) -> void:
+func _play_clip_on_model(
+	model: Node, clip_name: String, anim_speed_scale: float = 1.0
+) -> void:
 	if not model.is_inside_tree():
 		return
 	var player: AnimationPlayer = _find_animation_player(model)
@@ -436,12 +653,13 @@ func _play_clip_on_model(model: Node, clip_name: String) -> void:
 			% [clip_name, Warrior3DExperimentScript.warrior_scene_path()]
 		)
 		return
-	if player.is_playing() and player.assigned_animation == clip_name:
-		return
+	player.process_mode = Node.PROCESS_MODE_DISABLED
+	player.speed_scale = anim_speed_scale
 	var anim: Animation = player.get_animation(clip_name)
 	if anim != null:
 		anim.loop_mode = Animation.LOOP_LINEAR
 	player.play(clip_name)
+	player.seek(0.0, true)
 
 
 static func _find_animation_player(node: Node) -> AnimationPlayer:
@@ -455,3 +673,251 @@ static func _find_animation_player(node: Node) -> AnimationPlayer:
 			return found
 		i += 1
 	return null
+
+
+func _tick_hex_moves(delta: float) -> bool:
+	if _active_hex_moves.is_empty():
+		return false
+	var any_active: bool = false
+	var finished_ids: Array = []
+	for unit_id_key in _active_hex_moves.keys():
+		var unit_id: int = int(unit_id_key)
+		var move: Dictionary = _active_hex_moves[unit_id]
+		var slot: Node2D = _slot_by_unit_id.get(unit_id) as Node2D
+		var stride_sec: float = _hex_move_stride_anim_sec()
+		var anim_elapsed: float = float(move.get("anim_elapsed_sec", 0.0))
+		if anim_elapsed < stride_sec:
+			anim_elapsed += delta * HEX_MOVE_WALK_ANIM_SPEED
+			anim_elapsed = minf(anim_elapsed, stride_sec)
+			move["anim_elapsed_sec"] = anim_elapsed
+			_sync_walk_animation_time_for_slot(slot, anim_elapsed)
+		var progress: float = 1.0 if stride_sec <= 0.0 else clampf(anim_elapsed / stride_sec, 0.0, 1.0)
+		if progress >= 1.0:
+			progress = 1.0
+			finished_ids.append(unit_id)
+		move["progress"] = progress
+		_active_hex_moves[unit_id] = move
+		any_active = true
+	var fi: int = 0
+	while fi < finished_ids.size():
+		var done_id: int = int(finished_ids[fi])
+		var facing_yaw: float = float(_facing_yaw_by_unit_id.get(done_id, model_yaw_degrees))
+		_active_hex_moves.erase(done_id)
+		var idle_semantic: String = SEMANTIC_IDLE_CLIP
+		var idle_glb: String = _glb_clip_for_semantic(idle_semantic)
+		print(
+			(
+				"[Warrior3D hex move] unit=%d arrived semantic='%s' glb_clip='%s' "
+				+ "facing_yaw_deg=%.2f"
+			)
+			% [done_id, idle_semantic, idle_glb, facing_yaw]
+		)
+		var slot: Node2D = _slot_by_unit_id.get(done_id) as Node2D
+		if slot != null:
+			_stop_walk_animation_for_slot(slot)
+			slot.set_meta(&"eom_slot_anim", "")
+			_apply_slot_facing(slot, done_id)
+			_ensure_slot_animation(slot, idle_glb, 1.0)
+		fi += 1
+	return any_active or finished_ids.size() > 0
+
+
+func _request_presentation_redraw() -> void:
+	if terrain_foreground_view != null:
+		terrain_foreground_view.queue_redraw()
+	elif units_view != null:
+		units_view.queue_redraw()
+	else:
+		queue_redraw()
+
+
+func _sync_unit_slot(slot: Node2D, unit_id: int, _unit) -> void:
+	_apply_slot_facing(slot, unit_id)
+	var clip_name: String = _playback_clip_for_unit(unit_id)
+	var anim_speed: float = (
+		HEX_MOVE_WALK_ANIM_SPEED if _active_hex_moves.has(unit_id) else 1.0
+	)
+	if (
+		str(slot.get_meta(&"eom_slot_anim", "")) != clip_name
+		or not is_equal_approx(float(slot.get_meta(&"eom_slot_anim_speed", 1.0)), anim_speed)
+	):
+		_ensure_slot_animation(slot, clip_name, anim_speed)
+
+
+func _playback_clip_for_unit(unit_id: int) -> String:
+	if _is_animation_audit_active():
+		return _playback_animation_name()
+	var semantic: String = _semantic_animation_for_unit(unit_id)
+	return _glb_clip_for_semantic(semantic)
+
+
+func _semantic_animation_for_unit(unit_id: int) -> String:
+	if _active_hex_moves.has(unit_id):
+		return SEMANTIC_WALK_CLIP
+	return SEMANTIC_IDLE_CLIP
+
+
+func _glb_clip_for_semantic(semantic: String) -> String:
+	return Warrior3DAnimationRemapScript.glb_clip_for_visual(
+		semantic,
+		use_glb_animation_name_remap and not _is_animation_audit_active(),
+	)
+
+
+func _facing_yaw_for_unit(unit_id: int) -> float:
+	if _active_hex_moves.has(unit_id):
+		return float(_active_hex_moves[unit_id].get("facing_yaw", model_yaw_degrees))
+	if _facing_yaw_by_unit_id.has(unit_id):
+		return float(_facing_yaw_by_unit_id[unit_id])
+	return model_yaw_degrees
+
+
+static func _travel_bearing_screen_up_deg(dir: Vector2) -> float:
+	return rad_to_deg(Vector2(dir.x, -dir.y).angle())
+
+
+static func _bearing_delta_deg(to_deg: float, from_deg: float) -> float:
+	return rad_to_deg(atan2(sin(deg_to_rad(to_deg - from_deg)), cos(deg_to_rad(to_deg - from_deg))))
+
+
+func _travel_facing_from_hex_step(
+	from_world: Vector2,
+	to_world: Vector2,
+	pres_dir: Vector2,
+	unit_id: int,
+) -> Dictionary:
+	var world_dir: Vector2 = to_world - from_world
+	if world_dir.length_squared() < 0.0001:
+		var idle_yaw: float = _facing_yaw_for_unit(unit_id)
+		return {
+			"plan_bearing_deg": 0.0,
+			"map_bearing_deg": 0.0,
+			"map_skew_deg": 0.0,
+			"model_yaw": idle_yaw,
+		}
+	# 1) Top-down plan bearing (layout / hex_to_world, Y-down corrected to screen-up).
+	var plan_bearing_deg: float = _travel_bearing_screen_up_deg(world_dir)
+	# 2) Same step after MapCamera.to_presentation (chord from → to on the map plane).
+	var map_bearing_deg: float = _travel_bearing_screen_up_deg(pres_dir)
+	var map_skew_deg: float = _bearing_delta_deg(map_bearing_deg, plan_bearing_deg)
+	# 3) SubViewport model yaw follows **map** bearing (on-screen walk), not plan bearing alone.
+	var model_yaw: float = _subviewport_yaw_for_map_bearing(pres_dir, unit_id)
+	return {
+		"plan_bearing_deg": plan_bearing_deg,
+		"map_bearing_deg": map_bearing_deg,
+		"map_skew_deg": map_skew_deg,
+		"model_yaw": model_yaw,
+	}
+
+
+func _subviewport_yaw_for_map_bearing(pres_dir: Vector2, unit_id: int) -> float:
+	if pres_dir.length_squared() < 0.0001:
+		return _facing_yaw_for_unit(unit_id)
+	var map_bearing_deg: float = _travel_bearing_screen_up_deg(pres_dir)
+	return travel_facing_yaw_offset_deg + map_bearing_deg
+
+
+func _model_yaw_from_travel_pres_dir(pres_dir: Vector2, unit_id: int) -> float:
+	return _subviewport_yaw_for_map_bearing(pres_dir, unit_id)
+
+
+static func expected_travel_yaw_from_pres_dir(
+	pres_dir: Vector2,
+	offset_deg: float = 69.0,
+) -> float:
+	if pres_dir.length_squared() < 0.0001:
+		return 0.0
+	return offset_deg + rad_to_deg(Vector2(pres_dir.x, -pres_dir.y).angle())
+
+
+func _hex_move_stride_anim_sec() -> float:
+	return _resolved_walk_clip_length_sec() * hex_stride_cycle_fraction
+
+
+func _walk_animation_player_for_slot(slot: Node2D) -> AnimationPlayer:
+	if slot == null:
+		return null
+	var viewport: SubViewport = _viewport_for_slot(slot)
+	if viewport == null:
+		return null
+	var model_root: Node = viewport.find_child("ModelRoot", true, false)
+	if model_root == null:
+		return null
+	var ci: int = 0
+	while ci < model_root.get_child_count():
+		var player: AnimationPlayer = _find_animation_player(model_root.get_child(ci) as Node)
+		if player != null:
+			return player
+		ci += 1
+	return null
+
+
+func _sync_walk_animation_time_for_slot(slot: Node2D, anim_elapsed: float) -> void:
+	var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
+	if player == null:
+		return
+	var walk_clip: String = _glb_clip_for_semantic(SEMANTIC_WALK_CLIP)
+	var walk_anim: Animation = player.get_animation(walk_clip)
+	if walk_anim == null or walk_anim.length <= 0.0:
+		return
+	if str(player.current_animation) != walk_clip:
+		player.play(walk_clip)
+	var loop_len: float = maxf(walk_anim.length - 0.0001, 0.001)
+	player.seek(fposmod(anim_elapsed, loop_len), true)
+
+
+func _stop_walk_animation_for_slot(slot: Node2D) -> void:
+	var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
+	if player == null:
+		return
+	player.stop()
+
+
+func _apply_slot_facing(slot: Node2D, unit_id: int) -> void:
+	var viewport: SubViewport = _viewport_for_slot(slot)
+	if viewport == null:
+		return
+	var model_root: Node3D = viewport.find_child("ModelRoot", true, false) as Node3D
+	if model_root == null:
+		return
+	var yaw: float = _facing_yaw_for_unit(unit_id)
+	model_root.rotation_degrees = Vector3(
+		model_pitch_degrees,
+		model_yaw_base_offset + yaw,
+		0.0,
+	)
+	model_root.scale = Vector3.ONE * model_scale
+	model_root.position = Vector3(0.0, model_offset_y, 0.0)
+	var cam: Camera3D = viewport.get_child(0) as Camera3D
+	if cam != null:
+		cam.size = camera_ortho_size
+
+
+func _hex_move_progress(unit_id: int) -> float:
+	if not _active_hex_moves.has(unit_id):
+		return 1.0
+	return clampf(float(_active_hex_moves[unit_id].get("progress", 0.0)), 0.0, 1.0)
+
+
+func _presentation_anchor_for_unit(
+	unit_id: int,
+	default_anchor: Vector2,
+	default_pscale: float,
+) -> Dictionary:
+	if layout == null or camera == null or not _active_hex_moves.has(unit_id):
+		return {"anchor": default_anchor, "pscale": default_pscale}
+	var move: Dictionary = _active_hex_moves[unit_id]
+	var from_world: Vector2 = layout.hex_to_world(
+		int(move["from_q"]),
+		int(move["from_r"]),
+	)
+	var to_world: Vector2 = layout.hex_to_world(int(move["to_q"]), int(move["to_r"]))
+	var t: float = _hex_move_progress(unit_id)
+	# Lerp in presentation space so on-screen path matches facing (avoids perspective drift).
+	var from_pres: Vector2 = camera.to_presentation(from_world)
+	var to_pres: Vector2 = camera.to_presentation(to_world)
+	var world: Vector2 = from_world.lerp(to_world, t)
+	return {
+		"anchor": from_pres.lerp(to_pres, t),
+		"pscale": camera.perspective_scale_at(world),
+	}

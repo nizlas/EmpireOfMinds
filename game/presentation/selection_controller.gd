@@ -605,21 +605,32 @@ func _unhandled_input(event):
 						di = di + 1
 					if dest_hit != null:
 						var u = scen.unit_by_id(selection.unit_id)
+						var from_q: int = u.position.q
+						var from_r: int = u.position.r
 						var action = MoveUnitScript.make(
 							u.owner_id,
 							u.id,
-							u.position.q,
-							u.position.r,
+							from_q,
+							from_r,
 							dest_hit.q,
 							dest_hit.r
 						)
 						var prev_log_mv = game_state.log.size()
 						var moved_unit_id: int = int(u.id)
+						var moved_type_id: String = str(u.type_id)
 						var result = game_state.try_apply(action)
 						if result["accepted"]:
 							scenario = game_state.scenario
 							selection_view.scenario = game_state.scenario
 							units_view.scenario = game_state.scenario
+							units_view.present_warrior_hex_move_if_applicable(
+								moved_type_id,
+								moved_unit_id,
+								from_q,
+								from_r,
+								dest_hit.q,
+								dest_hit.r,
+							)
 							_sync_terrain_foreground_from_game_state()
 							_reset_shared_hex_cycle()
 							var prev_c_mv = selection.city_id

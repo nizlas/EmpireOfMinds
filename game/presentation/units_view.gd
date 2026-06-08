@@ -108,6 +108,39 @@ static func _load_rgba_marker_texture(path: String) -> Texture2D:
 		return res as Texture2D
 	return null
 
+## Presentation-only: tween 3D warrior from **from** hex to **to** after domain **move_unit** already applied.
+func present_warrior_hex_move_if_applicable(
+	type_id: String,
+	unit_id: int,
+	from_q: int,
+	from_r: int,
+	to_q: int,
+	to_r: int,
+) -> void:
+	if warrior_3d_unit_markers_view == null:
+		return
+	warrior_3d_unit_markers_view.begin_hex_move(
+		unit_id, type_id, from_q, from_r, to_q, to_r
+	)
+
+
+## Depth-merge anchor for TFV: lerped hex move + forward lead when walking screen-down.
+func unit_marker_depth_anchor_presentation(
+	unit_id: int, hex_anchor_pres: Vector2, pscale: float
+) -> Vector2:
+	if warrior_3d_unit_markers_view == null:
+		return hex_anchor_pres
+	return warrior_3d_unit_markers_view.depth_sort_anchor_pres(
+		unit_id, hex_anchor_pres, pscale
+	)
+
+
+func is_unit_screen_down_hex_move_active(unit_id: int) -> bool:
+	if warrior_3d_unit_markers_view == null:
+		return false
+	return warrior_3d_unit_markers_view.is_unit_screen_down_hex_move_active(unit_id)
+
+
 func _ready() -> void:
 	# Phase 4.3h/4.3i — downscale: linear + mipmaps (marker imports only).
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS

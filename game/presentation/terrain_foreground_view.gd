@@ -1583,12 +1583,23 @@ func _fg_merge_item_axial_hex(item: Dictionary, ty: int) -> Vector2i:
 	return Vector2i(999999, 999999)
 
 
+const _FG_SCREEN_DOWN_UNIT_FOREST_SY_EPS: float = 1.25
+
+
 func _fg_depth_merge_item_lt(a: Dictionary, b: Dictionary) -> bool:
 	# Phase **5.1.15c:** **City** marker must paint **before** **unit** marker on the **same** hex.
 	# **`to_layout`** can yield **micro-different** **sy/sx** for otherwise-identical anchors; the raw
 	# sort would draw the **unit** first (**behind**) and bury the sprite under the city art.
 	var ta0: int = int(a["ty"])
 	var tb0: int = int(b["ty"])
+	if (ta0 == 0 and tb0 == 2) or (ta0 == 2 and tb0 == 0):
+		var u_item: Dictionary = b if tb0 == 2 else a
+		if bool(u_item.get("u_screen_down_move", false)):
+			var f_item: Dictionary = a if ta0 == 0 else b
+			if absf(float(f_item["sy"]) - float(u_item["sy"])) <= _FG_SCREEN_DOWN_UNIT_FOREST_SY_EPS:
+				if ta0 == 0 and tb0 == 2:
+					return true
+				return false
 	if (ta0 == 1 and tb0 == 2) or (ta0 == 2 and tb0 == 1):
 		var ha: Vector2i = _fg_merge_item_axial_hex(a, ta0)
 		var hb: Vector2i = _fg_merge_item_axial_hex(b, tb0)
@@ -1767,7 +1778,14 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 		var u_world2: Vector2 = layout.hex_to_world(u2.position.q, u2.position.r)
 		var u_anchor2: Vector2 = cam.to_presentation(u_world2)
 		var u_ps2: float = cam.perspective_scale_at(u_world2)
-		var ulayer: Vector2 = cam.to_layout(u_anchor2)
+		var u_depth_anchor2: Vector2 = u_anchor2
+		var u_screen_down_move: bool = false
+		if units_view != null:
+			u_screen_down_move = units_view.is_unit_screen_down_hex_move_active(int(u2.id))
+			u_depth_anchor2 = units_view.unit_marker_depth_anchor_presentation(
+				int(u2.id), u_anchor2, u_ps2
+			)
+		var ulayer: Vector2 = cam.to_layout(u_depth_anchor2)
 		items.append(
 			{
 				"ty": 2,
@@ -1777,6 +1795,7 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 				"u": u2,
 				"u_anchor": u_anchor2,
 				"u_pscale": u_ps2,
+				"u_screen_down_move": u_screen_down_move,
 			}
 		)
 		ui2 += 1
