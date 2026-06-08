@@ -22,6 +22,7 @@ func _run() -> void:
 	_test_available_science_scaffolding()
 	_test_unlock_collection()
 	_test_units_list_content()
+	_test_unit_details_include_gameplay_stats()
 	_test_primitive_troop_units_in_prototype()
 	_test_naval_rule_metadata()
 	_test_no_locked_sections_in_ui_copy()
@@ -128,6 +129,24 @@ func _test_units_list_content() -> void:
 			>= OverlayScript.UNITS_LIST_MIN_HEIGHT_PX,
 		"Units list has scrollable minimum height",
 	)
+
+
+func _test_unit_details_include_gameplay_stats() -> void:
+	var rows: Array[Dictionary] = OverlayScript.collect_unit_display_rows(
+		OverlayScript.PROTOTYPE_AVAILABLE_SCIENCE_IDS.duplicate(),
+	)
+	var warrior_row: Dictionary = {}
+	var ri: int = 0
+	while ri < rows.size():
+		if str(rows[ri].get("id", "")) == "unit_warrior":
+			warrior_row = rows[ri]
+		ri += 1
+	_check(not warrior_row.is_empty(), "warrior row for details")
+	var details: String = OverlayScript._format_details(warrior_row)
+	_check(details.contains("HP: 100"), "details show HP")
+	_check(details.contains("Melee Strength: 20"), "details show melee")
+	_check(details.contains("Cost: 40"), "details show production cost")
+	_check(details.contains("baseline"), "details show baseline tag")
 
 
 func _test_primitive_troop_units_in_prototype() -> void:

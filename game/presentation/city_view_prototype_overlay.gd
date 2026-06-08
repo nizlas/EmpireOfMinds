@@ -5,6 +5,7 @@ extends Control
 const ScienceUnlocksScript = preload("res://domain/content/science_unlocks.gd")
 const StartingUnitsScript = preload("res://domain/content/starting_units.gd")
 const UnitUnlockAssetsScript = preload("res://domain/content/unit_unlock_assets.gd")
+const UnitDefinitionsScript = preload("res://domain/content/unit_definitions.gd")
 const CityProductionPanelScript = preload("res://presentation/city_production_panel.gd")
 
 ## Temporary display scaffolding when no completed science IDs exist on ProgressState yet.
@@ -93,6 +94,16 @@ static func available_science_ids_for_display(p_game_state) -> Array[String]:
 	return out
 
 
+static func _enrich_unit_rows(rows: Array[Dictionary]) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var i: int = 0
+	while i < rows.size():
+		var row: Dictionary = UnitUnlockAssetsScript.enrich_unlock_row(rows[i])
+		out.append(UnitDefinitionsScript.enrich_unit_row(row))
+		i += 1
+	return out
+
+
 static func collect_unlock_rows(
 	science_ids: Array[String],
 	allowed_types: Array[String],
@@ -120,7 +131,7 @@ static func collect_unlock_rows(
 					"summary": str(unlock.get("summary", "")),
 					"metadata": unlock.get("metadata", {}),
 				}
-				rows.append(UnitUnlockAssetsScript.enrich_unlock_row(row))
+				rows.append(row)
 			ui += 1
 		si += 1
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -130,11 +141,11 @@ static func collect_unlock_rows(
 			return ta < tb
 		return str(a.get("name", "")) < str(b.get("name", ""))
 	)
-	return rows
+	return _enrich_unit_rows(rows)
 
 
 static func collect_baseline_unit_rows() -> Array[Dictionary]:
-	return StartingUnitsScript.unit_rows()
+	return _enrich_unit_rows(StartingUnitsScript.unit_rows())
 
 
 static func collect_unit_display_rows(science_ids: Array[String]) -> Array[Dictionary]:
@@ -502,8 +513,9 @@ static func _format_details(row: Dictionary) -> String:
 	var asset_path: String = str(row.get("asset_path", ""))
 	if not asset_path.is_empty():
 		asset_line = "\nAsset: %s" % asset_path
+	var stats_line: String = _format_unit_stats_block(row)
 	return (
-		"Name: %s\nType: %s\nScience: %s (%s)\nSummary: %s\nID: %s%s%s"
+		"Name: %s\nType: %s\nScience: %s (%s)\nSummary: %s\nID: %s%s%s%s"
 		% [
 			str(row.get("name", "")),
 			str(row.get("type", "")),
@@ -511,10 +523,32 @@ static func _format_details(row: Dictionary) -> String:
 			str(row.get("science_id", "")),
 			str(row.get("summary", "")),
 			str(row.get("id", "")),
+			stats_line,
 			meta_line,
 			asset_line,
 		]
 	)
+
+
+static func _format_unit_stats_block(row: Dictionary) -> String:
+	if not row.has("hp"):
+		return ""
+	var lines: PackedStringArray = PackedStringArray([
+		"\nCategory: %s" % str(row.get("category", "")),
+		"HP: %d" % int(row.get("hp", 0)),
+		"Cost: %d" % int(row.get("production_cost", 0)),
+		"Movement: %d" % int(row.get("movement", 0)),
+		"Melee Strength: %d" % int(row.get("melee_strength", 0)),
+		"Ranged Strength: %d" % int(row.get("ranged_strength", 0)),
+		"Range: %d" % int(row.get("attack_range", 0)),
+		"Cargo: %d" % int(row.get("cargo_capacity", 0)),
+	])
+	if row.has("charges"):
+		lines.append("Charges: %d" % int(row.get("charges", 0)))
+	var tags: Array = row.get("unit_tags", [])
+	if not tags.is_empty():
+		lines.append("Tags: %s" % ", ".join(tags))
+	return "\n".join(lines) + "\n"
 
 
 func _unhandled_input(event: InputEvent) -> void:

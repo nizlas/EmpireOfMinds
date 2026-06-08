@@ -69,6 +69,7 @@ $Script:SmokeTests = @(
 	"res://presentation/tests/test_city_view_prototype_overlay.gd"
 	"res://domain/tests/test_science_unlocks.gd"
 	"res://domain/tests/test_unit_unlock_assets.gd"
+	"res://domain/tests/test_unit_definitions.gd"
 	"res://presentation/tests/test_main_tscn_map_layer_sibling_order.gd"
 )
 
