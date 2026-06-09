@@ -1,4 +1,4 @@
-# Experimental SubViewport-based 3D warrior markers on the map plane (presentation only).
+# Experimental SubViewport-based 3D unit markers (warrior + settler) on the map plane (presentation only).
 class_name Warrior3DUnitMarkersView
 extends Node2D
 
@@ -15,6 +15,8 @@ const VIEWPORT_SIZE_QUANTIZE: int = 32
 const HEX_MOVE_WALK_ANIM_SPEED: float = 0.5
 const SEMANTIC_IDLE_CLIP: String = "Idle_3"
 const SEMANTIC_WALK_CLIP: String = "Walking"
+## Idle contact pose already matches walk start; more blend causes leg twitch.
+const WALK_START_BLEND_MAX_SEC: float = 0.05
 
 ## GLB bind pose faces -Z at yaw 0 (toward SubViewport camera on +Z). Positive yaw turns screen-right
 ## (~48° matches unit_settler_marker three-quarter; not straight-on, not back-facing).
@@ -50,10 +52,21 @@ const SEMANTIC_WALK_CLIP: String = "Walking"
 ## Desired *visual* clip. Remapped to GLB key when **`use_glb_animation_name_remap`** is on.
 @export var map_animation_name: String = "Idle_3"
 @export var use_glb_animation_name_remap: bool = true
+## Hex-move start: **0** = snap Idle→Walking (recommended). Max **0.05** if a hint of blend is needed.
+@export_range(0.0, 0.05, 0.01) var walk_start_blend_sec: float = 0.0
+## Hex-move end: eased Walking→Idle_3 crossfade (GLB **Combat_Stance** via remap).
+@export_range(0.20, 0.35, 0.01) var idle_end_blend_sec: float = 0.28
+
+@export_group("Settler framing (experimental)")
+## Counter Hips bone translation in **Walking** so the GLB plays in-place inside the SubViewport.
+@export var settler_neutralize_root_motion: bool = true
 
 @export_group("Animation audit (temporary)")
 @export var animation_audit_mode: bool = false
 @export var animation_audit_cycle_seconds: float = 3.0
+
+const ROOT_MOTION_ANCHOR_NAME: String = "RootMotionAnchor"
+const HIPS_BONE_NAME: String = "Hips"
 
 var play_idle_animation: bool:
 	get:
@@ -68,7 +81,7 @@ var units_view
 ## Presentation redraw target while hex-move tweens run (typically **TerrainForegroundView**).
 var terrain_foreground_view
 
-var _warrior_scene: PackedScene
+var _scenes_by_type: Dictionary = {}
 var _slot_by_unit_id: Dictionary = {}
 var _blit_via_terrain_foreground: bool = false
 var _sync_markers_frame: int = -1
@@ -84,8 +97,9 @@ var _facing_yaw_by_unit_id: Dictionary = {}
 
 
 func _ready() -> void:
-	_load_warrior_scene()
-	visible = Warrior3DExperimentScript.is_enabled() and _warrior_scene != null
+	Warrior3DExperimentScript.log_flag_state_once()
+	_load_unit_scenes()
+	visible = Warrior3DExperimentScript.is_enabled() and not _scenes_by_type.is_empty()
 	if visible:
 		_log_map_animation_selection()
 	if _is_animation_audit_active():
@@ -112,13 +126,17 @@ func _playback_animation_name() -> String:
 	return Warrior3DAnimationRemapScript.glb_clip_for_visual(
 		visual,
 		use_glb_animation_name_remap,
+		"warrior",
 	)
 
 
 func _prime_animation_audit_catalog_from_scene() -> void:
-	if _warrior_scene == null or _audit_catalog_logged or not is_inside_tree():
+	var probe_scene: PackedScene = _scene_for_type("warrior")
+	if probe_scene == null:
+		probe_scene = _scene_for_type("settler")
+	if probe_scene == null or _audit_catalog_logged or not is_inside_tree():
 		return
-	var probe: Node = _warrior_scene.instantiate()
+	var probe: Node = probe_scene.instantiate()
 	add_child(probe)
 	var player: AnimationPlayer = _find_animation_player(probe)
 	if player != null:
@@ -179,22 +197,23 @@ func _log_map_animation_selection() -> void:
 	)
 
 
-func _hex_move_duration_sec() -> float:
+func _hex_move_duration_sec(type_id: String = "warrior") -> float:
 	return Warrior3DWalkSyncScript.hex_move_duration_sec(
 		HEX_MOVE_WALK_ANIM_SPEED,
 		hex_stride_cycle_fraction,
-		_resolved_walk_clip_length_sec(),
+		_resolved_walk_clip_length_sec(type_id),
 	)
 
 
-func _resolved_walk_clip_length_sec() -> float:
-	return Warrior3DWalkSyncScript.resolved_walk_clip_length_sec()
+func _resolved_walk_clip_length_sec(type_id: String = "warrior") -> float:
+	return Warrior3DWalkSyncScript.resolved_walk_clip_length_sec(type_id)
 
 
 func _prime_walk_clip_length_from_slot(slot: Node2D) -> void:
 	var viewport: SubViewport = _viewport_for_slot(slot)
 	if viewport == null:
 		return
+	var type_id: String = str(slot.get_meta(&"eom_unit_type_id", "warrior"))
 	var model_root: Node = viewport.find_child("ModelRoot", true, false)
 	if model_root == null:
 		return
@@ -203,26 +222,116 @@ func _prime_walk_clip_length_from_slot(slot: Node2D) -> void:
 		var player: AnimationPlayer = _find_animation_player(model_root.get_child(ci) as Node)
 		if player != null:
 			Warrior3DWalkSyncScript.cache_walk_clip_length_from_player(
-				player, use_glb_animation_name_remap and not _is_animation_audit_active()
+				player,
+				use_glb_animation_name_remap and not _is_animation_audit_active(),
+				type_id,
 			)
 			return
 		ci += 1
 
 
-func _load_warrior_scene() -> void:
-	if _warrior_scene != null:
+func _log_animation_player_catalog_once(
+	slot: Node2D, type_id: String, player: AnimationPlayer
+) -> void:
+	if bool(slot.get_meta(&"eom_anim_catalog_logged", false)):
 		return
+	slot.set_meta(&"eom_anim_catalog_logged", true)
+	var asset_path: String = Warrior3DExperimentScript.animated_scene_path_for_type(type_id)
+	var idle_glb: String = _glb_clip_for_semantic(SEMANTIC_IDLE_CLIP, type_id)
+	var walk_glb: String = _glb_clip_for_semantic(SEMANTIC_WALK_CLIP, type_id)
+	print(
+		(
+			"[Unit3D anim catalog] type=%s asset=%s player_path=%s clips=%s "
+			+ "idle_semantic='%s' idle_glb='%s' walk_semantic='%s' walk_glb='%s'"
+		)
+		% [
+			type_id,
+			asset_path,
+			player.get_path(),
+			str(player.get_animation_list()),
+			SEMANTIC_IDLE_CLIP,
+			idle_glb,
+			SEMANTIC_WALK_CLIP,
+			walk_glb,
+		]
+	)
+
+
+func _load_warrior_scene() -> void:
+	_load_unit_scenes()
+
+
+func _load_unit_scenes() -> void:
 	if not Warrior3DExperimentScript.is_enabled():
 		return
-	var scene_path: String = Warrior3DExperimentScript.warrior_scene_path()
-	_warrior_scene = ResourceLoader.load(scene_path, "", ResourceLoader.CACHE_MODE_REUSE) as PackedScene
-	if _warrior_scene == null:
-		push_warning("Warrior3DUnitMarkersView: failed to load %s" % scene_path)
+	var ti: int = 0
+	while ti < Warrior3DExperimentScript.SUPPORTED_3D_TYPE_IDS.size():
+		var type_id: String = Warrior3DExperimentScript.SUPPORTED_3D_TYPE_IDS[ti]
+		if not Warrior3DExperimentScript.should_render_unit_as_3d(type_id):
+			ti += 1
+			continue
+		if _scenes_by_type.has(type_id):
+			ti += 1
+			continue
+		var scene_path: String = Warrior3DExperimentScript.animated_scene_path_for_type(type_id)
+		if scene_path.is_empty():
+			ti += 1
+			continue
+		var scene: PackedScene = (
+			ResourceLoader.load(scene_path, "", ResourceLoader.CACHE_MODE_REUSE) as PackedScene
+		)
+		if scene == null:
+			push_warning("Warrior3DUnitMarkersView: failed to load %s" % scene_path)
+		else:
+			_scenes_by_type[type_id] = scene
+		ti += 1
+
+
+func _scene_for_type(type_id: String) -> PackedScene:
+	return _scenes_by_type.get(str(type_id)) as PackedScene
+
+
+func _type_id_for_unit(unit_id: int) -> String:
+	var slot: Node2D = _slot_by_unit_id.get(unit_id) as Node2D
+	if slot != null and slot.has_meta(&"eom_unit_type_id"):
+		return str(slot.get_meta(&"eom_unit_type_id"))
+	if _active_hex_moves.has(unit_id):
+		var move_type: Variant = _active_hex_moves[unit_id].get("type_id", null)
+		if move_type != null:
+			return str(move_type)
+	if scenario != null:
+		var units: Array = scenario.units()
+		var ui: int = 0
+		while ui < units.size():
+			var unit = units[ui]
+			if int(unit.id) == unit_id:
+				return str(unit.type_id)
+			ui += 1
+	return "warrior"
+
+
+func _log_unit_animation_debug(
+	type_id: String,
+	asset_path: String,
+	semantic: String,
+	glb_clip: String,
+	facing_yaw_deg: float,
+) -> void:
+	print(
+		(
+			"[Unit3D] type=%s asset=%s semantic='%s' glb_clip='%s' "
+			+ "facing_yaw_deg=%.2f"
+		)
+		% [type_id, asset_path, semantic, glb_clip, facing_yaw_deg]
+	)
 
 
 func _process(delta: float) -> void:
 	if not Warrior3DExperimentScript.is_enabled():
 		return
+	_advance_pending_animation_blends(delta)
+	_ensure_idle_slots_autoplay()
+	_refresh_all_settler_root_motion_cancels()
 	if _is_animation_audit_active():
 		_tick_animation_audit(delta)
 	elif _tick_hex_moves(delta):
@@ -239,7 +348,7 @@ func begin_hex_move(
 ) -> void:
 	if not Warrior3DExperimentScript.is_enabled():
 		return
-	if not Warrior3DExperimentScript.should_render_warrior_as_3d(type_id):
+	if not Warrior3DExperimentScript.should_render_unit_as_3d(type_id):
 		return
 	if layout == null:
 		return
@@ -255,9 +364,10 @@ func begin_hex_move(
 	var facing_yaw: float = float(facing["model_yaw"])
 	_facing_yaw_by_unit_id[unit_id] = facing_yaw
 	var semantic: String = SEMANTIC_WALK_CLIP
-	var glb_clip: String = _glb_clip_for_semantic(semantic)
-	var duration_sec: float = _hex_move_duration_sec()
+	var glb_clip: String = _glb_clip_for_semantic(semantic, type_id)
+	var duration_sec: float = _hex_move_duration_sec(type_id)
 	_active_hex_moves[unit_id] = {
+		"type_id": type_id,
 		"from_q": from_q,
 		"from_r": from_r,
 		"to_q": to_q,
@@ -268,15 +378,23 @@ func begin_hex_move(
 		"pres_dir": pres_dir,
 		"duration_sec": duration_sec,
 	}
+	_log_unit_animation_debug(
+		type_id,
+		Warrior3DExperimentScript.animated_scene_path_for_type(type_id),
+		semantic,
+		glb_clip,
+		facing_yaw,
+	)
 	print(
 		(
-			"[Warrior3D hex move] unit=%d source=(%d,%d) target=(%d,%d) "
+			"[Unit3D hex move] unit=%d type=%s source=(%d,%d) target=(%d,%d) "
 			+ "plan_bearing_deg=%.2f map_bearing_deg=%.2f map_skew_deg=%.2f "
 			+ "model_yaw_deg=%.2f duration_sec=%.3f walk_clip_len=%.3f stride_frac=%.2f anim_speed=%.2f "
-			+ "world_dir=%s pres_dir=%s semantic='%s' glb_clip='%s'"
+			+ "world_dir=%s pres_dir=%s"
 		)
 		% [
 			unit_id,
+			type_id,
 			from_q,
 			from_r,
 			to_q,
@@ -286,20 +404,26 @@ func begin_hex_move(
 			float(facing["map_skew_deg"]),
 			facing_yaw,
 			duration_sec,
-			_resolved_walk_clip_length_sec(),
+			_resolved_walk_clip_length_sec(type_id),
 			hex_stride_cycle_fraction,
 			HEX_MOVE_WALK_ANIM_SPEED,
 			str(world_dir),
 			str(pres_dir),
-			semantic,
-			glb_clip,
 		]
 	)
 	var slot: Node2D = _slot_by_unit_id.get(unit_id) as Node2D
 	if slot != null:
 		slot.set_meta(&"eom_slot_anim", "")
+		slot.set_meta(&"eom_root_motion_walk_mid_logged", false)
 		_apply_slot_facing(slot, unit_id)
-		_ensure_slot_animation(slot, glb_clip, HEX_MOVE_WALK_ANIM_SPEED)
+		if type_id == "settler":
+			_log_settler_root_motion_phase(slot, "before_walk")
+		var walk_blend: float = -1.0
+		if walk_start_blend_sec > 0.0:
+			walk_blend = minf(walk_start_blend_sec, WALK_START_BLEND_MAX_SEC)
+		_ensure_slot_animation(slot, glb_clip, HEX_MOVE_WALK_ANIM_SPEED, walk_blend, semantic)
+		if walk_blend < 0.0:
+			_update_walk_animation_for_slot(slot, 0.0, 0.0)
 	_request_presentation_redraw()
 
 
@@ -329,7 +453,7 @@ func draw_unit_marker_at(
 	_owner_id: int,
 	unit_id: int,
 ) -> void:
-	if not Warrior3DExperimentScript.should_render_warrior_as_3d(type_id):
+	if not Warrior3DExperimentScript.should_render_unit_as_3d(type_id):
 		return
 	_sync_markers_once_per_frame()
 	var pres_override: Dictionary = _presentation_anchor_for_unit(unit_id, anchor_pres, pscale)
@@ -346,8 +470,10 @@ func draw_unit_marker_at(
 		return
 	_apply_slot_facing(slot, unit_id)
 	if _active_hex_moves.has(unit_id):
-		_sync_walk_animation_time_for_slot(
-			slot, float(_active_hex_moves[unit_id].get("anim_elapsed_sec", 0.0))
+		_update_walk_animation_for_slot(
+			slot,
+			float(_active_hex_moves[unit_id].get("anim_elapsed_sec", 0.0)),
+			0.0,
 		)
 	_apply_viewport_size_for_blit(slot, viewport, rect)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -410,8 +536,8 @@ func _sync_markers() -> void:
 	if scenario == null or layout == null:
 		return
 	_discard_slots_if_animation_config_changed()
-	_load_warrior_scene()
-	if _warrior_scene == null:
+	_load_unit_scenes()
+	if _scenes_by_type.is_empty():
 		return
 	if camera == null:
 		camera = MapCameraScript.new()
@@ -420,16 +546,19 @@ func _sync_markers() -> void:
 	var i: int = 0
 	while i < units.size():
 		var unit = units[i]
-		if str(unit.type_id) != "warrior":
+		var type_id: String = str(unit.type_id)
+		if not Warrior3DExperimentScript.should_render_unit_as_3d(type_id):
 			i += 1
 			continue
 		var unit_id: int = int(unit.id)
 		active_ids[unit_id] = true
 		var slot: Node2D = _slot_by_unit_id.get(unit_id) as Node2D
 		if slot == null:
-			slot = _create_slot()
+			slot = _create_slot(type_id)
 			add_child(slot)
 			_slot_by_unit_id[unit_id] = slot
+		slot.set_meta(&"eom_unit_type_id", type_id)
+		slot.set_meta(&"eom_unit_id", unit_id)
 		_sync_unit_slot(slot, unit_id, unit)
 		slot.position = Vector2.ZERO
 		if not _blit_via_terrain_foreground:
@@ -441,7 +570,7 @@ func _sync_markers() -> void:
 			)
 			anchor_pres = pres_override["anchor"] as Vector2
 			pscale = float(pres_override["pscale"])
-			slot.position = _marker_display_rect(anchor_pres, pscale, "warrior").position
+			slot.position = _marker_display_rect(anchor_pres, pscale, type_id).position
 		i += 1
 	var stale_ids: Array = _slot_by_unit_id.keys()
 	var si: int = 0
@@ -457,7 +586,7 @@ func _sync_markers() -> void:
 		si += 1
 
 
-func _create_slot() -> Node2D:
+func _create_slot(type_id: String = "warrior") -> Node2D:
 	var root := Node2D.new()
 	var viewport := SubViewport.new()
 	var vp_size: Vector2i = _default_viewport_pixel_size()
@@ -485,9 +614,17 @@ func _create_slot() -> Node2D:
 	viewport.add_child(fill_light)
 	var model_root := Node3D.new()
 	model_root.name = "ModelRoot"
-	if _warrior_scene != null:
-		var model: Node = _warrior_scene.instantiate()
-		model_root.add_child(model)
+	var unit_scene: PackedScene = _scene_for_type(type_id)
+	if unit_scene != null:
+		var model: Node = unit_scene.instantiate()
+		if _uses_settler_root_motion_cancel(type_id):
+			var motion_anchor := Node3D.new()
+			motion_anchor.name = ROOT_MOTION_ANCHOR_NAME
+			model_root.add_child(motion_anchor)
+			motion_anchor.add_child(model)
+		else:
+			model_root.add_child(model)
+	root.set_meta(&"eom_unit_type_id", type_id)
 	model_root.rotation_degrees = Vector3(
 		model_pitch_degrees,
 		model_yaw_base_offset + model_yaw_degrees,
@@ -518,7 +655,7 @@ func depth_sort_anchor_pres(unit_id: int, hex_anchor_pres: Vector2, pscale: floa
 	var draw: Dictionary = _presentation_anchor_for_unit(unit_id, hex_anchor_pres, pscale)
 	var draw_pscale: float = float(draw["pscale"])
 	var marker_rect: Rect2 = _marker_rect_for_type(
-		draw["anchor"] as Vector2, draw_pscale, "warrior", units_view
+		draw["anchor"] as Vector2, draw_pscale, _type_id_for_unit(unit_id), units_view
 	)
 	var marker_h: float = marker_rect.size.y
 	if marker_h <= 0.0:
@@ -616,12 +753,17 @@ static func _marker_rect_for_type(
 
 
 func _ensure_slot_animation(
-	slot: Node2D, clip_name: String, anim_speed_scale: float = 1.0
+	slot: Node2D,
+	clip_name: String,
+	anim_speed_scale: float = 1.0,
+	blend_sec: float = -1.0,
+	semantic: String = "",
 ) -> void:
 	if not play_map_animation:
 		return
 	if (
-		str(slot.get_meta(&"eom_slot_anim", "")) == clip_name
+		blend_sec < 0.0
+		and str(slot.get_meta(&"eom_slot_anim", "")) == clip_name
 		and is_equal_approx(float(slot.get_meta(&"eom_slot_anim_speed", 1.0)), anim_speed_scale)
 	):
 		return
@@ -631,16 +773,49 @@ func _ensure_slot_animation(
 	var model_root: Node = viewport.find_child("ModelRoot", true, false)
 	if model_root == null:
 		return
+	var type_id: String = str(slot.get_meta(&"eom_unit_type_id", "warrior"))
+	var unit_id: int = int(slot.get_meta(&"eom_unit_id", -1))
+	var semantic_name: String = semantic if not semantic.is_empty() else clip_name
 	var ci: int = 0
 	while ci < model_root.get_child_count():
-		_play_clip_on_model(model_root.get_child(ci), clip_name, anim_speed_scale)
+		_play_clip_on_model(
+			model_root.get_child(ci),
+			clip_name,
+			anim_speed_scale,
+			blend_sec,
+			type_id,
+		)
 		ci += 1
+	_log_unit_animation_debug(
+		type_id,
+		Warrior3DExperimentScript.animated_scene_path_for_type(type_id),
+		semantic_name,
+		clip_name,
+		_facing_yaw_for_unit(unit_id) if unit_id >= 0 else model_yaw_degrees,
+	)
 	slot.set_meta(&"eom_slot_anim", clip_name)
 	slot.set_meta(&"eom_slot_anim_speed", anim_speed_scale)
+	_mark_slot_anim_blend(slot, blend_sec)
+
+
+func _mark_slot_anim_blend(slot: Node2D, blend_sec: float) -> void:
+	if blend_sec > 0.0:
+		var until_ms: int = Time.get_ticks_msec() + int(ceil(blend_sec * 1000.0))
+		slot.set_meta(&"eom_anim_blend_until", until_ms)
+	else:
+		slot.set_meta(&"eom_anim_blend_until", 0)
+
+
+func _slot_anim_blend_active(slot: Node2D) -> bool:
+	return Time.get_ticks_msec() < int(slot.get_meta(&"eom_anim_blend_until", 0))
 
 
 func _play_clip_on_model(
-	model: Node, clip_name: String, anim_speed_scale: float = 1.0
+	model: Node,
+	clip_name: String,
+	anim_speed_scale: float = 1.0,
+	blend_sec: float = -1.0,
+	type_id: String = "warrior",
 ) -> void:
 	if not model.is_inside_tree():
 		return
@@ -649,17 +824,30 @@ func _play_clip_on_model(
 		return
 	if not player.has_animation(clip_name):
 		push_warning(
-			"Warrior3DUnitMarkersView: clip '%s' not found on %s"
-			% [clip_name, Warrior3DExperimentScript.warrior_scene_path()]
+			"Warrior3DUnitMarkersView: clip '%s' not found on %s (type=%s)"
+			% [
+				clip_name,
+				Warrior3DExperimentScript.animated_scene_path_for_type(type_id),
+				type_id,
+			]
 		)
 		return
-	player.process_mode = Node.PROCESS_MODE_DISABLED
+	var walk_clip: String = _glb_clip_for_semantic(SEMANTIC_WALK_CLIP, type_id)
+	var manual_walk_timeline: bool = clip_name == walk_clip
 	player.speed_scale = anim_speed_scale
+	player.process_mode = (
+		Node.PROCESS_MODE_DISABLED if manual_walk_timeline else Node.PROCESS_MODE_INHERIT
+	)
 	var anim: Animation = player.get_animation(clip_name)
 	if anim != null:
 		anim.loop_mode = Animation.LOOP_LINEAR
-	player.play(clip_name)
-	player.seek(0.0, true)
+	if blend_sec > 0.0:
+		player.play(clip_name, blend_sec, -1.0)
+	elif manual_walk_timeline:
+		player.play(clip_name)
+		player.seek(0.0, true)
+	else:
+		player.play(clip_name)
 
 
 static func _find_animation_player(node: Node) -> AnimationPlayer:
@@ -684,13 +872,13 @@ func _tick_hex_moves(delta: float) -> bool:
 		var unit_id: int = int(unit_id_key)
 		var move: Dictionary = _active_hex_moves[unit_id]
 		var slot: Node2D = _slot_by_unit_id.get(unit_id) as Node2D
-		var stride_sec: float = _hex_move_stride_anim_sec()
+		var stride_sec: float = _hex_move_stride_anim_sec(unit_id)
 		var anim_elapsed: float = float(move.get("anim_elapsed_sec", 0.0))
 		if anim_elapsed < stride_sec:
 			anim_elapsed += delta * HEX_MOVE_WALK_ANIM_SPEED
 			anim_elapsed = minf(anim_elapsed, stride_sec)
 			move["anim_elapsed_sec"] = anim_elapsed
-			_sync_walk_animation_time_for_slot(slot, anim_elapsed)
+			_update_walk_animation_for_slot(slot, anim_elapsed, delta)
 		var progress: float = 1.0 if stride_sec <= 0.0 else clampf(anim_elapsed / stride_sec, 0.0, 1.0)
 		if progress >= 1.0:
 			progress = 1.0
@@ -703,21 +891,24 @@ func _tick_hex_moves(delta: float) -> bool:
 		var done_id: int = int(finished_ids[fi])
 		var facing_yaw: float = float(_facing_yaw_by_unit_id.get(done_id, model_yaw_degrees))
 		_active_hex_moves.erase(done_id)
+		var done_type_id: String = _type_id_for_unit(done_id)
 		var idle_semantic: String = SEMANTIC_IDLE_CLIP
-		var idle_glb: String = _glb_clip_for_semantic(idle_semantic)
-		print(
-			(
-				"[Warrior3D hex move] unit=%d arrived semantic='%s' glb_clip='%s' "
-				+ "facing_yaw_deg=%.2f"
-			)
-			% [done_id, idle_semantic, idle_glb, facing_yaw]
+		var idle_glb: String = _glb_clip_for_semantic(idle_semantic, done_type_id)
+		_log_unit_animation_debug(
+			done_type_id,
+			Warrior3DExperimentScript.animated_scene_path_for_type(done_type_id),
+			idle_semantic,
+			idle_glb,
+			facing_yaw,
 		)
 		var slot: Node2D = _slot_by_unit_id.get(done_id) as Node2D
 		if slot != null:
-			_stop_walk_animation_for_slot(slot)
 			slot.set_meta(&"eom_slot_anim", "")
 			_apply_slot_facing(slot, done_id)
-			_ensure_slot_animation(slot, idle_glb, 1.0)
+			_ensure_slot_animation(slot, idle_glb, 1.0, idle_end_blend_sec, idle_semantic)
+			if done_type_id == "settler":
+				_refresh_settler_root_motion_cancel(slot)
+				_log_settler_root_motion_phase(slot, "after_walk")
 		fi += 1
 	return any_active or finished_ids.size() > 0
 
@@ -732,6 +923,10 @@ func _request_presentation_redraw() -> void:
 
 
 func _sync_unit_slot(slot: Node2D, unit_id: int, _unit) -> void:
+	var type_id: String = str(slot.get_meta(&"eom_unit_type_id", "warrior"))
+	var catalog_player: AnimationPlayer = _walk_animation_player_for_slot(slot)
+	if catalog_player != null and slot.is_inside_tree():
+		_log_animation_player_catalog_once(slot, type_id, catalog_player)
 	_apply_slot_facing(slot, unit_id)
 	var clip_name: String = _playback_clip_for_unit(unit_id)
 	var anim_speed: float = (
@@ -741,14 +936,20 @@ func _sync_unit_slot(slot: Node2D, unit_id: int, _unit) -> void:
 		str(slot.get_meta(&"eom_slot_anim", "")) != clip_name
 		or not is_equal_approx(float(slot.get_meta(&"eom_slot_anim_speed", 1.0)), anim_speed)
 	):
-		_ensure_slot_animation(slot, clip_name, anim_speed)
+		_ensure_slot_animation(
+			slot,
+			clip_name,
+			anim_speed,
+			-1.0,
+			_semantic_animation_for_unit(unit_id),
+		)
 
 
 func _playback_clip_for_unit(unit_id: int) -> String:
 	if _is_animation_audit_active():
 		return _playback_animation_name()
 	var semantic: String = _semantic_animation_for_unit(unit_id)
-	return _glb_clip_for_semantic(semantic)
+	return _glb_clip_for_semantic(semantic, _type_id_for_unit(unit_id))
 
 
 func _semantic_animation_for_unit(unit_id: int) -> String:
@@ -757,10 +958,11 @@ func _semantic_animation_for_unit(unit_id: int) -> String:
 	return SEMANTIC_IDLE_CLIP
 
 
-func _glb_clip_for_semantic(semantic: String) -> String:
+func _glb_clip_for_semantic(semantic: String, type_id: String = "warrior") -> String:
 	return Warrior3DAnimationRemapScript.glb_clip_for_visual(
 		semantic,
 		use_glb_animation_name_remap and not _is_animation_audit_active(),
+		type_id,
 	)
 
 
@@ -830,8 +1032,11 @@ static func expected_travel_yaw_from_pres_dir(
 	return offset_deg + rad_to_deg(Vector2(pres_dir.x, -pres_dir.y).angle())
 
 
-func _hex_move_stride_anim_sec() -> float:
-	return _resolved_walk_clip_length_sec() * hex_stride_cycle_fraction
+func _hex_move_stride_anim_sec(unit_id: int) -> float:
+	return (
+		_resolved_walk_clip_length_sec(_type_id_for_unit(unit_id))
+		* hex_stride_cycle_fraction
+	)
 
 
 func _walk_animation_player_for_slot(slot: Node2D) -> AnimationPlayer:
@@ -852,25 +1057,222 @@ func _walk_animation_player_for_slot(slot: Node2D) -> AnimationPlayer:
 	return null
 
 
-func _sync_walk_animation_time_for_slot(slot: Node2D, anim_elapsed: float) -> void:
+func _update_walk_animation_for_slot(
+	slot: Node2D, anim_elapsed: float, delta: float
+) -> void:
 	var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
 	if player == null:
 		return
-	var walk_clip: String = _glb_clip_for_semantic(SEMANTIC_WALK_CLIP)
+	var type_id: String = str(slot.get_meta(&"eom_unit_type_id", "warrior"))
+	var walk_clip: String = _glb_clip_for_semantic(SEMANTIC_WALK_CLIP, type_id)
 	var walk_anim: Animation = player.get_animation(walk_clip)
 	if walk_anim == null or walk_anim.length <= 0.0:
 		return
+	if _slot_anim_blend_active(slot):
+		return
 	if str(player.current_animation) != walk_clip:
 		player.play(walk_clip)
+		player.seek(0.0, true)
 	var loop_len: float = maxf(walk_anim.length - 0.0001, 0.001)
 	player.seek(fposmod(anim_elapsed, loop_len), true)
+	player.advance(0.0)
+	_refresh_settler_root_motion_cancel(slot)
+	if type_id == "settler":
+		var stride_sec: float = _hex_move_stride_anim_sec(
+			int(slot.get_meta(&"eom_unit_id", -1))
+		)
+		if (
+			stride_sec > 0.0
+			and anim_elapsed >= stride_sec * 0.45
+			and not bool(slot.get_meta(&"eom_root_motion_walk_mid_logged", false))
+		):
+			slot.set_meta(&"eom_root_motion_walk_mid_logged", true)
+			_log_settler_root_motion_phase(slot, "during_walk")
 
 
-func _stop_walk_animation_for_slot(slot: Node2D) -> void:
-	var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
-	if player == null:
+func _advance_pending_animation_blends(delta: float) -> void:
+	if delta <= 0.0:
 		return
-	player.stop()
+	for unit_id_key in _slot_by_unit_id.keys():
+		var slot: Node2D = _slot_by_unit_id[unit_id_key] as Node2D
+		if slot == null or not _slot_anim_blend_active(slot):
+			continue
+		var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
+		if player == null:
+			continue
+		if player.process_mode == Node.PROCESS_MODE_DISABLED:
+			player.advance(delta)
+
+
+func _ensure_idle_slots_autoplay() -> void:
+	for unit_id_key in _slot_by_unit_id.keys():
+		var unit_id: int = int(unit_id_key)
+		if _active_hex_moves.has(unit_id):
+			continue
+		var slot: Node2D = _slot_by_unit_id[unit_id_key] as Node2D
+		if slot == null or _slot_anim_blend_active(slot):
+			continue
+		var type_id: String = str(slot.get_meta(&"eom_unit_type_id", "warrior"))
+		var idle_clip: String = _glb_clip_for_semantic(SEMANTIC_IDLE_CLIP, type_id)
+		if str(slot.get_meta(&"eom_slot_anim", "")) != idle_clip:
+			continue
+		var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
+		if player == null:
+			continue
+		if player.process_mode != Node.PROCESS_MODE_INHERIT:
+			player.process_mode = Node.PROCESS_MODE_INHERIT
+		if not player.is_playing() or str(player.current_animation) != idle_clip:
+			player.play(idle_clip)
+
+
+func _uses_settler_root_motion_cancel(type_id: String) -> bool:
+	return str(type_id) == "settler" and settler_neutralize_root_motion
+
+
+func _model_root_for_slot(slot: Node2D) -> Node3D:
+	var viewport: SubViewport = _viewport_for_slot(slot)
+	if viewport == null:
+		return null
+	return viewport.find_child("ModelRoot", true, false) as Node3D
+
+
+func _root_motion_anchor_for_slot(slot: Node2D) -> Node3D:
+	var model_root: Node3D = _model_root_for_slot(slot)
+	if model_root == null:
+		return null
+	return model_root.find_child(ROOT_MOTION_ANCHOR_NAME, false, false) as Node3D
+
+
+func _skeleton_for_slot(slot: Node2D) -> Skeleton3D:
+	var model_root: Node3D = _model_root_for_slot(slot)
+	if model_root == null:
+		return null
+	return _find_skeleton3d(model_root)
+
+
+static func _find_skeleton3d(node: Node) -> Skeleton3D:
+	if node is Skeleton3D:
+		return node as Skeleton3D
+	var children: Array = node.get_children()
+	var i: int = 0
+	while i < children.size():
+		var found: Skeleton3D = _find_skeleton3d(children[i] as Node)
+		if found != null:
+			return found
+		i += 1
+	return null
+
+
+func _hips_bone_index(skel: Skeleton3D) -> int:
+	return skel.find_bone(HIPS_BONE_NAME)
+
+
+func _hips_local_in_model_root(slot: Node2D) -> Vector3:
+	var model_root: Node3D = _model_root_for_slot(slot)
+	var skel: Skeleton3D = _skeleton_for_slot(slot)
+	if model_root == null or skel == null:
+		return Vector3.ZERO
+	var hips_idx: int = _hips_bone_index(skel)
+	if hips_idx < 0:
+		return Vector3.ZERO
+	var hips_global: Vector3 = skel.get_bone_global_pose(hips_idx).origin
+	return model_root.global_transform.affine_inverse() * hips_global
+
+
+func _invalidate_settler_root_motion_reference(slot: Node2D) -> void:
+	if slot.has_meta(&"eom_hips_ref_local"):
+		slot.remove_meta(&"eom_hips_ref_local")
+
+
+func _try_capture_settler_hips_reference(slot: Node2D) -> bool:
+	if slot.has_meta(&"eom_hips_ref_local"):
+		return true
+	var type_id: String = str(slot.get_meta(&"eom_unit_type_id", ""))
+	if not _uses_settler_root_motion_cancel(type_id):
+		return false
+	var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
+	var skel: Skeleton3D = _skeleton_for_slot(slot)
+	if player == null or skel == null or _hips_bone_index(skel) < 0:
+		return false
+	var idle_clip: String = _glb_clip_for_semantic(SEMANTIC_IDLE_CLIP, type_id)
+	var slot_clip: String = str(slot.get_meta(&"eom_slot_anim", ""))
+	var playing_idle: bool = (
+		slot_clip == idle_clip
+		or str(player.current_animation) == idle_clip
+		or str(player.assigned_animation) == idle_clip
+	)
+	if not playing_idle:
+		return false
+	slot.set_meta(&"eom_hips_ref_local", _hips_local_in_model_root(slot))
+	return true
+
+
+func _refresh_settler_root_motion_cancel(slot: Node2D) -> void:
+	var type_id: String = str(slot.get_meta(&"eom_unit_type_id", ""))
+	if not _uses_settler_root_motion_cancel(type_id):
+		return
+	var anchor: Node3D = _root_motion_anchor_for_slot(slot)
+	var model_root: Node3D = _model_root_for_slot(slot)
+	var skel: Skeleton3D = _skeleton_for_slot(slot)
+	if anchor == null or model_root == null or skel == null:
+		return
+	if _hips_bone_index(skel) < 0:
+		return
+	if not slot.has_meta(&"eom_hips_ref_local"):
+		_try_capture_settler_hips_reference(slot)
+	if not slot.has_meta(&"eom_hips_ref_local"):
+		anchor.position = Vector3.ZERO
+		return
+	var hips_local: Vector3 = _hips_local_in_model_root(slot)
+	var ref_local: Vector3 = slot.get_meta(&"eom_hips_ref_local", Vector3.ZERO)
+	anchor.position = ref_local - hips_local
+
+
+func _refresh_all_settler_root_motion_cancels() -> void:
+	for unit_id_key in _slot_by_unit_id.keys():
+		var slot: Node2D = _slot_by_unit_id[unit_id_key] as Node2D
+		if slot == null:
+			continue
+		if not _uses_settler_root_motion_cancel(str(slot.get_meta(&"eom_unit_type_id", ""))):
+			continue
+		_refresh_settler_root_motion_cancel(slot)
+
+
+func _log_settler_root_motion_phase(slot: Node2D, phase: String) -> void:
+	if not _uses_settler_root_motion_cancel(str(slot.get_meta(&"eom_unit_type_id", ""))):
+		return
+	var anchor: Node3D = _root_motion_anchor_for_slot(slot)
+	var skel: Skeleton3D = _skeleton_for_slot(slot)
+	var hips_local: Vector3 = _hips_local_in_model_root(slot)
+	var ref_local: Vector3 = (
+		slot.get_meta(&"eom_hips_ref_local") as Vector3
+		if slot.has_meta(&"eom_hips_ref_local")
+		else Vector3.ZERO
+	)
+	var hips_idx: int = _hips_bone_index(skel) if skel != null else -1
+	var hips_global: Vector3 = Vector3.ZERO
+	if skel != null and hips_idx >= 0:
+		hips_global = skel.get_bone_global_pose(hips_idx).origin
+	var imported_root: Node3D = anchor.get_child(0) as Node3D if anchor != null and anchor.get_child_count() > 0 else null
+	print(
+		(
+			"[Settler3D root motion] phase=%s anchor.pos=%s imported.pos=%s "
+			+ "hips.local=%s hips.global=%s ref.local=%s cancel.delta=%s"
+		)
+		% [
+			phase,
+			_fmt_v3(anchor.position if anchor != null else Vector3.ZERO),
+			_fmt_v3(imported_root.position if imported_root != null else Vector3.ZERO),
+			_fmt_v3(hips_local),
+			_fmt_v3(hips_global),
+			_fmt_v3(ref_local),
+			_fmt_v3(hips_local - ref_local),
+		]
+	)
+
+
+static func _fmt_v3(v: Vector3) -> String:
+	return "(%.2f,%.2f,%.2f)" % [v.x, v.y, v.z]
 
 
 func _apply_slot_facing(slot: Node2D, unit_id: int) -> void:
@@ -881,6 +1283,13 @@ func _apply_slot_facing(slot: Node2D, unit_id: int) -> void:
 	if model_root == null:
 		return
 	var yaw: float = _facing_yaw_for_unit(unit_id)
+	var prev_yaw: float = float(slot.get_meta(&"eom_last_facing_yaw", yaw))
+	if (
+		_uses_settler_root_motion_cancel(str(slot.get_meta(&"eom_unit_type_id", "")))
+		and not is_equal_approx(yaw, prev_yaw)
+	):
+		_invalidate_settler_root_motion_reference(slot)
+	slot.set_meta(&"eom_last_facing_yaw", yaw)
 	model_root.rotation_degrees = Vector3(
 		model_pitch_degrees,
 		model_yaw_base_offset + yaw,
@@ -891,6 +1300,7 @@ func _apply_slot_facing(slot: Node2D, unit_id: int) -> void:
 	var cam: Camera3D = viewport.get_child(0) as Camera3D
 	if cam != null:
 		cam.size = camera_ortho_size
+	_refresh_settler_root_motion_cancel(slot)
 
 
 func _hex_move_progress(unit_id: int) -> float:

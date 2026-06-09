@@ -26,6 +26,14 @@ func _run() -> void:
 		Remap.glb_clip_for_visual("Idle_3", false) == "Idle_3",
 		"remap off passes names through unchanged",
 	)
+	_check(
+		Remap.glb_clip_for_visual("Idle_3", true, "settler") == "Idle_3",
+		"settler uses semantic Idle_3 clip name directly",
+	)
+	_check(
+		Remap.glb_clip_for_visual("Walking", true, "settler") == "Walking",
+		"settler uses semantic Walking clip name directly",
+	)
 	if _any_fail:
 		quit(1)
 	else:

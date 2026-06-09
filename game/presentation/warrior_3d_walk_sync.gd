@@ -1,4 +1,4 @@
-# Presentation-only: sync hex-move lerp duration to the GLB walk clip (Idle_02 via remap).
+# Presentation-only: sync hex-move lerp duration to the GLB walk clip (Idle_02 via warrior remap).
 class_name Warrior3DWalkSync
 extends RefCounted
 
@@ -8,27 +8,33 @@ const WALK_VISUAL_CLIP: String = "Walking"
 ## Measured from warrior_3d_animations.glb **Idle_02** (2026-06); used when clip length cannot be read.
 const FALLBACK_WALK_CLIP_LENGTH_SEC: float = 1.0333333
 
-static var _cached_walk_clip_length_sec: float = -1.0
+static var _cached_walk_clip_length_by_type: Dictionary = {}
 
 
-static func walk_glb_clip_name(use_remap: bool) -> String:
-	return Warrior3DAnimationRemapScript.glb_clip_for_visual(WALK_VISUAL_CLIP, use_remap)
+static func walk_glb_clip_name(use_remap: bool, type_id: String = "warrior") -> String:
+	return Warrior3DAnimationRemapScript.glb_clip_for_visual(
+		WALK_VISUAL_CLIP, use_remap, type_id
+	)
 
 
-static func cache_walk_clip_length_from_player(player: AnimationPlayer, use_remap: bool) -> float:
-	var clip_name: String = walk_glb_clip_name(use_remap)
+static func cache_walk_clip_length_from_player(
+	player: AnimationPlayer, use_remap: bool, type_id: String = "warrior"
+) -> float:
+	var tid: String = str(type_id)
+	var clip_name: String = walk_glb_clip_name(use_remap, tid)
 	if player == null or clip_name.is_empty():
-		return resolved_walk_clip_length_sec()
+		return resolved_walk_clip_length_sec(tid)
 	var anim: Animation = player.get_animation(clip_name)
 	if anim == null or anim.length <= 0.0:
-		return resolved_walk_clip_length_sec()
-	_cached_walk_clip_length_sec = anim.length
-	return _cached_walk_clip_length_sec
+		return resolved_walk_clip_length_sec(tid)
+	_cached_walk_clip_length_by_type[tid] = anim.length
+	return float(_cached_walk_clip_length_by_type[tid])
 
 
-static func resolved_walk_clip_length_sec() -> float:
-	if _cached_walk_clip_length_sec > 0.0:
-		return _cached_walk_clip_length_sec
+static func resolved_walk_clip_length_sec(type_id: String = "warrior") -> float:
+	var tid: String = str(type_id)
+	if _cached_walk_clip_length_by_type.has(tid):
+		return float(_cached_walk_clip_length_by_type[tid])
 	return FALLBACK_WALK_CLIP_LENGTH_SEC
 
 

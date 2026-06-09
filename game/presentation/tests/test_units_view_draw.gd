@@ -117,20 +117,38 @@ func _init() -> void:
 		)
 	uv_align.queue_free()
 	OS.set_environment(Warrior3DUnitExperimentScript.ENV_FLAG, "")
-	_check(not Warrior3DUnitExperimentScript.is_enabled(), "3d warrior experiment off by default")
+	OS.unset_environment(Warrior3DUnitExperimentScript.ENV_FLAG_LEGACY)
+	_check(not Warrior3DUnitExperimentScript.is_enabled(), "3d models experiment off by default")
 	OS.set_environment(Warrior3DUnitExperimentScript.ENV_FLAG, "1")
-	_check(Warrior3DUnitExperimentScript.is_enabled(), "3d warrior experiment flag on")
+	_check(Warrior3DUnitExperimentScript.is_enabled(), "EMPIRE_USE_3D_MODELS flag on")
+	OS.unset_environment(Warrior3DUnitExperimentScript.ENV_FLAG)
+	OS.set_environment(Warrior3DUnitExperimentScript.ENV_FLAG_LEGACY, "1")
+	_check(Warrior3DUnitExperimentScript.is_enabled(), "EMPIRE_USE_3D_WARRIOR legacy alias on")
 	_check(
-		Warrior3DUnitExperimentScript.should_render_warrior_as_3d("warrior"),
+		Warrior3DUnitExperimentScript.should_render_unit_as_3d("warrior"),
+		"legacy warrior flag enables warrior 3d only",
+	)
+	_check(
+		not Warrior3DUnitExperimentScript.should_render_unit_as_3d("settler"),
+		"legacy warrior flag does not enable settler 3d",
+	)
+	OS.unset_environment(Warrior3DUnitExperimentScript.ENV_FLAG_LEGACY)
+	OS.set_environment(Warrior3DUnitExperimentScript.ENV_FLAG, "1")
+	_check(
+		Warrior3DUnitExperimentScript.should_render_unit_as_3d("warrior"),
 		"warrior uses 3d path when flag on and glb exists",
 	)
 	_check(
-		not Warrior3DUnitExperimentScript.should_render_warrior_as_3d("settler"),
-		"settler stays on 2d path when flag on",
+		Warrior3DUnitExperimentScript.should_render_unit_as_3d("settler"),
+		"settler uses 3d path when flag on and glb exists",
 	)
 	_check(
 		ResourceLoader.exists(Warrior3DUnitExperimentScript.WARRIOR_ANIMATED_GLB_PATH),
 		"warrior animated glb exists for idle experiment",
+	)
+	_check(
+		ResourceLoader.exists(Warrior3DUnitExperimentScript.SETTLER_ANIMATED_GLB_PATH),
+		"settler animated glb exists for idle experiment",
 	)
 	_check(
 		Warrior3DUnitExperimentScript.warrior_scene_path().ends_with("warrior_3d_animations.glb"),

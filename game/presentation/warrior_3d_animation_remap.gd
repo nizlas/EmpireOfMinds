@@ -1,6 +1,7 @@
 # Presentation-only: map desired *visual* clip names to GLB AnimationPlayer keys.
-# Derived from manual EOM_WARRIOR_3D_ANIM_AUDIT (2026-06) — GLB names do not match clip contents.
-# Do not rename assets; remove this remap after a corrected GLB re-export.
+# Warrior remap derived from manual EOM_WARRIOR_3D_ANIM_AUDIT (2026-06).
+# Settler GLB uses semantic names directly (Idle_3, Walking) — no warrior swap table.
+# Do not rename assets; remove warrior remap after a corrected GLB re-export.
 class_name Warrior3DAnimationRemap
 extends RefCounted
 
@@ -18,8 +19,12 @@ const GLB_CLIP_FOR_VISUAL: Dictionary = {
 }
 
 
-static func glb_clip_for_visual(visual_name: String, use_remap: bool) -> String:
+static func glb_clip_for_visual(
+	visual_name: String, use_remap: bool, type_id: String = "warrior"
+) -> String:
 	var key: String = visual_name.strip_edges()
 	if key.is_empty() or not use_remap:
+		return key
+	if str(type_id) == "settler":
 		return key
 	return str(GLB_CLIP_FOR_VISUAL.get(key, key))

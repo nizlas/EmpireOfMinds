@@ -35,7 +35,7 @@ var camera
 var selection
 ## Phase **4.6p:** when set to a valid **`TerrainForegroundView`** (or any **`CanvasItem`** host), **`_draw`** skips own-canvas markers — **`TerrainForegroundView`** draws them between forest passes.
 var terrain_foreground_view
-## Experimental 3D warrior markers — blit via **`draw_unit_marker_at`** when TFV depth merge is active.
+## Experimental 3D unit markers (warrior + settler) — blit via **`draw_unit_marker_at`** when TFV depth merge is active.
 var warrior_3d_unit_markers_view
 @export var marker_radius_ratio: float = 0.35
 ## Icon height as a fraction of pointy-top hex height (2 * HexLayout.SIZE) when a type icon is loaded. Phase 4.3f.
@@ -108,8 +108,8 @@ static func _load_rgba_marker_texture(path: String) -> Texture2D:
 		return res as Texture2D
 	return null
 
-## Presentation-only: tween 3D warrior from **from** hex to **to** after domain **move_unit** already applied.
-func present_warrior_hex_move_if_applicable(
+## Presentation-only: tween 3D unit from **from** hex to **to** after domain **move_unit** already applied.
+func present_unit_hex_move_if_applicable(
 	type_id: String,
 	unit_id: int,
 	from_q: int,
@@ -122,6 +122,17 @@ func present_warrior_hex_move_if_applicable(
 	warrior_3d_unit_markers_view.begin_hex_move(
 		unit_id, type_id, from_q, from_r, to_q, to_r
 	)
+
+
+func present_warrior_hex_move_if_applicable(
+	type_id: String,
+	unit_id: int,
+	from_q: int,
+	from_r: int,
+	to_q: int,
+	to_r: int,
+) -> void:
+	present_unit_hex_move_if_applicable(type_id, unit_id, from_q, from_r, to_q, to_r)
 
 
 ## Depth-merge anchor for TFV: lerped hex move + forward lead when walking screen-down.
@@ -142,6 +153,7 @@ func is_unit_screen_down_hex_move_active(unit_id: int) -> bool:
 
 
 func _ready() -> void:
+	Warrior3DUnitExperimentScript.log_flag_state_once()
 	# Phase 4.3h/4.3i — downscale: linear + mipmaps (marker imports only).
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	# **`scenario`** / **`layout`** wired by **`main.gd`** or tests — not **`make_tiny_test_scenario()`** here.
@@ -232,7 +244,7 @@ func draw_unit_marker_at(
 	owner_id: int,
 	unit_id: int = -1,
 ) -> void:
-	if Warrior3DUnitExperimentScript.should_render_warrior_as_3d(type_id):
+	if Warrior3DUnitExperimentScript.should_render_unit_as_3d(type_id):
 		if warrior_3d_unit_markers_view != null and unit_id >= 0:
 			warrior_3d_unit_markers_view.draw_unit_marker_at(
 				canvas, anchor_pres, pscale, type_id, owner_id, unit_id

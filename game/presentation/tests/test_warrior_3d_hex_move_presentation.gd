@@ -21,7 +21,7 @@ func _init() -> void:
 	view_off.begin_hex_move(1, "warrior", 0, 0, 1, 0)
 	_check(
 		not view_off.is_unit_hex_move_active(1),
-		"hex move ignored when EMPIRE_USE_3D_WARRIOR off",
+		"hex move ignored when EMPIRE_USE_3D_MODELS off",
 	)
 	view_off.free()
 
@@ -36,6 +36,18 @@ func _init() -> void:
 	)
 
 	var view := Warrior3DUnitMarkersViewScript.new()
+	_check(
+		is_equal_approx(view.walk_start_blend_sec, 0.0),
+		"walk start default is snap (no Idle->Walking blend)",
+	)
+	_check(
+		Warrior3DUnitMarkersViewScript.WALK_START_BLEND_MAX_SEC <= 0.05,
+		"walk start blend capped at 0.05s max",
+	)
+	_check(
+		view.idle_end_blend_sec >= 0.20 and view.idle_end_blend_sec <= 0.35,
+		"idle end blend in 0.20-0.35s range",
+	)
 	view.layout = HexLayoutScript.new()
 	var cam = MapCameraScript.new()
 	cam.projection = MapPlaneProjectionScript.new()
@@ -57,7 +69,10 @@ func _init() -> void:
 		"walk-sync duration tuned between glide and backward drag",
 	)
 	view.begin_hex_move(3, "settler", 0, 0, 1, 0)
-	_check(not view.is_unit_hex_move_active(3), "settler does not start 3D warrior move")
+	if Warrior3DUnitExperimentScript.should_render_unit_as_3d("settler"):
+		_check(view.is_unit_hex_move_active(3), "settler starts 3D hex move when flag on")
+	else:
+		_check(not view.is_unit_hex_move_active(3), "settler skips 3D move when asset missing")
 	var from_world: Vector2 = view.layout.hex_to_world(0, 0)
 	var to_world: Vector2 = view.layout.hex_to_world(1, -1)
 	var pres_dir: Vector2 = cam.to_presentation(to_world) - cam.to_presentation(from_world)
@@ -112,7 +127,7 @@ func _init() -> void:
 		"to_q": -1,
 		"to_r": 0,
 		"progress": 0.5,
-		"anim_elapsed_sec": view._hex_move_stride_anim_sec() * 0.5,
+		"anim_elapsed_sec": view._hex_move_stride_anim_sec(4) * 0.5,
 	}
 	var mid: Dictionary = view._presentation_anchor_for_unit(4, Vector2.ZERO, 1.0)
 	var from_pres: Vector2 = cam.to_presentation(from_world)
@@ -152,9 +167,88 @@ func _init() -> void:
 		"SE hex move flagged as screen-down travel",
 	)
 	_check(not view.is_unit_screen_down_hex_move_active(4), "west hex move is not screen-down")
+	_check_settler_root_motion_cancel(view)
 	view.free()
 
 	_finish()
+
+
+func _check_settler_root_motion_cancel(view) -> void:
+	if not Warrior3DUnitExperimentScript.should_render_unit_as_3d("settler"):
+		_check(true, "settler root-motion cancel skipped when settler asset missing")
+		return
+	view._load_unit_scenes()
+	var slot: Node2D = view._create_slot("settler")
+	_check(
+		view._root_motion_anchor_for_slot(slot) != null,
+		"settler slot wraps imported GLB in RootMotionAnchor",
+	)
+	_check(view.settler_neutralize_root_motion, "settler root-motion neutralization enabled by default")
+	var scene: PackedScene = load(
+		Warrior3DUnitExperimentScript.SETTLER_ANIMATED_GLB_PATH
+	) as PackedScene
+	var model: Node = scene.instantiate()
+	root.add_child(model)
+	var player: AnimationPlayer = _find_anim_player(model)
+	var skel: Skeleton3D = _find_skeleton(model)
+	_check(player != null and skel != null, "settler GLB exposes AnimationPlayer and Skeleton3D")
+	if player == null or skel == null:
+		model.queue_free()
+		slot.queue_free()
+		return
+	var hips: int = skel.find_bone("Hips")
+	var walk_clip: String = Warrior3DAnimationRemapScript.glb_clip_for_visual(
+		"Walking", true, "settler"
+	)
+	var walk_anim: Animation = player.get_animation(walk_clip)
+	player.play(walk_clip)
+	player.seek(walk_anim.length * 0.5, true)
+	var pose_delta: Vector3 = skel.get_bone_pose_position(hips) - skel.get_bone_rest(hips).origin
+	_check(
+		absf(pose_delta.z) > 40.0,
+		"settler Walking animates Hips forward in GLB space (root motion)",
+	)
+	var warrior_scene: PackedScene = load(
+		Warrior3DUnitExperimentScript.WARRIOR_ANIMATED_GLB_PATH
+	) as PackedScene
+	var wmodel: Node = warrior_scene.instantiate()
+	root.add_child(wmodel)
+	var wplayer: AnimationPlayer = _find_anim_player(wmodel)
+	var wskel: Skeleton3D = _find_skeleton(wmodel)
+	var wwalk: String = Warrior3DAnimationRemapScript.glb_clip_for_visual(
+		"Walking", true, "warrior"
+	)
+	wplayer.play(wwalk)
+	wplayer.seek(wplayer.get_animation(wwalk).length * 0.5, true)
+	var wh: int = wskel.find_bone("Hips")
+	var wdelta: Vector3 = wskel.get_bone_pose_position(wh) - wskel.get_bone_rest(wh).origin
+	_check(
+		absf(wdelta.z) < 15.0,
+		"warrior Walking Hips stays near bind pose (no large root motion)",
+	)
+	model.queue_free()
+	wmodel.queue_free()
+	slot.queue_free()
+
+
+func _find_anim_player(node: Node) -> AnimationPlayer:
+	if node is AnimationPlayer:
+		return node
+	for c in node.get_children():
+		var f: AnimationPlayer = _find_anim_player(c)
+		if f != null:
+			return f
+	return null
+
+
+func _find_skeleton(node: Node) -> Skeleton3D:
+	if node is Skeleton3D:
+		return node
+	for c in node.get_children():
+		var f: Skeleton3D = _find_skeleton(c)
+		if f != null:
+			return f
+	return null
 
 
 func _check(ok: bool, label: String) -> void:
