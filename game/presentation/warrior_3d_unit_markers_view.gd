@@ -70,6 +70,10 @@ const WALK_START_BLEND_MAX_SEC: float = 0.05
 
 const ROOT_MOTION_ANCHOR_NAME: String = "RootMotionAnchor"
 const HIPS_BONE_NAME: String = "Hips"
+## Meshy GLB import defaults (metallic 1.0) read as porcelain; matte cloth override for map units.
+const UNIT_MAT_OVERRIDE_METALLIC: float = 0.0
+const UNIT_MAT_OVERRIDE_ROUGHNESS: float = 0.85
+const UNIT_MAT_OVERRIDE_SPECULAR: float = 0.3
 ## TEMPORARY DEBUG — settler runtime instrumentation; remove after visual audit.
 const SETTLER_RM_TRACE_LOG_PREFIX: String = "[Settler3D rootmotion frame]"
 const SETTLER_DEBUG_HEARTBEAT_SEC: float = 1.0
@@ -651,6 +655,7 @@ func _create_slot(type_id: String = "warrior") -> Node2D:
 	var unit_scene: PackedScene = _scene_for_type(type_id)
 	if unit_scene != null:
 		var model: Node = unit_scene.instantiate()
+		_apply_experimental_unit_material_override(model, type_id)
 		if _settler_uses_root_motion_anchor(type_id):
 			var motion_anchor := Node3D.new()
 			motion_anchor.name = ROOT_MOTION_ANCHOR_NAME
@@ -673,6 +678,36 @@ func _create_slot(type_id: String = "warrior") -> Node2D:
 	if _settler_uses_root_motion_anchor(type_id):
 		_configure_settler_builtin_root_motion_if_enabled(root)
 	return root
+
+
+func _apply_experimental_unit_material_override(model: Node, type_id: String) -> void:
+	if not Warrior3DExperimentScript.should_render_unit_as_3d(type_id):
+		return
+	var surface_count: int = 0
+	for node in model.find_children("*", "MeshInstance3D", true, false):
+		var mesh_inst: MeshInstance3D = node as MeshInstance3D
+		var mesh: Mesh = mesh_inst.mesh
+		if mesh == null:
+			continue
+		var si: int = 0
+		while si < mesh.get_surface_count():
+			var src_mat: Material = mesh_inst.get_surface_override_material(si)
+			if src_mat == null:
+				src_mat = mesh.surface_get_material(si)
+			if src_mat is StandardMaterial3D:
+				var override_mat: StandardMaterial3D = src_mat.duplicate() as StandardMaterial3D
+				override_mat.metallic = UNIT_MAT_OVERRIDE_METALLIC
+				override_mat.roughness = UNIT_MAT_OVERRIDE_ROUGHNESS
+				override_mat.metallic_specular = UNIT_MAT_OVERRIDE_SPECULAR
+				mesh_inst.set_surface_override_material(si, override_mat)
+				surface_count += 1
+			si += 1
+	print(
+		(
+			"[Unit3D material override] type=%s surfaces=%d metallic=%.1f roughness=%.2f"
+		)
+		% [type_id, surface_count, UNIT_MAT_OVERRIDE_METALLIC, UNIT_MAT_OVERRIDE_ROUGHNESS]
+	)
 
 
 func depth_sort_anchor_pres(unit_id: int, hex_anchor_pres: Vector2, pscale: float) -> Vector2:
