@@ -178,36 +178,97 @@ func _check_settler_root_motion_cancel(view) -> void:
 		_check(true, "settler root-motion cancel skipped when settler asset missing")
 		return
 	view._load_unit_scenes()
+	root.add_child(view)
 	var slot: Node2D = view._create_slot("settler")
+	view.add_child(slot)
+	slot.set_meta(&"eom_unit_type_id", "settler")
+	slot.set_meta(&"eom_unit_id", 901)
 	_check(
 		view._root_motion_anchor_for_slot(slot) != null,
 		"settler slot wraps imported GLB in RootMotionAnchor",
 	)
-	_check(view.settler_neutralize_root_motion, "settler root-motion neutralization enabled by default")
+	_check(
+		not view._uses_settler_root_motion_cancel("settler"),
+		"settler manual root-motion cancel disabled by default",
+	)
+	var idle_clip: String = Warrior3DAnimationRemapScript.glb_clip_for_visual(
+		"Idle_3", true, "settler"
+	)
+	view._ensure_slot_animation(slot, idle_clip, 1.0, -1.0, "Idle_3")
+	view._refresh_settler_root_motion_cancel(slot)
+	var idle_anchor: Node3D = view._root_motion_anchor_for_slot(slot)
+	_check(
+		idle_anchor != null and idle_anchor.position.is_equal_approx(Vector3.ZERO),
+		"settler idle does not apply root-motion cancel (anchor stays zero)",
+	)
+	var walk_clip: String = Warrior3DAnimationRemapScript.glb_clip_for_visual(
+		"Walking", true, "settler"
+	)
+	view._active_hex_moves[901] = {
+		"type_id": "settler",
+		"from_q": 0,
+		"from_r": 0,
+		"to_q": 1,
+		"to_r": 0,
+		"progress": 0.0,
+		"anim_elapsed_sec": 0.0,
+	}
+	view._ensure_slot_animation(slot, walk_clip, 1.0, -1.0, "Walking")
+	view._capture_settler_walk_hips_reference(slot)
+	_check(
+		not slot.has_meta(&"eom_hips_ref_local"),
+		"settler walk-start skips hips reference when manual cancel off",
+	)
+	var player: AnimationPlayer = view._walk_animation_player_for_slot(slot)
+	var walk_anim: Animation = player.get_animation(walk_clip) if player != null else null
+	if player != null and walk_anim != null:
+		player.seek(walk_anim.length * 0.5, true)
+		player.advance(0.0)
+	view._refresh_settler_root_motion_cancel(slot)
+	var walk_anchor_pos: Vector3 = idle_anchor.position if idle_anchor != null else Vector3.ZERO
+	_check(
+		walk_anchor_pos.is_equal_approx(Vector3.ZERO),
+		"settler hex walk keeps RootMotionAnchor at zero without manual cancel",
+	)
+	var sample_cancel: Vector3 = view._settler_root_motion_cancel_xz(
+		Vector3(0.01, 0.50, 0.02), Vector3(0.80, 0.90, 1.50)
+	)
+	_check(
+		sample_cancel.is_equal_approx(Vector3(-0.79, 0.0, -1.48)),
+		"settler xz cancel uses model-root units (scale-aware helper)",
+	)
+	_check(
+		sample_cancel.length() < 2.0,
+		"settler xz cancel helper stays in model-root magnitude range",
+	)
+	view._active_hex_moves.erase(901)
+	view._clear_settler_root_motion_walk_state(slot)
+	view._refresh_settler_root_motion_cancel(slot)
+	_check(
+		idle_anchor.position.is_equal_approx(Vector3.ZERO),
+		"settler anchor resets to zero after walk ends",
+	)
 	var scene: PackedScene = load(
 		Warrior3DUnitExperimentScript.SETTLER_ANIMATED_GLB_PATH
 	) as PackedScene
 	var model: Node = scene.instantiate()
 	root.add_child(model)
-	var player: AnimationPlayer = _find_anim_player(model)
+	var glb_player: AnimationPlayer = _find_anim_player(model)
 	var skel: Skeleton3D = _find_skeleton(model)
-	_check(player != null and skel != null, "settler GLB exposes AnimationPlayer and Skeleton3D")
-	if player == null or skel == null:
-		model.queue_free()
-		slot.queue_free()
-		return
-	var hips: int = skel.find_bone("Hips")
-	var walk_clip: String = Warrior3DAnimationRemapScript.glb_clip_for_visual(
-		"Walking", true, "settler"
-	)
-	var walk_anim: Animation = player.get_animation(walk_clip)
-	player.play(walk_clip)
-	player.seek(walk_anim.length * 0.5, true)
-	var pose_delta: Vector3 = skel.get_bone_pose_position(hips) - skel.get_bone_rest(hips).origin
-	_check(
-		absf(pose_delta.z) > 40.0,
-		"settler Walking animates Hips forward in GLB space (root motion)",
-	)
+	_check(glb_player != null and skel != null, "settler GLB exposes AnimationPlayer and Skeleton3D")
+	if glb_player != null and skel != null:
+		var hips: int = skel.find_bone("Hips")
+		glb_player.play(walk_clip)
+		glb_player.seek(glb_player.get_animation(walk_clip).length * 0.5, true)
+		var pose_delta: Vector3 = skel.get_bone_pose_position(hips) - skel.get_bone_rest(hips).origin
+		_check(
+			walk_clip == "Running",
+			"settler walk semantic maps to Running GLB key",
+		)
+		_check(
+			absf(pose_delta.z) > 2.0 and absf(pose_delta.z) < 30.0,
+			"settler Running walk GLB has modest Hips bone-space motion",
+		)
 	var warrior_scene: PackedScene = load(
 		Warrior3DUnitExperimentScript.WARRIOR_ANIMATED_GLB_PATH
 	) as PackedScene
@@ -229,6 +290,7 @@ func _check_settler_root_motion_cancel(view) -> void:
 	model.queue_free()
 	wmodel.queue_free()
 	slot.queue_free()
+	view.queue_free()
 
 
 func _find_anim_player(node: Node) -> AnimationPlayer:

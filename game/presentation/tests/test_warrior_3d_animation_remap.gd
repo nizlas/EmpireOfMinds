@@ -27,12 +27,16 @@ func _run() -> void:
 		"remap off passes names through unchanged",
 	)
 	_check(
-		Remap.glb_clip_for_visual("Idle_3", true, "settler") == "Idle_3",
-		"settler uses semantic Idle_3 clip name directly",
+		Remap.glb_clip_for_visual("Idle_3", true, "settler") == "Hit_Reaction_1",
+		"settler Idle_3 visual maps to Hit_Reaction_1 GLB key",
 	)
 	_check(
-		Remap.glb_clip_for_visual("Walking", true, "settler") == "Walking",
-		"settler uses semantic Walking clip name directly",
+		Remap.glb_clip_for_visual("Walking", true, "settler") == "Running",
+		"settler Walking visual maps to Running GLB key (F9-audit walk clip)",
+	)
+	_check(
+		Remap.glb_clip_for_visual("Dead", true, "settler") == "walking_2",
+		"settler Dead visual maps to walking_2 GLB key",
 	)
 	if _any_fail:
 		quit(1)

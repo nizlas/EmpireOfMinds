@@ -4,6 +4,9 @@ extends Node2D
 
 const Warrior3DExperimentScript = preload("res://presentation/warrior_3d_unit_experiment.gd")
 const Warrior3DAnimationRemapScript = preload("res://presentation/warrior_3d_animation_remap.gd")
+const SettlerAnimationRootMotionProbeScript = preload(
+	"res://presentation/settler_animation_root_motion_probe.gd"
+)
 const Warrior3DWalkSyncScript = preload("res://presentation/warrior_3d_walk_sync.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MapCameraScript = preload("res://presentation/map_camera.gd")
@@ -58,8 +61,8 @@ const WALK_START_BLEND_MAX_SEC: float = 0.05
 @export_range(0.20, 0.35, 0.01) var idle_end_blend_sec: float = 0.28
 
 @export_group("Settler framing (experimental)")
-## Counter Hips bone translation in **Walking** so the GLB plays in-place inside the SubViewport.
-@export var settler_neutralize_root_motion: bool = true
+## Manual RootMotionAnchor X/Z cancel (retired while walk uses GLB **Running**). Kept for debug only.
+@export var settler_neutralize_root_motion: bool = false
 
 @export_group("Animation audit (temporary)")
 @export var animation_audit_mode: bool = false
@@ -67,6 +70,12 @@ const WALK_START_BLEND_MAX_SEC: float = 0.05
 
 const ROOT_MOTION_ANCHOR_NAME: String = "RootMotionAnchor"
 const HIPS_BONE_NAME: String = "Hips"
+## TEMPORARY DEBUG — settler runtime instrumentation; remove after visual audit.
+const SETTLER_RM_TRACE_LOG_PREFIX: String = "[Settler3D rootmotion frame]"
+const SETTLER_DEBUG_HEARTBEAT_SEC: float = 1.0
+const SETTLER_DEBUG_CYCLE_KEY: Key = KEY_F9
+const META_SETTLER_MANUAL_CLIP_CYCLE: StringName = &"eom_settler_manual_clip_cycle"
+const META_SETTLER_CYCLE_CLIP_INDEX: StringName = &"eom_settler_cycle_clip_index"
 
 var play_idle_animation: bool:
 	get:
@@ -94,6 +103,12 @@ var _audit_cycle_timer: float = 0.0
 var _audit_started: bool = false
 var _active_hex_moves: Dictionary = {}
 var _facing_yaw_by_unit_id: Dictionary = {}
+var _settler_debug_heartbeat_elapsed: float = 0.0
+var _settler_startup_catalog_logged: bool = false
+## TEMPORARY DEBUG — one settler, one hex move, then stop.
+var _settler_rm_trace_unit_id: int = -1
+var _settler_rm_trace_completed: bool = false
+var _settler_rm_trace_last_logged_frame: int = -1
 
 
 func _ready() -> void:
@@ -102,6 +117,7 @@ func _ready() -> void:
 	visible = Warrior3DExperimentScript.is_enabled() and not _scenes_by_type.is_empty()
 	if visible:
 		_log_map_animation_selection()
+	_log_settler_startup_clip_catalog()
 	if _is_animation_audit_active():
 		_prime_animation_audit_catalog_from_scene()
 
@@ -239,6 +255,8 @@ func _log_animation_player_catalog_once(
 	var asset_path: String = Warrior3DExperimentScript.animated_scene_path_for_type(type_id)
 	var idle_glb: String = _glb_clip_for_semantic(SEMANTIC_IDLE_CLIP, type_id)
 	var walk_glb: String = _glb_clip_for_semantic(SEMANTIC_WALK_CLIP, type_id)
+	if type_id == "settler":
+		_print_settler_clip_catalog_lines(player, "slot")
 	print(
 		(
 			"[Unit3D anim catalog] type=%s asset=%s player_path=%s clips=%s "
@@ -332,10 +350,21 @@ func _process(delta: float) -> void:
 	_advance_pending_animation_blends(delta)
 	_ensure_idle_slots_autoplay()
 	_refresh_all_settler_root_motion_cancels()
+	_tick_settler_debug_heartbeat(delta)
 	if _is_animation_audit_active():
 		_tick_animation_audit(delta)
 	elif _tick_hex_moves(delta):
 		_request_presentation_redraw()
+	_log_settler_root_motion_frame_trace()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not Warrior3DExperimentScript.is_enabled():
+		return
+	if event is InputEventKey:
+		var ek: InputEventKey = event as InputEventKey
+		if ek.pressed and not ek.echo and ek.keycode == SETTLER_DEBUG_CYCLE_KEY:
+			_cycle_settler_debug_clips()
 
 
 func begin_hex_move(
@@ -417,6 +446,9 @@ func begin_hex_move(
 		slot.set_meta(&"eom_root_motion_walk_mid_logged", false)
 		_apply_slot_facing(slot, unit_id)
 		if type_id == "settler":
+			if not _settler_rm_trace_completed and _settler_rm_trace_unit_id < 0:
+				_settler_rm_trace_unit_id = unit_id
+				_settler_rm_trace_last_logged_frame = -1
 			_log_settler_root_motion_phase(slot, "before_walk")
 		var walk_blend: float = -1.0
 		if walk_start_blend_sec > 0.0:
@@ -424,6 +456,8 @@ func begin_hex_move(
 		_ensure_slot_animation(slot, glb_clip, HEX_MOVE_WALK_ANIM_SPEED, walk_blend, semantic)
 		if walk_blend < 0.0:
 			_update_walk_animation_for_slot(slot, 0.0, 0.0)
+		if type_id == "settler":
+			_capture_settler_walk_hips_reference(slot)
 	_request_presentation_redraw()
 
 
@@ -617,7 +651,7 @@ func _create_slot(type_id: String = "warrior") -> Node2D:
 	var unit_scene: PackedScene = _scene_for_type(type_id)
 	if unit_scene != null:
 		var model: Node = unit_scene.instantiate()
-		if _uses_settler_root_motion_cancel(type_id):
+		if _settler_uses_root_motion_anchor(type_id):
 			var motion_anchor := Node3D.new()
 			motion_anchor.name = ROOT_MOTION_ANCHOR_NAME
 			model_root.add_child(motion_anchor)
@@ -636,6 +670,8 @@ func _create_slot(type_id: String = "warrior") -> Node2D:
 	root.add_child(viewport)
 	root.set_meta("viewport", viewport)
 	_prime_walk_clip_length_from_slot(root)
+	if _settler_uses_root_motion_anchor(type_id):
+		_configure_settler_builtin_root_motion_if_enabled(root)
 	return root
 
 
@@ -793,6 +829,8 @@ func _ensure_slot_animation(
 		clip_name,
 		_facing_yaw_for_unit(unit_id) if unit_id >= 0 else model_yaw_degrees,
 	)
+	if type_id == "settler":
+		_log_settler_anim_transition(slot, semantic_name, clip_name, anim_speed_scale)
 	slot.set_meta(&"eom_slot_anim", clip_name)
 	slot.set_meta(&"eom_slot_anim_speed", anim_speed_scale)
 	_mark_slot_anim_blend(slot, blend_sec)
@@ -882,6 +920,12 @@ func _tick_hex_moves(delta: float) -> bool:
 		var progress: float = 1.0 if stride_sec <= 0.0 else clampf(anim_elapsed / stride_sec, 0.0, 1.0)
 		if progress >= 1.0:
 			progress = 1.0
+			if (
+				unit_id == _settler_rm_trace_unit_id
+				and str(move.get("type_id", "")) == "settler"
+				and not _settler_rm_trace_completed
+			):
+				_log_settler_root_motion_frame_trace()
 			finished_ids.append(unit_id)
 		move["progress"] = progress
 		_active_hex_moves[unit_id] = move
@@ -907,8 +951,10 @@ func _tick_hex_moves(delta: float) -> bool:
 			_apply_slot_facing(slot, done_id)
 			_ensure_slot_animation(slot, idle_glb, 1.0, idle_end_blend_sec, idle_semantic)
 			if done_type_id == "settler":
-				_refresh_settler_root_motion_cancel(slot)
+				_clear_settler_root_motion_walk_state(slot)
 				_log_settler_root_motion_phase(slot, "after_walk")
+				if done_id == _settler_rm_trace_unit_id:
+					_settler_rm_trace_completed = true
 		fi += 1
 	return any_active or finished_ids.size() > 0
 
@@ -1088,6 +1134,8 @@ func _update_walk_animation_for_slot(
 		):
 			slot.set_meta(&"eom_root_motion_walk_mid_logged", true)
 			_log_settler_root_motion_phase(slot, "during_walk")
+			if Warrior3DExperimentScript.is_settler_builtin_root_motion_enabled():
+				_log_settler_builtin_root_motion_sample(player, anim_elapsed)
 
 
 func _advance_pending_animation_blends(delta: float) -> void:
@@ -1112,6 +1160,8 @@ func _ensure_idle_slots_autoplay() -> void:
 		var slot: Node2D = _slot_by_unit_id[unit_id_key] as Node2D
 		if slot == null or _slot_anim_blend_active(slot):
 			continue
+		if _is_settler_manual_clip_cycle(slot):
+			continue
 		var type_id: String = str(slot.get_meta(&"eom_unit_type_id", "warrior"))
 		var idle_clip: String = _glb_clip_for_semantic(SEMANTIC_IDLE_CLIP, type_id)
 		if str(slot.get_meta(&"eom_slot_anim", "")) != idle_clip:
@@ -1125,8 +1175,81 @@ func _ensure_idle_slots_autoplay() -> void:
 			player.play(idle_clip)
 
 
+func _settler_uses_root_motion_anchor(type_id: String) -> bool:
+	return str(type_id) == "settler"
+
+
 func _uses_settler_root_motion_cancel(type_id: String) -> bool:
-	return str(type_id) == "settler" and settler_neutralize_root_motion
+	# Running-based settler walk is near in-place; manual anchor cancel caused vibration.
+	return (
+		_settler_uses_root_motion_anchor(type_id)
+		and settler_neutralize_root_motion
+		and not Warrior3DExperimentScript.is_settler_builtin_root_motion_enabled()
+	)
+
+
+func _pin_settler_root_motion_anchor_zero(slot: Node2D) -> void:
+	var anchor: Node3D = _root_motion_anchor_for_slot(slot)
+	if anchor != null:
+		anchor.position = Vector3.ZERO
+
+
+func _configure_settler_builtin_root_motion_if_enabled(slot: Node2D) -> void:
+	var builtin_on: bool = Warrior3DExperimentScript.is_settler_builtin_root_motion_enabled()
+	if not builtin_on:
+		return
+	var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
+	var walk_glb: String = _glb_clip_for_semantic(SEMANTIC_WALK_CLIP, "settler")
+	if player == null:
+		print(
+			(
+				"[Settler3D builtin RM] EOM_SETTLER_BUILTIN_RM=1 track_found=false "
+				+ "reason=no AnimationPlayer walk_clip='%s'"
+			)
+			% walk_glb
+		)
+		return
+	var track_path: NodePath = SettlerAnimationRootMotionProbeScript.resolve_hips_position_track_path(
+		player, walk_glb
+	)
+	if track_path.is_empty():
+		print(
+			(
+				"[Settler3D builtin RM] EOM_SETTLER_BUILTIN_RM=1 track_found=false "
+				+ "walk_clip='%s'"
+			)
+			% walk_glb
+		)
+		return
+	player.root_motion_track = track_path
+	print(
+		(
+			"[Settler3D builtin RM] EOM_SETTLER_BUILTIN_RM=1 track_found=true "
+			+ "root_motion_track='%s' walk_clip='%s'"
+		)
+		% [str(track_path), walk_glb]
+	)
+	var anchor: Node3D = _root_motion_anchor_for_slot(slot)
+	if anchor != null:
+		anchor.position = Vector3.ZERO
+
+
+func _log_settler_builtin_root_motion_sample(
+	player: AnimationPlayer, anim_elapsed: float
+) -> void:
+	if player == null:
+		return
+	print(
+		(
+			"[Settler3D builtin RM] during_walk anim_elapsed=%.3f "
+			+ "get_root_motion_position=%s accumulator=%s"
+		)
+		% [
+			anim_elapsed,
+			_fmt_v3(player.get_root_motion_position()),
+			_fmt_v3(player.get_root_motion_position_accumulator()),
+		]
+	)
 
 
 func _model_root_for_slot(slot: Node2D) -> Node3D:
@@ -1167,7 +1290,7 @@ func _hips_bone_index(skel: Skeleton3D) -> int:
 	return skel.find_bone(HIPS_BONE_NAME)
 
 
-func _hips_local_in_model_root(slot: Node2D) -> Vector3:
+func _hips_in_model_root_space(slot: Node2D) -> Vector3:
 	var model_root: Node3D = _model_root_for_slot(slot)
 	var skel: Skeleton3D = _skeleton_for_slot(slot)
 	if model_root == null or skel == null:
@@ -1175,8 +1298,9 @@ func _hips_local_in_model_root(slot: Node2D) -> Vector3:
 	var hips_idx: int = _hips_bone_index(skel)
 	if hips_idx < 0:
 		return Vector3.ZERO
-	var hips_global: Vector3 = skel.get_bone_global_pose(hips_idx).origin
-	return model_root.global_transform.affine_inverse() * hips_global
+	var bone_pose: Transform3D = skel.get_bone_global_pose(hips_idx)
+	var hips_world: Vector3 = skel.global_transform * bone_pose.origin
+	return model_root.global_transform.affine_inverse() * hips_world
 
 
 func _invalidate_settler_root_motion_reference(slot: Node2D) -> void:
@@ -1184,48 +1308,64 @@ func _invalidate_settler_root_motion_reference(slot: Node2D) -> void:
 		slot.remove_meta(&"eom_hips_ref_local")
 
 
-func _try_capture_settler_hips_reference(slot: Node2D) -> bool:
-	if slot.has_meta(&"eom_hips_ref_local"):
-		return true
+func _capture_settler_walk_hips_reference(slot: Node2D) -> void:
 	var type_id: String = str(slot.get_meta(&"eom_unit_type_id", ""))
 	if not _uses_settler_root_motion_cancel(type_id):
-		return false
-	var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
-	var skel: Skeleton3D = _skeleton_for_slot(slot)
-	if player == null or skel == null or _hips_bone_index(skel) < 0:
-		return false
-	var idle_clip: String = _glb_clip_for_semantic(SEMANTIC_IDLE_CLIP, type_id)
-	var slot_clip: String = str(slot.get_meta(&"eom_slot_anim", ""))
-	var playing_idle: bool = (
-		slot_clip == idle_clip
-		or str(player.current_animation) == idle_clip
-		or str(player.assigned_animation) == idle_clip
-	)
-	if not playing_idle:
-		return false
-	slot.set_meta(&"eom_hips_ref_local", _hips_local_in_model_root(slot))
-	return true
+		return
+	if _skeleton_for_slot(slot) == null or _hips_bone_index(_skeleton_for_slot(slot)) < 0:
+		return
+	slot.set_meta(&"eom_hips_ref_local", _hips_in_model_root_space(slot))
+
+
+func _clear_settler_root_motion_walk_state(slot: Node2D) -> void:
+	_invalidate_settler_root_motion_reference(slot)
+	var anchor: Node3D = _root_motion_anchor_for_slot(slot)
+	if anchor != null:
+		anchor.position = Vector3.ZERO
+
+
+func _settler_root_motion_cancel_xz(
+	ref_local: Vector3, hips_local: Vector3
+) -> Vector3:
+	return Vector3(ref_local.x - hips_local.x, 0.0, ref_local.z - hips_local.z)
+
+
+func _is_settler_manual_clip_cycle(slot: Node2D) -> bool:
+	return bool(slot.get_meta(META_SETTLER_MANUAL_CLIP_CYCLE, false))
 
 
 func _refresh_settler_root_motion_cancel(slot: Node2D) -> void:
 	var type_id: String = str(slot.get_meta(&"eom_unit_type_id", ""))
-	if not _uses_settler_root_motion_cancel(type_id):
+	if not _settler_uses_root_motion_anchor(type_id):
+		return
+	if _is_settler_manual_clip_cycle(slot):
+		_pin_settler_root_motion_anchor_zero(slot)
+		return
+	if (
+		not _uses_settler_root_motion_cancel(type_id)
+		or Warrior3DExperimentScript.is_settler_builtin_root_motion_enabled()
+	):
+		_pin_settler_root_motion_anchor_zero(slot)
 		return
 	var anchor: Node3D = _root_motion_anchor_for_slot(slot)
-	var model_root: Node3D = _model_root_for_slot(slot)
 	var skel: Skeleton3D = _skeleton_for_slot(slot)
-	if anchor == null or model_root == null or skel == null:
+	if anchor == null or skel == null:
+		return
+	var unit_id: int = int(slot.get_meta(&"eom_unit_id", -1))
+	if unit_id < 0 or not _active_hex_moves.has(unit_id):
+		anchor.position = Vector3.ZERO
 		return
 	if _hips_bone_index(skel) < 0:
+		anchor.position = Vector3.ZERO
 		return
 	if not slot.has_meta(&"eom_hips_ref_local"):
-		_try_capture_settler_hips_reference(slot)
+		_capture_settler_walk_hips_reference(slot)
 	if not slot.has_meta(&"eom_hips_ref_local"):
 		anchor.position = Vector3.ZERO
 		return
-	var hips_local: Vector3 = _hips_local_in_model_root(slot)
+	var hips_local: Vector3 = _hips_in_model_root_space(slot)
 	var ref_local: Vector3 = slot.get_meta(&"eom_hips_ref_local", Vector3.ZERO)
-	anchor.position = ref_local - hips_local
+	anchor.position = _settler_root_motion_cancel_xz(ref_local, hips_local)
 
 
 func _refresh_all_settler_root_motion_cancels() -> void:
@@ -1233,9 +1373,309 @@ func _refresh_all_settler_root_motion_cancels() -> void:
 		var slot: Node2D = _slot_by_unit_id[unit_id_key] as Node2D
 		if slot == null:
 			continue
-		if not _uses_settler_root_motion_cancel(str(slot.get_meta(&"eom_unit_type_id", ""))):
+		if not _settler_uses_root_motion_anchor(str(slot.get_meta(&"eom_unit_type_id", ""))):
 			continue
 		_refresh_settler_root_motion_cancel(slot)
+
+
+func _hips_in_anchor_local_space(slot: Node2D, hips_model_root: Vector3) -> Vector3:
+	var anchor: Node3D = _root_motion_anchor_for_slot(slot)
+	if anchor == null:
+		return hips_model_root
+	return hips_model_root - anchor.position
+
+
+func _log_settler_root_motion_frame_trace() -> void:
+	if _settler_rm_trace_completed or _settler_rm_trace_unit_id < 0:
+		return
+	if not _active_hex_moves.has(_settler_rm_trace_unit_id):
+		return
+	var frame: int = Engine.get_process_frames()
+	if frame == _settler_rm_trace_last_logged_frame:
+		return
+	_settler_rm_trace_last_logged_frame = frame
+	var unit_id: int = _settler_rm_trace_unit_id
+	var slot: Node2D = _slot_by_unit_id.get(unit_id) as Node2D
+	if slot == null:
+		return
+	var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
+	var anchor: Node3D = _root_motion_anchor_for_slot(slot)
+	var current_anim: String = ""
+	var anim_pos: float = -1.0
+	var anim_len: float = -1.0
+	if player != null:
+		current_anim = str(player.current_animation)
+		anim_pos = player.current_animation_position
+		if player.has_animation(current_anim):
+			var anim: Animation = player.get_animation(current_anim)
+			if anim != null:
+				anim_len = anim.length
+	var blend_active: bool = _slot_anim_blend_active(slot)
+	var blend_remain_ms: int = maxi(
+		0, int(slot.get_meta(&"eom_anim_blend_until", 0)) - Time.get_ticks_msec()
+	)
+	var hips_model_root: Vector3 = _hips_in_model_root_space(slot)
+	var hips_anchor_local: Vector3 = _hips_in_anchor_local_space(slot, hips_model_root)
+	var ref_local: Vector3 = (
+		slot.get_meta(&"eom_hips_ref_local", Vector3.ZERO)
+		if slot.has_meta(&"eom_hips_ref_local")
+		else Vector3.ZERO
+	)
+	var cancel_offset_xz: Vector3 = _settler_root_motion_cancel_xz(ref_local, hips_model_root)
+	var cancel_applied: bool = false
+	if (
+		_uses_settler_root_motion_cancel(str(slot.get_meta(&"eom_unit_type_id", "")))
+		and settler_neutralize_root_motion
+		and not _is_settler_manual_clip_cycle(slot)
+		and anchor != null
+		and slot.has_meta(&"eom_hips_ref_local")
+		and _hips_bone_index(_skeleton_for_slot(slot)) >= 0
+	):
+		cancel_applied = true
+	var anchor_pos: Vector3 = anchor.position if anchor != null else Vector3.ZERO
+	print(
+		(
+			SETTLER_RM_TRACE_LOG_PREFIX
+			+ " unit=%d current_animation='%s' animation_position=%.4f "
+			+ "animation_length=%.3f active_hex_move=%s blend_active=%s "
+			+ "blend_remain_ms=%d RootMotionAnchor.position=%s "
+			+ "hips_model_root=%s hips_anchor_local=%s ref_hips_model_root=%s "
+			+ "cancel_offset_xz=%s cancel_applied=%s"
+		)
+		% [
+			unit_id,
+			current_anim,
+			anim_pos,
+			anim_len,
+			str(_active_hex_moves.has(unit_id)),
+			str(blend_active),
+			blend_remain_ms,
+			_fmt_v3(anchor_pos),
+			_fmt_v3(hips_model_root),
+			_fmt_v3(hips_anchor_local),
+			_fmt_v3(ref_local),
+			_fmt_v3(cancel_offset_xz),
+			str(cancel_applied),
+		]
+	)
+
+
+func _log_settler_startup_clip_catalog() -> void:
+	if _settler_startup_catalog_logged:
+		return
+	if not Warrior3DExperimentScript.should_render_unit_as_3d("settler"):
+		return
+	var path: String = Warrior3DExperimentScript.animated_scene_path_for_type("settler")
+	if path.is_empty():
+		return
+	var scene: PackedScene = load(path) as PackedScene
+	if scene == null:
+		return
+	var probe: Node = scene.instantiate()
+	var player: AnimationPlayer = _find_animation_player(probe)
+	if player == null:
+		probe.free()
+		return
+	_settler_startup_catalog_logged = true
+	print("[Settler3D catalog] asset=%s" % path)
+	_print_settler_clip_catalog_lines(player, "startup")
+	var idle_glb: String = _glb_clip_for_semantic(SEMANTIC_IDLE_CLIP, "settler")
+	var walk_glb: String = _glb_clip_for_semantic(SEMANTIC_WALK_CLIP, "settler")
+	print(
+		(
+			"[Settler3D catalog] runtime idle semantic='%s' -> glb='%s' "
+			+ "walk semantic='%s' -> glb='%s' root_motion_cancel=%s model_offset_y=%.3f"
+		)
+		% [
+			SEMANTIC_IDLE_CLIP,
+			idle_glb,
+			SEMANTIC_WALK_CLIP,
+			walk_glb,
+			str(_uses_settler_root_motion_cancel("settler")),
+			model_offset_y,
+		]
+	)
+	probe.free()
+
+
+func _print_settler_clip_catalog_lines(player: AnimationPlayer, source: String) -> void:
+	var names: PackedStringArray = player.get_animation_list()
+	var i: int = 0
+	while i < names.size():
+		var clip_name: String = str(names[i])
+		var anim: Animation = player.get_animation(clip_name)
+		var clip_len: float = anim.length if anim != null else -1.0
+		print(
+			"[Settler3D catalog] source=%s clip='%s' len=%.3f"
+			% [source, clip_name, clip_len]
+		)
+		i += 1
+
+
+func _log_settler_anim_transition(
+	slot: Node2D, semantic: String, glb_clip: String, anim_speed_scale: float = 1.0
+) -> void:
+	var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
+	var clip_len: float = -1.0
+	if player != null and player.has_animation(glb_clip):
+		var anim: Animation = player.get_animation(glb_clip)
+		if anim != null:
+			clip_len = anim.length
+	print(
+		(
+			"[Settler3D anim] transition semantic='%s' glb_clip='%s' "
+			+ "len=%.3f speed=%.2f manual_cycle=%s"
+		)
+		% [
+			semantic,
+			glb_clip,
+			clip_len,
+			anim_speed_scale,
+			str(_is_settler_manual_clip_cycle(slot)),
+		]
+	)
+
+
+func _has_active_settler_manual_clip_cycle() -> bool:
+	for unit_id_key in _slot_by_unit_id.keys():
+		var slot: Node2D = _slot_by_unit_id[unit_id_key] as Node2D
+		if slot == null:
+			continue
+		if str(slot.get_meta(&"eom_unit_type_id", "")) != "settler":
+			continue
+		if _is_settler_manual_clip_cycle(slot):
+			return true
+	return false
+
+
+func _first_settler_debug_slot() -> Dictionary:
+	var unit_ids: Array = []
+	for unit_id_key in _slot_by_unit_id.keys():
+		var slot: Node2D = _slot_by_unit_id[unit_id_key] as Node2D
+		if slot == null or str(slot.get_meta(&"eom_unit_type_id", "")) != "settler":
+			continue
+		unit_ids.append(int(unit_id_key))
+	if unit_ids.is_empty():
+		return {}
+	unit_ids.sort()
+	var unit_id: int = int(unit_ids[0])
+	return {"slot": _slot_by_unit_id[unit_id] as Node2D, "unit_id": unit_id}
+
+
+func _clear_settler_manual_clip_cycle_except(keep_unit_id: int) -> void:
+	for unit_id_key in _slot_by_unit_id.keys():
+		var unit_id: int = int(unit_id_key)
+		if unit_id == keep_unit_id:
+			continue
+		var slot: Node2D = _slot_by_unit_id[unit_id_key] as Node2D
+		if slot == null or str(slot.get_meta(&"eom_unit_type_id", "")) != "settler":
+			continue
+		if slot.has_meta(META_SETTLER_MANUAL_CLIP_CYCLE):
+			slot.remove_meta(META_SETTLER_MANUAL_CLIP_CYCLE)
+
+
+func _tick_settler_debug_heartbeat(delta: float) -> void:
+	if not Warrior3DExperimentScript.should_render_unit_as_3d("settler"):
+		return
+	if _has_active_settler_manual_clip_cycle():
+		return
+	_settler_debug_heartbeat_elapsed += delta
+	if _settler_debug_heartbeat_elapsed < SETTLER_DEBUG_HEARTBEAT_SEC:
+		return
+	_settler_debug_heartbeat_elapsed = 0.0
+	for unit_id_key in _slot_by_unit_id.keys():
+		var unit_id: int = int(unit_id_key)
+		var slot: Node2D = _slot_by_unit_id[unit_id_key] as Node2D
+		if slot == null:
+			continue
+		if str(slot.get_meta(&"eom_unit_type_id", "")) != "settler":
+			continue
+		_log_settler_debug_heartbeat(slot, unit_id)
+
+
+func _log_settler_debug_heartbeat(slot: Node2D, unit_id: int) -> void:
+	var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
+	var model_root: Node3D = _model_root_for_slot(slot)
+	var anchor: Node3D = _root_motion_anchor_for_slot(slot)
+	var skel: Skeleton3D = _skeleton_for_slot(slot)
+	var state: String = "hex_move" if _active_hex_moves.has(unit_id) else "idle"
+	var current_anim: String = ""
+	var anim_pos: float = -1.0
+	if player != null:
+		current_anim = str(player.current_animation)
+		anim_pos = player.current_animation_position
+	var cancel_active: bool = (
+		settler_neutralize_root_motion
+		and _active_hex_moves.has(unit_id)
+		and not _is_settler_manual_clip_cycle(slot)
+	)
+	print(
+		(
+			"[Settler3D state] state=%s unit=%d anim='%s' pos=%.3f "
+			+ "anchor_local=%s model_root_local=%s skel_global=%s "
+			+ "root_motion_cancel=%s manual_cycle=%s"
+		)
+		% [
+			state,
+			unit_id,
+			current_anim,
+			anim_pos,
+			_fmt_v3(anchor.position if anchor != null else Vector3.ZERO),
+			_fmt_v3(model_root.position if model_root != null else Vector3.ZERO),
+			_fmt_v3(skel.global_position if skel != null else Vector3.ZERO),
+			str(cancel_active),
+			str(_is_settler_manual_clip_cycle(slot)),
+		]
+	)
+
+
+func _cycle_settler_debug_clips() -> void:
+	if not Warrior3DExperimentScript.should_render_unit_as_3d("settler"):
+		print("[Settler3D cycle] no settler 3D enabled")
+		return
+	var target: Dictionary = _first_settler_debug_slot()
+	if target.is_empty():
+		print("[Settler3D cycle] no settler slots synced yet")
+		return
+	var unit_id: int = int(target["unit_id"])
+	var slot: Node2D = target["slot"] as Node2D
+	_clear_settler_manual_clip_cycle_except(unit_id)
+	_apply_settler_manual_clip_cycle_step(slot, unit_id)
+
+
+func _apply_settler_manual_clip_cycle_step(slot: Node2D, unit_id: int) -> void:
+	var player: AnimationPlayer = _walk_animation_player_for_slot(slot)
+	if player == null:
+		return
+	var anchor: Node3D = _root_motion_anchor_for_slot(slot)
+	if anchor != null:
+		anchor.position = Vector3.ZERO
+	slot.set_meta(META_SETTLER_MANUAL_CLIP_CYCLE, true)
+	var clip_names: PackedStringArray = player.get_animation_list()
+	if clip_names.is_empty():
+		return
+	var total: int = clip_names.size()
+	var raw_index: int = int(slot.get_meta(META_SETTLER_CYCLE_CLIP_INDEX, 0))
+	var clip_name: String = str(clip_names[raw_index % total])
+	var display_index: int = (raw_index % total) + 1
+	slot.set_meta(META_SETTLER_CYCLE_CLIP_INDEX, (raw_index + 1) % total)
+	var clip_len: float = -1.0
+	if player.has_animation(clip_name):
+		var anim: Animation = player.get_animation(clip_name)
+		if anim != null:
+			clip_len = anim.length
+	print(
+		(
+			"[Settler3D cycle START] unit=%d clip='%s' index=%d/%d len=%.3f"
+		)
+		% [unit_id, clip_name, display_index, total, clip_len]
+	)
+	player.process_mode = Node.PROCESS_MODE_INHERIT
+	player.speed_scale = 1.0
+	player.play(clip_name)
+	player.seek(0.0, true)
+	slot.set_meta(&"eom_slot_anim", clip_name)
+	slot.set_meta(&"eom_slot_anim_speed", 1.0)
 
 
 func _log_settler_root_motion_phase(slot: Node2D, phase: String) -> void:
@@ -1243,30 +1683,31 @@ func _log_settler_root_motion_phase(slot: Node2D, phase: String) -> void:
 		return
 	var anchor: Node3D = _root_motion_anchor_for_slot(slot)
 	var skel: Skeleton3D = _skeleton_for_slot(slot)
-	var hips_local: Vector3 = _hips_local_in_model_root(slot)
+	var hips_local: Vector3 = _hips_in_model_root_space(slot)
 	var ref_local: Vector3 = (
-		slot.get_meta(&"eom_hips_ref_local") as Vector3
+		slot.get_meta(&"eom_hips_ref_local", Vector3.ZERO)
 		if slot.has_meta(&"eom_hips_ref_local")
 		else Vector3.ZERO
 	)
 	var hips_idx: int = _hips_bone_index(skel) if skel != null else -1
-	var hips_global: Vector3 = Vector3.ZERO
+	var hips_world: Vector3 = Vector3.ZERO
 	if skel != null and hips_idx >= 0:
-		hips_global = skel.get_bone_global_pose(hips_idx).origin
+		var bone_pose: Transform3D = skel.get_bone_global_pose(hips_idx)
+		hips_world = skel.global_transform * bone_pose.origin
 	var imported_root: Node3D = anchor.get_child(0) as Node3D if anchor != null and anchor.get_child_count() > 0 else null
 	print(
 		(
 			"[Settler3D root motion] phase=%s anchor.pos=%s imported.pos=%s "
-			+ "hips.local=%s hips.global=%s ref.local=%s cancel.delta=%s"
+			+ "hips.model_root=%s hips.world=%s ref.model_root=%s cancel.xz=%s"
 		)
 		% [
 			phase,
 			_fmt_v3(anchor.position if anchor != null else Vector3.ZERO),
 			_fmt_v3(imported_root.position if imported_root != null else Vector3.ZERO),
 			_fmt_v3(hips_local),
-			_fmt_v3(hips_global),
+			_fmt_v3(hips_world),
 			_fmt_v3(ref_local),
-			_fmt_v3(hips_local - ref_local),
+			_fmt_v3(_settler_root_motion_cancel_xz(ref_local, hips_local)),
 		]
 	)
 

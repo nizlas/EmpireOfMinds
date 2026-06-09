@@ -16,6 +16,8 @@ const SETTLER_ANIMATED_GLB_PATH: String = (
 )
 const MAP_ANIMATION_ENV: String = "EOM_WARRIOR_3D_ANIM"
 const ANIM_AUDIT_ENV: String = "EOM_WARRIOR_3D_ANIM_AUDIT"
+## TEMPORARY probe: built-in AnimationPlayer root_motion_track instead of manual anchor cancel.
+const SETTLER_BUILTIN_RM_ENV: String = "EOM_SETTLER_BUILTIN_RM"
 const DEFAULT_MAP_ANIMATION_NAME: String = "Idle_3"
 const SUPPORTED_3D_TYPE_IDS: Array = ["warrior", "settler"]
 
@@ -74,6 +76,10 @@ static func is_animation_audit_enabled() -> bool:
 	return OS.get_environment(ANIM_AUDIT_ENV).strip_edges() == "1"
 
 
+static func is_settler_builtin_root_motion_enabled() -> bool:
+	return OS.get_environment(SETTLER_BUILTIN_RM_ENV).strip_edges() == "1"
+
+
 static func should_render_unit_as_3d(type_id: String) -> bool:
 	var tid: String = str(type_id)
 	if tid == "settler":
@@ -103,13 +109,16 @@ static func log_flag_state_once() -> void:
 	print(
 		(
 			"[Unit3D flags] EMPIRE_USE_3D_MODELS='%s' EMPIRE_USE_3D_WARRIOR='%s' "
-			+ "enable_3d_models=%s enable_warrior_3d=%s enable_settler_3d=%s"
+			+ "EOM_SETTLER_BUILTIN_RM='%s' enable_3d_models=%s enable_warrior_3d=%s "
+			+ "enable_settler_3d=%s settler_builtin_rm=%s"
 		)
 		% [
 			models_val,
 			legacy_val,
+			OS.get_environment(SETTLER_BUILTIN_RM_ENV).strip_edges(),
 			str(enable_3d),
 			str(should_render_unit_as_3d("warrior")),
 			str(should_render_unit_as_3d("settler")),
+			str(is_settler_builtin_root_motion_enabled()),
 		]
 	)
