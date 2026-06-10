@@ -18,11 +18,22 @@ const CITY_MAT_OVERRIDE_SPECULAR: float = 0.3
 var scenario
 var layout
 
+var _world_camera: Camera3D
+var _map_camera
+var _map_layer_origin: Vector2 = Vector2.ZERO
+
 var _city_scene: PackedScene
 var _instance_by_city_id: Dictionary = {}
 var _sync_frame: int = -1
 var _logged_depth_context: bool = false
 var _logged_visibility_diag: Dictionary = {}
+var _ray_parallel_warned: Dictionary = {}
+
+
+func set_placement_context(world_cam: Camera3D, map_cam, layer_origin: Vector2) -> void:
+	_world_camera = world_cam
+	_map_camera = map_cam
+	_map_layer_origin = layer_origin
 
 
 func is_real_3d_active() -> bool:
@@ -62,6 +73,36 @@ func has_ready_city_instance(city_id: int) -> bool:
 
 func prepare_for_draw() -> void:
 	_sync_once_per_frame()
+	_refresh_placements()
+
+
+func refresh_placements() -> void:
+	_refresh_placements()
+
+
+static func compute_anchor_2d(world_2d: Vector2, map_cam, map_layer_origin: Vector2) -> Vector2:
+	return map_layer_origin + map_cam.to_presentation(world_2d)
+
+
+static func ray_intersect_ground_y0(world_camera: Camera3D, anchor_2d: Vector2) -> Vector3:
+	if world_camera == null:
+		return Vector3(NAN, NAN, NAN)
+	var ray_origin: Vector3 = world_camera.project_ray_origin(anchor_2d)
+	var ray_dir: Vector3 = world_camera.project_ray_normal(anchor_2d)
+	if not ray_origin.is_finite() or not ray_dir.is_finite():
+		return Vector3(NAN, NAN, NAN)
+	if absf(ray_dir.y) < 1e-6:
+		return Vector3(NAN, NAN, NAN)
+	var t: float = -ray_origin.y / ray_dir.y
+	if t < 0.0:
+		return Vector3(NAN, NAN, NAN)
+	return ray_origin + ray_dir * t
+
+
+static func anchor_lock_delta_px(world_camera: Camera3D, instance_global: Vector3, anchor_2d: Vector2) -> float:
+	if world_camera == null:
+		return INF
+	return world_camera.unproject_position(instance_global).distance_to(anchor_2d)
 
 
 func sync_from_scenario() -> void:
@@ -198,14 +239,27 @@ func _log_coordinate_space_diag(
 	var in_frustum: bool = world_camera.is_position_in_frustum(inst.global_position)
 	var unprojected: Vector2 = world_camera.unproject_position(inst.global_position)
 	var anchor_2d: Vector2 = Vector2(-1.0, -1.0)
+	var world_2d: Vector2 = Vector2.ZERO
+	var ray_origin: Vector3 = Vector3.ZERO
+	var ray_dir: Vector3 = Vector3.ZERO
+	var ground_hit: Vector3 = Vector3.ZERO
 	if map_camera_2d != null and layout != null and city != null:
-		var w: Vector2 = layout.hex_to_world(int(city.position.q), int(city.position.r))
-		anchor_2d = map_layer_origin + map_camera_2d.to_presentation(w)
+		world_2d = layout.hex_to_world(int(city.position.q), int(city.position.r))
+		anchor_2d = compute_anchor_2d(world_2d, map_camera_2d, map_layer_origin)
+		ray_origin = world_camera.project_ray_origin(anchor_2d)
+		ray_dir = world_camera.project_ray_normal(anchor_2d)
+		ground_hit = ray_intersect_ground_y0(world_camera, anchor_2d)
+	var delta_px: float = unprojected.distance_to(anchor_2d)
+	var zoom: float = map_camera_2d.zoom if map_camera_2d != null else -1.0
+	var pan: Vector2 = (
+		map_camera_2d.camera_world_offset if map_camera_2d != null else Vector2.ZERO
+	)
 	print(
 		(
 			"[City3D space diag] city_id=%d camera_under_pan_root=%s camera_space=%s "
-			+ "in_frustum=%s unprojected_screen=%s expected_2d_anchor_screen=%s "
-			+ "camera_ortho=%.1f"
+			+ "in_frustum=%s unprojected_screen=%s anchor_2d=%s delta_px=%.4f "
+			+ "world_2d=%s ray_origin=%s ray_dir=%s ground_hit=%s "
+			+ "instance_global=%s zoom=%.3f pan=%s camera_ortho=%.1f"
 		)
 		% [
 			city_id,
@@ -214,6 +268,14 @@ func _log_coordinate_space_diag(
 			str(in_frustum),
 			str(unprojected),
 			str(anchor_2d),
+			delta_px,
+			str(world_2d),
+			str(ray_origin),
+			str(ray_dir),
+			str(ground_hit),
+			str(inst.global_position),
+			zoom,
+			str(pan),
 			world_camera.size,
 		]
 	)
@@ -304,9 +366,26 @@ func _create_city_instance(city_id: int, city) -> Node3D:
 	return model_root
 
 
+func _refresh_placements() -> void:
+	if not is_real_3d_active() or scenario == null:
+		return
+	var clist: Array = scenario.cities()
+	var i: int = 0
+	while i < clist.size():
+		var city = clist[i]
+		var city_id: int = int(city.id)
+		var root: Node3D = _instance_by_city_id.get(city_id) as Node3D
+		if root != null:
+			_apply_instance_transform(root, city)
+		i += 1
+
+
 func _apply_instance_transform(root: Node3D, city) -> void:
-	var world_3d: Vector3 = _hex_to_world_3d(int(city.position.q), int(city.position.r))
-	root.position = world_3d
+	var pos_global: Vector3 = _placement_position_global_for_city(city, root)
+	if root.is_inside_tree():
+		root.global_position = pos_global
+	else:
+		root.position = pos_global
 	root.rotation_degrees = Vector3(model_pitch_degrees_3d, model_yaw_degrees_3d, 0.0)
 	root.scale = Vector3.ONE * model_scale_3d
 	if not bool(root.get_meta(&"eom_city_transform_logged", false)):
@@ -314,19 +393,45 @@ func _apply_instance_transform(root: Node3D, city) -> void:
 		print(
 			(
 				"[City3D world] transform city_id=%d hex=(%d,%d) pos=%s "
-				+ "yaw=%.1f scale=%.1f offset=%s global=%s"
+				+ "yaw=%.1f scale=%.1f offset=%s global=%s anchor_lock=%s"
 			)
 			% [
 				int(city.id),
 				int(city.position.q),
 				int(city.position.r),
-				str(world_3d),
+				str(root.position),
 				model_yaw_degrees_3d,
 				model_scale_3d,
 				str(model_world_offset),
 				str(root.global_transform),
+				str(_world_camera != null and _map_camera != null),
 			]
 		)
+
+
+func _placement_position_global_for_city(city, root: Node3D) -> Vector3:
+	var fallback: Vector3 = _hex_to_world_3d(int(city.position.q), int(city.position.r))
+	if _world_camera == null or _map_camera == null or layout == null:
+		return fallback
+	var world_2d: Vector2 = layout.hex_to_world(int(city.position.q), int(city.position.r))
+	var anchor_2d: Vector2 = compute_anchor_2d(world_2d, _map_camera, _map_layer_origin)
+	var hit_global: Vector3 = ray_intersect_ground_y0(_world_camera, anchor_2d)
+	if not hit_global.is_finite():
+		_warn_ray_parallel_once(int(city.id), anchor_2d)
+		if root.is_inside_tree():
+			return root.global_position
+		return fallback
+	return hit_global + model_world_offset
+
+
+func _warn_ray_parallel_once(city_id: int, anchor_2d: Vector2) -> void:
+	if _ray_parallel_warned.has(city_id):
+		return
+	_ray_parallel_warned[city_id] = true
+	push_warning(
+		"[City3D world] anchor ray-ground miss city_id=%d anchor_2d=%s; keeping prior transform"
+		% [city_id, str(anchor_2d)]
+	)
 
 
 func _hex_to_world_3d(q: int, r: int) -> Vector3:

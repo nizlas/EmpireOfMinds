@@ -101,6 +101,7 @@ func prepare_for_draw() -> void:
 	if not uses_real_3d_city():
 		return
 	_resize_viewport_container()
+	_update_composite_view_state()
 	if _city_world_view != null:
 		_city_world_view.prepare_for_draw()
 	_log_render_mode_once()
@@ -128,10 +129,7 @@ func _process(_delta: float) -> void:
 	if not uses_real_3d_city() or map_camera == null or _world_camera == null:
 		return
 	_resize_viewport_container()
-	var off: Vector2 = map_camera.camera_world_offset
-	if _world_pan_root != null:
-		_world_pan_root.position = Vector3(-off.x, 0.0, -off.y)
-	_update_world_camera()
+	_update_composite_view_state()
 	_sync_debug_city_probe()
 
 
@@ -155,6 +153,18 @@ func _update_world_camera() -> void:
 	_world_camera.look_at_from_position(target + arm, target, Vector3.UP)
 	# Vertical extent in world units = viewport_height / zoom => px-per-unit matches 2D zoom.
 	_world_camera.size = screen_size.y / zoom
+
+
+func _update_composite_view_state() -> void:
+	if not uses_real_3d_city() or map_camera == null or _world_camera == null:
+		return
+	var off: Vector2 = map_camera.camera_world_offset
+	if _world_pan_root != null:
+		_world_pan_root.position = Vector3(-off.x, 0.0, -off.y)
+	_update_world_camera()
+	if _city_world_view != null:
+		_city_world_view.set_placement_context(_world_camera, map_camera, map_layer_origin)
+		_city_world_view.refresh_placements()
 
 
 func _setup_viewport_composite() -> void:

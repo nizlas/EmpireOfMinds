@@ -9,6 +9,11 @@ const HexMapScript = preload("res://domain/hex_map.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const CityScript = preload("res://domain/city.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
+const CityWorldScript = preload("res://presentation/city_3d_world_view.gd")
+const MapCameraScript = preload("res://presentation/map_camera.gd")
+const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
+
+const MAP_LAYER_ORIGIN: Vector2 = Vector2(400.0, 428.0)
 
 var _failures: int = 0
 var _checks: int = 0
@@ -35,6 +40,12 @@ func _run() -> void:
 	cities_view.map_presentation_3d_layer = layer
 	layer.layout = layout
 	layer.scenario = scenario
+	layer.map_layer_origin = MAP_LAYER_ORIGIN
+	var projection = MapPlaneProjectionScript.new()
+	projection.vanishing_pres = (get_root().get_visible_rect().size * 0.5) - MAP_LAYER_ORIGIN
+	var map_camera = MapCameraScript.new()
+	map_camera.projection = projection
+	layer.map_camera = map_camera
 	await process_frame
 	layer.sync_from_scenario()
 	layer.prepare_for_draw()
@@ -55,8 +66,14 @@ func _run() -> void:
 	_check(inst != null, "instance node exists")
 	if inst != null:
 		_check(inst.get_child_count() > 0, "instance has GLB child")
-		var want: Vector3 = city_world._hex_to_world_3d(1, -1)
-		_check(inst.position.is_equal_approx(want), "instance at hex world 3d %s" % str(want))
+		var world_2d: Vector2 = layout.hex_to_world(1, -1)
+		var anchor_2d: Vector2 = CityWorldScript.compute_anchor_2d(
+			world_2d, map_camera, MAP_LAYER_ORIGIN
+		)
+		var delta: float = CityWorldScript.anchor_lock_delta_px(
+			layer._world_camera, inst.global_position, anchor_2d
+		)
+		_check(delta < 0.5, "instance locked to 2D anchor delta=%.4f px" % delta)
 	var boot = ScenarioScript.make_prototype_play_scenario()
 	layer.scenario = boot
 	layer.sync_from_scenario()
