@@ -7,6 +7,7 @@ extends Node2D
 const MapViewScript = preload("res://presentation/map_view.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const PresentationVisibilityScript = preload("res://presentation/presentation_visibility.gd")
+const PolygonDrawGuardScript = preload("res://presentation/polygon_draw_guard.gd")
 
 const _PARCHMENT_TEX_PATH: String = (
 	"res://assets/prototype/map_overlays/unexplored_parchment_overlay_prototype.png"
@@ -28,6 +29,8 @@ var _parchment_tex: Texture2D = null
 @export var unexplored_edge_feather_inner_overlap_px: float = 4.0
 @export var unexplored_edge_feather_noise_px: float = 2.0
 @export var unexplored_edge_feather_irregularity_enabled: bool = false
+
+static var _invalid_parchment_poly_logged: Dictionary = {}
 
 
 static func compute_overlay_items(gs, a_layout) -> Array:
@@ -221,10 +224,50 @@ func _draw_parchment_hex(coord) -> void:
 		corners_world,
 		parchment_world_scale,
 	)
+	var sanitized: Dictionary = PolygonDrawGuardScript.sanitize_polygon_with_uvs(corners_draw, uvs)
+	var draw_pts: PackedVector2Array = sanitized["pts"] as PackedVector2Array
+	var draw_uvs: PackedVector2Array = sanitized["uvs"] as PackedVector2Array
+	var skip_reason: String = PolygonDrawGuardScript.polygon_skip_reason(draw_pts)
+	if skip_reason != "":
+		_log_invalid_parchment_polygon_throttled(coord, corners_draw, draw_pts, skip_reason)
+		return
 	if _parchment_tex != null:
-		draw_colored_polygon(corners_draw, Color.WHITE, uvs, _parchment_tex)
+		draw_colored_polygon(draw_pts, Color.WHITE, draw_uvs, _parchment_tex)
 	else:
-		draw_colored_polygon(corners_draw, _FALLBACK_FOG)
+		draw_colored_polygon(draw_pts, _FALLBACK_FOG)
+
+
+func _log_invalid_parchment_polygon_throttled(
+	coord,
+	raw_pts: PackedVector2Array,
+	sanitized_pts: PackedVector2Array,
+	reason: String,
+) -> void:
+	var key: String = "%d,%d:%s" % [int(coord.q), int(coord.r), reason]
+	if _invalid_parchment_poly_logged.has(key):
+		return
+	_invalid_parchment_poly_logged[key] = true
+	var zoom: float = -1.0
+	var pan: Vector2 = Vector2.ZERO
+	if camera != null:
+		zoom = camera.zoom
+		pan = camera.camera_world_offset
+	push_warning(
+		(
+			"[MapVisibility] skip_parchment_hex hex=(%d,%d) reason=%s "
+			+ "point_count=%d unique_count=%d area_sq=%.3f zoom=%.3f pan=%s"
+		)
+		% [
+			int(coord.q),
+			int(coord.r),
+			reason,
+			raw_pts.size(),
+			PolygonDrawGuardScript.count_unique_polygon_points(sanitized_pts),
+			PolygonDrawGuardScript.polygon_area_abs_sq(sanitized_pts),
+			zoom,
+			str(pan),
+		]
+	)
 
 
 func _draw_feather_strip_quad(

@@ -37,6 +37,14 @@ func has_city_instance(city_id: int) -> bool:
 	return _instance_by_city_id.has(city_id)
 
 
+func first_city_instance() -> Node3D:
+	for k in _instance_by_city_id.keys():
+		var inst: Node3D = _instance_by_city_id[k] as Node3D
+		if inst != null and is_instance_valid(inst):
+			return inst
+	return null
+
+
 func has_ready_city_instance(city_id: int) -> bool:
 	var root: Node3D = _instance_by_city_id.get(city_id) as Node3D
 	if root == null:
@@ -61,11 +69,18 @@ func sync_from_scenario() -> void:
 
 
 func log_visibility_diag_once(
-	city_id: int, city, world_camera: Camera3D, viewport: SubViewport, layer: Node
+	city_id: int,
+	city,
+	world_camera: Camera3D,
+	viewport: SubViewport,
+	layer: Node,
+	map_camera_2d = null,
+	map_layer_origin: Vector2 = Vector2.ZERO,
 ) -> void:
 	if _logged_visibility_diag.has(city_id):
 		return
 	_logged_visibility_diag[city_id] = true
+	_log_coordinate_space_diag(city_id, city, world_camera, map_camera_2d, map_layer_origin)
 	var root: Node3D = _instance_by_city_id.get(city_id) as Node3D
 	var hex_q: int = -999
 	var hex_r: int = -999
@@ -122,6 +137,84 @@ func log_visibility_diag_once(
 			str(viewport.size if viewport != null else Vector2i.ZERO),
 			str(layer.is_inside_tree() if layer != null else false),
 			str(layer.visible if layer is CanvasItem else true),
+		]
+	)
+
+
+## TEMP DIAG — paths/transforms of layer chain + camera-space, frustum, screen alignment.
+func _log_coordinate_space_diag(
+	city_id: int, city, world_camera: Camera3D, map_camera_2d, map_layer_origin: Vector2
+) -> void:
+	var inst: Node3D = _instance_by_city_id.get(city_id) as Node3D
+	var pan_root: Node3D = get_parent() as Node3D
+	var layer_node: Node = pan_root.get_parent().get_parent() if pan_root != null else null
+	var chain: Array = [
+		["layer", layer_node],
+		["pan_root", pan_root],
+		["world_camera", world_camera],
+		["city_view", self],
+		["city_instance", inst],
+	]
+	for entry in chain:
+		var label: String = entry[0]
+		var node = entry[1]
+		if node == null:
+			print("[City3D space diag] %s=null" % label)
+			continue
+		var local_xf: String = "n/a"
+		var global_xf: String = "n/a"
+		if node is Node3D:
+			local_xf = str((node as Node3D).transform)
+			global_xf = str((node as Node3D).global_transform)
+		elif node is Node2D:
+			local_xf = str((node as Node2D).transform)
+			global_xf = str((node as Node2D).get_global_transform())
+		print(
+			"[City3D space diag] %s path=%s local=%s global=%s"
+			% [label, str(node.get_path()), local_xf, global_xf]
+		)
+	if inst == null or world_camera == null:
+		return
+	var same_parent: bool = (
+		world_camera.get_parent() == pan_root if pan_root != null else false
+	)
+	var combined_aabb: AABB = AABB()
+	var first_aabb: bool = true
+	for n in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi: MeshInstance3D = n as MeshInstance3D
+		var world_aabb: AABB = mi.global_transform * mi.get_aabb()
+		if first_aabb:
+			combined_aabb = world_aabb
+			first_aabb = false
+		else:
+			combined_aabb = combined_aabb.merge(world_aabb)
+	print(
+		"[City3D space diag] city_id=%d model_world_aabb pos=%s size=%s center=%s"
+		% [city_id, str(combined_aabb.position), str(combined_aabb.size), str(combined_aabb.get_center())]
+	)
+	var cam_space: Vector3 = (
+		world_camera.global_transform.affine_inverse() * inst.global_position
+	)
+	var in_frustum: bool = world_camera.is_position_in_frustum(inst.global_position)
+	var unprojected: Vector2 = world_camera.unproject_position(inst.global_position)
+	var anchor_2d: Vector2 = Vector2(-1.0, -1.0)
+	if map_camera_2d != null and layout != null and city != null:
+		var w: Vector2 = layout.hex_to_world(int(city.position.q), int(city.position.r))
+		anchor_2d = map_layer_origin + map_camera_2d.to_presentation(w)
+	print(
+		(
+			"[City3D space diag] city_id=%d camera_under_pan_root=%s camera_space=%s "
+			+ "in_frustum=%s unprojected_screen=%s expected_2d_anchor_screen=%s "
+			+ "camera_ortho=%.1f"
+		)
+		% [
+			city_id,
+			str(same_parent),
+			str(cam_space),
+			str(in_frustum),
+			str(unprojected),
+			str(anchor_2d),
+			world_camera.size,
 		]
 	)
 
@@ -238,7 +331,8 @@ func _apply_instance_transform(root: Node3D, city) -> void:
 
 func _hex_to_world_3d(q: int, r: int) -> Vector3:
 	var w: Vector2 = layout.hex_to_world(q, r)
-	return Vector3(w.x, 0.0, -w.y) + model_world_offset
+	# Map-south (+y, lower on screen) maps to +Z (closer to the south-placed camera).
+	return Vector3(w.x, 0.0, w.y) + model_world_offset
 
 
 func _load_city_scene() -> void:

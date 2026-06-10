@@ -120,6 +120,11 @@ static func env_city_blit_fallback_enabled() -> bool:
 	return OS.get_environment("EOM_CITY_BLIT_FALLBACK").strip_edges() == "1"
 
 
+## TEMP DIAG — env **EOM_CITY3D_DEBUG_PROBE=1**: opaque composite bg + origin/city marker cubes.
+static func env_city3d_debug_probe_enabled() -> bool:
+	return OS.get_environment("EOM_CITY3D_DEBUG_PROBE").strip_edges() == "1"
+
+
 static func log_flag_state_once() -> void:
 	if _logged_flag_state:
 		return

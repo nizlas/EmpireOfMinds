@@ -120,7 +120,7 @@ func log_city_visibility_diag_once(city_id: int, city = null) -> void:
 	if _city_world_view == null:
 		return
 	_city_world_view.log_visibility_diag_once(
-		city_id, city, _world_camera, _viewport, self
+		city_id, city, _world_camera, _viewport, self, map_camera, map_layer_origin
 	)
 
 
@@ -130,9 +130,31 @@ func _process(_delta: float) -> void:
 	_resize_viewport_container()
 	var off: Vector2 = map_camera.camera_world_offset
 	if _world_pan_root != null:
-		_world_pan_root.position = Vector3(-off.x, 0.0, off.y)
+		_world_pan_root.position = Vector3(-off.x, 0.0, -off.y)
+	_update_world_camera()
+	_sync_debug_city_probe()
+
+
+## Aligns WorldCamera with the 2D map view: aim at the hex-world point shown at screen
+## center (MapCamera.to_layout) and match px-per-world-unit to the 2D zoom.
+func _update_world_camera() -> void:
+	if _world_camera == null or map_camera == null:
+		return
+	var screen_size: Vector2 = _last_container_size
+	if screen_size.x <= 0.0 or screen_size.y <= 0.0:
+		return
 	var zoom: float = maxf(map_camera.zoom, 0.001)
-	_world_camera.size = world_ortho_size / zoom
+	var center_local: Vector2 = screen_size * 0.5 - map_layer_origin
+	var center_world: Vector2 = map_camera.to_layout(center_local)
+	if not center_world.is_finite():
+		return
+	# Pan root already shifts by -offset; camera works in the same shifted space.
+	var s: Vector2 = center_world - map_camera.camera_world_offset
+	var target := Vector3(s.x, 0.0, s.y)
+	var arm := Vector3(world_camera_offset_x, world_camera_height, world_camera_distance)
+	_world_camera.look_at_from_position(target + arm, target, Vector3.UP)
+	# Vertical extent in world units = viewport_height / zoom => px-per-unit matches 2D zoom.
+	_world_camera.size = screen_size.y / zoom
 
 
 func _setup_viewport_composite() -> void:
@@ -186,7 +208,53 @@ func _setup_viewport_composite() -> void:
 		_city_world_view = City3DWorldViewScript.new()
 		_city_world_view.name = "City3DWorldView"
 		_world_pan_root.add_child(_city_world_view)
+	_setup_debug_probes()
 	_resize_viewport_container()
+
+
+## TEMP DIAG — EOM_CITY3D_DEBUG_PROBE=1: opaque bg + magenta origin cube + cyan city cube.
+func _setup_debug_probes() -> void:
+	if not Warrior3DExperimentScript.env_city3d_debug_probe_enabled():
+		return
+	_viewport.transparent_bg = false
+	if _world_pan_root.get_node_or_null("DebugOriginProbe") == null:
+		_world_pan_root.add_child(_make_debug_probe_cube("DebugOriginProbe", Color(1, 0, 1)))
+	if _world_pan_root.get_node_or_null("DebugCityProbe") == null:
+		var city_probe := _make_debug_probe_cube("DebugCityProbe", Color(0, 1, 1))
+		city_probe.visible = false
+		_world_pan_root.add_child(city_probe)
+	print(
+		"[MapPresentation3D] debug_probe enabled: opaque bg + origin cube (magenta) "
+		+ "+ city cube (cyan)"
+	)
+
+
+func _make_debug_probe_cube(probe_name: String, color: Color) -> MeshInstance3D:
+	var mesh_inst := MeshInstance3D.new()
+	mesh_inst.name = probe_name
+	var box := BoxMesh.new()
+	box.size = Vector3(120.0, 600.0, 120.0)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = color
+	box.material = mat
+	mesh_inst.mesh = box
+	mesh_inst.position = Vector3(0.0, 300.0, 0.0)
+	return mesh_inst
+
+
+func _sync_debug_city_probe() -> void:
+	if _world_pan_root == null or _city_world_view == null:
+		return
+	var probe: MeshInstance3D = _world_pan_root.get_node_or_null("DebugCityProbe") as MeshInstance3D
+	if probe == null:
+		return
+	var inst: Node3D = _city_world_view.first_city_instance()
+	if inst == null:
+		probe.visible = false
+		return
+	probe.visible = true
+	probe.position = inst.position + Vector3(0.0, 300.0, 0.0)
 
 
 func _resolve_active_composite_nodes() -> bool:

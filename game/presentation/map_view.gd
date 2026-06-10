@@ -14,6 +14,7 @@ const PlainsForestScript = preload("res://presentation/plains_forest_decoration.
 const TerrainForegroundViewScript = preload("res://presentation/terrain_foreground_view.gd")
 const UnitsViewScript = preload("res://presentation/units_view.gd")
 const CitiesViewScript = preload("res://presentation/cities_view.gd")
+const PolygonDrawGuardScript = preload("res://presentation/polygon_draw_guard.gd")
 
 const FOREST_BACK_CLUMP_01: Texture2D = preload("res://assets/prototype/terrain/forest/forest_back_clump_01.png")
 const FOREST_BACK_CLUMP_02: Texture2D = preload("res://assets/prototype/terrain/forest/forest_back_clump_02.png")
@@ -97,6 +98,8 @@ var _hills_overlay_plains_missing_logged: bool = false
 var _hills_overlay_grassland_missing_logged: bool = false
 var _forest_tree_symbols: Array[Texture2D] = []  # Cached tree symbol textures (building blocks for forest decoration).
 var _forest_symbol_scatter_unavailable_logged: bool = false
+
+static var _invalid_map_poly_logged: Dictionary = {}
 
 const _TREE_SYMBOL_COUNT: int = 20
 const _HILLS_TEX_MOD_MIN: float = 0.75
@@ -631,6 +634,65 @@ func _hills_overlay_texture_for_hex(coord, terrain: int) -> Texture2D:
 	return texs[idx]
 
 
+func _draw_guarded_colored_polygon(
+	draw_pts: PackedVector2Array,
+	color: Color,
+	uvs: PackedVector2Array,
+	tex: Texture2D,
+	coord,
+	kind: String,
+) -> bool:
+	var sanitized: Dictionary = PolygonDrawGuardScript.sanitize_polygon_with_uvs(draw_pts, uvs)
+	var pts: PackedVector2Array = sanitized["pts"] as PackedVector2Array
+	var draw_uvs: PackedVector2Array = sanitized["uvs"] as PackedVector2Array
+	var skip_reason: String = PolygonDrawGuardScript.polygon_skip_reason(pts)
+	if skip_reason != "":
+		_log_invalid_map_polygon_throttled(coord, draw_pts, pts, skip_reason, kind)
+		return false
+	if tex != null:
+		draw_colored_polygon(pts, color, draw_uvs, tex)
+	else:
+		draw_colored_polygon(pts, color)
+	return true
+
+
+func _log_invalid_map_polygon_throttled(
+	coord,
+	raw_pts: PackedVector2Array,
+	sanitized_pts: PackedVector2Array,
+	reason: String,
+	kind: String,
+) -> void:
+	var hex_key: String = "n/a"
+	if coord != null:
+		hex_key = "%d,%d" % [int(coord.q), int(coord.r)]
+	var key: String = "%s:%s:%s" % [hex_key, kind, reason]
+	if _invalid_map_poly_logged.has(key):
+		return
+	_invalid_map_poly_logged[key] = true
+	var zoom: float = -1.0
+	var pan: Vector2 = Vector2.ZERO
+	if camera != null:
+		zoom = camera.zoom
+		pan = camera.camera_world_offset
+	push_warning(
+		(
+			"[MapView] skip_polygon kind=%s hex=%s reason=%s point_count=%d "
+			+ "unique_count=%d area_sq=%.3f zoom=%.3f pan=%s"
+		)
+		% [
+			kind,
+			hex_key,
+			reason,
+			raw_pts.size(),
+			PolygonDrawGuardScript.count_unique_polygon_points(sanitized_pts),
+			PolygonDrawGuardScript.polygon_area_abs_sq(sanitized_pts),
+			zoom,
+			str(pan),
+		]
+	)
+
+
 func _draw_hills_overlay(proj, world_center: Vector2, terrain: int, coord) -> void:
 	var ov_tex: Texture2D = _hills_overlay_texture_for_hex(coord, terrain)
 	if ov_tex == null:
@@ -648,8 +710,8 @@ func _draw_hills_overlay(proj, world_center: Vector2, terrain: int, coord) -> vo
 	var tint: Color = MapView._hills_overlay_tint_channels(
 		terrain, plains_hills_terrain_modulate, grassland_hills_terrain_modulate, eff.z
 	)
-	draw_colored_polygon(poly_pres, tint, uvs, ov_tex)
-	debug_hills_overlay_draws += 1
+	if _draw_guarded_colored_polygon(poly_pres, tint, uvs, ov_tex, coord, "hills_overlay"):
+		debug_hills_overlay_draws += 1
 	if debug_draw_hills_overlay_bounds:
 		var hex_full_world: PackedVector2Array = MapView._hex_overlay_polygon_world(world_center, 1.0)
 		var hex_full_pres: PackedVector2Array = _projected_corners(proj, hex_full_world)
@@ -693,6 +755,7 @@ func _draw() -> void:
 		var terrain: int = int(item["terrain"])
 		var landform: int = int(item.get("landform", HexMapScript.Landform.FLAT))
 		var corners_draw = _projected_corners(camera, corners)
+		var coord = item["coord"]
 		var tex: Texture2D = MapView._texture_for_land(terrain, _plains_terrain_tex, _grassland_terrain_tex, _water_terrain_tex)
 		if tex != null:
 			if audit:
@@ -710,10 +773,16 @@ func _draw() -> void:
 					else:
 						aud_grass_flat += 1
 			var uvs: PackedVector2Array = MapView._world_anchored_corner_uvs(corners, terrain_texture_world_scale)
-			draw_colored_polygon(corners_draw, Color.WHITE, uvs, tex)
+			var terrain_kind: String = "terrain_textured"
+			if terrain == HexMapScript.Terrain.WATER:
+				terrain_kind = "terrain_water"
+			elif landform == HexMapScript.Landform.HILLS:
+				terrain_kind = "terrain_hills"
+			_draw_guarded_colored_polygon(corners_draw, Color.WHITE, uvs, tex, coord, terrain_kind)
 		else:
-			draw_colored_polygon(corners_draw, col)
-		var coord = item["coord"]
+			_draw_guarded_colored_polygon(
+				corners_draw, col, PackedVector2Array(), null, coord, "terrain_solid"
+			)
 		_draw_terrain_detail_overlay(camera, item["world"] as Vector2, terrain, coord.q, coord.r)
 		if MapView._hills_overlay_will_draw(
 			terrain, landform, _plains_hills_overlay_textures, _grassland_hills_overlay_textures
