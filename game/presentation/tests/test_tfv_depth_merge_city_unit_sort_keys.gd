@@ -1,5 +1,5 @@
-# Headless: **TerrainForegroundView** depth-merge — same-hex **city+unit** orders **city** before **unit**
-# (including **microfloat** **sy/sx** splits — **5.1.15c**) so units paint **on top** of city markers.
+# Headless: **TerrainForegroundView** depth-merge — same-hex **city+unit** orders **unit** before **city**
+# (including **microfloat** **sy/sx** splits — **5.1.15c**) so city blits paint **on top** (unit behind house).
 # Usage: godot --headless --path game -s res://presentation/tests/test_tfv_depth_merge_city_unit_sort_keys.gd
 extends SceneTree
 
@@ -24,13 +24,13 @@ func _init() -> void:
 		func(a: Dictionary, b: Dictionary) -> bool:
 			return tfv._fg_depth_merge_item_lt(a, b)
 	)
-	if int(items[0]["ty"]) != 1:
-		push_error("FAIL: expected city (ty=1) first when merge keys tie")
+	if int(items[0]["ty"]) != 2:
+		push_error("FAIL: expected unit (ty=2) first when merge keys tie")
 		tfv.free()
 		call_deferred("quit", 1)
 		return
-	if int(items[1]["ty"]) != 2:
-		push_error("FAIL: expected unit (ty=2) second when merge keys tie")
+	if int(items[1]["ty"]) != 1:
+		push_error("FAIL: expected city (ty=1) second when merge keys tie")
 		tfv.free()
 		call_deferred("quit", 1)
 		return
@@ -42,8 +42,8 @@ func _init() -> void:
 		func(a: Dictionary, b: Dictionary) -> bool:
 			return tfv._fg_depth_merge_item_lt(a, b)
 	)
-	if int(items[0]["ty"]) != 1 or int(items[1]["ty"]) != 2:
-		push_error("FAIL: sort should be stable for city-first input too")
+	if int(items[0]["ty"]) != 2 or int(items[1]["ty"]) != 1:
+		push_error("FAIL: sort should be stable for unit-first output when city-first input")
 		tfv.free()
 		call_deferred("quit", 1)
 		return
@@ -56,8 +56,8 @@ func _init() -> void:
 		func(a: Dictionary, b: Dictionary) -> bool:
 			return tfv._fg_depth_merge_item_lt(a, b)
 	)
-	if int(items[0]["ty"]) != 1 or int(items[1]["ty"]) != 2:
-		push_error("FAIL: same-hex city+unit must sort city before unit despite microfloat sy/sx split")
+	if int(items[0]["ty"]) != 2 or int(items[1]["ty"]) != 1:
+		push_error("FAIL: same-hex city+unit must sort unit before city despite microfloat sy/sx split")
 		tfv.free()
 		call_deferred("quit", 1)
 		return

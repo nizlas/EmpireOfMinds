@@ -6,13 +6,16 @@ extends RefCounted
 
 const ENV_FLAG: String = "EMPIRE_USE_3D_MODELS"
 const ENV_FLAG_LEGACY: String = "EMPIRE_USE_3D_WARRIOR"
-const WARRIOR_GLB_PATH: String = "res://assets/prototype/units/warrior_3d/warrior_3d.glb"
+const WARRIOR_GLB_PATH: String = "res://assets/prototype/3d/units/warrior/warrior_3d.glb"
 const WARRIOR_ANIMATED_GLB_PATH: String = (
-	"res://assets/prototype/units/warrior_3d/warrior_3d_animations.glb"
+	"res://assets/prototype/3d/units/warrior/warrior_3d_animations.glb"
 )
-const SETTLER_GLB_PATH: String = "res://assets/prototype/units/settler_3d/settler.glb"
+const SETTLER_GLB_PATH: String = "res://assets/prototype/3d/units/settler/settler.glb"
 const SETTLER_ANIMATED_GLB_PATH: String = (
-	"res://assets/prototype/units/settler_3d/settler_animations.glb"
+	"res://assets/prototype/3d/units/settler/settler_animations.glb"
+)
+const ANCIENT_VILLAGE_GLB_PATH: String = (
+	"res://assets/prototype/3d/cities/ancient_village/ancient_village.glb"
 )
 const MAP_ANIMATION_ENV: String = "EOM_WARRIOR_3D_ANIM"
 const ANIM_AUDIT_ENV: String = "EOM_WARRIOR_3D_ANIM_AUDIT"
@@ -97,6 +100,26 @@ static func should_render_warrior_as_3d(type_id: String) -> bool:
 	return should_render_unit_as_3d(type_id)
 
 
+static func city_scene_path() -> String:
+	if ResourceLoader.exists(ANCIENT_VILLAGE_GLB_PATH):
+		return ANCIENT_VILLAGE_GLB_PATH
+	return ""
+
+
+static func should_render_city_as_3d() -> bool:
+	return is_models_flag_enabled() and not city_scene_path().is_empty()
+
+
+## Env **EOM_REAL_3D_CITY=0** disables real scene 3D cities (SubViewport blit remains if enabled).
+static func env_real_3d_city_disabled() -> bool:
+	return OS.get_environment("EOM_REAL_3D_CITY").strip_edges() == "0"
+
+
+## Env **EOM_CITY_BLIT_FALLBACK=1** keeps SubViewport blit alongside real scene 3D cities.
+static func env_city_blit_fallback_enabled() -> bool:
+	return OS.get_environment("EOM_CITY_BLIT_FALLBACK").strip_edges() == "1"
+
+
 static func log_flag_state_once() -> void:
 	if _logged_flag_state:
 		return
@@ -110,7 +133,7 @@ static func log_flag_state_once() -> void:
 		(
 			"[Unit3D flags] EMPIRE_USE_3D_MODELS='%s' EMPIRE_USE_3D_WARRIOR='%s' "
 			+ "EOM_SETTLER_BUILTIN_RM='%s' enable_3d_models=%s enable_warrior_3d=%s "
-			+ "enable_settler_3d=%s settler_builtin_rm=%s"
+			+ "enable_settler_3d=%s enable_city_3d=%s settler_builtin_rm=%s"
 		)
 		% [
 			models_val,
@@ -119,6 +142,7 @@ static func log_flag_state_once() -> void:
 			str(enable_3d),
 			str(should_render_unit_as_3d("warrior")),
 			str(should_render_unit_as_3d("settler")),
+			str(should_render_city_as_3d()),
 			str(is_settler_builtin_root_motion_enabled()),
 		]
 	)

@@ -103,24 +103,37 @@ func _init() -> void:
 	var i_detail: int = tfv_txt.find("# **Detail** grid summary: match legacy", i_sort)
 	_check(i_sort >= 0 and i_detail > i_sort, "TFV depth-merge body found for ordering asserts")
 	var merge_body: String = tfv_txt.substr(i_sort, i_detail - i_sort)
-	var i_mkr: int = merge_body.find("draw_city_marker_at")
-	var i_bnr: int = merge_body.find("draw_city_banner_on_canvas_item")
-	var i_um: int = merge_body.find("units_view.draw_unit_marker_at")
-	_check(i_mkr >= 0 and i_bnr >= 0 and i_um >= 0, "depth-merge body contains marker/banner/unit draw calls")
-	_check(i_mkr < i_bnr, "depth-merge: city marker before city banner")
-	_check(i_bnr < i_um, "depth-merge: city banner before unit marker draw")
-
-	var i_p2: int = tfv_txt.find("# Phase **4.6p — pass 2:** city markers, then units")
-	_check(i_p2 >= 0, "TFV pass2 anchor comment found")
-	var i_p2u: int = tfv_txt.find(
-		"if units_view != null and scenario != null and not do_forest_unit_depth_merge:", i_p2
+	_check(merge_body.find("_fg_draw_city_marker_item") >= 0, "depth-merge delegates city draw helper")
+	_check(merge_body.find("_fg_draw_unit_marker_item") >= 0, "depth-merge delegates unit draw helper")
+	var city_item_fn: int = tfv_txt.find("func _fg_draw_city_marker_item")
+	var city_item_body: String = tfv_txt.substr(
+		city_item_fn, mini(800, tfv_txt.length() - city_item_fn)
 	)
-	_check(i_p2u > i_p2, "TFV pass2 unit pass follows city pass")
-	var pass2_body: String = tfv_txt.substr(i_p2, i_p2u - i_p2)
-	var p2_m: int = pass2_body.find("draw_city_marker_at")
-	var p2_b: int = pass2_body.find("draw_city_banner_on_canvas_item")
-	_check(p2_m >= 0 and p2_b >= 0, "pass2 body contains marker and banner draw")
-	_check(p2_m < p2_b, "pass2: city marker then shared-hex banner in same city loop")
+	var i_mkr: int = city_item_body.find("draw_city_marker_at")
+	var i_bnr: int = city_item_body.find("draw_city_banner_on_canvas_item")
+	_check(i_mkr >= 0 and i_bnr >= 0, "city marker helper contains marker and banner draw")
+	_check(i_mkr < i_bnr, "depth-merge city helper: marker before banner")
+
+	var i_p2: int = tfv_txt.find("# Phase **4.6p — pass 2:** city + unit markers sorted")
+	_check(i_p2 >= 0, "TFV pass2 anchor comment found")
+	_check(
+		tfv_txt.find("_fg_draw_pass2_sorted_city_unit_markers(camera)") > i_p2,
+		"TFV pass2 calls sorted city+unit marker draw helper"
+	)
+	var i_p2_fn: int = tfv_txt.find("func _fg_draw_pass2_sorted_city_unit_markers")
+	_check(i_p2_fn >= 0, "TFV pass2 sorted draw helper function exists")
+	var pass2_fn_body: String = tfv_txt.substr(
+		i_p2_fn, mini(1200, tfv_txt.length() - i_p2_fn)
+	)
+	_check(
+		pass2_fn_body.find("_fg_draw_city_marker_item") >= 0
+		and pass2_fn_body.find("_fg_draw_unit_marker_item") >= 0,
+		"pass2 sorted helper draws city and unit marker items"
+	)
+	var p2_m: int = city_item_body.find("draw_city_marker_at")
+	var p2_b: int = city_item_body.find("draw_city_banner_on_canvas_item")
+	_check(p2_m >= 0 and p2_b >= 0, "city marker item helper contains marker and banner draw")
+	_check(p2_m < p2_b, "city marker item: marker then shared-hex banner")
 
 	var mn_txt: String = FileAccess.get_file_as_string("res://main.gd")
 	_check(

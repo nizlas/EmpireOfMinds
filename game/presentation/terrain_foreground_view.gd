@@ -1587,9 +1587,8 @@ const _FG_SCREEN_DOWN_UNIT_FOREST_SY_EPS: float = 1.25
 
 
 func _fg_depth_merge_item_lt(a: Dictionary, b: Dictionary) -> bool:
-	# Phase **5.1.15c:** **City** marker must paint **before** **unit** marker on the **same** hex.
-	# **`to_layout`** can yield **micro-different** **sy/sx** for otherwise-identical anchors; the raw
-	# sort would draw the **unit** first (**behind**) and bury the sprite under the city art.
+	# Phase **5.1.15c:** on the **same** hex, **unit** sorts **before** **city** so the city blit paints
+	# **on top** (unit behind the house silhouette). Independent SubViewport blits — no z-buffer merge.
 	var ta0: int = int(a["ty"])
 	var tb0: int = int(b["ty"])
 	if (ta0 == 0 and tb0 == 2) or (ta0 == 2 and tb0 == 0):
@@ -1604,7 +1603,7 @@ func _fg_depth_merge_item_lt(a: Dictionary, b: Dictionary) -> bool:
 		var ha: Vector2i = _fg_merge_item_axial_hex(a, ta0)
 		var hb: Vector2i = _fg_merge_item_axial_hex(b, tb0)
 		if ha == hb:
-			if ta0 == 1 and tb0 == 2:
+			if ta0 == 2 and tb0 == 1:
 				return true
 			return false
 	if a["sy"] < b["sy"]:
@@ -1629,6 +1628,203 @@ func _fg_depth_merge_item_lt(a: Dictionary, b: Dictionary) -> bool:
 	if ta == 1:
 		return int(a["c"].id) < int(b["c"].id)
 	return int(a["ui"]) < int(b["ui"])
+
+
+var _fg_marker_draw_path_logged_frame: int = -1
+
+
+func _fg_log_marker_draw_path_once(path: String) -> void:
+	if not (
+		debug_log_shared_hex_marker_order
+		or OS.get_environment("EOM_DEBUG_SHARED_HEX_MARKER_ORDER") == "1"
+		or OS.get_environment("EOM_DEBUG_MARKER_DRAW_PATH") == "1"
+	):
+		return
+	var frame: int = Engine.get_frames_drawn()
+	if _fg_marker_draw_path_logged_frame == frame:
+		return
+	_fg_marker_draw_path_logged_frame = frame
+	print("[EOM_DEBUG_MARKER_DRAW] path=%s frame=%d" % [path, frame])
+
+
+func _fg_append_city_marker_items(items: Array, cam) -> void:
+	if scenario == null or cities_view == null:
+		return
+	var clist: Array = scenario.cities()
+	var ci: int = 0
+	while ci < clist.size():
+		var c = clist[ci]
+		var c_world: Vector2 = layout.hex_to_world(c.position.q, c.position.r)
+		var c_anchor: Vector2 = cam.to_presentation(c_world)
+		var c_ps: float = cam.perspective_scale_at(c_world)
+		var c_depth_anchor: Vector2 = cities_view.city_depth_sort_anchor_presentation(
+			c_anchor, c_ps
+		)
+		var clayer: Vector2 = cam.to_layout(c_depth_anchor)
+		items.append(
+			{
+				"ty": 1,
+				"sy": clayer.y,
+				"sx": clayer.x,
+				"c": c,
+				"c_anchor": c_anchor,
+				"c_pscale": c_ps,
+				"c_world": c_world,
+			}
+		)
+		ci += 1
+
+
+func _fg_append_unit_marker_items(items: Array, cam) -> void:
+	if scenario == null or units_view == null:
+		return
+	var ulist: Array = scenario.units()
+	var ui: int = 0
+	while ui < ulist.size():
+		var u = ulist[ui]
+		var u_world: Vector2 = layout.hex_to_world(u.position.q, u.position.r)
+		var u_anchor: Vector2 = cam.to_presentation(u_world)
+		var u_ps: float = cam.perspective_scale_at(u_world)
+		var u_depth_anchor: Vector2 = u_anchor
+		var u_screen_down_move: bool = false
+		u_screen_down_move = units_view.is_unit_screen_down_hex_move_active(int(u.id))
+		u_depth_anchor = units_view.unit_marker_depth_anchor_presentation(
+			int(u.id), u_anchor, u_ps
+		)
+		var ulayer: Vector2 = cam.to_layout(u_depth_anchor)
+		items.append(
+			{
+				"ty": 2,
+				"sy": ulayer.y,
+				"sx": ulayer.x,
+				"ui": ui,
+				"u": u,
+				"u_anchor": u_anchor,
+				"u_pscale": u_ps,
+				"u_screen_down_move": u_screen_down_move,
+			}
+		)
+		ui += 1
+
+
+func _fg_draw_city_marker_item(it: Dictionary, cam) -> void:
+	if cities_view == null:
+		return
+	cities_view.draw_city_marker_at(
+		self,
+		it["c_world"],
+		it["c_anchor"],
+		it["c_pscale"],
+		int(it["c"].owner_id),
+		int(it["c"].id),
+	)
+	var cty_m = it["c"]
+	if scenario != null and CityNameplateView.city_hex_has_units(scenario, cty_m):
+		_fg_debug_log_shared_hex_layer_order(
+			(
+				"[EOM_DEBUG_SHARED_HEX_LAYER] city_marker city_id=%d hex=(%d,%d)"
+				% [int(cty_m.id), int(cty_m.position.q), int(cty_m.position.r)]
+			)
+		)
+		CityNameplateView.draw_city_banner_on_canvas_item(
+			self, layout, cam, cities_view, cty_m, game_state
+		)
+		_fg_debug_log_shared_hex_layer_order(
+			(
+				"[EOM_DEBUG_SHARED_HEX_LAYER] city_banner city_id=%d hex=(%d,%d)"
+				% [int(cty_m.id), int(cty_m.position.q), int(cty_m.position.r)]
+			)
+		)
+
+
+func _fg_draw_unit_marker_item(it: Dictionary) -> void:
+	if units_view == null:
+		return
+	var umi = it["u"]
+	if scenario != null:
+		var ch_u = scenario.cities_at(umi.position)
+		if ch_u.size() > 0 and scenario.units_at(umi.position).size() > 0:
+			var c0 = ch_u[0]
+			_fg_debug_log_shared_hex_layer_order(
+				(
+					"[EOM_DEBUG_SHARED_HEX_LAYER] unit_sprite unit_id=%d city_id=%d hex=(%d,%d)"
+					% [int(umi.id), int(c0.id), int(umi.position.q), int(umi.position.r)]
+				)
+			)
+	units_view.draw_unit_marker_at(
+		self,
+		it["u_anchor"],
+		it["u_pscale"],
+		str(umi.type_id),
+		int(umi.owner_id),
+		int(umi.id),
+	)
+	var collect_png_bottom: bool = _eom_debug_unit_png_bottom()
+	var collect_unit_effective: bool = (
+		debug_draw_effective_depth_points and _fg_debug_low_level_exports_enabled()
+	)
+	if collect_png_bottom or collect_unit_effective:
+		var u_drawn: Rect2 = UnitsView.debug_last_unit_png_rect
+		if u_drawn.size.x > 0.0:
+			if collect_png_bottom:
+				var raw_png_bottom_center: Vector2 = UnitsView.debug_last_unit_png_bottom_center
+				_fg_overlay_unit_raw_png_bottom.append(raw_png_bottom_center)
+				var effective_unit_depth: Vector2 = UnitsView.debug_last_unit_effective_depth_point
+				var upath: String = UnitsView.marker_texture_res_path(str(umi.type_id))
+				var mue: Dictionary = TextureAlphaMetricsClass.metrics_for_res_path(upath)
+				var bottom_pad_px: int = 0
+				var tex_w: int = 0
+				var tex_h: int = 0
+				var scaled_bottom_pad_y: float = 0.0
+				if mue.get("ok", false):
+					tex_w = int(mue["width"])
+					tex_h = int(mue["height"])
+					bottom_pad_px = int(mue["bottom_padding_px"])
+					if tex_h > 0:
+						scaled_bottom_pad_y = TextureAlphaMetricsClass.scaled_bottom_padding_y(
+							mue, u_drawn.size.y
+						)
+				if not _fg_sess_logged_unit_png_bottom_sample:
+					_fg_sess_logged_unit_png_bottom_sample = true
+					print(
+						(
+							"[EOM_DEBUG_UNIT_PNG_BOTTOM] type_id=%s path=%s tex_size=%dx%d unit_rect=%s raw_png_bottom_center=%s bottom_padding_px=%d scaled_bottom_padding_y=%.5f effective_unit_depth_point=%s anchor_pres=%s delta_effective_minus_anchor=%s (presentation px)"
+						)
+						% [
+							str(umi.type_id),
+							upath,
+							tex_w,
+							tex_h,
+							u_drawn,
+							raw_png_bottom_center,
+							bottom_pad_px,
+							scaled_bottom_pad_y,
+							effective_unit_depth,
+							it["u_anchor"],
+							effective_unit_depth - it["u_anchor"],
+						]
+					)
+			if collect_unit_effective:
+				_fg_overlay_unit_effective_depth.append(
+					UnitsView.debug_last_unit_effective_depth_point
+				)
+
+
+func _fg_draw_pass2_sorted_city_unit_markers(cam) -> void:
+	var items: Array = []
+	_fg_append_city_marker_items(items, cam)
+	_fg_append_unit_marker_items(items, cam)
+	items.sort_custom(_fg_depth_merge_item_lt)
+	_fg_debug_log_shared_hex_marker_order_from_items(items)
+	_fg_log_marker_draw_path_once("pass2_sorted")
+	var mi: int = 0
+	while mi < items.size():
+		var it: Dictionary = items[mi]
+		if int(it["ty"]) == 1:
+			_fg_draw_city_marker_item(it, cam)
+		elif int(it["ty"]) == 2:
+			_fg_draw_unit_marker_item(it)
+		mi += 1
 
 
 func _fg_debug_log_shared_hex_marker_order_from_items(items: Array) -> void:
@@ -1695,7 +1891,16 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 	if not symbol_scatter_active:
 		return
 	if units_view != null and units_view.warrior_3d_unit_markers_view != null:
+		units_view.warrior_3d_unit_markers_view.scenario = scenario
 		units_view.warrior_3d_unit_markers_view.prepare_markers_for_draw()
+	if cities_view != null and cities_view.city_3d_markers_view != null:
+		cities_view.city_3d_markers_view.scenario = scenario
+		cities_view.city_3d_markers_view.prepare_markers_for_draw()
+	if cities_view != null and cities_view.map_presentation_3d_layer != null:
+		cities_view.map_presentation_3d_layer.scenario = scenario
+		cities_view.map_presentation_3d_layer.map_camera = camera
+		cities_view.map_presentation_3d_layer.sync_from_scenario()
+		cities_view.map_presentation_3d_layer.prepare_for_draw()
 	_reload_forest_tree_symbols_if_needed()
 	var items: Array = []
 	var ci: int = 0
@@ -1753,12 +1958,12 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 		var c_world2: Vector2 = layout.hex_to_world(c2.position.q, c2.position.r)
 		var c_anchor2: Vector2 = cam.to_presentation(c_world2)
 		var c_ps2: float = cam.perspective_scale_at(c_world2)
-		# Depth-merge sort buckets markers with forest symbols using **`MapCamera.to_layout`** at the
-		# projected **hex center**. **City/unit effective-depth** helpers are **not** used here (they
-		# split on one tile and are for other probes). Phase **5.1.15c:** **`_fg_depth_merge_item_lt`**
-		# forces **city-before-unit** when both markers share a hex so **microfloat** layout noise
-		# cannot draw the unit **behind** the city art.
-		var clayer: Vector2 = cam.to_layout(c_anchor2)
+		# Depth-merge sort uses **`city_depth_sort_anchor_presentation`** / unit depth anchor at
+		# **`MapCamera.to_layout`**. Same-hex tie-break: unit before city (city blit on top).
+		var c_depth_anchor2: Vector2 = c_anchor2
+		if cities_view != null:
+			c_depth_anchor2 = cities_view.city_depth_sort_anchor_presentation(c_anchor2, c_ps2)
+		var clayer: Vector2 = cam.to_layout(c_depth_anchor2)
 		items.append(
 			{
 				"ty": 1,
@@ -1801,6 +2006,7 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 		ui2 += 1
 	items.sort_custom(_fg_depth_merge_item_lt)
 	_fg_debug_log_shared_hex_marker_order_from_items(items)
+	_fg_log_marker_draw_path_once("depth_merge")
 	var mi: int = 0
 	while mi < items.size():
 		var it: Dictionary = items[mi]
@@ -1822,109 +2028,9 @@ func _fg_draw_depth_merged_forest_symbol_grid_and_units(
 			if it["log_hex"] and n_drawn > 0:
 				_fg_sess_detail_grid_acc += n_drawn
 		elif int(it["ty"]) == 1:
-			cities_view.draw_city_marker_at(
-				self,
-				it["c_world"],
-				it["c_anchor"],
-				it["c_pscale"],
-				int(it["c"].owner_id)
-			)
-			var cty_m = it["c"]
-			if scenario != null and CityNameplateView.city_hex_has_units(scenario, cty_m):
-				_fg_debug_log_shared_hex_layer_order(
-					(
-						"[EOM_DEBUG_SHARED_HEX_LAYER] city_marker city_id=%d hex=(%d,%d)"
-						% [int(cty_m.id), int(cty_m.position.q), int(cty_m.position.r)]
-					)
-				)
-				CityNameplateView.draw_city_banner_on_canvas_item(
-					self, layout, cam, cities_view, cty_m, game_state
-				)
-				_fg_debug_log_shared_hex_layer_order(
-					(
-						"[EOM_DEBUG_SHARED_HEX_LAYER] city_banner city_id=%d hex=(%d,%d)"
-						% [int(cty_m.id), int(cty_m.position.q), int(cty_m.position.r)]
-					)
-				)
+			_fg_draw_city_marker_item(it, cam)
 		else:
-			var umi = it["u"]
-			if scenario != null:
-				var ch_u = scenario.cities_at(umi.position)
-				if ch_u.size() > 0 and scenario.units_at(umi.position).size() > 0:
-					var c0 = ch_u[0]
-					_fg_debug_log_shared_hex_layer_order(
-						(
-							"[EOM_DEBUG_SHARED_HEX_LAYER] unit_sprite unit_id=%d city_id=%d hex=(%d,%d)"
-							% [int(umi.id), int(c0.id), int(umi.position.q), int(umi.position.r)]
-						)
-					)
-			units_view.draw_unit_marker_at(
-				self,
-				it["u_anchor"],
-				it["u_pscale"],
-				str(umi.type_id),
-				int(umi.owner_id),
-				int(umi.id),
-			)
-			var collect_png_bottom: bool = _eom_debug_unit_png_bottom()
-			var collect_unit_effective: bool = (
-				debug_draw_effective_depth_points and _fg_debug_low_level_exports_enabled()
-			)
-			if collect_png_bottom or collect_unit_effective:
-				var u_drawn: Rect2 = UnitsView.debug_last_unit_png_rect
-				if u_drawn.size.x > 0.0:
-					if collect_png_bottom:
-						var raw_png_bottom_center: Vector2 = (
-							UnitsView.debug_last_unit_png_bottom_center
-						)
-						_fg_overlay_unit_raw_png_bottom.append(raw_png_bottom_center)
-						var effective_unit_depth: Vector2 = (
-							UnitsView.debug_last_unit_effective_depth_point
-						)
-						var upath: String = UnitsView.marker_texture_res_path(
-							str(umi.type_id)
-						)
-						var mue: Dictionary = TextureAlphaMetricsClass.metrics_for_res_path(
-							upath
-						)
-						var bottom_pad_px: int = 0
-						var tex_w: int = 0
-						var tex_h: int = 0
-						var scaled_bottom_pad_y: float = 0.0
-						if mue.get("ok", false):
-							tex_w = int(mue["width"])
-							tex_h = int(mue["height"])
-							bottom_pad_px = int(mue["bottom_padding_px"])
-							if tex_h > 0:
-								scaled_bottom_pad_y = (
-									TextureAlphaMetricsClass.scaled_bottom_padding_y(
-										mue, u_drawn.size.y
-									)
-								)
-						if not _fg_sess_logged_unit_png_bottom_sample:
-							_fg_sess_logged_unit_png_bottom_sample = true
-							print(
-								(
-									"[EOM_DEBUG_UNIT_PNG_BOTTOM] type_id=%s path=%s tex_size=%dx%d unit_rect=%s raw_png_bottom_center=%s bottom_padding_px=%d scaled_bottom_padding_y=%.5f effective_unit_depth_point=%s anchor_pres=%s delta_effective_minus_anchor=%s (presentation px)"
-								)
-								% [
-									str(umi.type_id),
-									upath,
-									tex_w,
-									tex_h,
-									u_drawn,
-									raw_png_bottom_center,
-									bottom_pad_px,
-									scaled_bottom_pad_y,
-									effective_unit_depth,
-									it["u_anchor"],
-									effective_unit_depth - it["u_anchor"],
-								]
-							)
-					if collect_unit_effective:
-						_fg_overlay_unit_effective_depth.append(
-							UnitsView.debug_last_unit_effective_depth_point
-						)
+			_fg_draw_unit_marker_item(it)
 		mi += 1
 	# **Detail** grid summary: match legacy pass-3 **totals_printed** for sample hex.
 	if _fg_sess_roots_detail_log and _fg_sess_detail_hex_chosen:
@@ -2436,93 +2542,20 @@ func _draw() -> void:
 							_draw_unit_forest_occluder(anchor_pres_u, side_u, coord.q, coord.r)
 							_fg_sess_unit_occluder_draws += 1
 		idx += 1
-	# Phase **4.6p — pass 2:** city markers, then units (**foot** = projected **hex center** …), when not depth-merged.
-	if cities_view != null and scenario != null and not do_forest_unit_depth_merge:
-		var clist_p2 = scenario.cities()
-		var ci_p2: int = 0
-		while ci_p2 < clist_p2.size():
-			var cp = clist_p2[ci_p2]
-			var c_world_p2: Vector2 = layout.hex_to_world(cp.position.q, cp.position.r)
-			var c_anchor_p2: Vector2 = camera.to_presentation(c_world_p2)
-			var c_pscale_p2: float = camera.perspective_scale_at(c_world_p2)
-			cities_view.draw_city_marker_at(
-				self, c_world_p2, c_anchor_p2, c_pscale_p2, int(cp.owner_id)
-			)
-			if CityNameplateView.city_hex_has_units(scenario, cp):
-				CityNameplateView.draw_city_banner_on_canvas_item(
-					self, layout, camera, cities_view, cp, game_state
-				)
-			ci_p2 += 1
-	if units_view != null and scenario != null and not do_forest_unit_depth_merge:
-		var ulist = scenario.units()
-		var ui: int = 0
-		while ui < ulist.size():
-			var u = ulist[ui]
-			var u_world: Vector2 = layout.hex_to_world(u.position.q, u.position.r)
-			var u_anchor_pres: Vector2 = camera.to_presentation(u_world)
-			var u_pscale: float = camera.perspective_scale_at(u_world)
-			units_view.draw_unit_marker_at(
-				self,
-				u_anchor_pres,
-				u_pscale,
-				str(u.type_id),
-				int(u.owner_id),
-				int(u.id),
-			)
-			var collect_png_bottom: bool = _eom_debug_unit_png_bottom()
-			var collect_unit_effective: bool = (
-				debug_draw_effective_depth_points and _fg_debug_low_level_exports_enabled()
-			)
-			if collect_png_bottom or collect_unit_effective:
-				var u_drawn: Rect2 = UnitsView.debug_last_unit_png_rect
-				if u_drawn.size.x > 0.0:
-					if collect_png_bottom:
-						var raw_png_bottom_center: Vector2 = (
-							UnitsView.debug_last_unit_png_bottom_center
-						)
-						_fg_overlay_unit_raw_png_bottom.append(raw_png_bottom_center)
-						var effective_unit_depth: Vector2 = (
-							UnitsView.debug_last_unit_effective_depth_point
-						)
-						var upath: String = UnitsView.marker_texture_res_path(str(u.type_id))
-						var mue: Dictionary = TextureAlphaMetricsClass.metrics_for_res_path(upath)
-						var bottom_pad_px: int = 0
-						var tex_w: int = 0
-						var tex_h: int = 0
-						var scaled_bottom_pad_y: float = 0.0
-						if mue.get("ok", false):
-							tex_w = int(mue["width"])
-							tex_h = int(mue["height"])
-							bottom_pad_px = int(mue["bottom_padding_px"])
-							if tex_h > 0:
-								scaled_bottom_pad_y = TextureAlphaMetricsClass.scaled_bottom_padding_y(
-									mue, u_drawn.size.y
-								)
-						if not _fg_sess_logged_unit_png_bottom_sample:
-							_fg_sess_logged_unit_png_bottom_sample = true
-							print(
-								(
-									"[EOM_DEBUG_UNIT_PNG_BOTTOM] type_id=%s path=%s tex_size=%dx%d unit_rect=%s raw_png_bottom_center=%s bottom_padding_px=%d scaled_bottom_padding_y=%.5f effective_unit_depth_point=%s anchor_pres=%s delta_effective_minus_anchor=%s (presentation px)"
-								)
-								% [
-									str(u.type_id),
-									upath,
-									tex_w,
-									tex_h,
-									u_drawn,
-									raw_png_bottom_center,
-									bottom_pad_px,
-									scaled_bottom_pad_y,
-									effective_unit_depth,
-									u_anchor_pres,
-									effective_unit_depth - u_anchor_pres,
-								]
-							)
-					if collect_unit_effective:
-						_fg_overlay_unit_effective_depth.append(
-							UnitsView.debug_last_unit_effective_depth_point
-						)
-			ui += 1
+	# Phase **4.6p — pass 2:** city + unit markers sorted by depth anchor when not depth-merged.
+	if not do_forest_unit_depth_merge and scenario != null:
+		if cities_view != null and cities_view.city_3d_markers_view != null:
+			cities_view.city_3d_markers_view.scenario = scenario
+			cities_view.city_3d_markers_view.prepare_markers_for_draw()
+		if cities_view != null and cities_view.map_presentation_3d_layer != null:
+			cities_view.map_presentation_3d_layer.scenario = scenario
+			cities_view.map_presentation_3d_layer.map_camera = camera
+			cities_view.map_presentation_3d_layer.sync_from_scenario()
+			cities_view.map_presentation_3d_layer.prepare_for_draw()
+		if units_view != null and units_view.warrior_3d_unit_markers_view != null:
+			units_view.warrior_3d_unit_markers_view.scenario = scenario
+			units_view.warrior_3d_unit_markers_view.prepare_markers_for_draw()
+		_fg_draw_pass2_sorted_city_unit_markers(camera)
 	debug_last_overlay_unit_raw_png_queued = _fg_overlay_unit_raw_png_bottom.size()
 	debug_last_overlay_unit_effective_depth_queued = (
 		_fg_overlay_unit_effective_depth.size()

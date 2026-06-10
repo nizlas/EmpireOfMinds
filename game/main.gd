@@ -132,6 +132,7 @@ func _ready() -> void:
 	_map_camera.projection = _map_projection
 	for n in [
 		$MapView,
+		$MapPresentation3DLayer,
 		$TerrainEdgeBlendView,
 		$EmpireBorderView,
 		$CityTerritoryView,
@@ -158,6 +159,8 @@ func _ready() -> void:
 	$UnitsView.scale = Vector2.ONE
 	$UnitsView.camera = _map_camera
 	$Warrior3DUnitMarkersView.camera = _map_camera
+	$MapPresentation3DLayer.map_camera = _map_camera
+	$MapPresentation3DLayer.map_layer_origin = MAP_LAYER_ORIGIN
 	# Phase **4.6p:** **`TerrainForegroundView.z_index = 1`** lifts the **entire foreground canvas**
 	# above **`MapView`** / **`CitiesView`** / **`SelectionView`** / **`UnitsView`** node shells so **back**
 	# terrain stays behind **and** forest grid passes + marker pass run in **one** TFV **`_draw`**. **`UnitsView`** /
@@ -894,6 +897,16 @@ func _apply_cloud_controller_flags(on: bool) -> void:
 	$EndTurnController.skip_for_cloud = on
 
 
+func _wire_map_presentation_3d_layer(cities_view, scenario, layout) -> void:
+	var layer = $MapPresentation3DLayer
+	layer.map_camera = _map_camera
+	layer.map_layer_origin = MAP_LAYER_ORIGIN
+	layer.scenario = scenario
+	layer.layout = layout
+	cities_view.map_presentation_3d_layer = layer
+	layer.sync_from_scenario()
+
+
 func _wire_play_session(game_state, selection, city_view_state) -> void:
 	var scenario = game_state.scenario
 	_play_game_state = game_state
@@ -948,8 +961,14 @@ func _wire_play_session(game_state, selection, city_view_state) -> void:
 	warrior_3d_view.layout = layout
 	warrior_3d_view.camera = _map_camera
 	warrior_3d_view.units_view = units_view
+	var city_3d_view = $City3DMarkersView
+	city_3d_view.scenario = scenario
+	city_3d_view.layout = layout
+	city_3d_view.camera = _map_camera
+	city_3d_view.cities_view = cities_view
 	var terrain_foreground = $TerrainForegroundView
 	warrior_3d_view.terrain_foreground_view = terrain_foreground
+	city_3d_view.terrain_foreground_view = terrain_foreground
 	map_view.terrain_foreground_view = terrain_foreground
 	terrain_foreground.map = scenario.map
 	terrain_foreground.layout = layout
@@ -970,6 +989,9 @@ func _wire_play_session(game_state, selection, city_view_state) -> void:
 	units_view.terrain_foreground_view = terrain_foreground
 	units_view.warrior_3d_unit_markers_view = warrior_3d_view
 	warrior_3d_view.set_blit_via_terrain_foreground(true)
+	cities_view.city_3d_markers_view = city_3d_view
+	city_3d_view.set_blit_via_terrain_foreground(true)
+	_wire_map_presentation_3d_layer(cities_view, scenario, layout)
 	var unit_nameplate_view = $UnitNameplateView
 	unit_nameplate_view.scenario = scenario
 	var combat_clash_burst = $CombatClashBurstView
@@ -1362,8 +1384,17 @@ func _rebind_session_to_game_state(gs) -> void:
 	var warrior_3d_view = $Warrior3DUnitMarkersView
 	warrior_3d_view.scenario = scenario
 	units_view.warrior_3d_unit_markers_view = warrior_3d_view
+	var city_3d_view = $City3DMarkersView
+	city_3d_view.scenario = scenario
+	city_3d_view.layout = layout
+	city_3d_view.camera = _map_camera
+	city_3d_view.cities_view = cities_view
+	cities_view.city_3d_markers_view = city_3d_view
+	city_3d_view.set_blit_via_terrain_foreground(true)
+	_wire_map_presentation_3d_layer(cities_view, scenario, layout)
 	var terrain_foreground = $TerrainForegroundView
 	warrior_3d_view.terrain_foreground_view = terrain_foreground
+	city_3d_view.terrain_foreground_view = terrain_foreground
 	terrain_foreground.map = scenario.map
 	terrain_foreground.scenario = scenario
 	terrain_foreground.game_state = gs
@@ -1413,6 +1444,8 @@ func _rebind_session_to_game_state(gs) -> void:
 		tile_yield_overlay.layout = layout
 		units_view.layout = layout
 		$Warrior3DUnitMarkersView.layout = layout
+		$City3DMarkersView.layout = layout
+		$MapPresentation3DLayer.layout = layout
 		terrain_foreground.layout = layout
 		unit_nameplate_view.layout = layout
 		city_nameplate_view.layout = layout

@@ -32,6 +32,9 @@
 [ext_resource type="Script" path="res://presentation/tech_tree_preview_overlay.gd" id="30_tech_tree"]
 [ext_resource type="Script" path="res://presentation/city_view_prototype_overlay.gd" id="31_city_view"]
 [ext_resource type="Script" path="res://presentation/warrior_3d_unit_markers_view.gd" id="32_warrior_3d"]
+[ext_resource type="Script" path="res://presentation/city_3d_markers_view.gd" id="33_city_3d"]
+[ext_resource type="Script" path="res://presentation/map_presentation_3d_layer.gd" id="34_map_pres_3d"]
+[ext_resource type="Script" path="res://presentation/city_3d_world_view.gd" id="35_city_3d_world"]
 [node name="Main" type="Node2D" unique_id=347530863]
 script = ExtResource("1_main")
 
@@ -222,9 +225,22 @@ script = ExtResource("4_unitsview")
 position = Vector2(400, 428)
 script = ExtResource("32_warrior_3d")
 
+[node name="City3DMarkersView" type="Node2D" parent="."]
+position = Vector2(400, 428)
+script = ExtResource("33_city_3d")
+
 [node name="TerrainForegroundView" type="Node2D" parent="." unique_id=555384625]
 position = Vector2(400, 428)
 script = ExtResource("11_terrainforeground")
+
+[node name="MapPresentation3DLayer" type="Node2D" parent="."]
+position = Vector2(400, 428)
+z_index = 0
+script = ExtResource("34_map_pres_3d")
+
+[node name="City3DViewportContainer" type="SubViewportContainer" parent="MapPresentation3DLayer"]
+stretch = false
+mouse_filter = 2
 
 [node name="MapVisibilityView" type="Node2D" parent="." unique_id=555384626]
 z_index = 1

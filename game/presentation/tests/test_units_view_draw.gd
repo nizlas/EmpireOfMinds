@@ -151,7 +151,29 @@ func _init() -> void:
 		"settler animated glb exists for idle experiment",
 	)
 	_check(
-		Warrior3DUnitExperimentScript.warrior_scene_path().ends_with("warrior_3d_animations.glb"),
+		Warrior3DUnitExperimentScript.WARRIOR_ANIMATED_GLB_PATH.find(
+			"prototype/3d/units/warrior/"
+		) >= 0,
+		"warrior animated glb under prototype/3d/units/warrior",
+	)
+	_check(
+		Warrior3DUnitExperimentScript.SETTLER_ANIMATED_GLB_PATH.find(
+			"prototype/3d/units/settler/"
+		) >= 0,
+		"settler animated glb under prototype/3d/units/settler",
+	)
+	_check(
+		ResourceLoader.exists(Warrior3DUnitExperimentScript.ANCIENT_VILLAGE_GLB_PATH),
+		"ancient_village glb exists for city 3d experiment",
+	)
+	_check(
+		Warrior3DUnitExperimentScript.should_render_city_as_3d(),
+		"city uses 3d path when EMPIRE_USE_3D_MODELS=1 and glb exists",
+	)
+	_check(
+		Warrior3DUnitExperimentScript.warrior_scene_path().ends_with(
+			"prototype/3d/units/warrior/warrior_3d_animations.glb"
+		),
 		"warrior scene prefers animated glb when present",
 	)
 	var anim_scene: PackedScene = load(
