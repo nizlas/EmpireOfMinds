@@ -37,6 +37,8 @@ var selection
 var terrain_foreground_view
 ## Experimental 3D unit markers (warrior + settler) — blit via **`draw_unit_marker_at`** when TFV depth merge is active.
 var warrior_3d_unit_markers_view
+## Real 3D warrior composite (wired by main; settler stays on blit path).
+var map_presentation_3d_layer
 @export var marker_radius_ratio: float = 0.35
 ## Icon height as a fraction of pointy-top hex height (2 * HexLayout.SIZE) when a type icon is loaded. Phase 4.3f.
 @export var unit_icon_height_ratio: float = 0.70
@@ -117,6 +119,15 @@ func present_unit_hex_move_if_applicable(
 	to_q: int,
 	to_r: int,
 ) -> void:
+	if (
+		type_id == "warrior"
+		and map_presentation_3d_layer != null
+		and map_presentation_3d_layer.uses_real_3d_units()
+	):
+		map_presentation_3d_layer.begin_unit_hex_move(
+			unit_id, type_id, from_q, from_r, to_q, to_r
+		)
+		return
 	if warrior_3d_unit_markers_view == null:
 		return
 	warrior_3d_unit_markers_view.begin_hex_move(
@@ -139,6 +150,11 @@ func present_warrior_hex_move_if_applicable(
 func unit_marker_depth_anchor_presentation(
 	unit_id: int, hex_anchor_pres: Vector2, pscale: float
 ) -> Vector2:
+	if (
+		map_presentation_3d_layer != null
+		and map_presentation_3d_layer.is_unit_active_in_real_3d(unit_id)
+	):
+		return hex_anchor_pres
 	if warrior_3d_unit_markers_view == null:
 		return hex_anchor_pres
 	return warrior_3d_unit_markers_view.depth_sort_anchor_pres(
@@ -245,7 +261,19 @@ func draw_unit_marker_at(
 	unit_id: int = -1,
 ) -> void:
 	if Warrior3DUnitExperimentScript.should_render_unit_as_3d(type_id):
-		if warrior_3d_unit_markers_view != null and unit_id >= 0:
+		var use_blit: bool = true
+		if type_id == "warrior" and map_presentation_3d_layer != null and unit_id >= 0:
+			use_blit = map_presentation_3d_layer.should_auto_blit_for_unit(unit_id)
+			if not use_blit:
+				return
+			if map_presentation_3d_layer.uses_real_3d_units():
+				var reason: String = "explicit_blit_fallback"
+				if not map_presentation_3d_layer.is_composite_viewport_ready():
+					reason = "composite_viewport_invalid"
+				elif not map_presentation_3d_layer.is_unit_active_in_real_3d(unit_id):
+					reason = "real_3d_instance_not_ready"
+				map_presentation_3d_layer.warn_auto_unit_blit_fallback_once(unit_id, reason)
+		if warrior_3d_unit_markers_view != null and unit_id >= 0 and use_blit:
 			warrior_3d_unit_markers_view.draw_unit_marker_at(
 				canvas, anchor_pres, pscale, type_id, owner_id, unit_id
 			)

@@ -897,13 +897,14 @@ func _apply_cloud_controller_flags(on: bool) -> void:
 	$EndTurnController.skip_for_cloud = on
 
 
-func _wire_map_presentation_3d_layer(cities_view, scenario, layout) -> void:
+func _wire_map_presentation_3d_layer(cities_view, units_view, scenario, layout) -> void:
 	var layer = $MapPresentation3DLayer
 	layer.map_camera = _map_camera
 	layer.map_layer_origin = MAP_LAYER_ORIGIN
 	layer.scenario = scenario
 	layer.layout = layout
 	cities_view.map_presentation_3d_layer = layer
+	units_view.map_presentation_3d_layer = layer
 	layer.sync_from_scenario()
 
 
@@ -991,7 +992,7 @@ func _wire_play_session(game_state, selection, city_view_state) -> void:
 	warrior_3d_view.set_blit_via_terrain_foreground(true)
 	cities_view.city_3d_markers_view = city_3d_view
 	city_3d_view.set_blit_via_terrain_foreground(true)
-	_wire_map_presentation_3d_layer(cities_view, scenario, layout)
+	_wire_map_presentation_3d_layer(cities_view, units_view, scenario, layout)
 	var unit_nameplate_view = $UnitNameplateView
 	unit_nameplate_view.scenario = scenario
 	var combat_clash_burst = $CombatClashBurstView
@@ -1391,7 +1392,7 @@ func _rebind_session_to_game_state(gs) -> void:
 	city_3d_view.cities_view = cities_view
 	cities_view.city_3d_markers_view = city_3d_view
 	city_3d_view.set_blit_via_terrain_foreground(true)
-	_wire_map_presentation_3d_layer(cities_view, scenario, layout)
+	_wire_map_presentation_3d_layer(cities_view, units_view, scenario, layout)
 	var terrain_foreground = $TerrainForegroundView
 	warrior_3d_view.terrain_foreground_view = terrain_foreground
 	city_3d_view.terrain_foreground_view = terrain_foreground

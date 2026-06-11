@@ -5,16 +5,21 @@ extends Node2D
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const Warrior3DExperimentScript = preload("res://presentation/warrior_3d_unit_experiment.gd")
 const City3DWorldViewScript = preload("res://presentation/city_3d_world_view.gd")
+const Unit3DWorldViewScript = preload("res://presentation/unit_3d_world_view.gd")
 const RESIZE_FIX_VERSION: String = "2026-06-10b"
 
 ## When true (and EMPIRE_USE_3D_MODELS=1), cities use **City3DWorldView** scene instances.
 @export var real_3d_city_enabled: bool = true
+## When true (and EOM_REAL_3D_UNITS=1 + EMPIRE_USE_3D_MODELS=1), warriors use **Unit3DWorldView**.
+@export var real_3d_units_enabled: bool = true
 ## When true alongside real 3D, **City3DMarkersView** SubViewport blit still draws (reference/fallback).
 @export var city_blit_fallback_enabled: bool = false
 @export var map_layer_origin: Vector2 = Vector2(400.0, 428.0)
 @export var world_camera_height: float = 520.0
 @export var world_camera_distance: float = 380.0
 @export var world_camera_offset_x: float = -95.0
+## Ortho camera sits this far back along the arm direction (visually neutral; clears near-plane).
+@export var world_camera_back_distance: float = 3000.0
 @export var world_ortho_size: float = 1400.0
 
 var scenario
@@ -26,6 +31,7 @@ var _viewport: SubViewport
 var _world_pan_root: Node3D
 var _world_camera: Camera3D
 var _city_world_view: City3DWorldView
+var _unit_world_view
 var _logged_render_mode: bool = false
 var _logged_render_order_once: bool = false
 var _logged_composite_diag_once: bool = false
@@ -56,6 +62,18 @@ func uses_real_3d_city() -> bool:
 		and Warrior3DExperimentScript.should_render_city_as_3d()
 		and _city_world_view != null
 	)
+
+
+func uses_real_3d_units() -> bool:
+	return (
+		real_3d_units_enabled
+		and Warrior3DExperimentScript.env_real_3d_units_enabled()
+		and _unit_world_view != null
+	)
+
+
+func uses_real_3d_composite() -> bool:
+	return uses_real_3d_city() or uses_real_3d_units()
 
 
 func uses_city_blit_fallback() -> bool:
@@ -97,13 +115,47 @@ func should_auto_blit_for_city(city_id: int) -> bool:
 	return not is_city_active_in_real_3d(city_id)
 
 
+## True when a live GLB warrior instance exists for **unit_id** (used for auto blit fallback).
+func is_unit_active_in_real_3d(unit_id: int) -> bool:
+	if not uses_real_3d_units() or _unit_world_view == null:
+		return false
+	if unit_id < 0:
+		return _unit_world_view.get_active_warrior_count() > 0
+	return _unit_world_view.has_ready_unit_instance(unit_id)
+
+
+func should_auto_blit_for_unit(unit_id: int) -> bool:
+	if not Warrior3DExperimentScript.should_render_unit_as_3d("warrior"):
+		return true
+	if not uses_real_3d_units():
+		return true
+	if not is_composite_viewport_ready():
+		return true
+	return not is_unit_active_in_real_3d(unit_id)
+
+
+func begin_unit_hex_move(
+	unit_id: int,
+	type_id: String,
+	from_q: int,
+	from_r: int,
+	to_q: int,
+	to_r: int,
+) -> void:
+	if not uses_real_3d_units() or _unit_world_view == null:
+		return
+	_unit_world_view.begin_hex_move(unit_id, type_id, from_q, from_r, to_q, to_r)
+
+
 func prepare_for_draw() -> void:
-	if not uses_real_3d_city():
+	if not uses_real_3d_composite():
 		return
 	_resize_viewport_container()
 	_update_composite_view_state()
 	if _city_world_view != null:
 		_city_world_view.prepare_for_draw()
+	if _unit_world_view != null:
+		_unit_world_view.prepare_for_draw()
 	_log_render_mode_once()
 
 
@@ -113,6 +165,11 @@ func sync_from_scenario() -> void:
 		_city_world_view.layout = layout
 		if uses_real_3d_city():
 			_city_world_view.sync_from_scenario()
+	if _unit_world_view != null:
+		_unit_world_view.scenario = scenario
+		_unit_world_view.layout = layout
+		if uses_real_3d_units():
+			_unit_world_view.sync_from_scenario()
 	_update_active_state()
 
 
@@ -126,7 +183,7 @@ func log_city_visibility_diag_once(city_id: int, city = null) -> void:
 
 
 func _process(_delta: float) -> void:
-	if not uses_real_3d_city() or map_camera == null or _world_camera == null:
+	if not uses_real_3d_composite() or map_camera == null or _world_camera == null:
 		return
 	_resize_viewport_container()
 	_update_composite_view_state()
@@ -135,6 +192,19 @@ func _process(_delta: float) -> void:
 
 ## Aligns WorldCamera with the 2D map view: aim at the hex-world point shown at screen
 ## center (MapCamera.to_layout) and match px-per-world-unit to the 2D zoom.
+func _apply_world_camera_transform(target: Vector3, screen_height: float, zoom: float) -> void:
+	if _world_camera == null:
+		return
+	var arm := Vector3(world_camera_offset_x, world_camera_height, world_camera_distance)
+	var arm_dir := arm.normalized()
+	var camera_pos := target + arm_dir * world_camera_back_distance
+	_world_camera.look_at_from_position(camera_pos, target, Vector3.UP)
+	_world_camera.near = 10.0
+	_world_camera.far = world_camera_back_distance + 4000.0
+	if screen_height > 0.0:
+		_world_camera.size = screen_height / maxf(zoom, 0.001)
+
+
 func _update_world_camera() -> void:
 	if _world_camera == null or map_camera == null:
 		return
@@ -149,14 +219,11 @@ func _update_world_camera() -> void:
 	# Pan root already shifts by -offset; camera works in the same shifted space.
 	var s: Vector2 = center_world - map_camera.camera_world_offset
 	var target := Vector3(s.x, 0.0, s.y)
-	var arm := Vector3(world_camera_offset_x, world_camera_height, world_camera_distance)
-	_world_camera.look_at_from_position(target + arm, target, Vector3.UP)
-	# Vertical extent in world units = viewport_height / zoom => px-per-unit matches 2D zoom.
-	_world_camera.size = screen_size.y / zoom
+	_apply_world_camera_transform(target, screen_size.y, zoom)
 
 
 func _update_composite_view_state() -> void:
-	if not uses_real_3d_city() or map_camera == null or _world_camera == null:
+	if not uses_real_3d_composite() or map_camera == null or _world_camera == null:
 		return
 	var off: Vector2 = map_camera.camera_world_offset
 	if _world_pan_root != null:
@@ -165,6 +232,11 @@ func _update_composite_view_state() -> void:
 	if _city_world_view != null:
 		_city_world_view.set_placement_context(_world_camera, map_camera, map_layer_origin)
 		_city_world_view.refresh_placements()
+	if _unit_world_view != null:
+		_unit_world_view.set_placement_context(
+			_world_camera, map_camera, map_layer_origin, world_camera_back_distance
+		)
+		_unit_world_view.refresh_placements()
 
 
 func _setup_viewport_composite() -> void:
@@ -195,10 +267,7 @@ func _setup_viewport_composite() -> void:
 		_world_camera.name = "WorldCamera"
 		_viewport.add_child(_world_camera)
 	_world_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	_world_camera.position = Vector3(
-		world_camera_offset_x, world_camera_height, world_camera_distance
-	)
-	_world_camera.look_at(Vector3.ZERO, Vector3.UP)
+	_apply_world_camera_transform(Vector3.ZERO, 0.0, 1.0)
 	_world_camera.size = world_ortho_size
 	_world_camera.current = true
 	if _world_pan_root.get_node_or_null("KeyLight") == null:
@@ -218,6 +287,11 @@ func _setup_viewport_composite() -> void:
 		_city_world_view = City3DWorldViewScript.new()
 		_city_world_view.name = "City3DWorldView"
 		_world_pan_root.add_child(_city_world_view)
+	_unit_world_view = _world_pan_root.get_node_or_null("Unit3DWorldView")
+	if _unit_world_view == null:
+		_unit_world_view = Unit3DWorldViewScript.new()
+		_unit_world_view.name = "Unit3DWorldView"
+		_world_pan_root.add_child(_unit_world_view)
 	_setup_debug_probes()
 	_resize_viewport_container()
 
@@ -530,23 +604,35 @@ func _log_composite_viewport_diag_once() -> void:
 
 
 func _update_active_state() -> void:
-	var active: bool = uses_real_3d_city()
+	var active: bool = uses_real_3d_composite()
 	visible = active
 	if _viewport_container != null:
 		_viewport_container.visible = active
 	if _world_camera != null:
 		_world_camera.current = active
 	if _city_world_view != null:
-		_city_world_view.visible = active
+		_city_world_view.visible = uses_real_3d_city()
+	if _unit_world_view != null:
+		_unit_world_view.visible = uses_real_3d_units()
 
 
 func warn_auto_blit_fallback_once(city_id: int, reason: String) -> void:
-	var key: String = "%d:%s" % [city_id, reason]
+	var key: String = "city:%d:%s" % [city_id, reason]
 	if _auto_blit_fallback_warned.has(key):
 		return
 	_auto_blit_fallback_warned[key] = true
 	push_warning(
 		"[MapPresentation3D] auto blit fallback city_id=%d reason=%s" % [city_id, reason]
+	)
+
+
+func warn_auto_unit_blit_fallback_once(unit_id: int, reason: String) -> void:
+	var key: String = "unit:%d:%s" % [unit_id, reason]
+	if _auto_blit_fallback_warned.has(key):
+		return
+	_auto_blit_fallback_warned[key] = true
+	push_warning(
+		"[MapPresentation3D] auto blit fallback unit_id=%d reason=%s" % [unit_id, reason]
 	)
 
 
