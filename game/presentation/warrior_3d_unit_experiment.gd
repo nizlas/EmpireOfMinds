@@ -128,9 +128,17 @@ static func env_city3d_debug_probe_enabled() -> bool:
 const ENV_REAL_3D_UNITS: String = "EOM_REAL_3D_UNITS"
 
 
-## Env **EOM_REAL_3D_UNITS=1** (requires **EMPIRE_USE_3D_MODELS=1**): warrior Node3D in map composite.
+## Env **EOM_REAL_3D_UNITS=1** (requires **EMPIRE_USE_3D_MODELS=1**): warrior + settler Node3D in map composite.
 static func env_real_3d_units_enabled() -> bool:
 	return is_models_flag_enabled() and OS.get_environment(ENV_REAL_3D_UNITS).strip_edges() == "1"
+
+
+## True when **type_id** should use **Unit3DWorldView** (not per-unit SubViewport blit).
+static func uses_real_3d_composite_for_type(type_id: String) -> bool:
+	var tid: String = str(type_id)
+	if tid != "warrior" and tid != "settler":
+		return false
+	return env_real_3d_units_enabled() and should_render_unit_as_3d(tid)
 
 
 static func log_flag_state_once() -> void:
@@ -145,12 +153,13 @@ static func log_flag_state_once() -> void:
 	print(
 		(
 			"[Unit3D flags] EMPIRE_USE_3D_MODELS='%s' EMPIRE_USE_3D_WARRIOR='%s' "
-			+ "EOM_SETTLER_BUILTIN_RM='%s' enable_3d_models=%s enable_warrior_3d=%s "
-			+ "enable_settler_3d=%s enable_city_3d=%s settler_builtin_rm=%s"
+			+ "EOM_REAL_3D_UNITS='%s' EOM_SETTLER_BUILTIN_RM='%s' enable_3d_models=%s "
+			+ "enable_warrior_3d=%s enable_settler_3d=%s enable_city_3d=%s settler_builtin_rm=%s"
 		)
 		% [
 			models_val,
 			legacy_val,
+			OS.get_environment(ENV_REAL_3D_UNITS).strip_edges(),
 			OS.get_environment(SETTLER_BUILTIN_RM_ENV).strip_edges(),
 			str(enable_3d),
 			str(should_render_unit_as_3d("warrior")),

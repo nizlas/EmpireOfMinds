@@ -20,6 +20,7 @@ const FEET_DELTA_TOL_PX: float = 12.0
 const HEIGHT_RATIO_MIN: float = 0.55
 const HEIGHT_RATIO_MAX: float = 1.45
 const WARRIOR_UNIT_ID: int = 2
+const SETTLER_UNIT_ID: int = 1
 const UNIT_ID_TOP: int = 10
 const UNIT_ID_MID: int = 11
 const UNIT_ID_BOTTOM: int = 12
@@ -111,6 +112,36 @@ func _run() -> void:
 		"reference row effective_scale=%.3f equals base=%.1f"
 		% [inst.scale.y, unit_world.model_scale_3d],
 	)
+
+	var settler_inst: Node3D = unit_world._instance_by_unit_id.get(SETTLER_UNIT_ID) as Node3D
+	_check(settler_inst != null, "settler instance exists for anchor lock")
+	if settler_inst != null:
+		var settler = _warrior_from_scenario(scenario, SETTLER_UNIT_ID)
+		var settler_world: Vector2 = layout.hex_to_world(
+			int(settler.position.q), int(settler.position.r)
+		)
+		var settler_anchor: Vector2 = CityWorldScript.compute_anchor_2d(
+			settler_world, map_camera, MAP_LAYER_ORIGIN
+		)
+		var settler_root_delta: float = CityWorldScript.anchor_lock_delta_px(
+			layer._world_camera, settler_inst.global_position, settler_anchor
+		)
+		_check(
+			settler_root_delta < ROOT_DELTA_TOL_PX,
+			"settler root anchor lock delta=%.4f px" % settler_root_delta,
+		)
+		var settler_feet: Vector2 = UnitWorldScript.projected_mesh_feet_2d(
+			layer._world_camera, settler_inst
+		)
+		_check(
+			settler_feet.distance_to(settler_anchor) < FEET_DELTA_TOL_PX,
+			"settler mesh feet anchor lock delta=%.4f px" % settler_feet.distance_to(settler_anchor),
+		)
+		_check(
+			absf(settler_inst.scale.y - unit_world.settler_model_scale_3d) < SCALE_EPS,
+			"settler effective_scale=%.3f equals settler base=%.1f"
+			% [settler_inst.scale.y, unit_world.settler_model_scale_3d],
+		)
 
 	# Row perspective scale: top / mid / bottom warriors on tiny map.
 	var row_map = HexMapScript.make_tiny_test_map()

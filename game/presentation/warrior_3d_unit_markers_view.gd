@@ -76,6 +76,7 @@ const UNIT_MAT_OVERRIDE_ROUGHNESS: float = 0.85
 const UNIT_MAT_OVERRIDE_SPECULAR: float = 0.3
 ## TEMPORARY DEBUG — settler runtime instrumentation; remove after visual audit.
 const SETTLER_RM_TRACE_LOG_PREFIX: String = "[Settler3D rootmotion frame]"
+const SETTLER_3D_DIAG_ENV: String = "EOM_SETTLER_3D_DIAG"
 const SETTLER_DEBUG_HEARTBEAT_SEC: float = 1.0
 const SETTLER_DEBUG_CYCLE_KEY: Key = KEY_F9
 const META_SETTLER_MANUAL_CLIP_CYCLE: StringName = &"eom_settler_manual_clip_cycle"
@@ -1609,7 +1610,13 @@ func _clear_settler_manual_clip_cycle_except(keep_unit_id: int) -> void:
 			slot.remove_meta(META_SETTLER_MANUAL_CLIP_CYCLE)
 
 
+func _settler_3d_diag_enabled() -> bool:
+	return OS.get_environment(SETTLER_3D_DIAG_ENV).strip_edges() == "1"
+
+
 func _tick_settler_debug_heartbeat(delta: float) -> void:
+	if not _settler_3d_diag_enabled():
+		return
 	if not Warrior3DExperimentScript.should_render_unit_as_3d("settler"):
 		return
 	if _has_active_settler_manual_clip_cycle():

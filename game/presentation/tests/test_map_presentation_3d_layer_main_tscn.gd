@@ -43,6 +43,14 @@ func _run() -> void:
 	_check(active_subvp != null, "layer resolved active SubViewport")
 	if active_subvp != null and active_container != null:
 		_check(active_subvp.get_parent() == active_container, "SubViewport parent is active container")
+		_check(
+			active_subvp.msaa_3d == Viewport.MSAA_2X,
+			"composite SubViewport msaa_3d=MSAA_2X",
+		)
+		_check(
+			active_subvp.screen_space_aa == Viewport.SCREEN_SPACE_AA_FXAA,
+			"composite SubViewport screen_space_aa=FXAA",
+		)
 	# Simulate stale stretch=true (in-game regression) then resize.
 	if active_container != null:
 		active_container.stretch = true
@@ -51,6 +59,14 @@ func _run() -> void:
 		_check(active_container.stretch == false, "prepare_for_draw enforces stretch=false")
 		_check(active_subvp.size.x > 0, "SubViewport resized with stretch=false")
 		_check(active_subvp.size.y > 0, "SubViewport height non-zero after resize")
+		_check(
+			active_subvp.msaa_3d == Viewport.MSAA_2X,
+			"composite SubViewport msaa_3d preserved after prepare_for_draw",
+		)
+		_check(
+			active_subvp.screen_space_aa == Viewport.SCREEN_SPACE_AA_FXAA,
+			"composite SubViewport FXAA preserved after prepare_for_draw",
+		)
 	main.free()
 	if _failures > 0:
 		push_error(

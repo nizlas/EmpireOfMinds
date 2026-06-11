@@ -1,4 +1,4 @@
-# Real 3D warrior instances on the map plane (presentation only; one Node3D per warrior).
+# Real 3D warrior/settler instances on the map plane (presentation only; one Node3D per unit).
 class_name Unit3DWorldView
 extends Node3D
 
@@ -16,6 +16,7 @@ const HEX_MOVE_WALK_ANIM_SPEED: float = 0.5
 const SEMANTIC_IDLE_CLIP: String = "Idle_3"
 const SEMANTIC_WALK_CLIP: String = "Walking"
 const WARRIOR_TYPE_ID: String = "warrior"
+const SETTLER_TYPE_ID: String = "settler"
 const MODEL_ROOT_NAME: String = "ModelRoot"
 
 ## Base scale tuned at [member reference_world_y] (pan=0, zoom=1); row factor applied per frame.
@@ -32,6 +33,15 @@ const MODEL_ROOT_NAME: String = "ModelRoot"
 @export var use_glb_animation_name_remap: bool = true
 @export_range(0.20, 0.35, 0.01) var idle_end_blend_sec: float = 0.28
 
+@export_group("Settler real 3D")
+## Starting scale at [member settler_reference_world_y]; tune visually vs blit if needed.
+@export var settler_model_scale_3d: float = 155.0
+@export var settler_reference_world_y: float = 0.0
+@export var settler_model_yaw_degrees: float = 48.0
+@export var settler_model_pitch_degrees: float = 0.0
+@export var settler_model_offset_y_local: float = 0.0
+@export var settler_travel_facing_yaw_offset_deg: float = 69.0
+
 var scenario
 var layout
 
@@ -40,7 +50,7 @@ var _map_camera
 var _map_layer_origin: Vector2 = Vector2.ZERO
 var _world_camera_back_distance: float = -1.0
 
-var _warrior_scene: PackedScene
+var _scene_by_type: Dictionary = {}
 var _instance_by_unit_id: Dictionary = {}
 var _type_id_by_unit_id: Dictionary = {}
 var _sync_frame: int = -1
@@ -63,8 +73,27 @@ func is_real_3d_active() -> bool:
 	return Warrior3DExperimentScript.env_real_3d_units_enabled()
 
 
-func get_active_warrior_count() -> int:
+func get_active_unit_count() -> int:
 	return _instance_by_unit_id.size()
+
+
+func get_active_warrior_count() -> int:
+	return get_active_unit_count()
+
+
+func type_id_for_unit(unit_id: int) -> String:
+	if _type_id_by_unit_id.has(unit_id):
+		return str(_type_id_by_unit_id[unit_id])
+	if scenario == null:
+		return ""
+	var ulist: Array = scenario.units()
+	var i: int = 0
+	while i < ulist.size():
+		var unit = ulist[i]
+		if int(unit.id) == unit_id:
+			return str(unit.type_id)
+		i += 1
+	return ""
 
 
 func has_unit_instance(unit_id: int) -> bool:
@@ -127,7 +156,7 @@ func begin_hex_move(
 ) -> void:
 	if not is_real_3d_active():
 		return
-	if str(type_id) != WARRIOR_TYPE_ID:
+	if not Warrior3DExperimentScript.uses_real_3d_composite_for_type(type_id):
 		return
 	if layout == null:
 		return
@@ -180,17 +209,16 @@ func _sync_instances() -> void:
 		return
 	if scenario == null or layout == null:
 		return
-	_load_warrior_scene()
-	if _warrior_scene == null:
-		push_warning("[Unit3D world] GLB scene failed to load; no real 3D warrior instances")
-		return
 	var active_ids: Dictionary = {}
 	var ulist: Array = scenario.units()
 	var i: int = 0
 	while i < ulist.size():
 		var unit = ulist[i]
 		var type_id: String = str(unit.type_id)
-		if type_id != WARRIOR_TYPE_ID:
+		if not Warrior3DExperimentScript.uses_real_3d_composite_for_type(type_id):
+			i += 1
+			continue
+		if not _ensure_scene_loaded(type_id):
 			i += 1
 			continue
 		var unit_id: int = int(unit.id)
@@ -227,18 +255,23 @@ func _create_unit_instance(unit_id: int, unit) -> Node3D:
 	unit_root.name = "Unit3D_%d" % unit_id
 	var model_root := Node3D.new()
 	model_root.name = MODEL_ROOT_NAME
-	var model: Node = _warrior_scene.instantiate()
+	var type_id: String = str(unit.type_id)
+	var scene: PackedScene = _scene_by_type.get(type_id) as PackedScene
+	if scene == null:
+		push_warning("Unit3DWorldView: missing scene for type=%s unit_id=%d" % [type_id, unit_id])
+		return null
+	var model: Node = scene.instantiate()
 	if model == null:
-		push_warning("Unit3DWorldView: instantiate failed for unit_id=%d" % unit_id)
+		push_warning("Unit3DWorldView: instantiate failed for unit_id=%d type=%s" % [unit_id, type_id])
 		return null
 	_apply_material_override(model)
 	model_root.add_child(model)
 	unit_root.add_child(model_root)
 	add_child(unit_root)
 	_instance_by_unit_id[unit_id] = unit_root
-	_type_id_by_unit_id[unit_id] = WARRIOR_TYPE_ID
-	_prime_walk_clip_length(model)
-	_apply_idle_animation(unit_root, WARRIOR_TYPE_ID)
+	_type_id_by_unit_id[unit_id] = type_id
+	_prime_walk_clip_length(model, type_id)
+	_apply_idle_animation(unit_root, type_id)
 	print(
 		(
 			"[Unit3D world] created unit_id=%d hex=(%d,%d) type=%s render=real_scene_3d "
@@ -248,10 +281,10 @@ func _create_unit_instance(unit_id: int, unit) -> Node3D:
 			unit_id,
 			int(unit.position.q),
 			int(unit.position.r),
-			WARRIOR_TYPE_ID,
+			type_id,
 			scenario.units().size() if scenario != null else 0,
-			model_scale_3d,
-			model_offset_y_local,
+			_base_scale_for_type(type_id),
+			_model_offset_y_local_for_type(type_id),
 		]
 	)
 	return unit_root
@@ -273,19 +306,20 @@ func _apply_instance_transform(unit_root: Node3D, unit_id: int) -> void:
 		unit_root.global_position = pos_global
 	else:
 		unit_root.position = pos_global
+	var type_id: String = type_id_for_unit(unit_id)
 	var yaw: float = _facing_yaw_for_unit(unit_id)
-	unit_root.rotation_degrees = Vector3(model_pitch_degrees, yaw, 0.0)
-	var world_2d: Vector2 = _world_2d_for_unit(unit_id)
-	unit_root.scale = Vector3.ONE * _effective_scale_for_world(world_2d)
-	_reassert_model_root_frame(unit_root)
+	unit_root.rotation_degrees = Vector3(_model_pitch_for_type(type_id), yaw, 0.0)
+	unit_root.scale = Vector3.ONE * _effective_scale_for_unit(unit_id)
+	_reassert_model_root_frame(unit_root, unit_id)
 	_log_placement_diag_once(unit_id, unit_root)
 
 
-func _reassert_model_root_frame(unit_root: Node3D) -> void:
+func _reassert_model_root_frame(unit_root: Node3D, unit_id: int = -1) -> void:
 	var model_root: Node3D = unit_root.get_node_or_null(MODEL_ROOT_NAME) as Node3D
 	if model_root == null:
 		return
-	model_root.position = Vector3(0.0, model_offset_y_local, 0.0)
+	var type_id: String = type_id_for_unit(unit_id) if unit_id >= 0 else WARRIOR_TYPE_ID
+	model_root.position = Vector3(0.0, _model_offset_y_local_for_type(type_id), 0.0)
 	model_root.rotation_degrees = Vector3.ZERO
 	model_root.scale = Vector3.ONE
 	var ci: int = 0
@@ -322,6 +356,7 @@ func _log_placement_diag_once(unit_id: int, unit_root: Node3D) -> void:
 	if _world_camera == null or _map_camera == null or layout == null:
 		return
 	_logged_placement_diag[unit_id] = true
+	var type_id: String = type_id_for_unit(unit_id)
 	var world_2d: Vector2 = _world_2d_for_unit(unit_id)
 	var anchor_2d: Vector2 = City3DWorldViewScript.compute_anchor_2d(
 		world_2d, _map_camera, _map_layer_origin
@@ -352,11 +387,14 @@ func _log_placement_diag_once(unit_id: int, unit_root: Node3D) -> void:
 			container_rect = Rect2(container.position, container.size)
 	var pscale: float = _map_camera.perspective_scale_at(world_2d)
 	var factor_zoom_free: float = perspective_factor_zoom_free(_map_camera, world_2d)
-	var ref_factor: float = reference_perspective_factor(_map_camera, reference_world_y)
-	var effective_scale: float = _effective_scale_for_world(world_2d)
+	var ref_factor: float = reference_perspective_factor(
+		_map_camera, _reference_world_y_for_type(type_id)
+	)
+	var effective_scale: float = _effective_scale_for_unit(unit_id)
 	var expected_blit_h: float = expected_blit_marker_height_from_pscale(pscale)
+	var base_scale: float = _base_scale_for_type(type_id)
 	var height_ratio_est: float = (
-		effective_scale / model_scale_3d if model_scale_3d > 0.0 else 0.0
+		effective_scale / base_scale if base_scale > 0.0 else 0.0
 	)
 	var model_root: Node3D = unit_root.get_node_or_null(MODEL_ROOT_NAME) as Node3D
 	var anim_name: String = ""
@@ -381,7 +419,7 @@ func _log_placement_diag_once(unit_id: int, unit_root: Node3D) -> void:
 		)
 		% [
 			unit_id,
-			WARRIOR_TYPE_ID,
+			type_id,
 			str(world_2d),
 			str(anchor_2d),
 			str(_map_layer_origin),
@@ -390,7 +428,7 @@ func _log_placement_diag_once(unit_id: int, unit_root: Node3D) -> void:
 			pscale,
 			factor_zoom_free,
 			ref_factor,
-			model_scale_3d,
+			base_scale,
 			effective_scale,
 			expected_blit_h,
 			height_ratio_est,
@@ -560,10 +598,51 @@ static func effective_scale_at_world(
 	return maxf(base_scale * factor / ref_factor, 0.01)
 
 
-func _effective_scale_for_world(world_2d: Vector2) -> float:
+func _effective_scale_for_unit(unit_id: int) -> float:
+	var type_id: String = type_id_for_unit(unit_id)
+	var world_2d: Vector2 = _world_2d_for_unit(unit_id)
 	return Unit3DWorldView.effective_scale_at_world(
-		_map_camera, model_scale_3d, reference_world_y, world_2d
+		_map_camera,
+		_base_scale_for_type(type_id),
+		_reference_world_y_for_type(type_id),
+		world_2d,
 	)
+
+
+func _base_scale_for_type(type_id: String) -> float:
+	if str(type_id) == SETTLER_TYPE_ID:
+		return settler_model_scale_3d
+	return model_scale_3d
+
+
+func _reference_world_y_for_type(type_id: String) -> float:
+	if str(type_id) == SETTLER_TYPE_ID:
+		return settler_reference_world_y
+	return reference_world_y
+
+
+func _model_yaw_for_type(type_id: String) -> float:
+	if str(type_id) == SETTLER_TYPE_ID:
+		return settler_model_yaw_degrees
+	return model_yaw_degrees
+
+
+func _model_pitch_for_type(type_id: String) -> float:
+	if str(type_id) == SETTLER_TYPE_ID:
+		return settler_model_pitch_degrees
+	return model_pitch_degrees
+
+
+func _model_offset_y_local_for_type(type_id: String) -> float:
+	if str(type_id) == SETTLER_TYPE_ID:
+		return settler_model_offset_y_local
+	return model_offset_y_local
+
+
+func _travel_facing_yaw_offset_for_type(type_id: String) -> float:
+	if str(type_id) == SETTLER_TYPE_ID:
+		return settler_travel_facing_yaw_offset_deg
+	return travel_facing_yaw_offset_deg
 
 
 ## Bind-pose mesh extent in world space before UnitRoot scale (headless AABB omits parent scale).
@@ -640,7 +719,7 @@ func _tick_hex_moves(delta: float) -> void:
 			var root: Node3D = _instance_by_unit_id.get(unit_id) as Node3D
 			if root != null:
 				_update_walk_animation(root, anim_elapsed, type_id)
-				_reassert_model_root_frame(root)
+				_reassert_model_root_frame(root, unit_id)
 		var progress: float = 1.0 if stride_sec <= 0.0 else clampf(anim_elapsed / stride_sec, 0.0, 1.0)
 		if progress >= 1.0:
 			finished_ids.append(unit_id)
@@ -652,7 +731,8 @@ func _tick_hex_moves(delta: float) -> void:
 		_active_hex_moves.erase(done_id)
 		var root_done: Node3D = _instance_by_unit_id.get(done_id) as Node3D
 		if root_done != null:
-			_apply_idle_animation(root_done, WARRIOR_TYPE_ID, idle_end_blend_sec)
+			var done_type: String = type_id_for_unit(done_id)
+			_apply_idle_animation(root_done, done_type, idle_end_blend_sec)
 			_apply_instance_transform(root_done, done_id)
 		fi += 1
 
@@ -749,13 +829,13 @@ static func _find_animation_player(node: Node) -> AnimationPlayer:
 	return null
 
 
-func _prime_walk_clip_length(model: Node) -> void:
+func _prime_walk_clip_length(model: Node, type_id: String) -> void:
 	var player: AnimationPlayer = _find_animation_player(model)
 	if player != null:
 		Warrior3DWalkSyncScript.cache_walk_clip_length_from_player(
 			player,
 			use_glb_animation_name_remap,
-			WARRIOR_TYPE_ID,
+			type_id,
 		)
 
 
@@ -766,11 +846,12 @@ func _glb_clip_for_semantic(semantic: String, type_id: String) -> String:
 
 
 func _facing_yaw_for_unit(unit_id: int) -> float:
+	var default_yaw: float = _model_yaw_for_type(type_id_for_unit(unit_id))
 	if _active_hex_moves.has(unit_id):
-		return float(_active_hex_moves[unit_id].get("facing_yaw", model_yaw_degrees))
+		return float(_active_hex_moves[unit_id].get("facing_yaw", default_yaw))
 	if _facing_yaw_by_unit_id.has(unit_id):
 		return float(_facing_yaw_by_unit_id[unit_id])
-	return model_yaw_degrees
+	return default_yaw
 
 
 func _travel_facing_from_hex_step(
@@ -804,7 +885,8 @@ func _yaw_for_map_bearing(pres_dir: Vector2, unit_id: int) -> float:
 	if pres_dir.length_squared() < 0.0001:
 		return _facing_yaw_for_unit(unit_id)
 	var map_bearing_deg: float = _travel_bearing_screen_up_deg(pres_dir)
-	return travel_facing_yaw_offset_deg + map_bearing_deg
+	var type_id: String = type_id_for_unit(unit_id)
+	return _travel_facing_yaw_offset_for_type(type_id) + map_bearing_deg
 
 
 static func _travel_bearing_screen_up_deg(dir: Vector2) -> float:
@@ -815,18 +897,22 @@ static func _bearing_delta_deg(to_deg: float, from_deg: float) -> float:
 	return rad_to_deg(atan2(sin(deg_to_rad(to_deg - from_deg)), cos(deg_to_rad(to_deg - from_deg))))
 
 
-func _load_warrior_scene() -> void:
-	if _warrior_scene != null:
-		return
-	var scene_path: String = Warrior3DExperimentScript.animated_scene_path_for_type(WARRIOR_TYPE_ID)
+func _ensure_scene_loaded(type_id: String) -> bool:
+	var tid: String = str(type_id)
+	if _scene_by_type.has(tid) and _scene_by_type[tid] != null:
+		return true
+	var scene_path: String = Warrior3DExperimentScript.animated_scene_path_for_type(tid)
 	if scene_path.is_empty():
-		push_warning("[Unit3D world] warrior scene path empty")
-		return
-	_warrior_scene = (
+		push_warning("[Unit3D world] scene path empty for type=%s" % tid)
+		return false
+	var scene: PackedScene = (
 		ResourceLoader.load(scene_path, "", ResourceLoader.CACHE_MODE_REUSE) as PackedScene
 	)
-	if _warrior_scene == null:
+	if scene == null:
 		push_warning("[Unit3D world] failed to load %s" % scene_path)
+		return false
+	_scene_by_type[tid] = scene
+	return true
 
 
 func _clear_all_instances() -> void:
@@ -836,12 +922,14 @@ func _clear_all_instances() -> void:
 			node.queue_free()
 	_instance_by_unit_id.clear()
 	_type_id_by_unit_id.clear()
+	# Keep loaded scenes cached across scenario syncs.
 	_active_hex_moves.clear()
 	_facing_yaw_by_unit_id.clear()
 	_ray_parallel_warned.clear()
 	_logged_placement_diag.clear()
 
 
+## Matte PBR tuning only. Anisotropic texture_filter was tried for hair shimmer; reverted (no gain).
 func _apply_material_override(model: Node) -> void:
 	for node in model.find_children("*", "MeshInstance3D", true, false):
 		var mesh_inst: MeshInstance3D = node as MeshInstance3D

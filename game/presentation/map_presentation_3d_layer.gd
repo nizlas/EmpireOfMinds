@@ -115,7 +115,7 @@ func should_auto_blit_for_city(city_id: int) -> bool:
 	return not is_city_active_in_real_3d(city_id)
 
 
-## True when a live GLB warrior instance exists for **unit_id** (used for auto blit fallback).
+## True when a live GLB unit instance exists for **unit_id** (used for auto blit fallback).
 func is_unit_active_in_real_3d(unit_id: int) -> bool:
 	if not uses_real_3d_units() or _unit_world_view == null:
 		return false
@@ -124,14 +124,34 @@ func is_unit_active_in_real_3d(unit_id: int) -> bool:
 	return _unit_world_view.has_ready_unit_instance(unit_id)
 
 
-func should_auto_blit_for_unit(unit_id: int) -> bool:
-	if not Warrior3DExperimentScript.should_render_unit_as_3d("warrior"):
+func should_auto_blit_for_unit(unit_id: int, type_id: String = "") -> bool:
+	var tid: String = str(type_id)
+	if tid.is_empty():
+		tid = _unit_type_id_for_routing(unit_id)
+	if tid.is_empty() or not Warrior3DExperimentScript.should_render_unit_as_3d(tid):
 		return true
-	if not uses_real_3d_units():
+	if not Warrior3DExperimentScript.uses_real_3d_composite_for_type(tid):
 		return true
 	if not is_composite_viewport_ready():
 		return true
 	return not is_unit_active_in_real_3d(unit_id)
+
+
+func _unit_type_id_for_routing(unit_id: int) -> String:
+	if _unit_world_view != null:
+		var from_view: String = _unit_world_view.type_id_for_unit(unit_id)
+		if not from_view.is_empty():
+			return from_view
+	if scenario == null:
+		return ""
+	var ulist: Array = scenario.units()
+	var i: int = 0
+	while i < ulist.size():
+		var unit = ulist[i]
+		if int(unit.id) == unit_id:
+			return str(unit.type_id)
+		i += 1
+	return ""
 
 
 func begin_unit_hex_move(
@@ -239,6 +259,13 @@ func _update_composite_view_state() -> void:
 		_unit_world_view.refresh_placements()
 
 
+static func apply_composite_subviewport_aa(subvp: SubViewport) -> void:
+	if subvp == null:
+		return
+	subvp.msaa_3d = Viewport.MSAA_2X
+	subvp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+
+
 func _setup_viewport_composite() -> void:
 	_viewport_container = get_node_or_null("City3DViewportContainer") as SubViewportContainer
 	if _viewport_container == null:
@@ -256,6 +283,7 @@ func _setup_viewport_composite() -> void:
 		_viewport.own_world_3d = true
 		_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 		_viewport_container.add_child(_viewport)
+	MapPresentation3DLayer.apply_composite_subviewport_aa(_viewport)
 	_world_pan_root = _viewport.get_node_or_null("WorldPanRoot") as Node3D
 	if _world_pan_root == null:
 		_world_pan_root = Node3D.new()
@@ -352,6 +380,7 @@ func _resolve_active_composite_nodes() -> bool:
 	var subvp: SubViewport = container.get_node_or_null("City3DSubViewport") as SubViewport
 	_viewport_container = container
 	_viewport = subvp
+	MapPresentation3DLayer.apply_composite_subviewport_aa(subvp)
 	return subvp != null
 
 

@@ -37,7 +37,7 @@ var selection
 var terrain_foreground_view
 ## Experimental 3D unit markers (warrior + settler) — blit via **`draw_unit_marker_at`** when TFV depth merge is active.
 var warrior_3d_unit_markers_view
-## Real 3D warrior composite (wired by main; settler stays on blit path).
+## Real 3D warrior/settler composite (wired by main; blit remains fallback).
 var map_presentation_3d_layer
 @export var marker_radius_ratio: float = 0.35
 ## Icon height as a fraction of pointy-top hex height (2 * HexLayout.SIZE) when a type icon is loaded. Phase 4.3f.
@@ -120,9 +120,8 @@ func present_unit_hex_move_if_applicable(
 	to_r: int,
 ) -> void:
 	if (
-		type_id == "warrior"
+		Warrior3DUnitExperimentScript.uses_real_3d_composite_for_type(type_id)
 		and map_presentation_3d_layer != null
-		and map_presentation_3d_layer.uses_real_3d_units()
 	):
 		map_presentation_3d_layer.begin_unit_hex_move(
 			unit_id, type_id, from_q, from_r, to_q, to_r
@@ -262,11 +261,15 @@ func draw_unit_marker_at(
 ) -> void:
 	if Warrior3DUnitExperimentScript.should_render_unit_as_3d(type_id):
 		var use_blit: bool = true
-		if type_id == "warrior" and map_presentation_3d_layer != null and unit_id >= 0:
-			use_blit = map_presentation_3d_layer.should_auto_blit_for_unit(unit_id)
+		if (
+			Warrior3DUnitExperimentScript.uses_real_3d_composite_for_type(type_id)
+			and map_presentation_3d_layer != null
+			and unit_id >= 0
+		):
+			use_blit = map_presentation_3d_layer.should_auto_blit_for_unit(unit_id, type_id)
 			if not use_blit:
 				return
-			if map_presentation_3d_layer.uses_real_3d_units():
+			if Warrior3DUnitExperimentScript.env_real_3d_units_enabled():
 				var reason: String = "explicit_blit_fallback"
 				if not map_presentation_3d_layer.is_composite_viewport_ready():
 					reason = "composite_viewport_invalid"

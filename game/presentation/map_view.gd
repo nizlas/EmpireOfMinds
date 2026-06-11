@@ -25,6 +25,20 @@ const _SALT_BACK_ASSET_TEX: int = 4100
 const _SALT_BACK_SYM_COUNT: int = 4200
 const _SALT_BACK_SYM_BASE: int = 4210
 const _EOM_ENV_FOREST_GRID_PERFECT: String = "EOM_DEBUG_FOREST_GRID_PERFECT"
+const _EOM_ENV_TERRAIN_SMEAR: String = "EOM_DEBUG_TERRAIN_SMEAR"
+const FOREST_BACK_PSCALE_MAX: float = 4.0
+const _TERRAIN_SKIP_LOG_CAP: int = 20
+## Per-corner ww threshold for whole-hex terrain skip (always active; not debug-gated).
+const _PROBE_MIN_WW: float = 0.15
+## Terrain polygon hard-skip probes (always active in normal rendering; not debug-gated).
+const TERRAIN_HARD_SKIP_PROBE_BBOX: bool = true
+const TERRAIN_HARD_SKIP_PROBE_EDGE: bool = true
+const TERRAIN_HARD_SKIP_PROBE_COORD: bool = true
+const _PROBE_BBOX_VIEWPORT_MULT: float = 2.0
+const _PROBE_MAX_EDGE_PX: float = 4000.0
+const _PROBE_MAX_COORD_PX: float = 25000.0
+const _PROBE_PSCALE: float = 2.0
+const _TERRAIN_SMEAR_LOG_INTERVAL_SEC: float = 1.0
 
 const _PLAINS_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/plains_painterly.png"
 const _GRASSLAND_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/grassland_painterly.png"
@@ -38,6 +52,8 @@ const _WATER_TERRAIN_TEX_PATH: String = "res://assets/prototype/terrain/water_pa
 @export var hex_tile_size: float = 128.0
 ## World units per one UV tile along X/Y; larger = less frequent texture repeat (presentation-only).
 @export var terrain_texture_world_scale: float = 512.0
+## Skip hex terrain when any corner ww falls below this (fake-perspective singularity guard).
+@export_range(0.01, 0.5, 0.01) var terrain_min_perspective_w: float = 0.15
 ## Visual-only tint on **PLAINS** **HILLS** overlay decal (RGB clamped ~0.75–1.25; alpha folded with **`plains_hills_overlay_opacity`**). Not gameplay.
 @export var plains_hills_terrain_modulate: Color = Color.WHITE
 ## Visual-only tint on **GRASSLAND** **HILLS** overlay decal (same clamp; alpha folded with **`grassland_hills_overlay_opacity`**). Not gameplay.
@@ -100,6 +116,8 @@ var _forest_tree_symbols: Array[Texture2D] = []  # Cached tree symbol textures (
 var _forest_symbol_scatter_unavailable_logged: bool = false
 
 static var _invalid_map_poly_logged: Dictionary = {}
+static var _terrain_skip_log_count: int = 0
+static var _terrain_smear_log_times: Dictionary = {}
 
 const _TREE_SYMBOL_COUNT: int = 20
 const _HILLS_TEX_MOD_MIN: float = 0.75
@@ -325,7 +343,9 @@ static func _mix255_u(h: int, shift: int) -> float:
 	return float((h >> shift) & 0xFF) / 255.0
 
 
-func _draw_plains_detail(proj, world: Vector2, q: int, r: int) -> void:
+func _draw_plains_detail(proj, world: Vector2, q: int, r: int, coord) -> void:
+	var pscale: float = proj.perspective_scale_at(world)
+	var viewport_size: Vector2 = _viewport_size_for_guard()
 	var lim: float = HexLayoutScript.SIZE * 0.82
 	var k: int = 0
 	while k < 5:
@@ -336,7 +356,8 @@ func _draw_plains_detail(proj, world: Vector2, q: int, r: int) -> void:
 			rad = lim - 4.0
 		var p: Vector2 = world + Vector2(cos(ang), sin(ang)) * rad
 		var al: float = 0.075 + float((h >> 4) & 3) * 0.025
-		draw_circle(proj.to_presentation(p), 1.0 + float((h >> 2) & 3) * 0.35, Color(0.40, 0.32, 0.20, al))
+		var pr: Vector2 = proj.to_presentation(p)
+		draw_circle(pr, 1.0 + float((h >> 2) & 3) * 0.35, Color(0.40, 0.32, 0.20, al))
 		k += 1
 	var s: int = 0
 	while s < 3:
@@ -348,16 +369,28 @@ func _draw_plains_detail(proj, world: Vector2, q: int, r: int) -> void:
 		var len: float = 7.0 + float((h2 >> 14) & 15)
 		var p0: Vector2 = world + Vector2(cos(a0), sin(a0)) * r0
 		var p1: Vector2 = p0 + Vector2(cos(a0 + 0.55), sin(a0 + 0.55)) * len
-		draw_line(
-			proj.to_presentation(p0),
-			proj.to_presentation(p1),
-			Color(0.35, 0.45, 0.22, 0.085),
-			1.0,
-			true
-		)
+		var pr0: Vector2 = proj.to_presentation(p0)
+		var pr1: Vector2 = proj.to_presentation(p1)
+		var line_reason: String = MapView.segment_drawn_suspicion_reason(pr0, pr1, viewport_size)
+		if line_reason != "":
+			_terrain_smear_diag(
+				"DRAWN_SUSPICIOUS",
+				"plains_detail_line",
+				coord,
+				line_reason,
+				PackedVector2Array([pr0, pr1]),
+				pscale,
+			)
+			if _terrain_smear_debug_enabled() and MapView.smear_reason_is_immediate(line_reason):
+				draw_line(pr0, pr1, Color(1.0, 0.0, 1.0, 0.9), 2.0, true)
+				s += 1
+				continue
+		draw_line(pr0, pr1, Color(0.35, 0.45, 0.22, 0.085), 1.0, true)
 		s += 1
 
-func _draw_water_detail(proj, world: Vector2, q: int, r: int) -> void:
+func _draw_water_detail(proj, world: Vector2, q: int, r: int, coord) -> void:
+	var pscale: float = proj.perspective_scale_at(world)
+	var viewport_size: Vector2 = _viewport_size_for_guard()
 	var lim: float = HexLayoutScript.SIZE * 0.85
 	var widx: int = 0
 	while widx < 5:
@@ -369,23 +402,34 @@ func _draw_water_detail(proj, world: Vector2, q: int, r: int) -> void:
 		var p0: Vector2 = world + Vector2(x0, yoff)
 		var p1: Vector2 = world + Vector2(x1, yoff + dy)
 		if p0.distance_to(world) <= lim and p1.distance_to(world) <= lim:
-			draw_line(
-				proj.to_presentation(p0),
-				proj.to_presentation(p1),
-				Color(0.82, 0.90, 0.98, 0.06),
-				1.0,
-				true
-			)
+			var pr0: Vector2 = proj.to_presentation(p0)
+			var pr1: Vector2 = proj.to_presentation(p1)
+			var line_reason: String = MapView.segment_drawn_suspicion_reason(pr0, pr1, viewport_size)
+			if line_reason != "":
+				_terrain_smear_diag(
+					"DRAWN_SUSPICIOUS",
+					"water_detail_line",
+					coord,
+					line_reason,
+					PackedVector2Array([pr0, pr1]),
+					pscale,
+				)
+				if _terrain_smear_debug_enabled() and MapView.smear_reason_is_immediate(line_reason):
+					draw_line(pr0, pr1, Color(1.0, 0.0, 1.0, 0.9), 2.0, true)
+					widx += 1
+					continue
+			draw_line(pr0, pr1, Color(0.82, 0.90, 0.98, 0.06), 1.0, true)
 		widx += 1
 
-func _draw_terrain_detail_overlay(proj, world: Vector2, terrain: int, q: int, r: int) -> void:
+func _draw_terrain_detail_overlay(proj, world: Vector2, terrain: int, q: int, r: int, coord) -> void:
 	if terrain == HexMapScript.Terrain.PLAINS or terrain == HexMapScript.Terrain.GRASSLAND:
-		_draw_plains_detail(proj, world, q, r)
+		_draw_plains_detail(proj, world, q, r, coord)
 	elif terrain == HexMapScript.Terrain.WATER:
-		_draw_water_detail(proj, world, q, r)
+		_draw_water_detail(proj, world, q, r, coord)
 
 
-func _draw_plains_forest_back(proj, world: Vector2, q: int, r: int) -> void:
+func _draw_plains_forest_back(proj, world: Vector2, q: int, r: int, coord) -> void:
+	var pscale: float = proj.perspective_scale_at(world)
 	# Phase 4.6b / 4.6b-polish: 2–3 large overlapping canopy masses (fewer, bigger than speckle pass).
 	var op: float = forest_back_opacity
 	var size: float = HexLayoutScript.SIZE
@@ -426,12 +470,15 @@ func _draw_plains_forest_back(proj, world: Vector2, q: int, r: int) -> void:
 				hx + Vector2(-0.35 * rx * cs - 0.75 * ry * sn, -0.35 * rx * sn + 0.75 * ry * cs),
 			])
 			var pa: float = (0.08 + float((hp >> 14) & 3) * 0.018) * op
+			_terrain_smear_check_drawn("forest_back_procedural_poly", coord, poly, PackedVector2Array(), pscale)
 			draw_colored_polygon(poly, Color(0.22, 0.36, 0.22, clampf(pa, 0.0, 1.0)))
 		c += 1
 
 
-func _draw_plains_forest_back_asset(proj, world: Vector2, q: int, r: int) -> void:
+func _draw_plains_forest_back_asset(proj, world: Vector2, q: int, r: int, coord) -> void:
 	# Phase 4.6g: **hex-owned** back clump; **below** units (**MapView** layer). **Deterministic** texture **01**/**02**.
+	if not _forest_pscale_drawable(proj, world, coord, "forest_back_asset"):
+		return
 	var anchor_pres: Vector2 = proj.to_presentation(world)
 	var pscale: float = proj.perspective_scale_at(world)
 	var h: float = HexLayoutScript.SIZE * pscale
@@ -448,6 +495,7 @@ func _draw_plains_forest_back_asset(proj, world: Vector2, q: int, r: int) -> voi
 		wrect,
 		hrect
 	)
+	_terrain_smear_check_drawn("forest_back_asset", coord, PackedVector2Array(), PackedVector2Array(), pscale, rect)
 	draw_texture_rect(
 		tex,
 		rect,
@@ -475,10 +523,12 @@ func _forest_symbol_scatter_ready() -> bool:
 	return _forest_tree_symbols.size() == _TREE_SYMBOL_COUNT
 
 
-func _draw_plains_forest_back_symbols(proj, world: Vector2, q: int, r: int) -> void:
+func _draw_plains_forest_back_symbols(proj, world: Vector2, q: int, r: int, coord) -> void:
 	# Phase 4.6k: **ellipse-fill** around **hub** (**anchor** **+** **(0,** **0.06×base)**); **no** **upper**-**arc** **zoning** — **full**-**hex** **forest** **mass**.
 	# Phase 4.6n: density tuned **18..30 → 14..22** — moderate reduction from the 4.6m bump per visual review.
 	# Placement / size formula unchanged; salts unchanged.
+	if not _forest_pscale_drawable(proj, world, coord, "forest_back_symbol"):
+		return
 	var anchor_pres: Vector2 = proj.to_presentation(world)
 	var pscale: float = proj.perspective_scale_at(world)
 	var base: float = HexLayoutScript.SIZE * pscale
@@ -498,8 +548,239 @@ func _draw_plains_forest_back_symbols(proj, world: Vector2, q: int, r: int) -> v
 		var rx: float = base * (0.45 + MapView._mix255_u(h, 24) * 0.27)
 		var ry: float = base * (0.30 + MapView._mix255_u(h, 0) * 0.28)
 		var pr: Vector2 = hub + Vector2(cos(ang) * rx * rad_scale, sin(ang) * ry * rad_scale)
-		draw_texture_rect(tex, Rect2(pr.x - side * 0.5, pr.y - side, side, side), false, col)
+		var sym_rect: Rect2 = Rect2(pr.x - side * 0.5, pr.y - side, side, side)
+		_terrain_smear_check_drawn(
+			"forest_back_symbol", coord, PackedVector2Array(), PackedVector2Array(), pscale, sym_rect
+		)
+		draw_texture_rect(tex, sym_rect, false, col)
 		si += 1
+
+
+static func corner_perspective_w(
+	depth_strength: float, near_world_y: float, corner_y: float, pan_y: float
+) -> float:
+	var shifted_y: float = corner_y - pan_y
+	return 1.0 + depth_strength * (near_world_y - shifted_y)
+
+
+static func corner_perspective_w_values_for_hex(
+	corners: PackedVector2Array, depth_strength: float, near_world_y: float, pan_y: float
+) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(corners.size())
+	var ci: int = 0
+	while ci < corners.size():
+		out[ci] = corner_perspective_w(depth_strength, near_world_y, corners[ci].y, pan_y)
+		ci += 1
+	return out
+
+
+## Empty => stable; otherwise skip reason (min_ww, non_positive_ww, mixed_sign_ww).
+static func hex_perspective_skip_reason_for_corners(
+	corners: PackedVector2Array,
+	depth_strength: float,
+	near_world_y: float,
+	pan_y: float,
+	min_w_threshold: float,
+) -> String:
+	if corners.is_empty():
+		return ""
+	var min_ww: float = INF
+	var has_positive: bool = false
+	var has_negative: bool = false
+	var ci: int = 0
+	while ci < corners.size():
+		var ww: float = corner_perspective_w(depth_strength, near_world_y, corners[ci].y, pan_y)
+		min_ww = minf(min_ww, ww)
+		if ww > 0.0:
+			has_positive = true
+		elif ww < 0.0:
+			has_negative = true
+		ci += 1
+	if min_ww <= 0.0:
+		return "non_positive_ww"
+	if has_positive and has_negative:
+		return "mixed_sign_ww"
+	if min_ww < min_w_threshold:
+		return "min_ww"
+	return ""
+
+
+static func hex_ww_stats_for_corners(
+	corners: PackedVector2Array,
+	depth_strength: float,
+	near_world_y: float,
+	pan_y: float,
+) -> Dictionary:
+	var min_ww: float = INF
+	var max_ww: float = -INF
+	var has_positive: bool = false
+	var has_negative: bool = false
+	var values: PackedFloat32Array = corner_perspective_w_values_for_hex(
+		corners, depth_strength, near_world_y, pan_y
+	)
+	var ci: int = 0
+	while ci < values.size():
+		var ww: float = values[ci]
+		min_ww = minf(min_ww, ww)
+		max_ww = maxf(max_ww, ww)
+		if ww > 0.0:
+			has_positive = true
+		elif ww < 0.0:
+			has_negative = true
+		ci += 1
+	if values.is_empty():
+		min_ww = 0.0
+		max_ww = 0.0
+	return {
+		"min_ww": min_ww,
+		"max_ww": max_ww,
+		"mixed_sign": has_positive and has_negative,
+		"values": values,
+	}
+
+
+static func geometry_hard_suspicion_reason(
+	projected_pts: PackedVector2Array, viewport_size: Vector2
+) -> String:
+	return PolygonDrawGuardScript.polygon_suspicious_reason(projected_pts, viewport_size)
+
+
+static func geometry_large_probe_reason(
+	projected_pts: PackedVector2Array,
+	viewport_size: Vector2,
+	skip_bbox: bool = true,
+	skip_edge: bool = true,
+	skip_coord: bool = true,
+) -> String:
+	if skip_bbox:
+		var bbox: Vector2 = PolygonDrawGuardScript.polygon_bounding_size(projected_pts)
+		var vp_diag: float = viewport_size.length()
+		if vp_diag > 0.0 and bbox.length() > vp_diag * _PROBE_BBOX_VIEWPORT_MULT:
+			return "probe_bbox"
+	if skip_edge:
+		var max_edge: float = PolygonDrawGuardScript.polygon_max_edge_length(projected_pts)
+		if max_edge > _PROBE_MAX_EDGE_PX:
+			return "probe_edge"
+	if skip_coord:
+		var max_coord: float = PolygonDrawGuardScript.points_max_coord_magnitude(projected_pts)
+		if max_coord > _PROBE_MAX_COORD_PX:
+			return "probe_coord"
+	return ""
+
+
+static func geometry_soft_probe_reason(
+	projected_pts: PackedVector2Array,
+	viewport_size: Vector2,
+	ww_stats: Dictionary,
+) -> String:
+	if not ww_stats.is_empty():
+		var min_ww: float = float(ww_stats.get("min_ww", INF))
+		if min_ww < _PROBE_MIN_WW:
+			return "probe_min_ww"
+		if bool(ww_stats.get("mixed_sign", false)):
+			return "probe_mixed_sign_ww"
+	return geometry_large_probe_reason(projected_pts, viewport_size)
+
+
+## Hard skip for terrain fill/overlay polygons with actual giant projected geometry.
+## Active in normal rendering; EOM_DEBUG_TERRAIN_SMEAR only affects logging/overlays.
+static func terrain_polygon_hard_skip_reason(
+	projected_pts: PackedVector2Array, viewport_size: Vector2
+) -> String:
+	var hard: String = geometry_hard_suspicion_reason(projected_pts, viewport_size)
+	if hard != "":
+		return hard
+	return geometry_large_probe_reason(
+		projected_pts,
+		viewport_size,
+		TERRAIN_HARD_SKIP_PROBE_BBOX,
+		TERRAIN_HARD_SKIP_PROBE_EDGE,
+		TERRAIN_HARD_SKIP_PROBE_COORD,
+	)
+
+
+static func terrain_polygon_geometry_skip_reason(
+	projected_pts: PackedVector2Array, viewport_size: Vector2
+) -> String:
+	return terrain_polygon_hard_skip_reason(projected_pts, viewport_size)
+
+
+static func terrain_polygon_hard_skip_on_point_sets(
+	viewport_size: Vector2, point_sets: Array
+) -> String:
+	var si: int = 0
+	while si < point_sets.size():
+		var pts: PackedVector2Array = point_sets[si] as PackedVector2Array
+		if pts != null and pts.size() >= 3:
+			var reason: String = terrain_polygon_hard_skip_reason(pts, viewport_size)
+			if reason != "":
+				return reason
+		si += 1
+	return ""
+
+
+static func is_terrain_polygon_draw_kind(kind: String) -> bool:
+	return kind in [
+		"terrain_textured",
+		"terrain_water",
+		"terrain_hills",
+		"terrain_solid",
+		"hills_overlay",
+	]
+
+
+static func smear_reason_is_immediate(reason: String) -> bool:
+	if reason.begins_with("huge_"):
+		return true
+	return reason in [
+		"non_finite_point",
+		"probe_min_ww",
+		"probe_mixed_sign_ww",
+		"min_ww",
+		"non_positive_ww",
+		"mixed_sign_ww",
+		"pscale_non_positive",
+		"pscale_too_large",
+		"probe_bbox",
+		"probe_edge",
+		"probe_coord",
+	]
+
+
+## Hard + geometry/ww soft probes. Pscale alone never qualifies.
+static func drawn_suspicion_reason(
+	projected_pts: PackedVector2Array,
+	viewport_size: Vector2,
+	ww_stats: Dictionary = {},
+) -> String:
+	var hard: String = geometry_hard_suspicion_reason(projected_pts, viewport_size)
+	if hard != "":
+		return hard
+	return geometry_soft_probe_reason(projected_pts, viewport_size, ww_stats)
+
+
+static func segment_drawn_suspicion_reason(
+	p0: Vector2, p1: Vector2, viewport_size: Vector2
+) -> String:
+	return geometry_hard_suspicion_reason(PackedVector2Array([p0, p1]), viewport_size)
+
+
+static func rect_drawn_suspicion_reason(rect: Rect2, viewport_size: Vector2) -> String:
+	return drawn_suspicion_reason(PolygonDrawGuardScript.rect_corners(rect), viewport_size)
+
+
+static func low_priority_pscale_probe_reason(
+	projected_pts: PackedVector2Array,
+	viewport_size: Vector2,
+	pscale: float,
+	ww_stats: Dictionary = {},
+) -> String:
+	if drawn_suspicion_reason(projected_pts, viewport_size, ww_stats) != "":
+		return ""
+	if pscale <= 0.0 or pscale > FOREST_BACK_PSCALE_MAX or pscale < _PROBE_PSCALE:
+		return ""
+	return "probe_pscale"
 
 
 static func compute_draw_items(a_map, a_layout) -> Array:
@@ -596,6 +877,252 @@ func _mapview_skip_back_forest_overlay() -> bool:
 	return terrain_foreground_view != null and is_instance_valid(terrain_foreground_view)
 
 
+func _terrain_smear_debug_enabled() -> bool:
+	return OS.get_environment(_EOM_ENV_TERRAIN_SMEAR) == "1"
+
+
+func _viewport_size_for_guard() -> Vector2:
+	var vp: Viewport = get_viewport()
+	if vp == null:
+		return Vector2(1920.0, 1080.0)
+	var size: Vector2 = vp.get_visible_rect().size
+	if size.x <= 0.0 or size.y <= 0.0:
+		return Vector2(1920.0, 1080.0)
+	return size
+
+
+func _print_terrain_smear_guard_banner() -> void:
+	print(
+		(
+			"[MapView] EOM_DEBUG_TERRAIN_SMEAR=1 guard settings: "
+			+ "terrain_min_perspective_w=%.2f "
+			+ "terrain_hard_skip_probe_bbox=%s terrain_hard_skip_probe_edge=%s "
+			+ "terrain_hard_skip_probe_coord=%s "
+			+ "probe_bbox_viewport_mult=%.1f probe_max_edge_px=%.0f probe_max_coord_px=%.0f "
+			+ "huge_bbox_viewport_mult=%.1f huge_max_edge_px=%.0f huge_max_coord_px=%.0f "
+			+ "(hard skip always on; env flag is diagnostics/overlays only)"
+		)
+		% [
+			terrain_min_perspective_w,
+			str(TERRAIN_HARD_SKIP_PROBE_BBOX).to_lower(),
+			str(TERRAIN_HARD_SKIP_PROBE_EDGE).to_lower(),
+			str(TERRAIN_HARD_SKIP_PROBE_COORD).to_lower(),
+			_PROBE_BBOX_VIEWPORT_MULT,
+			_PROBE_MAX_EDGE_PX,
+			_PROBE_MAX_COORD_PX,
+			PolygonDrawGuardScript.SUSPICIOUS_BBOX_VIEWPORT_MULT,
+			PolygonDrawGuardScript.SUSPICIOUS_MAX_EDGE_PX,
+			PolygonDrawGuardScript.SUSPICIOUS_MAX_COORD_PX,
+		]
+	)
+
+
+func _projection_singularity_params() -> Dictionary:
+	if camera == null or camera.projection == null:
+		return {
+			"depth_strength": 0.0004,
+			"near_world_y": 192.0,
+			"pan_y": 0.0,
+		}
+	return {
+		"depth_strength": camera.projection.depth_strength,
+		"near_world_y": camera.projection.near_world_y,
+		"pan_y": camera.camera_world_offset.y,
+	}
+
+
+func _hex_perspective_skip_reason(corners: PackedVector2Array) -> String:
+	var params: Dictionary = _projection_singularity_params()
+	return MapView.hex_perspective_skip_reason_for_corners(
+		corners,
+		float(params["depth_strength"]),
+		float(params["near_world_y"]),
+		float(params["pan_y"]),
+		terrain_min_perspective_w,
+	)
+
+
+func _forest_pscale_drawable(proj, world: Vector2, coord, kind: String) -> bool:
+	var pscale: float = proj.perspective_scale_at(world)
+	if pscale <= 0.0:
+		_terrain_smear_diag("SKIP_TERRAIN", kind, coord, "pscale_non_positive", PackedVector2Array(), pscale)
+		return false
+	if pscale > FOREST_BACK_PSCALE_MAX:
+		_terrain_smear_diag("SKIP_TERRAIN", kind, coord, "pscale_too_large", PackedVector2Array(), pscale)
+		return false
+	return true
+
+
+func _ww_stats_for_world_corners(world_corners: PackedVector2Array) -> Dictionary:
+	var params: Dictionary = _projection_singularity_params()
+	return MapView.hex_ww_stats_for_corners(
+		world_corners,
+		float(params["depth_strength"]),
+		float(params["near_world_y"]),
+		float(params["pan_y"]),
+	)
+
+
+func _terrain_smear_throttle_key(
+	kind: String, hex_key: String, reason: String, zoom: float, pan: Vector2
+) -> String:
+	var zoom_bucket: float = roundf(zoom * 10.0) / 10.0
+	var pan_bucket: String = "%d,%d" % [int(roundf(pan.x / 100.0)), int(roundf(pan.y / 100.0))]
+	return "%s:%s:%s:%.1f:%s" % [kind, hex_key, reason, zoom_bucket, pan_bucket]
+
+
+func _terrain_smear_should_log(throttle_key: String, disposition: String, reason: String) -> bool:
+	var debug_on: bool = _terrain_smear_debug_enabled()
+	if not debug_on:
+		if disposition == "SKIP_TERRAIN":
+			if _invalid_map_poly_logged.has(throttle_key):
+				return false
+			if _terrain_skip_log_count >= _TERRAIN_SKIP_LOG_CAP:
+				return false
+			_invalid_map_poly_logged[throttle_key] = true
+			_terrain_skip_log_count += 1
+			return true
+		return disposition == "DRAWN_SUSPICIOUS"
+	var now_sec: float = float(Time.get_ticks_msec()) / 1000.0
+	if _terrain_smear_log_times.has(throttle_key):
+		var last_sec: float = float(_terrain_smear_log_times[throttle_key])
+		if now_sec - last_sec < _TERRAIN_SMEAR_LOG_INTERVAL_SEC:
+			return false
+	_terrain_smear_log_times[throttle_key] = now_sec
+	return true
+
+
+func _terrain_smear_diag(
+	disposition: String,
+	kind: String,
+	coord,
+	reason: String,
+	projected_pts: PackedVector2Array = PackedVector2Array(),
+	pscale: float = -1.0,
+	world_corners: PackedVector2Array = PackedVector2Array(),
+	rect: Rect2 = Rect2(),
+) -> void:
+	var hex_key: String = "n/a"
+	if coord != null:
+		hex_key = "%d,%d" % [int(coord.q), int(coord.r)]
+	var zoom: float = -1.0
+	var pan: Vector2 = Vector2.ZERO
+	if camera != null:
+		zoom = camera.zoom
+		pan = camera.camera_world_offset
+	var throttle_key: String = _terrain_smear_throttle_key(kind, hex_key, reason, zoom, pan)
+	if not _terrain_smear_should_log(throttle_key, disposition, reason):
+		return
+	var viewport_size: Vector2 = _viewport_size_for_guard()
+	var pts_for_metrics: PackedVector2Array = projected_pts
+	if pts_for_metrics.is_empty() and rect.size.length_squared() > 0.0:
+		pts_for_metrics = PolygonDrawGuardScript.rect_corners(rect)
+	var bbox: Vector2 = PolygonDrawGuardScript.polygon_bounding_size(pts_for_metrics)
+	var max_edge: float = PolygonDrawGuardScript.polygon_max_edge_length(pts_for_metrics)
+	var max_coord: float = PolygonDrawGuardScript.points_max_coord_magnitude(pts_for_metrics)
+	var ww_stats: Dictionary = (
+		_ww_stats_for_world_corners(world_corners) if world_corners.size() > 0 else {}
+	)
+	var min_ww: float = float(ww_stats.get("min_ww", -1.0))
+	var max_ww: float = float(ww_stats.get("max_ww", -1.0))
+	var mixed_sign: bool = bool(ww_stats.get("mixed_sign", false))
+	var ww_vals: PackedFloat32Array = ww_stats.get("values", PackedFloat32Array())
+	var drawn: bool = disposition.begins_with("DRAWN")
+	print(
+		(
+			"[MapView] %s kind=%s hex=%s reason=%s drawn=%s zoom=%.3f pan=%s viewport=%s "
+			+ "min_ww=%.5f max_ww=%.5f mixed_sign_ww=%s pscale=%.4f bbox=%s max_edge=%.1f "
+			+ "max_coord=%.1f corner_ww=%s pts=%d rect=%s"
+		)
+		% [
+			disposition,
+			kind,
+			hex_key,
+			reason,
+			str(drawn),
+			zoom,
+			str(pan),
+			str(viewport_size),
+			min_ww,
+			max_ww,
+			str(mixed_sign),
+			pscale,
+			str(bbox),
+			max_edge,
+			max_coord,
+			str(ww_vals) if ww_vals.size() > 0 else "n/a",
+			pts_for_metrics.size(),
+			str(rect) if rect.size.length_squared() > 0.0 else "n/a",
+		]
+	)
+
+
+func _terrain_smear_debug_overlay(projected_pts: PackedVector2Array, reason: String) -> void:
+	if not _terrain_smear_debug_enabled() or projected_pts.size() < 3:
+		return
+	if not MapView.smear_reason_is_immediate(reason):
+		return
+	draw_colored_polygon(projected_pts, Color(1.0, 0.0, 1.0, 0.85))
+
+
+func _terrain_smear_check_drawn(
+	kind: String,
+	coord,
+	projected_pts: PackedVector2Array,
+	world_corners: PackedVector2Array = PackedVector2Array(),
+	pscale: float = -1.0,
+	rect: Rect2 = Rect2(),
+) -> void:
+	var viewport_size: Vector2 = _viewport_size_for_guard()
+	var ww_stats: Dictionary = (
+		_ww_stats_for_world_corners(world_corners) if world_corners.size() > 0 else {}
+	)
+	var reason: String = MapView.drawn_suspicion_reason(projected_pts, viewport_size, ww_stats)
+	if reason == "" and rect.size.length_squared() > 0.0:
+		reason = MapView.rect_drawn_suspicion_reason(rect, viewport_size)
+	if reason == "":
+		var low_reason: String = MapView.low_priority_pscale_probe_reason(
+			projected_pts, viewport_size, pscale, ww_stats
+		)
+		if low_reason != "" and _terrain_smear_debug_enabled():
+			_terrain_smear_diag(
+				"PROBE_NEAR_SINGULAR",
+				kind,
+				coord,
+				low_reason,
+				projected_pts,
+				pscale,
+				world_corners,
+				rect,
+			)
+		return
+	_terrain_smear_diag(
+		"DRAWN_SUSPICIOUS", kind, coord, reason, projected_pts, pscale, world_corners, rect
+	)
+	_terrain_smear_debug_overlay(projected_pts, reason)
+	if _terrain_smear_debug_enabled() and rect.size.length_squared() > 0.0:
+		if MapView.smear_reason_is_immediate(reason):
+			draw_rect(rect, Color(1.0, 0.0, 1.0, 0.65), false, 3.0)
+
+
+func _terrain_smear_probe_hex_drawn(coord, world_corners: PackedVector2Array, corners_draw: PackedVector2Array) -> void:
+	if not _terrain_smear_debug_enabled():
+		return
+	var ww_stats: Dictionary = _ww_stats_for_world_corners(world_corners)
+	var min_ww: float = float(ww_stats.get("min_ww", INF))
+	if min_ww >= _PROBE_MIN_WW:
+		return
+	_terrain_smear_diag(
+		"PROBE_NEAR_SINGULAR",
+		"terrain_hex",
+		coord,
+		"probe_min_ww",
+		corners_draw,
+		-1.0,
+		world_corners,
+	)
+
+
 func _projected_corners(proj, corners: PackedVector2Array) -> PackedVector2Array:
 	var out = PackedVector2Array()
 	out.resize(corners.size())
@@ -641,6 +1168,7 @@ func _draw_guarded_colored_polygon(
 	tex: Texture2D,
 	coord,
 	kind: String,
+	world_corners: PackedVector2Array = PackedVector2Array(),
 ) -> bool:
 	var sanitized: Dictionary = PolygonDrawGuardScript.sanitize_polygon_with_uvs(draw_pts, uvs)
 	var pts: PackedVector2Array = sanitized["pts"] as PackedVector2Array
@@ -649,6 +1177,40 @@ func _draw_guarded_colored_polygon(
 	if skip_reason != "":
 		_log_invalid_map_polygon_throttled(coord, draw_pts, pts, skip_reason, kind)
 		return false
+	var viewport_size: Vector2 = _viewport_size_for_guard()
+	if MapView.is_terrain_polygon_draw_kind(kind):
+		var hard_skip: String = MapView.terrain_polygon_hard_skip_on_point_sets(
+			viewport_size, [draw_pts, pts]
+		)
+		if hard_skip != "":
+			_terrain_smear_diag(
+				"SKIP_TERRAIN", kind, coord, hard_skip, pts, -1.0, world_corners
+			)
+			_terrain_smear_debug_overlay(pts, hard_skip)
+			return false
+		if _terrain_smear_debug_enabled():
+			var low_reason: String = MapView.low_priority_pscale_probe_reason(
+				pts, viewport_size, -1.0, _ww_stats_for_world_corners(world_corners)
+			)
+			if low_reason != "":
+				_terrain_smear_diag(
+					"PROBE_NEAR_SINGULAR",
+					kind,
+					coord,
+					low_reason,
+					pts,
+					-1.0,
+					world_corners,
+				)
+	else:
+		var suspicious: String = PolygonDrawGuardScript.polygon_suspicious_reason(
+			pts, viewport_size
+		)
+		if suspicious != "":
+			_terrain_smear_diag("SKIP_TERRAIN", kind, coord, suspicious, pts, -1.0, world_corners)
+			_terrain_smear_debug_overlay(pts, suspicious)
+			return false
+		_terrain_smear_check_drawn(kind, coord, pts, world_corners)
 	if tex != null:
 		draw_colored_polygon(pts, color, draw_uvs, tex)
 	else:
@@ -710,7 +1272,7 @@ func _draw_hills_overlay(proj, world_center: Vector2, terrain: int, coord) -> vo
 	var tint: Color = MapView._hills_overlay_tint_channels(
 		terrain, plains_hills_terrain_modulate, grassland_hills_terrain_modulate, eff.z
 	)
-	if _draw_guarded_colored_polygon(poly_pres, tint, uvs, ov_tex, coord, "hills_overlay"):
+	if _draw_guarded_colored_polygon(poly_pres, tint, uvs, ov_tex, coord, "hills_overlay", poly_world):
 		debug_hills_overlay_draws += 1
 	if debug_draw_hills_overlay_bounds:
 		var hex_full_world: PackedVector2Array = MapView._hex_overlay_polygon_world(world_center, 1.0)
@@ -733,6 +1295,9 @@ func _draw() -> void:
 	debug_plains_back_asset_draws = 0
 	debug_plains_back_procedural_draws = 0
 	debug_hills_overlay_draws = 0
+	if _terrain_smear_debug_enabled() and not _invalid_map_poly_logged.has("__smear_debug_banner__"):
+		_invalid_map_poly_logged["__smear_debug_banner__"] = true
+		_print_terrain_smear_guard_banner()
 	var items = compute_draw_items(map, layout)
 	var dbg_perf_plains_back_suppressed: int = 0
 	var audit: bool = debug_map_presentation_audit
@@ -756,6 +1321,14 @@ func _draw() -> void:
 		var landform: int = int(item.get("landform", HexMapScript.Landform.FLAT))
 		var corners_draw = _projected_corners(camera, corners)
 		var coord = item["coord"]
+		var hex_skip: String = _hex_perspective_skip_reason(corners)
+		if hex_skip != "":
+			_terrain_smear_diag(
+				"SKIP_TERRAIN", "terrain_hex", coord, hex_skip, corners_draw, -1.0, corners
+			)
+			j = j + 1
+			continue
+		_terrain_smear_probe_hex_drawn(coord, corners, corners_draw)
 		var tex: Texture2D = MapView._texture_for_land(terrain, _plains_terrain_tex, _grassland_terrain_tex, _water_terrain_tex)
 		if tex != null:
 			if audit:
@@ -778,12 +1351,14 @@ func _draw() -> void:
 				terrain_kind = "terrain_water"
 			elif landform == HexMapScript.Landform.HILLS:
 				terrain_kind = "terrain_hills"
-			_draw_guarded_colored_polygon(corners_draw, Color.WHITE, uvs, tex, coord, terrain_kind)
+			_draw_guarded_colored_polygon(
+				corners_draw, Color.WHITE, uvs, tex, coord, terrain_kind, corners
+			)
 		else:
 			_draw_guarded_colored_polygon(
-				corners_draw, col, PackedVector2Array(), null, coord, "terrain_solid"
+				corners_draw, col, PackedVector2Array(), null, coord, "terrain_solid", corners
 			)
-		_draw_terrain_detail_overlay(camera, item["world"] as Vector2, terrain, coord.q, coord.r)
+		_draw_terrain_detail_overlay(camera, item["world"] as Vector2, terrain, coord.q, coord.r, coord)
 		if MapView._hills_overlay_will_draw(
 			terrain, landform, _plains_hills_overlay_textures, _grassland_hills_overlay_textures
 		):
@@ -802,15 +1377,21 @@ func _draw() -> void:
 					if use_forest_symbol_scatter and _forest_symbol_scatter_ready():
 						debug_plains_back_forest_draw_calls += 1
 						debug_plains_back_symbol_draws += 1
-						_draw_plains_forest_back_symbols(camera, item["world"] as Vector2, coord.q, coord.r)
+						_draw_plains_forest_back_symbols(
+							camera, item["world"] as Vector2, coord.q, coord.r, coord
+						)
 					elif use_forest_asset_overlays:
 						debug_plains_back_forest_draw_calls += 1
 						debug_plains_back_asset_draws += 1
-						_draw_plains_forest_back_asset(camera, item["world"] as Vector2, coord.q, coord.r)
+						_draw_plains_forest_back_asset(
+							camera, item["world"] as Vector2, coord.q, coord.r, coord
+						)
 					else:
 						debug_plains_back_forest_draw_calls += 1
 						debug_plains_back_procedural_draws += 1
-						_draw_plains_forest_back(camera, item["world"] as Vector2, coord.q, coord.r)
+						_draw_plains_forest_back(
+							camera, item["world"] as Vector2, coord.q, coord.r, coord
+						)
 		j = j + 1
 	var iso_f: bool = false
 	var perf_f: bool = false

@@ -13,6 +13,7 @@ const MapPlaneProjectionScript = preload("res://presentation/map_plane_projectio
 
 const MAP_LAYER_ORIGIN: Vector2 = Vector2(400.0, 428.0)
 const WARRIOR_UNIT_ID: int = 2
+const SETTLER_UNIT_ID: int = 1
 const FEET_DELTA_TOL_PX: float = 12.0
 
 var _failures: int = 0
@@ -62,6 +63,12 @@ func _run() -> void:
 	_check(unit_world.has_ready_unit_instance(WARRIOR_UNIT_ID), "ready warrior instance id=2")
 	_check(layer.is_unit_active_in_real_3d(WARRIOR_UNIT_ID), "layer reports warrior active in real 3d")
 	_check(not layer.should_auto_blit_for_unit(WARRIOR_UNIT_ID), "no auto blit when real 3d warrior ready")
+	_check(unit_world.has_ready_unit_instance(SETTLER_UNIT_ID), "ready settler instance id=1")
+	_check(layer.is_unit_active_in_real_3d(SETTLER_UNIT_ID), "layer reports settler active in real 3d")
+	_check(
+		not layer.should_auto_blit_for_unit(SETTLER_UNIT_ID, "settler"),
+		"no auto blit when real 3d settler ready",
+	)
 	var inst: Node3D = unit_world._instance_by_unit_id.get(WARRIOR_UNIT_ID) as Node3D
 	_check(inst != null, "warrior instance node exists")
 	if inst != null:
@@ -118,6 +125,15 @@ func _run() -> void:
 
 	var skip_blit: bool = not layer.should_auto_blit_for_unit(WARRIOR_UNIT_ID)
 	_check(skip_blit, "units_view routing would skip warrior blit when real 3d active")
+	var skip_settler_blit: bool = not layer.should_auto_blit_for_unit(SETTLER_UNIT_ID, "settler")
+	_check(skip_settler_blit, "units_view routing would skip settler blit when real 3d active")
+	OS.unset_environment(Experiment.ENV_REAL_3D_UNITS)
+	layer.sync_from_scenario()
+	await process_frame
+	_check(
+		layer.should_auto_blit_for_unit(SETTLER_UNIT_ID, "settler"),
+		"settler blit fallback when EOM_REAL_3D_UNITS off",
+	)
 
 	root.free()
 	if _failures > 0:

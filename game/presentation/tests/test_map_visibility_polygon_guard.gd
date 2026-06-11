@@ -57,6 +57,27 @@ func _run() -> void:
 		collapsed_reason in ["near_zero_area", "too_few_unique_points", "triangulation_failed"],
 		"collapsed sub-pixel hex skipped (%s)" % collapsed_reason
 	)
+	var sane_quad := PackedVector2Array([
+		Vector2(200.0, 200.0),
+		Vector2(400.0, 200.0),
+		Vector2(400.0, 350.0),
+		Vector2(200.0, 350.0),
+	])
+	_check(
+		PolygonDrawGuardScript.polygon_suspicious_reason(sane_quad, Vector2(1920.0, 1080.0)) == "",
+		"sane quad not suspicious"
+	)
+	var huge_edge := PackedVector2Array([
+		Vector2(0.0, 0.0),
+		Vector2(10000.0, 0.0),
+		Vector2(10000.0, 50.0),
+		Vector2(0.0, 50.0),
+	])
+	_check(
+		PolygonDrawGuardScript.polygon_suspicious_reason(huge_edge, Vector2(1920.0, 1080.0))
+		== "huge_edge",
+		"opt-in suspicious helper flags huge edge"
+	)
 
 	if _any_fail:
 		call_deferred("quit", 1)
