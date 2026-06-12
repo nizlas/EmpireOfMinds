@@ -20,7 +20,7 @@ const SETTLER_TYPE_ID: String = "settler"
 const MODEL_ROOT_NAME: String = "ModelRoot"
 
 ## Base scale tuned at [member reference_world_y] (pan=0, zoom=1); row factor applied per frame.
-@export var model_scale_3d: float = 155.0
+@export var model_scale_3d: float = 75.0
 ## Layout world_y where [member model_scale_3d] was tuned (pan-free reference for perspective ratio).
 @export var reference_world_y: float = 0.0
 @export var model_yaw_degrees: float = 48.0
@@ -35,7 +35,7 @@ const MODEL_ROOT_NAME: String = "ModelRoot"
 
 @export_group("Settler real 3D")
 ## Starting scale at [member settler_reference_world_y]; tune visually vs blit if needed.
-@export var settler_model_scale_3d: float = 155.0
+@export var settler_model_scale_3d: float = 70.0
 @export var settler_reference_world_y: float = 0.0
 @export var settler_model_yaw_degrees: float = 48.0
 @export var settler_model_pitch_degrees: float = 0.0

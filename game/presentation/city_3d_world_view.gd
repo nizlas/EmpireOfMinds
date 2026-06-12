@@ -9,7 +9,7 @@ const CITY_MAT_OVERRIDE_ROUGHNESS: float = 0.85
 const CITY_MAT_OVERRIDE_SPECULAR: float = 0.3
 
 ## Starting point from accepted SubViewport tuning (5.5 in diorama); scaled to hex layout world units.
-@export var model_scale_3d: float = 440.0
+@export var model_scale_3d: float = 800.0
 @export var model_yaw_degrees_3d: float = -67.0
 @export var model_pitch_degrees_3d: float = 0.0
 ## Presentation-only world-space offset from hex center (Y = up).
