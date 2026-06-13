@@ -4,6 +4,7 @@ extends SceneTree
 const TechTreeOverlayScript = preload("res://presentation/tech_tree_preview_overlay.gd")
 const ContentScript = preload("res://presentation/tech_tree_preview_content.gd")
 const NodeLayoutScript = preload("res://presentation/tech_tree_node_layout.gd")
+const BuildingRewardsScript = preload("res://presentation/tech_tree_building_rewards.gd")
 const ScienceUnlocksScript = preload("res://domain/content/science_unlocks.gd")
 
 var _total = 0
@@ -17,6 +18,7 @@ func _init() -> void:
 func _run() -> void:
 	_test_segment_paths_exist()
 	_test_prototype_asset_paths_exist()
+	_test_building_reward_content_and_nodes()
 	_test_main_scene_wiring()
 	await _test_overlay_open_close()
 	await _test_tech_item_layout()
@@ -314,6 +316,88 @@ func _test_tech_item_layout() -> void:
 			"column 1 row step preserved between row %d and %d" % [row_i + 1, row_i + 2],
 		)
 		row_i += 1
+	overlay.queue_free()
+
+
+func _test_building_reward_content_and_nodes() -> void:
+	var cf_rewards: Array = BuildingRewardsScript.building_rewards_for_science("controlled_fire")
+	_check(cf_rewards.size() == 1, "CF registry reward row")
+	_check(str((cf_rewards[0] as Dictionary).get("display_name", "")) == "Hearth", "CF reward name")
+	var foraging_rewards: Array = BuildingRewardsScript.building_rewards_for_science("foraging_systems")
+	_check(foraging_rewards.is_empty(), "foraging no fake building reward")
+	var overlay: TechTreeOverlayScript = TechTreeOverlayScript.new()
+	get_root().add_child(overlay)
+	for _i in 2:
+		await process_frame
+	overlay.open_overlay()
+	var cf_layout: Dictionary = NodeLayoutScript.layout_for_title("Controlled Fire")
+	var cf_item: TextureRect = _tech_item_at_placement(
+		overlay,
+		Vector3i(int(cf_layout["column"]), int(cf_layout["row"]), 0),
+	)
+	_check(cf_item != null, "Controlled Fire item renders")
+	if cf_item != null:
+		var rewards_box: Control = cf_item.get_node_or_null("TechBuildingRewards") as Control
+		_check(rewards_box != null, "CF item has reward box")
+		if rewards_box != null:
+			_check(rewards_box.get_child_count() == 1, "CF reward box has one compact row")
+			var reward_row: Control = rewards_box.get_child(0) as Control
+			_check(reward_row != null, "CF reward row is Control")
+			if reward_row != null:
+				var name_label: Label = reward_row.get_node_or_null("BuildingName") as Label
+				_check(name_label != null and name_label.text == "Hearth", "CF reward label Hearth")
+				_check(name_label.size.x > 8.0, "CF building name has visible width")
+				var value_label: Label = reward_row.get_node_or_null("EffectValue_0") as Label
+				_check(value_label != null and value_label.text == "+1", "CF effect +1 on same row")
+				var icon_node: TextureRect = reward_row.get_node_or_null("EffectIcon_0") as TextureRect
+				_check(icon_node != null, "CF effect icon on same row as name")
+				if icon_node != null and name_label != null:
+					_check(icon_node.position.x > name_label.position.x, "CF icon follows name on row")
+					var expected_icon_x: float = (
+						name_label.size.x + float(TechTreeOverlayScript.REWARD_NAME_ICON_GAP_PX)
+					)
+					_check(
+						absf(icon_node.position.x - expected_icon_x) < 1.5,
+						"CF icon hugs measured name width"
+					)
+				var title_bottom_y: float = (
+					cf_item.size.y * TechTreeOverlayScript.TITLE_Y_FRAC
+					+ cf_item.size.y * TechTreeOverlayScript.TITLE_H_FRAC
+				)
+				_check(rewards_box.position.y >= title_bottom_y - 2.0, "CF reward row below title band")
+	var pottery_layout: Dictionary = NodeLayoutScript.layout_for_title("Pottery Craft")
+	var pottery_item: TextureRect = _tech_item_at_placement(
+		overlay,
+		Vector3i(int(pottery_layout["column"]), int(pottery_layout["row"]), 0),
+	)
+	if pottery_item != null:
+		var pottery_rewards: Control = pottery_item.get_node_or_null("TechBuildingRewards") as Control
+		_check(pottery_rewards != null, "pottery has reward box")
+		if pottery_rewards != null and pottery_rewards.get_child_count() > 0:
+			var pottery_row: Control = pottery_rewards.get_child(0) as Control
+			var pottery_name: Label = pottery_row.get_node_or_null("BuildingName") as Label if pottery_row != null else null
+			_check(pottery_name != null and pottery_name.text == "Pottery Workshop", "pottery building name visible")
+			var pottery_icon: TextureRect = (
+				pottery_row.get_node_or_null("EffectIcon_0") as TextureRect if pottery_row != null else null
+			)
+			var cf_icon: TextureRect = null
+			if cf_item != null:
+				var cf_rewards_box: Control = cf_item.get_node_or_null("TechBuildingRewards") as Control
+				if cf_rewards_box != null and cf_rewards_box.get_child_count() > 0:
+					var cf_row: Control = cf_rewards_box.get_child(0) as Control
+					cf_icon = cf_row.get_node_or_null("EffectIcon_0") as TextureRect if cf_row != null else null
+			if pottery_icon != null and cf_icon != null:
+				_check(
+					pottery_icon.position.x > cf_icon.position.x,
+					"longer building name pushes icon farther right"
+				)
+	var foraging_layout: Dictionary = NodeLayoutScript.layout_for_title("Foraging Systems")
+	var foraging_item: TextureRect = _tech_item_at_placement(
+		overlay,
+		Vector3i(int(foraging_layout["column"]), int(foraging_layout["row"]), 0),
+	)
+	if foraging_item != null:
+		_check(foraging_item.get_node_or_null("TechBuildingRewards") == null, "foraging has no reward box")
 	overlay.queue_free()
 
 

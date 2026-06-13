@@ -6,7 +6,7 @@ const ProgressDefinitionsScript = preload("res://domain/content/progress_definit
 var _total = 0
 var _any_fail = false
 
-## Column order for registry `ids()` — not alphabetic; availability helpers sort alphabetically instead.
+## Column order for registry `ids()` and ScienceAvailability.available_for auto-target order.
 const _EXPECTED_IDS: Array = [
 	"foraging_systems",
 	"stone_tools",

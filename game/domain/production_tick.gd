@@ -7,6 +7,7 @@ const SCHEMA_VERSION: int = 1
 const EVENT_TYPE: String = "production_progress"
 ## Deprecated (Phase 5.1.16d): production per turn was a fixed **1**; use **CityYields** via **`_production_per_turn`**.
 const PRODUCE_UNIT_TYPE: String = "produce_unit"
+const BUILD_BUILDING_TYPE: String = "build_building"
 
 const ScenarioScript = preload("res://domain/scenario.gd")
 const CityScript = preload("res://domain/city.gd")
@@ -75,7 +76,10 @@ static func apply_for_player(a_scenario, owner_id: int) -> Dictionary:
 		project["progress"] = new_progress
 		var cost_v = int(project["cost"])
 		var ptype_str = str(project["project_type"])
-		if ptype_str == PRODUCE_UNIT_TYPE and new_progress >= cost_v:
+		if (
+			(ptype_str == PRODUCE_UNIT_TYPE or ptype_str == BUILD_BUILDING_TYPE)
+			and new_progress >= cost_v
+		):
 			project["ready"] = true
 		else:
 			project["ready"] = false

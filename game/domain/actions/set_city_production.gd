@@ -8,7 +8,16 @@ const ACTION_TYPE: String = "set_city_production"
 const PROJECT_ID_NONE: String = "none"
 const PROJECT_ID_PRODUCE_UNIT_WARRIOR: String = "produce_unit:warrior"
 const PROJECT_ID_PRODUCE_UNIT_SETTLER: String = "produce_unit:settler"
+const PROJECT_ID_BUILD_HEARTH: String = "build:hearth"
+const PROJECT_ID_BUILD_POTTERY_WORKSHOP: String = "build:pottery_workshop"
+const PROJECT_ID_BUILD_STORAGE_HALL: String = "build:storage_hall"
+const PROJECT_ID_BUILD_WEAVER_HUT: String = "build:weaver_hut"
+const PROJECT_ID_BUILD_MUDBRICK_HOUSING: String = "build:mudbrick_housing"
+const PROJECT_ID_BUILD_STOREHOUSE_LEDGER: String = "build:storehouse_ledger"
+const PROJECT_ID_BUILD_ARCHIVE_HUT: String = "build:archive_hut"
+const PROJECT_ID_BUILD_ARMORY: String = "build:armory"
 const PROJECT_TYPE_PRODUCE_UNIT: String = "produce_unit"
+const PROJECT_TYPE_BUILD_BUILDING: String = "build_building"
 const PROJECT_TYPE_NONE: String = "none"
 
 const CityProjectDefinitionsScript = preload("res://domain/content/city_project_definitions.gd")
@@ -25,19 +34,17 @@ static func make(actor_id: int, city_id: int, project_id: String) -> Dictionary:
 	}
 
 
-static func _city_already_has_matching_produce_project(city, requested_project_id: String) -> bool:
+static func _city_already_has_matching_project(city, requested_project_id: String) -> bool:
 	if city.current_project == null:
 		return false
 	if typeof(city.current_project) != TYPE_DICTIONARY:
 		return false
 	var d = city.current_project as Dictionary
-	if not d.has("project_type"):
-		return false
-	if d["project_type"] != PROJECT_TYPE_PRODUCE_UNIT:
-		return false
 	if d.has("project_id"):
 		return str(d["project_id"]) == requested_project_id
-	return true
+	if str(d.get("project_type", "")) == PROJECT_TYPE_PRODUCE_UNIT:
+		return CityProjectDefinitionsScript.project_type(requested_project_id) == PROJECT_TYPE_PRODUCE_UNIT
+	return false
 
 
 static func validate(a_scenario, action) -> Dictionary:
@@ -69,10 +76,16 @@ static func validate(a_scenario, action) -> Dictionary:
 	var project_id = action["project_id"] as String
 	if project_id != PROJECT_ID_NONE and not CityProjectDefinitionsScript.has(project_id):
 		return {"ok": false, "reason": "unsupported_project_id"}
-	if project_id != PROJECT_ID_NONE and _city_already_has_matching_produce_project(target, project_id):
+	if project_id != PROJECT_ID_NONE and _city_already_has_matching_project(target, project_id):
 		return {"ok": false, "reason": "project_already_set"}
 	if project_id == PROJECT_ID_NONE and target.current_project == null:
 		return {"ok": false, "reason": "project_already_set"}
+	if (
+		project_id != PROJECT_ID_NONE
+		and CityProjectDefinitionsScript.project_type(project_id) == PROJECT_TYPE_BUILD_BUILDING
+		and CityProjectDefinitionsScript.is_project_blocked_for_city(target, project_id)
+	):
+		return {"ok": false, "reason": "building_already_present"}
 	return {"ok": true, "reason": ""}
 
 

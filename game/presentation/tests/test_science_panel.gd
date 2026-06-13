@@ -49,7 +49,7 @@ func _init() -> void:
 	_check(_has_row(rows0, "stone_tools"), "has stone_tools")
 	_check(rows0.size() == 4, "exactly four starters")
 	_check(str(vm0.get("explicit_research_id", "x")) == "", "no explicit yet")
-	_check(str(vm0.get("effective_research_id", "")) == "controlled_fire", "auto first alphabetical")
+	_check(str(vm0.get("effective_research_id", "")) == "foraging_systems", "auto first tree order")
 	_check(str(vm0.get("target_heading", "")).begins_with("Auto: "), "auto heading")
 	_check(int(vm0.get("progress", -1)) == 0, "zero progress on effective")
 	_check(int(vm0.get("cost", -1)) == 6, "cf cost")
@@ -73,9 +73,9 @@ func _init() -> void:
 		str(sc0.get("display", "")) == "Seasonal Calendars — Requires: Foraging Systems, Controlled Fire",
 		"seasonal_calendars display"
 	)
-	var cf_row = _row_by_id(rows0, "controlled_fire")
-	_check(bool(cf_row.get("is_auto_current", false)), "cf marked auto")
-	_check(not bool(cf_row.get("is_explicit_current", true)), "cf not explicit")
+	var fs_row = _row_by_id(rows0, "foraging_systems")
+	_check(bool(fs_row.get("is_auto_current", false)), "foraging marked auto")
+	_check(not bool(fs_row.get("is_explicit_current", true)), "foraging not explicit")
 
 	gs.try_apply(SetCurrentResearchScript.make(0, "stone_tools"))
 	var vm1 = SciencePanelScript.compute_view_model(gs)

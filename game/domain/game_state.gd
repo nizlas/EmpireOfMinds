@@ -11,6 +11,7 @@ const CombatRulesScript = preload("res://domain/combat_rules.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
+const CityProjectDefinitionsScript = preload("res://domain/content/city_project_definitions.gd")
 const SetCityWorkedTilesScript = preload("res://domain/actions/set_city_worked_tiles.gd")
 const CompleteProgressScript = preload("res://domain/actions/complete_progress.gd")
 const SetCurrentResearchScript = preload("res://domain/actions/set_current_research.gd")
@@ -189,9 +190,9 @@ func try_apply(action) -> Dictionary:
 		if (
 			progress_state != null
 			and project_id_gate != SetCityProductionScript.PROJECT_ID_NONE
-			and not progress_state.has_unlocked_target(
+			and not CityProjectDefinitionsScript.is_project_unlocked(
+				progress_state,
 				int(action["actor_id"]),
-				"city_project",
 				project_id_gate
 			)
 		):

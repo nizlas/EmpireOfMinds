@@ -1,3 +1,39 @@
+## 2026-06-11 — Presentation slice — tech tree building reward display
+
+- **Decision:** Tech-tree science nodes show gameplay-enforced **building** rewards from **`ProgressDefinitions.concrete_unlocks`** + **`BuildingDefinitions`** via **`TechTreeBuildingRewards`** (presentation helper). Each reward row: building **display_name**, yield icon (**food** / **production** / **science** / **coin** from **`yield_icons/`**), **`+N`** value; **housing** uses compact **`H`** glyph fallback (passive recorded stat). **No** gameplay/domain rule changes.
+- **Tests:** **`test_tech_tree_building_rewards.gd`**, **`test_tech_tree_preview_overlay.gd`** reward-node coverage.
+
+## 2026-06-11 — Progression slice — remaining Ancient city building rewards (batch)
+
+- **Decision:** Batch-enforce five Ancient science → building rewards via the existing registry-driven **`build_building`** path: **`seasonal_calendars`** → **`storage_hall`** (**+1 Food**); **`textile_work`** → **`weaver_hut`** (**+2 Coin**); **`mudbrick_construction`** → **`mudbrick_housing`** (**+2 Housing**, recorded/displayable only); **`glyphic_records`** → **`archive_hut`** (**+2 Science**); **`bronze_alloying`** → **`armory`** (**+1 Production**). All projects cost **2** production. **`BuildingDefinitions.yield_effects`** extended with **`housing`** (defaults **0**); **`CityYields.building_housing_total`** + **`yield_breakdown_for_city`(..).`housing`** report it without affecting growth/capacity/legal actions. **No** new per-building **`CityYields`** helpers. Replaced metadata-only building ids (**`loom_shed`**, **`mudbrick_walls`**, **`record_house`**, **`bronze_forge`**) on those science rows.
+- **Tests:** **`test_ancient_city_buildings_batch.gd`**.
+
+## 2026-06-11 — Progression slice — counting_marks Storehouse Ledger building (third enforced science reward)
+
+- **Decision:** **`counting_marks`** **`building` / `storehouse_ledger`** unlock gates **`build:storehouse_ledger`** (cost **2** production); **`BuildingDefinitions`** adds **+2 Coin**; generic **`build_building`** / **`CityYields`** path only — **no** new **`CityYields`** helpers. **`tally_ledger`** action remains metadata-only.
+- **Tests:** **`test_storehouse_ledger_build_flow.gd`**.
+
+## 2026-06-11 — Progression slice — registry-driven building yield effects
+
+- **Decision:** Add **`BuildingDefinitions`** (`game/domain/content/building_definitions.gd`) with per-building **`yield_effects`**; **`CityYields.building_yield`** delegates to **`BuildingDefinitions.yield_effects`**. **Palace**, **Hearth**, and **Pottery Workshop** moved into the registry; unknown building ids yield **zero**. Per-building helpers (`palace_yield`, `hearth_yield`, …) **removed**.
+- **Unchanged:** science unlock gating, **`CityProjectDefinitions`**, production costs, **`build_building`** delivery path.
+
+## 2026-06-11 — Progression slice — pottery_craft Pottery Workshop building (second enforced science reward)
+
+- **Decision:** **`pottery_craft`** **`building` / `pottery_workshop`** unlock gates **`build:pottery_workshop`** (cost **2** production) using the same **`build_building`** / **`building_completed`** path as Hearth; **`CityYields`** adds **+1 Food** per workshop. **`ProgressDefinitions`** row uses **`pottery_workshop`** (replaces metadata-only **`kiln`** id for this embryo). Hearth unchanged.
+- **Tests:** **`test_pottery_workshop_build_flow.gd`**.
+
+## 2026-06-11 — Progression slice — controlled_fire Hearth building (first enforced science reward)
+
+- **Decision:** **`controlled_fire`** **`building` / `hearth`** unlock now gates **`build:hearth`** (**`CityProjectDefinitions`**, cost **2** production). Completion delivers **`hearth`** into **`City.building_ids`** via **`building_completed`** engine log; **`CityYields`** adds **+1 Production** per Hearth. **`camp_clearing`** / modifiers remain metadata-only. **Settler** baseline unchanged.
+- **Gating:** **`CityProjectDefinitions.is_project_unlocked`** checks **`building`** targets for **`build_building`** rows; **`produce_unit`** rows still use **`city_project`** targets.
+- **Tests:** **`test_hearth_build_flow.gd`**.
+
+## 2026-06-11 — Progression slice — auto-target science tree order
+
+- **Decision:** **`ScienceAvailability.available_for`** preserves **`ProgressDefinitions.ids()`** curated tree order (no alphabetical re-sort). **`ScienceTick`** auto-target and **`SciencePanel`** effective-research display use the **first** available id in that order. **`locked_for`** / **`completed_for`** stay **alphabetical** for stable HUD lists. Explicit **`SetCurrentResearch`** / **`current_research_id`** unchanged.
+- **Rationale:** Aligns auto-research with the documented Ancient column order (**`foraging_systems`** before **`controlled_fire`** at game start) without changing costs, prerequisites, or unlock bundles.
+
 ## 2026-06-03 — Slice **C14d-final** — Cloud alpha external test passed (docs-only checkpoint)
 
 - **Decision:** Treat **C14d** cloud-alpha as **validated for external play** after a successful two-player test: exported **Windows** zip + **`Start Empire Cloud Alpha.bat`** → **`https://cloud.thewizardsapprentice.org`**, second tester on another home network (Niklas). Full capability list and limitations: **`docs/CLOUD_PLAY.md`** (C14d cloud-alpha milestone), **`docs/CLOUD_ALPHA_RELEASE.md`**, **`docs/VALIDATION_CHECKLIST.md`** (C14d-final).
@@ -230,10 +266,10 @@
 ## 2026-05-10 — Phase 5.1.12c — current_research_id + SetCurrentResearch + ScienceTick routing
 
 - **Decision:** **Explicit** research target is stored as **`ProgressState.current_research_id`** per owner (**`""`** = **auto-target**); **`ScienceAvailability`** remains the **only** source of **which** sciences are available — **no** cached availability list on state.
-- **Decision:** **`ScienceTick.apply_for_player`** uses **explicit** id when **set** **and** still **available**; otherwise **first** **`ScienceAvailability.available_for`** (alphabetical today); emits **`science_no_target`** when **no** research remains.
+- **Decision:** **`ScienceTick.apply_for_player`** uses **explicit** id when **set** **and** still **available**; otherwise **first** **`ScienceAvailability.available_for`**; emits **`science_no_target`** when **no** research remains.
 - **Decision:** **Lightning-tree** **`science_bonus`** and associated **`controlled_fire`** **`science_progress`** / completion stay **hard-wired** to **`controlled_fire`**, **independent** of **`current_research_id`** (discovery bonuses may “jump” a different lane than the city-yield target).
 - **Rationale:** Players (or future UI) can **pin** a legal science while **map bonuses** keep **story-consistent** **controlled_fire** feedback.
-- **Caveat:** **Auto-target** order is **not** Civ “left-to-right” tree order — it follows **`available_for`** sort (**alphabetical** in **5.1.12c**).
+- **Superseded (2026-06-11):** **5.1.12c** auto-target used alphabetical **`available_for`**; now follows **`ProgressDefinitions.ids()`** tree order (see **2026-06-11** decision above).
 
 ## 2026-05-10 — Phase 5.1.12b — ProgressDefinitions cost/prerequisites + ScienceAvailability
 

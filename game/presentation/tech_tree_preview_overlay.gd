@@ -11,6 +11,7 @@ const GridLayoutScript = preload("res://presentation/tech_tree_grid_layout.gd")
 const ContentScript = preload("res://presentation/tech_tree_preview_content.gd")
 const NodeLayoutScript = preload("res://presentation/tech_tree_node_layout.gd")
 const DependencyLinesScript = preload("res://presentation/tech_tree_dependency_lines.gd")
+const BuildingRewardsScript = preload("res://presentation/tech_tree_building_rewards.gd")
 const TECH_ITEM_PATH: String = "res://assets/prototype/tech_tree/tech_item.png"
 const STONE_TOOLS_PATH: String = "res://assets/prototype/tech_tree/stone_tools.png"
 const TECH_COLUMN_COUNT: int = GridLayoutScript.COLUMN_COUNT
@@ -37,6 +38,13 @@ const BODY_X_FRAC: float = 0.34
 const BODY_Y_FRAC: float = 0.28
 const BODY_W_FRAC: float = 0.58
 const BODY_H_FRAC: float = 0.60
+const REWARD_BOX_X_FRAC: float = 0.34
+## Below title band (~0.097 + 0.13); was 0.21 and overlapped header with larger icons.
+const REWARD_BOX_Y_FRAC: float = 0.265
+const REWARD_BOX_W_FRAC: float = 0.58
+const REWARD_BOX_H_FRAC: float = 0.12
+const BODY_Y_FRAC_WITH_REWARDS: float = 0.40
+const BODY_H_FRAC_WITH_REWARDS: float = 0.48
 const TITLE_FONT_HEIGHT_RATIO: float = 0.068
 const TITLE_FONT_HEIGHT_RATIO_COMPACT: float = 0.060
 const COMPACT_TITLE_TEXTS: Array[String] = [
@@ -44,6 +52,13 @@ const COMPACT_TITLE_TEXTS: Array[String] = [
 	"Exoplanet Expedition",
 ]
 const BODY_FONT_HEIGHT_RATIO: float = 0.060
+const REWARD_NAME_FONT_HEIGHT_RATIO: float = 0.052
+const REWARD_VALUE_FONT_HEIGHT_RATIO: float = 0.052
+## Card-local yield icon height (fraction of tech item height); was 0.055 before compact-row fix.
+const REWARD_ICON_HEIGHT_RATIO: float = 0.088
+const REWARD_ROW_SEPARATION_PX: int = 4
+const REWARD_NAME_ICON_GAP_PX: int = 4
+const REWARD_VALUE_GAP_PX: int = 2
 const TITLE_FONT_COLOR: Color = Color(0.95, 0.9, 0.72)
 const BODY_FONT_COLOR: Color = Color(0.2, 0.14, 0.08)
 const WHEEL_SCROLL_STEP_PX: int = 120
@@ -202,13 +217,27 @@ static func tech_title_label_layout(item_size: Vector2, title_text: String = "")
 	}
 
 
-static func tech_body_label_layout(item_size: Vector2) -> Dictionary:
+static func tech_body_label_layout(item_size: Vector2, has_building_rewards: bool = false) -> Dictionary:
+	var y_frac: float = BODY_Y_FRAC_WITH_REWARDS if has_building_rewards else BODY_Y_FRAC
+	var h_frac: float = BODY_H_FRAC_WITH_REWARDS if has_building_rewards else BODY_H_FRAC
 	return {
 		"x": item_size.x * BODY_X_FRAC,
-		"y": item_size.y * BODY_Y_FRAC,
+		"y": item_size.y * y_frac,
 		"width": item_size.x * BODY_W_FRAC,
-		"height": item_size.y * BODY_H_FRAC,
+		"height": item_size.y * h_frac,
 		"font_size": maxi(int(round(item_size.y * BODY_FONT_HEIGHT_RATIO)), 7),
+	}
+
+
+static func tech_reward_box_layout(item_size: Vector2) -> Dictionary:
+	return {
+		"x": item_size.x * REWARD_BOX_X_FRAC,
+		"y": item_size.y * REWARD_BOX_Y_FRAC,
+		"width": item_size.x * REWARD_BOX_W_FRAC,
+		"height": item_size.y * REWARD_BOX_H_FRAC,
+		"name_font_size": maxi(int(round(item_size.y * REWARD_NAME_FONT_HEIGHT_RATIO)), 7),
+		"value_font_size": maxi(int(round(item_size.y * REWARD_VALUE_FONT_HEIGHT_RATIO)), 7),
+		"icon_height": maxf(item_size.y * REWARD_ICON_HEIGHT_RATIO, 8.0),
 	}
 
 
@@ -588,6 +617,65 @@ func _attach_tech_labels(item: TextureRect, content: Dictionary) -> void:
 	body.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	item.add_child(body)
+	_attach_building_rewards(item, content)
+
+
+func _attach_building_rewards(item: TextureRect, content: Dictionary) -> void:
+	var rewards: Array = content.get("building_rewards", [])
+	if typeof(rewards) != TYPE_ARRAY or rewards.is_empty():
+		return
+	var box := Control.new()
+	box.name = "TechBuildingRewards"
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	item.add_child(box)
+	var ri: int = 0
+	while ri < rewards.size():
+		var reward: Dictionary = rewards[ri] as Dictionary
+		var row := Control.new()
+		row.name = "BuildingRewardRow_%d" % ri
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(row)
+		var name_label := Label.new()
+		name_label.name = "BuildingName"
+		name_label.text = str(reward.get("display_name", ""))
+		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		name_label.clip_text = true
+		row.add_child(name_label)
+		var effects: Array = reward.get("effects", [])
+		var ei: int = 0
+		while ei < effects.size():
+			var effect: Dictionary = effects[ei] as Dictionary
+			var effect_key: String = str(effect.get("key", ""))
+			var effect_value: int = int(effect.get("value", 0))
+			var icon_path: String = BuildingRewardsScript.icon_path_for_effect_key(effect_key)
+			if not icon_path.is_empty() and ResourceLoader.exists(icon_path):
+				var icon := TextureRect.new()
+				icon.name = "EffectIcon_%d" % ei
+				icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+				icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+				icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				icon.texture = load(icon_path) as Texture2D
+				configure_scaled_texture_filter(icon)
+				row.add_child(icon)
+			else:
+				var glyph := Label.new()
+				glyph.name = "EffectGlyph_%d" % ei
+				glyph.text = BuildingRewardsScript.effect_fallback_glyph(effect_key)
+				glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+				row.add_child(glyph)
+			var value_label := Label.new()
+			value_label.name = "EffectValue_%d" % ei
+			value_label.text = BuildingRewardsScript.effect_value_text(effect_value)
+			value_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+			value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			row.add_child(value_label)
+			ei += 1
+		ri += 1
 
 
 static func scaled_segment_display_height(_viewport_height: float) -> int:
@@ -715,9 +803,12 @@ func _layout_labels_on_item(item: TextureRect) -> void:
 	var title: Label = item.get_node_or_null("TechTitleLabel") as Label
 	if title != null:
 		_layout_title_label_on_item(item, title)
+	var rewards: Control = item.get_node_or_null("TechBuildingRewards") as Control
+	if rewards != null:
+		_layout_building_rewards_on_item(item, rewards)
 	var body: Label = item.get_node_or_null("TechBodyLabel") as Label
 	if body != null:
-		_layout_body_label_on_item(item, body)
+		_layout_body_label_on_item(item, body, rewards != null)
 
 
 func _layout_title_label_on_item(item: TextureRect, title: Label) -> void:
@@ -728,12 +819,118 @@ func _layout_title_label_on_item(item: TextureRect, title: Label) -> void:
 	title.add_theme_font_size_override("font_size", int(layout["font_size"]))
 
 
-func _layout_body_label_on_item(item: TextureRect, body: Label) -> void:
-	var layout: Dictionary = tech_body_label_layout(item.size)
+func _layout_body_label_on_item(item: TextureRect, body: Label, has_building_rewards: bool = false) -> void:
+	var layout: Dictionary = tech_body_label_layout(item.size, has_building_rewards)
 	body.position = Vector2(float(layout["x"]), float(layout["y"]))
 	body.size = Vector2(float(layout["width"]), float(layout["height"]))
 	body.add_theme_color_override("font_color", BODY_FONT_COLOR)
 	body.add_theme_font_size_override("font_size", int(layout["font_size"]))
+
+
+func _layout_building_rewards_on_item(item: TextureRect, rewards: Control) -> void:
+	var layout: Dictionary = tech_reward_box_layout(item.size)
+	rewards.position = Vector2(float(layout["x"]), float(layout["y"]))
+	rewards.size = Vector2(float(layout["width"]), float(layout["height"]))
+	var name_font: int = int(layout["name_font_size"])
+	var value_font: int = int(layout["value_font_size"])
+	var icon_h: float = float(layout["icon_height"])
+	var box_w: float = float(layout["width"])
+	var row_y: float = 0.0
+	var child_i: int = 0
+	while child_i < rewards.get_child_count():
+		var child: Node = rewards.get_child(child_i)
+		if child is Control and str(child.name).begins_with("BuildingRewardRow"):
+			var row: Control = child as Control
+			row.position = Vector2(0.0, row_y)
+			row.size = Vector2(box_w, icon_h)
+			_layout_building_reward_row_parts(
+				row,
+				icon_h,
+				name_font,
+				value_font,
+			)
+			row_y += icon_h + float(REWARD_ROW_SEPARATION_PX)
+		child_i += 1
+
+
+static func measured_reward_text_width(text: String, font_size: int) -> float:
+	var sample: String = str(text)
+	if sample.is_empty() or font_size <= 0:
+		return 0.0
+	var font: Font = ThemeDB.fallback_font
+	if font == null:
+		return float(sample.length()) * float(font_size) * 0.52
+	return font.get_string_size(
+		sample,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1.0,
+		font_size,
+	).x
+
+
+func _measure_reward_row_trailing_width(row: Control, icon_h: float, value_font: int) -> float:
+	var total: float = float(REWARD_NAME_ICON_GAP_PX)
+	var part_i: int = 0
+	while part_i < row.get_child_count():
+		var part: Node = row.get_child(part_i)
+		if part is TextureRect and str(part.name).begins_with("EffectIcon"):
+			var icon_node: TextureRect = part as TextureRect
+			if icon_node.texture != null:
+				var icon_size: Vector2 = scaled_texture_size(icon_node.texture, icon_h)
+				total += icon_size.x + float(REWARD_VALUE_GAP_PX)
+		elif part is Label and str(part.name).begins_with("EffectGlyph"):
+			total += icon_h + float(REWARD_VALUE_GAP_PX)
+		elif part is Label and str(part.name).begins_with("EffectValue"):
+			var value_node: Label = part as Label
+			total += measured_reward_text_width(value_node.text, value_font)
+		part_i += 1
+	return total
+
+
+func _layout_building_reward_row_parts(
+	row: Control,
+	icon_h: float,
+	name_font: int,
+	value_font: int,
+) -> void:
+	var trailing_w: float = _measure_reward_row_trailing_width(row, icon_h, value_font)
+	var max_name_w: float = maxf(row.size.x - trailing_w, 0.0)
+	var cursor_x: float = 0.0
+	var name_label: Label = row.get_node_or_null("BuildingName") as Label
+	if name_label != null:
+		var measured_name_w: float = measured_reward_text_width(name_label.text, name_font)
+		var name_w: float = minf(measured_name_w, max_name_w)
+		name_label.position = Vector2(0.0, 0.0)
+		name_label.size = Vector2(name_w, icon_h)
+		name_label.add_theme_color_override("font_color", BODY_FONT_COLOR)
+		name_label.add_theme_font_size_override("font_size", name_font)
+		cursor_x = name_w + float(REWARD_NAME_ICON_GAP_PX)
+	var part_i: int = 0
+	while part_i < row.get_child_count():
+		var part: Node = row.get_child(part_i)
+		if part is TextureRect and str(part.name).begins_with("EffectIcon"):
+			var icon_node: TextureRect = part as TextureRect
+			if icon_node.texture != null:
+				var icon_size: Vector2 = scaled_texture_size(icon_node.texture, icon_h)
+				icon_node.position = Vector2(cursor_x, (icon_h - icon_size.y) * 0.5)
+				icon_node.size = icon_size
+				icon_node.custom_minimum_size = icon_size
+				cursor_x = icon_node.position.x + icon_size.x + float(REWARD_VALUE_GAP_PX)
+		elif part is Label and str(part.name).begins_with("EffectGlyph"):
+			var glyph_node: Label = part as Label
+			glyph_node.position = Vector2(cursor_x, 0.0)
+			glyph_node.size = Vector2(icon_h, icon_h)
+			glyph_node.custom_minimum_size = Vector2(icon_h, icon_h)
+			glyph_node.add_theme_color_override("font_color", BODY_FONT_COLOR)
+			glyph_node.add_theme_font_size_override("font_size", value_font)
+			cursor_x = glyph_node.position.x + icon_h + float(REWARD_VALUE_GAP_PX)
+		elif part is Label and str(part.name).begins_with("EffectValue"):
+			var value_node: Label = part as Label
+			value_node.position = Vector2(cursor_x, 0.0)
+			value_node.size = Vector2(maxf(row.size.x - cursor_x, 0.0), icon_h)
+			value_node.add_theme_color_override("font_color", BODY_FONT_COLOR)
+			value_node.add_theme_font_size_override("font_size", value_font)
+		part_i += 1
 
 
 func _wheel_hover_rect() -> Rect2:

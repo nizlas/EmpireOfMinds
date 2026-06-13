@@ -4,6 +4,7 @@ extends RefCounted
 
 const NodeLayoutScript = preload("res://presentation/tech_tree_node_layout.gd")
 const ScienceUnlocksScript = preload("res://domain/content/science_unlocks.gd")
+const BuildingRewardsScript = preload("res://presentation/tech_tree_building_rewards.gd")
 
 const ICON_DIR: String = "res://assets/prototype/tech_tree/"
 const STONE_TOOLS_ID: String = "stone_tools"
@@ -58,11 +59,13 @@ static func tech_by_id(tech_id: String) -> Dictionary:
 	if not TECH_ICON_PATH_BY_ID.has(key):
 		return {}
 	var science: Dictionary = ScienceUnlocksScript.get_science(key)
+	var building_rewards: Array = BuildingRewardsScript.building_rewards_for_science(key)
 	var out: Dictionary = {
 		"id": key,
 		"title": str(science.get("title", "")),
 		"icon_path": str(TECH_ICON_PATH_BY_ID[key]),
 		"bullets": ScienceUnlocksScript.tech_card_bullets_for(key),
+		"building_rewards": building_rewards,
 	}
 	var flags: Dictionary = science.get("flags", {}) as Dictionary
 	var fi: int = 0

@@ -20,6 +20,8 @@ func _init() -> void:
 	var city = CityScript.new(3, 0, HexCoordScript.new(1, -1), null, "", true, ["palace"])
 	var scen = ScenarioScript.new(m, u, [city], 10, 20, null)
 	var gs = GameStateScript.new(scen)
+	# Pin controlled_fire — auto-target would research foraging_systems first in tree order.
+	gs.progress_state = gs.progress_state.with_current_research(0, "controlled_fire")
 	var round_i = 0
 	while round_i < 6:
 		_check(gs.try_apply(EndTurnScript.make(0))["accepted"], "p0 end")

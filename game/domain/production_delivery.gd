@@ -5,7 +5,9 @@ extends RefCounted
 
 const SCHEMA_VERSION: int = 1
 const EVENT_TYPE: String = "unit_produced"
+const EVENT_TYPE_BUILDING_COMPLETED: String = "building_completed"
 const PRODUCE_UNIT_TYPE: String = "produce_unit"
+const BUILD_BUILDING_TYPE: String = "build_building"
 
 const ScenarioScript = preload("res://domain/scenario.gd")
 const CityScript = preload("res://domain/city.gd")
@@ -25,11 +27,34 @@ static func _sort_int_ids_asc(ids: Array) -> void:
 		a = a + 1
 
 
+static func _append_building_id_sorted(building_ids: Array, building_id: String) -> Array:
+	var out: Array = []
+	var i: int = 0
+	while i < building_ids.size():
+		out.append(str(building_ids[i]))
+		i = i + 1
+	if building_id == "" or out.has(building_id):
+		return out
+	out.append(building_id)
+	var a: int = 0
+	while a < out.size():
+		var b: int = a + 1
+		while b < out.size():
+			if str(out[a]) > str(out[b]):
+				var tmp = out[a]
+				out[a] = out[b]
+				out[b] = tmp
+			b = b + 1
+		a = a + 1
+	return out
+
+
 static func deliver_pending_for_player(a_scenario, owner_id: int) -> Dictionary:
 	if a_scenario == null:
 		return {"scenario": a_scenario, "events": []}
 	var clist = a_scenario.cities()
-	var ready_ids: Array = []
+	var ready_unit_ids: Array = []
+	var ready_build_ids: Array = []
 	var ri = 0
 	while ri < clist.size():
 		var c = clist[ri]
@@ -43,32 +68,63 @@ static func deliver_pending_for_player(a_scenario, owner_id: int) -> Dictionary:
 		if not bool(pd.get("ready", false)):
 			ri = ri + 1
 			continue
-		if str(pd.get("project_type", "")) != PRODUCE_UNIT_TYPE:
-			ri = ri + 1
-			continue
-		ready_ids.append(c.id)
+		var ptype = str(pd.get("project_type", ""))
+		if ptype == PRODUCE_UNIT_TYPE:
+			ready_unit_ids.append(c.id)
+		elif ptype == BUILD_BUILDING_TYPE:
+			ready_build_ids.append(c.id)
 		ri = ri + 1
-	_sort_int_ids_asc(ready_ids)
-	if ready_ids.size() == 0:
+	_sort_int_ids_asc(ready_unit_ids)
+	_sort_int_ids_asc(ready_build_ids)
+	if ready_unit_ids.size() == 0 and ready_build_ids.size() == 0:
 		return {"scenario": a_scenario, "events": []}
 
 	var delivered: Dictionary = {}
-	var ev_i = 0
-	while ev_i < ready_ids.size():
-		delivered[ready_ids[ev_i] as int] = true
-		ev_i = ev_i + 1
-
+	var building_delivered: Dictionary = {}
 	var events: Array = []
 	var running_next_unit_id = a_scenario.peek_next_unit_id()
+
+	var bi = 0
+	while bi < ready_build_ids.size():
+		var bcid = ready_build_ids[bi] as int
+		delivered[bcid] = true
+		var bcy = a_scenario.city_by_id(bcid)
+		var building_id = "hearth"
+		if bcy.current_project != null and typeof(bcy.current_project) == TYPE_DICTIONARY:
+			var bcp = bcy.current_project as Dictionary
+			if bcp.has("project_id"):
+				var bpid = str(bcp["project_id"])
+				if bpid != "" and CityProjectDefinitionsScript.has(bpid):
+					var reg_bid = CityProjectDefinitionsScript.produces_building_id(bpid)
+					if reg_bid != "":
+						building_id = reg_bid
+		var b_ev: Dictionary = {}
+		b_ev["schema_version"] = SCHEMA_VERSION
+		b_ev["action_type"] = EVENT_TYPE_BUILDING_COMPLETED
+		b_ev["actor_id"] = owner_id
+		b_ev["city_id"] = bcid
+		b_ev["building_id"] = building_id
+		b_ev["project_type"] = BUILD_BUILDING_TYPE
+		b_ev["source"] = "engine"
+		b_ev["result"] = "accepted"
+		if bcy.current_project != null and typeof(bcy.current_project) == TYPE_DICTIONARY:
+			var bcp2 = bcy.current_project as Dictionary
+			if bcp2.has("project_id"):
+				b_ev["project_id"] = str(bcp2["project_id"])
+		events.append(b_ev)
+		building_delivered[bcid] = building_id
+		bi = bi + 1
+
 	var completion_order: Array = []
 	var ci0 = 0
-	while ci0 < ready_ids.size():
-		var rcid = ready_ids[ci0] as int
+	while ci0 < ready_unit_ids.size():
+		var rcid = ready_unit_ids[ci0] as int
+		delivered[rcid] = true
 		var cty = a_scenario.city_by_id(rcid)
 		var unit_id = running_next_unit_id
 		running_next_unit_id = running_next_unit_id + 1
 		var up_ev: Dictionary = {}
-		up_ev["schema_version"] = 1
+		up_ev["schema_version"] = SCHEMA_VERSION
 		up_ev["action_type"] = EVENT_TYPE
 		up_ev["actor_id"] = owner_id
 		up_ev["city_id"] = rcid
@@ -111,25 +167,32 @@ static func deliver_pending_for_player(a_scenario, owner_id: int) -> Dictionary:
 	var ci = 0
 	while ci < clist.size():
 		var c2 = clist[ci]
-		if delivered.has(c2.id):
-			new_cities.append(
-				CityScript.new(
-					c2.id,
-					c2.owner_id,
-					c2.position,
-					null,
-					c2.city_name,
-					c2.is_capital,
-					c2.building_ids,
-					c2.owned_tiles,
-					c2.population,
-					c2.manual_worked_tiles,
-					c2.food_stored,
-					c2.worked_tiles_mode
-				)
-			)
-		else:
+		if not delivered.has(c2.id):
 			new_cities.append(c2)
+			ci = ci + 1
+			continue
+		var new_building_ids = c2.building_ids
+		if building_delivered.has(c2.id):
+			new_building_ids = _append_building_id_sorted(
+				c2.building_ids,
+				str(building_delivered[c2.id])
+			)
+		new_cities.append(
+			CityScript.new(
+				c2.id,
+				c2.owner_id,
+				c2.position,
+				null,
+				c2.city_name,
+				c2.is_capital,
+				new_building_ids,
+				c2.owned_tiles,
+				c2.population,
+				c2.manual_worked_tiles,
+				c2.food_stored,
+				c2.worked_tiles_mode
+			)
+		)
 		ci = ci + 1
 
 	var new_scenario = ScenarioScript.new(

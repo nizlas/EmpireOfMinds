@@ -28,16 +28,16 @@ func _tiny_one_city_scenario(lightning = null):
 
 
 func _init() -> void:
-	# Auto-target: first alphabetically among start sciences is controlled_fire.
+	# Auto-target: first in ProgressDefinitions tree order among start sciences is foraging_systems.
 	var scen0 = _tiny_one_city_scenario(null)
 	var gs0 = GameStateScript.new(scen0)
 	var pack0 = ScienceTickScript.apply_for_player(gs0.progress_state, gs0.scenario, 0)
 	_check((pack0["events"] as Array).size() == 1, "one science_progress")
 	var e0 = (pack0["events"] as Array)[0] as Dictionary
 	_check(str(e0["action_type"]) == "science_progress", "event type")
-	_check(str(e0["progress_id"]) == "controlled_fire", "auto first is controlled_fire")
+	_check(str(e0["progress_id"]) == "foraging_systems", "auto first is foraging_systems")
 	_check(int(e0["delta"]) == 1 and int(e0["total"]) == 1, "one city yield")
-	_check(int(e0["cost"]) == ProgressDefinitionsScript.cost("controlled_fire"), "cost from definitions")
+	_check(int(e0["cost"]) == ProgressDefinitionsScript.cost("foraging_systems"), "cost from definitions")
 
 	gs0.progress_state = pack0["progress_state"]
 	var cp = gs0.try_apply(CompleteProgressScript.make(0, "controlled_fire"))
@@ -46,12 +46,12 @@ func _init() -> void:
 	_check((pack_idem["events"] as Array).size() == 1, "progress toward next auto target")
 	var e1 = (pack_idem["events"] as Array)[0] as Dictionary
 	_check(str(e1["progress_id"]) == "foraging_systems", "after CF first available is foraging_systems")
-	_check(int(e1["total"]) == 1, "fresh bucket for foraging_systems")
+	_check(int(e1["total"]) == 2, "foraging bucket continues from earlier auto tick")
 
-	# Six yields complete controlled_fire from zero (auto-target stays CF until done)
+	# Six yields complete controlled_fire when explicitly pinned (auto-target would be foraging_systems).
 	var scen1 = _tiny_one_city_scenario(null)
 	var gs1 = GameStateScript.new(scen1)
-	var ps = gs1.progress_state
+	var ps = gs1.progress_state.with_current_research(0, "controlled_fire")
 	var completed = false
 	var last_completed_ut: Array = []
 	var rounds = 0
@@ -99,11 +99,11 @@ func _init() -> void:
 	_check(str(ev_st["progress_id"]) == "stone_tools", "explicit target stone_tools")
 	_check(int(ev_st["cost"]) == ProgressDefinitionsScript.cost("stone_tools"), "stone cost on event")
 
-	# Locked explicit target falls back to auto (controlled_fire)
+	# Locked explicit target falls back to auto (foraging_systems — first in tree order)
 	var ps_bad = def.with_current_research(0, "animal_tracking")
 	var pk_fb = ScienceTickScript.apply_for_player(ps_bad, scen_st, 0)
 	var ev_fb = (pk_fb["events"] as Array)[0] as Dictionary
-	_check(str(ev_fb["progress_id"]) == "controlled_fire", "fallback when explicit locked")
+	_check(str(ev_fb["progress_id"]) == "foraging_systems", "fallback when explicit locked")
 
 	# Stale explicit (completed) falls back
 	var res_cf = ProgressUnlockResolverScript.complete_progress(def, 0, "controlled_fire")

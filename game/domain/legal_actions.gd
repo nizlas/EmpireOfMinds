@@ -12,6 +12,7 @@ const SetCityWorkedTilesScript = preload("res://domain/actions/set_city_worked_t
 const CityYieldsScript = preload("res://domain/city_yields.gd")
 const CityScript = preload("res://domain/city.gd")
 const EffectiveRulesScript = preload("res://domain/effective_rules.gd")
+const CityProjectDefinitionsScript = preload("res://domain/content/city_project_definitions.gd")
 
 static func _sort_units_by_id(units: Array) -> void:
 	var a = 0
@@ -103,22 +104,23 @@ static func for_current_player(game_state, effective_rules = null) -> Array:
 	while cj < p0cities.size():
 		var cy = p0cities[cj]
 		if cy.current_project == null:
-			var candidate_pids = [
-				SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR,
-				SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER,
-			]
+			var candidate_pids: Array = CityProjectDefinitionsScript.LEGAL_PROJECT_ORDER.duplicate()
 			var pi = 0
 			while pi < candidate_pids.size():
-				var pid = candidate_pids[pi]
+				var pid: String = str(candidate_pids[pi])
 				if not er.is_city_project_supported(pid):
+					pi = pi + 1
+					continue
+				if CityProjectDefinitionsScript.is_project_blocked_for_city(cy, pid):
 					pi = pi + 1
 					continue
 				var sp = SetCityProductionScript.make(cp, cy.id, pid)
 				var sv = SetCityProductionScript.validate(scenario, sp)
 				if sv["ok"]:
-					if (
-						game_state.progress_state == null
-						or game_state.progress_state.has_unlocked_target(cp, "city_project", pid)
+					if game_state.progress_state == null:
+						out.append(sp)
+					elif CityProjectDefinitionsScript.is_project_unlocked(
+						game_state.progress_state, cp, pid
 					):
 						out.append(sp)
 				pi = pi + 1

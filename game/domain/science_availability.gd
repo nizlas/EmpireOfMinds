@@ -1,5 +1,6 @@
 # Phase 5.1.12b — derived science availability from ProgressDefinitions prerequisites + completed_progress_ids.
-# Lists from available_for / locked_for / completed_for are sorted alphabetically (stable contract across registry insertion order).
+# available_for follows ProgressDefinitions.ids() tree order (auto-target uses first entry).
+# locked_for / completed_for remain sorted alphabetically for stable display lists.
 class_name ScienceAvailability
 extends RefCounted
 
@@ -67,7 +68,6 @@ static func available_for(progress_state, owner_id: int) -> Array[String]:
 		if is_available(progress_state, owner_id, sid):
 			out.append(sid)
 		i = i + 1
-	_sort_ids(out)
 	return out
 
 

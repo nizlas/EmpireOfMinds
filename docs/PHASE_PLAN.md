@@ -2055,7 +2055,7 @@ Validation:
 
 Goal:
 
-- **`ProgressDefinitions`**: **19** Ancient sciences with **`cost`** and **`prerequisites`**; **`cost(id)`**, **`prerequisites(id)`**, **`is_science(id)`**; **`ids()`** column order (availability helpers sort **alphabetically**).
+- **`ProgressDefinitions`**: **19** Ancient sciences with **`cost`** and **`prerequisites`**; **`cost(id)`**, **`prerequisites(id)`**, **`is_science(id)`**; **`ids()`** column order (**`available_for`** preserves it for auto-target; **`locked_for`** / **`completed_for`** alphabetical).
 - **`ScienceAvailability`**: derived **`available_for`** / **`locked_for`** / **`completed_for`** / **`is_available`** (**no** stored availability on **`ProgressState`**).
 - **`CompleteProgress.validate`**: **`prerequisites_not_met`** when a **science**’s prerequisites are not all completed (non-science rows unaffected if added later).
 - **`ScienceTick`**: **`science_progress`** / **`science_bonus`** / **`science_completed`** **`cost`** from **`ProgressDefinitions.cost`**; **at 5.1.12b ship** the tick target remained **fixed** to **`controlled_fire`** (**5.1.12c** replaces that with explicit / auto routing).
@@ -2086,7 +2086,7 @@ Goal:
 
 - **`ProgressState`**: **`current_research_id`** per owner (**`""`** = explicit unset / **auto-target**); **`current_research_for`**, **`with_current_research`**; all **`with_*`** mutators preserve it.
 - **`SetCurrentResearch`**: player **`Dictionary`** action; **`GameState.try_apply`** + log **`set_current_research`**; validate **`unknown_science`**, **`not_a_science`**, **`already_completed`**, **`prerequisites_not_met`**; **`science_id` `""`** clears explicit target.
-- **`ScienceTick.apply_for_player`**: resolve target = explicit id if **available**, else **first** **`ScienceAvailability.available_for`** (alphabetical); **`science_no_target`** when **none**; **`add_observation_bonus_if_eligible`** always **`controlled_fire`**.
+- **`ScienceTick.apply_for_player`**: resolve target = explicit id if **available**, else **first** **`ScienceAvailability.available_for`** (tree order); **`science_no_target`** when **none**; **`add_observation_bonus_if_eligible`** always **`controlled_fire`**.
 - **No** overflow carry-over; **`SciencePanel`** (**5.1.13**) is presentation-only — **no** **5.1.12d** **Settler** move in **5.1.12c**.
 
 Shipped:

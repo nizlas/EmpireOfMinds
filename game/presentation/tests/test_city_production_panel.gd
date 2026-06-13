@@ -96,7 +96,7 @@ func _run() -> void:
 	)
 	var vm_two = CityProductionPanelScript.compute_view_model(gs2, sel)
 	var opts_two = vm_two.get("options", []) as Array
-	_check(opts_two.size() == 2, "still warrior and settler after CF")
+	_check(opts_two.size() == 3, "warrior settler hearth after CF")
 	var ids_two: Array = []
 	var ti = 0
 	while ti < opts_two.size():
@@ -110,6 +110,14 @@ func _run() -> void:
 	_check(
 		ids_two[1] == SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_SETTLER,
 		"settler second"
+	)
+	_check(
+		ids_two[2] == SetCityProductionScript.PROJECT_ID_BUILD_HEARTH,
+		"hearth third after CF"
+	)
+	_check(
+		str((opts_two[2] as Dictionary).get("label", "")).begins_with("Build "),
+		"hearth option uses Build prefix"
 	)
 
 	_check(

@@ -1,5 +1,5 @@
 # Headless: godot --headless --path game -s res://domain/tests/test_science_availability.gd
-# Phase 5.1.12b — ScienceAvailability lists are sorted alphabetically (see science_availability.gd).
+# Phase 5.1.12b — available_for follows ProgressDefinitions tree order; locked/completed lists alphabetical.
 extends SceneTree
 
 const ProgressStateScript = preload("res://domain/progress_state.gd")
@@ -24,13 +24,13 @@ func _init() -> void:
 	var def = ProgressStateScript.with_default_unlocks_for_players([0])
 	var start_avail = ScienceAvailabilityScript.available_for(def, 0)
 	var exp_start: Array[String] = [
-		"controlled_fire",
 		"foraging_systems",
-		"oral_surveying",
 		"stone_tools",
+		"controlled_fire",
+		"oral_surveying",
 	]
 	_check(start_avail.size() == 4, "four starting sciences available")
-	_check(start_avail == exp_start, "starting list alpha sorted")
+	_check(start_avail == exp_start, "starting list tree order")
 
 	_check(
 		ScienceAvailabilityScript.is_available(def, 0, "foraging_systems"),

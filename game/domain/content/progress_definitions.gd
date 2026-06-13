@@ -3,7 +3,7 @@
 class_name ProgressDefinitions
 extends RefCounted
 
-## Curated column order (Ancient tree); `ids()` returns this order. Availability helpers sort alphabetically where needed.
+## Curated column order (Ancient tree); `ids()` returns this order. `ScienceAvailability.available_for` preserves it for auto-target.
 const _ORDERED_IDS: Array = [
 	"foraging_systems",
 	"stone_tools",
@@ -158,6 +158,7 @@ const _DEFINITIONS: Dictionary = {
 		"cost": 10,
 		"prerequisites": ["foraging_systems", "controlled_fire"],
 		"concrete_unlocks": [
+			{"target_type": "building", "target_id": "storage_hall"},
 			{"target_type": "modifier", "target_id": "seasonal_harvest_timing"},
 		],
 		"systemic_effects": [
@@ -178,7 +179,7 @@ const _DEFINITIONS: Dictionary = {
 		"cost": 10,
 		"prerequisites": ["controlled_fire"],
 		"concrete_unlocks": [
-			{"target_type": "building", "target_id": "kiln"},
+			{"target_type": "building", "target_id": "pottery_workshop"},
 		],
 		"systemic_effects": [
 			{"target_type": "modifier", "target_id": "granary_capacity_bonus"},
@@ -198,7 +199,7 @@ const _DEFINITIONS: Dictionary = {
 		"cost": 10,
 		"prerequisites": ["foraging_systems"],
 		"concrete_unlocks": [
-			{"target_type": "building", "target_id": "loom_shed"},
+			{"target_type": "building", "target_id": "weaver_hut"},
 		],
 		"systemic_effects": [
 			{"target_type": "modifier", "target_id": "travel_fatigue_reduction"},
@@ -278,6 +279,7 @@ const _DEFINITIONS: Dictionary = {
 		"cost": 14,
 		"prerequisites": ["pottery_craft", "oral_surveying"],
 		"concrete_unlocks": [
+			{"target_type": "building", "target_id": "storehouse_ledger"},
 			{"target_type": "action", "target_id": "tally_ledger"},
 		],
 		"systemic_effects": [
@@ -298,7 +300,7 @@ const _DEFINITIONS: Dictionary = {
 		"cost": 14,
 		"prerequisites": ["timber_working"],
 		"concrete_unlocks": [
-			{"target_type": "building", "target_id": "mudbrick_walls"},
+			{"target_type": "building", "target_id": "mudbrick_housing"},
 		],
 		"systemic_effects": [
 			{"target_type": "modifier", "target_id": "city_hp_small_bonus"},
@@ -378,7 +380,7 @@ const _DEFINITIONS: Dictionary = {
 		"cost": 18,
 		"prerequisites": ["basic_mining"],
 		"concrete_unlocks": [
-			{"target_type": "building", "target_id": "bronze_forge"},
+			{"target_type": "building", "target_id": "armory"},
 		],
 		"systemic_effects": [
 			{"target_type": "modifier", "target_id": "melee_unit_small_bonus"},
@@ -418,7 +420,7 @@ const _DEFINITIONS: Dictionary = {
 		"cost": 18,
 		"prerequisites": ["counting_marks"],
 		"concrete_unlocks": [
-			{"target_type": "building", "target_id": "record_house"},
+			{"target_type": "building", "target_id": "archive_hut"},
 		],
 		"systemic_effects": [
 			{"target_type": "modifier", "target_id": "science_cost_small_discount"},

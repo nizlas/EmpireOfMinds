@@ -29,6 +29,7 @@ Authoritative genre/IP boundaries for public-facing identity remain in [PROJECT_
 - **Form:** **`class_name`** + **static** methods on **RefCounted**-extending scripts, built from **`const`** tables or small helpers (**e.g.** **`progress_definitions.gd`**, **`science_unlocks.gd`**).
 - **`ScienceUnlocks`** ([science_unlocks.gd](../game/domain/content/science_unlocks.gd)) — canonical **Ancient/Foundation** science rows with typed **unlock bundles** (`city_building`, `tile_improvement`, `unit`, `support_unit`, `naval_unit`, `project`, `modifier`, `rule`, …). **Tech-tree preview** card text is derived from this registry (**science title** + **science-unlocked unit display names** + **Exoplanet Expedition** manual copy only). Full unlock **`summary`** strings remain in data for **City View** / inspection UIs, not as tech-card flavor bullets.
 - **`StartingUnits`** ([starting_units.gd](../game/domain/content/starting_units.gd)) — baseline producerable **`unit_settler`** / **`unit_warrior`** rows for **City View** inspection (content only; not production rules).
+- **`BuildingDefinitions`** ([building_definitions.gd](../game/domain/content/building_definitions.gd)) — completed-city **building** rows with registry-defined **`yield_effects`** (`food` / `production` / `science` / `coin` / passive recorded **`housing`**); **`CityYields.building_yield`** reads these for **`City.building_ids`**; food/production/science/coin feed **`city_total_yield`**; **`housing`** is reported via **`yield_breakdown_for_city`(..).`housing`** / **`building_housing_total`** only (**no** growth/capacity gameplay yet). Unknown ids yield **zero** (no error). Science/build gating remains on **`ProgressDefinitions`** + **`CityProjectDefinitions`**.
 - **Typical API shape** (exact names vary per registry):
   - `get(id: String) -> Dictionary` — deep **read** view or **`null`** if unknown
   - `has(id: String) -> bool`
@@ -45,7 +46,7 @@ Cross-links: [UNITS.md](UNITS.md), [CITIES.md](CITIES.md), [MAP_MODEL.md](MAP_MO
 - **Examples (non-exhaustive placeholders, not final balance):**
   - **Unit type:** `settler`, `warrior`
   - **Terrain:** `plains`, `water` (align with content rules in Phase 3.2; map today still uses `HexMap.Terrain` tags)
-  - **City project:** `produce_unit:settler`, `produce_unit:warrior`
+  - **City project:** `produce_unit:settler`, `produce_unit:warrior`, `build:hearth`, `build:pottery_workshop`, `build:storage_hall`, `build:weaver_hut`, `build:mudbrick_housing`, `build:storehouse_ledger`, `build:archive_hut`, `build:armory` (**`build_building`** — gated by matching **`building`** unlock from science completion; one-time per city; **`building_completed`** delivery; yields from **`BuildingDefinitions`**)
   - **Transitional alias:** `produce_unit` (today’s broad token—may map to a default project definition during migration)
   - **Future tech placeholder:** `tech:foundation`
   - **Future faction placeholder:** `faction:em_first`

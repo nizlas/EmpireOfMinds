@@ -1,13 +1,17 @@
 # City yield vectors and v0 terrain/Center/Palace rules (Phase 5.1.16c). Domain-only; no presentation imports.
-# Yield keys: food, production, science, coin — see docs/CITIES.md
+# Gameplay yield keys: food, production, science, coin — see docs/CITIES.md
+# Passive recorded housing from buildings is reported separately (no growth/capacity effect yet).
 class_name CityYields
 extends RefCounted
 
 const HexMapScript = preload("res://domain/hex_map.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 const CityScript = preload("res://domain/city.gd")
+const BuildingDefinitionsScript = preload("res://domain/content/building_definitions.gd")
 
-const BUILDING_ID_PALACE: String = "palace"
+const BUILDING_ID_PALACE: String = BuildingDefinitionsScript.BUILDING_ID_PALACE
+const BUILDING_ID_HEARTH: String = BuildingDefinitionsScript.BUILDING_ID_HEARTH
+const BUILDING_ID_POTTERY_WORKSHOP: String = BuildingDefinitionsScript.BUILDING_ID_POTTERY_WORKSHOP
 
 static func empty() -> Dictionary:
 	return {"food": 0, "production": 0, "science": 0, "coin": 0}
@@ -65,14 +69,19 @@ static func city_center_yield(map, city) -> Dictionary:
 	return {"food": f, "production": p, "science": 0, "coin": 0}
 
 
-static func palace_yield() -> Dictionary:
-	return {"food": 0, "production": 0, "science": 1, "coin": 1}
-
-
 static func building_yield(building_id: String) -> Dictionary:
-	if building_id == BUILDING_ID_PALACE:
-		return palace_yield()
-	return empty()
+	return BuildingDefinitionsScript.yield_effects(building_id)
+
+
+static func building_housing_total(city) -> int:
+	if city == null:
+		return 0
+	var total: int = 0
+	var j: int = 0
+	while j < city.building_ids.size():
+		total += get_yield(building_yield(str(city.building_ids[j])), "housing")
+		j = j + 1
+	return total
 
 
 static func _raw_yield_nonzero(raw: Dictionary) -> bool:
@@ -211,6 +220,7 @@ static func yield_breakdown_for_city(p_scenario, city) -> Dictionary:
 			"worked": empty(),
 			"worked_tiles": [],
 			"total": empty(),
+			"housing": 0,
 		}
 	var cen: Dictionary = city_center_yield(p_scenario.map, city)
 	var bsum: Dictionary = empty()
@@ -234,6 +244,7 @@ static func yield_breakdown_for_city(p_scenario, city) -> Dictionary:
 		"worked": wked.duplicate(true),
 		"worked_tiles": wt_out,
 		"total": tot.duplicate(true),
+		"housing": building_housing_total(city),
 	}
 	return out
 

@@ -196,7 +196,17 @@ static func _human_project_suffix(project_id: String) -> String:
 		s = s.substr(pos + 1)
 	if s.is_empty():
 		return project_id
-	return s.capitalize()
+	var parts = s.split("_")
+	var out = ""
+	var pi = 0
+	while pi < parts.size():
+		var seg: String = str(parts[pi])
+		if not seg.is_empty():
+			if out.length() > 0:
+				out = out + " "
+			out = out + seg.capitalize()
+		pi = pi + 1
+	return out if out.length() > 0 else s.capitalize()
 
 
 static func _compact_yield_tokens(y: Dictionary) -> String:
@@ -332,9 +342,12 @@ static func compute_view_model(game_state, selection, city_view_state = null) ->
 			continue
 		var proj_id = str(ad.get("project_id", ""))
 		var hn_opt = _human_project_suffix(proj_id)
+		var label_prefix = "Train "
+		if proj_id.begins_with("build:"):
+			label_prefix = "Build "
 		opts.append(
 			{
-				"label": "Train %s" % hn_opt,
+				"label": "%s%s" % [label_prefix, hn_opt],
 				"action": ad.duplicate(true),
 			}
 		)

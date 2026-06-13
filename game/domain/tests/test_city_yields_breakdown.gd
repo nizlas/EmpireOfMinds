@@ -36,8 +36,16 @@ func _hex_arrays_equal(a: Array, b: Array) -> bool:
 	return true
 
 
-func _keys_exactly_5(d: Dictionary) -> bool:
-	return d.has("center") and d.has("buildings") and d.has("worked") and d.has("worked_tiles") and d.has("total") and d.size() == 5
+func _keys_exactly_6(d: Dictionary) -> bool:
+	return (
+		d.has("center")
+		and d.has("buildings")
+		and d.has("worked")
+		and d.has("worked_tiles")
+		and d.has("total")
+		and d.has("housing")
+		and d.size() == 6
+	)
 
 
 func _init() -> void:
@@ -59,7 +67,8 @@ func _init() -> void:
 	)
 	var scen = ScenarioScript.new(m_tiny, u, [c_cap_pal], 10, 100, null)
 	var bd = CityYieldsScript.yield_breakdown_for_city(scen, c_cap_pal)
-	_check(_keys_exactly_5(bd), "breakdown has exactly five keys")
+	_check(_keys_exactly_6(bd), "breakdown has exactly six keys")
+	_check(int(bd.get("housing", -1)) == 0, "palace city housing zero")
 	var tot_expect = CityYieldsScript.city_total_yield(scen, c_cap_pal)
 	_check(
 		_yield_dicts_equal(bd["total"] as Dictionary, tot_expect),
@@ -115,7 +124,7 @@ func _init() -> void:
 	)
 
 	var bd_null = CityYieldsScript.yield_breakdown_for_city(null, c_cap_pal)
-	_check(_keys_exactly_5(bd_null), "null scenario still five keys")
+	_check(_keys_exactly_6(bd_null), "null scenario still six keys")
 	_check(
 		_yield_dicts_equal(bd_null["total"] as Dictionary, CityYieldsScript.empty()),
 		"null scenario empty total"
