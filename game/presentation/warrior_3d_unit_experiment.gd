@@ -126,11 +126,23 @@ static func env_city3d_debug_probe_enabled() -> bool:
 
 
 const ENV_REAL_3D_UNITS: String = "EOM_REAL_3D_UNITS"
+const ENV_DEBUG_EXTRA_3D_CHARACTERS: String = "EOM_DEBUG_EXTRA_3D_CHARACTERS"
+const ENV_NICLAS_3D_DIAG: String = "EOM_NICLAS_3D_DIAG"
 
 
 ## Env **EOM_REAL_3D_UNITS=1** (requires **EMPIRE_USE_3D_MODELS=1**): warrior + settler Node3D in map composite.
 static func env_real_3d_units_enabled() -> bool:
 	return is_models_flag_enabled() and OS.get_environment(ENV_REAL_3D_UNITS).strip_edges() == "1"
+
+
+## Env **EOM_DEBUG_EXTRA_3D_CHARACTERS=1**: bronze-armed warrior + Niclas debug figures in map composite.
+static func env_debug_extra_3d_characters_enabled() -> bool:
+	return OS.get_environment(ENV_DEBUG_EXTRA_3D_CHARACTERS).strip_edges() == "1"
+
+
+## Env **EOM_NICLAS_3D_DIAG=1**: Niclas animation catalog cycling via **KEY_F10** (debug scene only).
+static func env_niclas_3d_diag_enabled() -> bool:
+	return OS.get_environment(ENV_NICLAS_3D_DIAG).strip_edges() == "1"
 
 
 ## True when **type_id** should use **Unit3DWorldView** (not per-unit SubViewport blit).

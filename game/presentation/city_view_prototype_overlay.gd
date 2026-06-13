@@ -3,10 +3,11 @@ class_name CityViewPrototypeOverlay
 extends Control
 
 const ScienceUnlocksScript = preload("res://domain/content/science_unlocks.gd")
-const StartingUnitsScript = preload("res://domain/content/starting_units.gd")
 const UnitUnlockAssetsScript = preload("res://domain/content/unit_unlock_assets.gd")
 const UnitDefinitionsScript = preload("res://domain/content/unit_definitions.gd")
 const CityProductionPanelScript = preload("res://presentation/city_production_panel.gd")
+const CityViewBuildingDisplayScript = preload("res://presentation/city_view_building_display.gd")
+const CityViewUnitDisplayScript = preload("res://presentation/city_view_unit_display.gd")
 
 ## Temporary display scaffolding when no completed science IDs exist on ProgressState yet.
 const PROTOTYPE_AVAILABLE_SCIENCE_IDS: Array[String] = [
@@ -23,19 +24,11 @@ const UNIT_PRODUCTION_UNLOCK_TYPES: Array[String] = [
 	"naval_unit",
 ]
 
-const PRODUCTION_UNLOCK_TYPES: Array[String] = [
-	"unit",
-	"support_unit",
-	"naval_unit",
-	"city_building",
+const PROJECT_UNLOCK_TYPES: Array[String] = [
 	"project",
 ]
 
 const UNITS_LIST_MIN_HEIGHT_PX: int = 148
-
-const BUILT_BUILDING_STUB_IDS: Array[String] = [
-	"building_hearth",
-]
 
 var game_state = null
 var selection = null
@@ -44,7 +37,8 @@ var _header_label: Label
 var _yields_label: Label
 var _built_list: ItemList
 var _available_buildings_list: ItemList
-var _production_units_list: ItemList
+var _locked_buildings_list: ItemList
+var _available_units_list: ItemList
 var _production_buildings_list: ItemList
 var _production_projects_list: ItemList
 var _tile_improvements_list: ItemList
@@ -144,67 +138,28 @@ static func collect_unlock_rows(
 	return _enrich_unit_rows(rows)
 
 
-static func collect_baseline_unit_rows() -> Array[Dictionary]:
-	return _enrich_unit_rows(StartingUnitsScript.unit_rows())
-
-
-static func collect_unit_display_rows(science_ids: Array[String]) -> Array[Dictionary]:
-	var rows: Array[Dictionary] = collect_baseline_unit_rows()
-	var science_rows: Array[Dictionary] = collect_unlock_rows(
-		science_ids,
-		UNIT_PRODUCTION_UNLOCK_TYPES,
-	)
-	var seen: Dictionary = {}
-	var i: int = 0
-	while i < rows.size():
-		seen[str(rows[i].get("id", ""))] = true
-		i += 1
-	var si: int = 0
-	while si < science_rows.size():
-		var row: Dictionary = science_rows[si]
-		var row_id: String = str(row.get("id", ""))
-		if not seen.has(row_id):
-			rows.append(row)
-			seen[row_id] = true
-		si += 1
-	return rows
-
-
 static func built_building_rows(p_game_state, p_selection) -> Array[Dictionary]:
-	var city = _resolve_city(p_game_state, p_selection)
-	var ids: Array[String] = []
-	if city != null:
-		var i: int = 0
-		while i < city.building_ids.size():
-			ids.append(str(city.building_ids[i]))
-			i += 1
-	if ids.is_empty():
-		ids = BUILT_BUILDING_STUB_IDS.duplicate()
-	var rows: Array[Dictionary] = []
-	var bi: int = 0
-	while bi < ids.size():
-		var building_id: String = ids[bi]
-		var unlock: Dictionary = ScienceUnlocksScript.find_unlock(building_id)
-		var name: String = str(unlock.get("name", building_id))
-		var summary: String = str(unlock.get("summary", "Built building placeholder."))
-		rows.append({
-			"id": building_id,
-			"name": name,
-			"type": "built_city_building",
-			"science_id": str(unlock.get("science_id", "")),
-			"science_title": _science_title_for_id(str(unlock.get("science_id", ""))),
-			"summary": summary,
-			"metadata": {},
-		})
-		bi += 1
-	return rows
+	return CityViewBuildingDisplayScript.built_building_rows(p_game_state, p_selection)
 
 
-static func _science_title_for_id(science_id: String) -> String:
-	if science_id.is_empty():
-		return ""
-	var science: Dictionary = ScienceUnlocksScript.get_science(science_id)
-	return str(science.get("title", ""))
+static func available_building_rows(p_game_state, p_selection) -> Array[Dictionary]:
+	return CityViewBuildingDisplayScript.available_building_rows(p_game_state, p_selection)
+
+
+static func production_building_rows(p_game_state, p_selection) -> Array[Dictionary]:
+	return CityViewBuildingDisplayScript.production_building_rows(p_game_state, p_selection)
+
+
+static func locked_building_rows(p_game_state, p_selection) -> Array[Dictionary]:
+	return CityViewBuildingDisplayScript.locked_building_rows(p_game_state, p_selection)
+
+
+static func available_unit_rows(p_game_state, p_selection) -> Array[Dictionary]:
+	return CityViewUnitDisplayScript.available_unit_rows(p_game_state, p_selection)
+
+
+static func production_unit_rows(p_game_state, p_selection) -> Array[Dictionary]:
+	return CityViewUnitDisplayScript.production_unit_rows(p_game_state, p_selection)
 
 
 static func _resolve_city(p_game_state, p_selection):
@@ -266,24 +221,27 @@ func _build_ui() -> void:
 	columns.add_theme_constant_override("separation", 12)
 	root.add_child(columns)
 
-	var left_panel := _make_panel("Built / Available Buildings")
+	var left_panel := _make_panel("Building Overview")
 	left_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	columns.add_child(left_panel)
 	var left_vbox: VBoxContainer = left_panel.get_child(0) as VBoxContainer
 	left_vbox.add_child(_make_section_label("Built Buildings"))
-	_built_list = _make_item_list()
+	_built_list = _make_item_list(72)
 	left_vbox.add_child(_built_list)
 	left_vbox.add_child(_make_section_label("Available Buildings"))
-	_available_buildings_list = _make_item_list()
+	_available_buildings_list = _make_item_list(72)
 	left_vbox.add_child(_available_buildings_list)
+	left_vbox.add_child(_make_section_label("Locked Buildings"))
+	_locked_buildings_list = _make_item_list(88)
+	left_vbox.add_child(_locked_buildings_list)
 
 	var right_panel := _make_panel("Production Choices")
 	right_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	columns.add_child(right_panel)
 	var right_vbox: VBoxContainer = right_panel.get_child(0) as VBoxContainer
-	right_vbox.add_child(_make_section_label("Units"))
-	_production_units_list = _make_item_list(UNITS_LIST_MIN_HEIGHT_PX)
-	right_vbox.add_child(_production_units_list)
+	right_vbox.add_child(_make_section_label("Available Units"))
+	_available_units_list = _make_item_list(UNITS_LIST_MIN_HEIGHT_PX)
+	right_vbox.add_child(_available_units_list)
 	right_vbox.add_child(_make_section_label("Buildings"))
 	_production_buildings_list = _make_item_list()
 	right_vbox.add_child(_production_buildings_list)
@@ -309,7 +267,8 @@ func _build_ui() -> void:
 
 	_connect_list(_built_list)
 	_connect_list(_available_buildings_list)
-	_connect_list(_production_units_list)
+	_connect_list(_locked_buildings_list)
+	_connect_list(_available_units_list)
 	_connect_list(_production_buildings_list)
 	_connect_list(_production_projects_list)
 	_connect_list(_tile_improvements_list)
@@ -355,12 +314,7 @@ func _make_body_label(text_value: String) -> Label:
 
 
 static func format_unit_row_line(row: Dictionary) -> String:
-	return "%s · %s · %s  [%s]" % [
-		str(row.get("name", "")),
-		str(row.get("type", "")),
-		str(row.get("science_title", "")),
-		str(row.get("id", "")),
-	]
+	return CityViewUnitDisplayScript.format_unit_row_line(row)
 
 
 func _make_item_list(min_height_px: int = 88) -> ItemList:
@@ -383,30 +337,22 @@ func _refresh_content() -> void:
 	_populate_header()
 	var science_ids: Array[String] = available_science_ids_for_display(game_state)
 	var built_rows: Array[Dictionary] = built_building_rows(game_state, selection)
-	_fill_list(_built_list, built_rows, "built")
-	var available_buildings: Array[Dictionary] = collect_unlock_rows(
-		science_ids,
-		["city_building"],
+	_fill_building_list(_built_list, built_rows, "built")
+	var available_buildings: Array[Dictionary] = available_building_rows(
+		game_state,
+		selection,
 	)
-	_fill_list(_available_buildings_list, available_buildings, "available_building")
-	var unit_rows: Array[Dictionary] = collect_unit_display_rows(science_ids)
-	var production_rows: Array[Dictionary] = collect_unlock_rows(
+	_fill_building_list(_available_buildings_list, available_buildings, "available_building")
+	var locked_buildings: Array[Dictionary] = locked_building_rows(game_state, selection)
+	_fill_building_list(_locked_buildings_list, locked_buildings, "locked_building")
+	var available_units: Array[Dictionary] = available_unit_rows(game_state, selection)
+	_fill_unit_list(_available_units_list, available_units, "available_unit")
+	var building_rows: Array[Dictionary] = production_building_rows(game_state, selection)
+	var project_rows: Array[Dictionary] = collect_unlock_rows(
 		science_ids,
-		PRODUCTION_UNLOCK_TYPES,
+		PROJECT_UNLOCK_TYPES,
 	)
-	var building_rows: Array[Dictionary] = []
-	var project_rows: Array[Dictionary] = []
-	var pi: int = 0
-	while pi < production_rows.size():
-		var row: Dictionary = production_rows[pi]
-		var unlock_type: String = str(row.get("type", ""))
-		if unlock_type == "city_building":
-			building_rows.append(row)
-		elif unlock_type == "project":
-			project_rows.append(row)
-		pi += 1
-	_fill_unit_list(_production_units_list, unit_rows, "production_unit")
-	_fill_list(_production_buildings_list, building_rows, "production_building")
+	_fill_building_list(_production_buildings_list, building_rows, "production_building")
 	_fill_list(_production_projects_list, project_rows, "production_project")
 	var tile_rows: Array[Dictionary] = collect_unlock_rows(
 		science_ids,
@@ -453,6 +399,23 @@ func _fill_unit_list(list: ItemList, rows: Array[Dictionary], catalog_prefix: St
 	while i < rows.size():
 		var row: Dictionary = rows[i]
 		var line: String = format_unit_row_line(row)
+		list.add_item(line)
+		var catalog_row: Dictionary = row.duplicate(true)
+		catalog_row["catalog_key"] = "%s:%d" % [catalog_prefix, i]
+		catalog_row["display_line"] = line
+		_row_catalog.append(catalog_row)
+		i += 1
+	if rows.is_empty():
+		list.add_item("(none)")
+		list.set_item_disabled(0, true)
+
+
+func _fill_building_list(list: ItemList, rows: Array[Dictionary], catalog_prefix: String) -> void:
+	list.clear()
+	var i: int = 0
+	while i < rows.size():
+		var row: Dictionary = rows[i]
+		var line: String = CityViewBuildingDisplayScript.format_building_row_line(row)
 		list.add_item(line)
 		var catalog_row: Dictionary = row.duplicate(true)
 		catalog_row["catalog_key"] = "%s:%d" % [catalog_prefix, i]
@@ -513,9 +476,19 @@ static func _format_details(row: Dictionary) -> String:
 	var asset_path: String = str(row.get("asset_path", ""))
 	if not asset_path.is_empty():
 		asset_line = "\nAsset: %s" % asset_path
+	var effects_line: String = ""
+	var effect_chips: Array = row.get("effect_chips", [])
+	if typeof(effect_chips) == TYPE_ARRAY and not effect_chips.is_empty():
+		effects_line = "\nEffects: %s" % CityViewBuildingDisplayScript.format_effect_chips_line(
+			effect_chips
+		)
+	var project_line: String = ""
+	var project_id: String = str(row.get("project_id", ""))
+	if not project_id.is_empty():
+		project_line = "\nProject: %s" % project_id
 	var stats_line: String = _format_unit_stats_block(row)
 	return (
-		"Name: %s\nType: %s\nScience: %s (%s)\nSummary: %s\nID: %s%s%s%s"
+		"Name: %s\nType: %s\nScience: %s (%s)\nSummary: %s\nID: %s%s%s%s%s%s"
 		% [
 			str(row.get("name", "")),
 			str(row.get("type", "")),
@@ -523,6 +496,8 @@ static func _format_details(row: Dictionary) -> String:
 			str(row.get("science_id", "")),
 			str(row.get("summary", "")),
 			str(row.get("id", "")),
+			effects_line,
+			project_line,
 			stats_line,
 			meta_line,
 			asset_line,
