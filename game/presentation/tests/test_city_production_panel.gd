@@ -7,6 +7,7 @@ const SetCityProductionScript = preload("res://domain/actions/set_city_productio
 const CompleteProgressScript = preload("res://domain/actions/complete_progress.gd")
 const EndTurnScript = preload("res://domain/actions/end_turn.gd")
 const CityProductionPanelScript = preload("res://presentation/city_production_panel.gd")
+const CityHubProductionDisplayScript = preload("res://presentation/city_hub_production_display.gd")
 const CityViewStateScript = preload("res://presentation/city_view_state.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
 const ScenarioScript = preload("res://domain/scenario.gd")
@@ -119,6 +120,15 @@ func _run() -> void:
 		str((opts_two[2] as Dictionary).get("label", "")).begins_with("Build "),
 		"hearth option uses Build prefix"
 	)
+	var hearth_opt: Dictionary = opts_two[2] as Dictionary
+	var hearth_chips: Array = hearth_opt.get("effect_chips", [])
+	_check(hearth_chips.size() == 1, "hearth vm includes one effect chip")
+	_check(str((hearth_chips[0] as Dictionary).get("key", "")) == "production", "hearth chip production")
+	_check(int((hearth_chips[0] as Dictionary).get("value", 0)) == 1, "hearth chip +1")
+	_check((opts_idle[0] as Dictionary).get("effect_chips", []).is_empty(), "warrior has no effect chips")
+	_check((opts_idle[1] as Dictionary).get("effect_chips", []).is_empty(), "settler has no effect chips")
+
+	_test_building_effect_chips_registry()
 
 	_check(
 		gs2.try_apply(SetCityProductionScript.make(0, city_id, SetCityProductionScript.PROJECT_ID_PRODUCE_UNIT_WARRIOR))[
@@ -266,12 +276,50 @@ func _run() -> void:
 		call_deferred("quit", 0)
 
 
+func _test_building_effect_chips_registry() -> void:
+	_check_chip(SetCityProductionScript.PROJECT_ID_BUILD_HEARTH, "production", 1)
+	_check_chip(SetCityProductionScript.PROJECT_ID_BUILD_POTTERY_WORKSHOP, "food", 1)
+	_check_chip(SetCityProductionScript.PROJECT_ID_BUILD_STOREHOUSE_LEDGER, "coin", 2)
+	_check_chip(SetCityProductionScript.PROJECT_ID_BUILD_STORAGE_HALL, "food", 1)
+	_check_chip(SetCityProductionScript.PROJECT_ID_BUILD_WEAVER_HUT, "coin", 2)
+	_check_chip(SetCityProductionScript.PROJECT_ID_BUILD_MUDBRICK_HOUSING, "housing", 2)
+	_check_chip(SetCityProductionScript.PROJECT_ID_BUILD_ARCHIVE_HUT, "science", 2)
+	_check_chip(SetCityProductionScript.PROJECT_ID_BUILD_ARMORY, "production", 1)
+	_check(
+		CityHubProductionDisplayScript.effect_chips_for_building("future_silo").is_empty(),
+		"unknown building degrades to no chips"
+	)
+	_check(
+		CityHubProductionDisplayScript.effect_chips_for_project("produce_unit:warrior").is_empty(),
+		"unit project has no chips"
+	)
+	var order: Array = CityHubProductionDisplayScript.EFFECT_ORDER
+	_check(
+		str(order[0]) == "food"
+			and str(order[1]) == "production"
+			and str(order[2]) == "coin"
+			and str(order[3]) == "science"
+			and str(order[4]) == "housing",
+		"stable effect order"
+	)
+
+
+func _check_chip(project_id: String, expect_key: String, expect_value: int) -> void:
+	var chips: Array = CityHubProductionDisplayScript.effect_chips_for_project(project_id)
+	_check(chips.size() >= 1, "%s has effect chips" % project_id)
+	if chips.is_empty():
+		return
+	_check(str((chips[0] as Dictionary).get("key", "")) == expect_key, "%s chip key" % project_id)
+	_check(int((chips[0] as Dictionary).get("value", 0)) == expect_value, "%s chip value" % project_id)
+
+
 func _guard_panel_source_has_no_forbidden_imports() -> void:
 	var path = "res://presentation/city_production_panel.gd"
 	var f = FileAccess.open(path, FileAccess.READ)
 	_check(f != null, "open city_production_panel.gd for import guard")
 	var txt = f.get_as_text()
 	_check(not txt.contains("city_project_definitions"), "panel must not reference city_project_definitions")
+	_check(not txt.contains("building_definitions"), "panel must not reference building_definitions")
 	_check(not txt.contains("effective_rules"), "panel must not reference effective_rules")
 
 

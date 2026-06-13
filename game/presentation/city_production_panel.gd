@@ -1,4 +1,4 @@
-# Selected-city HUD hub: yields + breakdown + **LegalActions** production only (no content registries).
+# Selected-city HUD hub: yields + breakdown + **LegalActions** production only (no content registries in this file).
 # Phase 5.1.5: restrained parchment-style presentation; behavior unchanged.
 # Phase 5.1.16e: read-only **CityYields** summary + **5.1.17d** breakdown line (no terrain rules in this file).
 # Phase 5.1.17g: **City Hub** header (name, pop), lower-right anchoring in **main.tscn**; **Manage Citizens** + **Close** (clears city selection).
@@ -12,6 +12,7 @@ const LegalActionsScript = preload("res://domain/legal_actions.gd")
 const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
 const CityYieldsScript = preload("res://domain/city_yields.gd")
 const FoodGrowthTickScript = preload("res://domain/food_growth_tick.gd")
+const CityHubProductionDisplayScript = preload("res://presentation/city_hub_production_display.gd")
 
 const HUB_BRAND: String = "City Hub"
 const MANAGE_CITIZENS_LABEL: String = "Manage Citizens"
@@ -349,6 +350,7 @@ static func compute_view_model(game_state, selection, city_view_state = null) ->
 			{
 				"label": "%s%s" % [label_prefix, hn_opt],
 				"action": ad.duplicate(true),
+				"effect_chips": CityHubProductionDisplayScript.effect_chips_for_project(proj_id),
 			}
 		)
 		li = li + 1
@@ -480,14 +482,72 @@ func refresh() -> void:
 	var oi = 0
 	while oi < opts.size():
 		var entry = opts[oi] as Dictionary
-		var btn = Button.new()
-		btn.text = str(entry.get("label", ""))
-		_style_production_button(btn)
+		var btn = _make_production_option_button(entry)
 		var act = entry.get("action", {}) as Dictionary
 		btn.pressed.connect(_on_production_button_pressed.bind(act))
 		_btn_container.add_child(btn)
 		oi = oi + 1
 	_actions_empty_label.visible = show_prod and opts.is_empty() and empty_msg.length() > 0
+
+
+func _make_production_option_button(entry: Dictionary) -> Button:
+	var btn := Button.new()
+	_style_production_button(btn)
+	btn.text = ""
+	btn.focus_mode = Control.FOCUS_NONE
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	row.add_theme_constant_override(
+		"separation",
+		CityHubProductionDisplayScript.PRODUCTION_OPTION_CHIP_GAP_PX,
+	)
+	var label_text: String = str(entry.get("label", ""))
+	var name_label := Label.new()
+	name_label.text = label_text
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(name_label)
+	var chips: Array = entry.get("effect_chips", [])
+	var ci: int = 0
+	while ci < chips.size():
+		var chip: Dictionary = chips[ci] as Dictionary
+		var icon_path: String = str(chip.get("icon_path", ""))
+		if not icon_path.is_empty() and ResourceLoader.exists(icon_path):
+			var icon := TextureRect.new()
+			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			icon.texture = load(icon_path) as Texture2D
+			var icon_h: float = float(CityHubProductionDisplayScript.PRODUCTION_OPTION_ICON_HEIGHT_PX)
+			if icon.texture != null:
+				var tex_size: Vector2 = icon.texture.get_size()
+				if tex_size.y > 0.0:
+					var scale: float = icon_h / tex_size.y
+					icon.custom_minimum_size = Vector2(tex_size.x * scale, icon_h)
+					icon.size = icon.custom_minimum_size
+			row.add_child(icon)
+		else:
+			var glyph_text: String = str(chip.get("fallback_glyph", ""))
+			if not glyph_text.is_empty():
+				var glyph := Label.new()
+				glyph.text = glyph_text
+				glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+				glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				glyph.custom_minimum_size = Vector2(
+					float(CityHubProductionDisplayScript.PRODUCTION_OPTION_ICON_HEIGHT_PX),
+					float(CityHubProductionDisplayScript.PRODUCTION_OPTION_ICON_HEIGHT_PX),
+				)
+				row.add_child(glyph)
+		var value_label := Label.new()
+		value_label.text = CityHubProductionDisplayScript.effect_value_text(int(chip.get("value", 0)))
+		value_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(value_label)
+		ci += 1
+	btn.add_child(row)
+	return btn
 
 
 func _clear_buttons() -> void:
