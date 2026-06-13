@@ -10,6 +10,7 @@ const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 const MapCameraScript = preload("res://presentation/map_camera.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
+const Warrior3DExperimentScript = preload("res://presentation/warrior_3d_unit_experiment.gd")
 const CityViewStateScript = preload("res://presentation/city_view_state.gd")
 const GameStateScript = preload("res://domain/game_state.gd")
 const FactionBannerGalleryScript = preload("res://presentation/faction_banner_gallery.gd")
@@ -237,6 +238,8 @@ func _start_local_hotseat_session() -> void:
 	PresentationVisibilityScript.viewing_player_id_override = -1
 	PlaytestPlayerDisplayScript.clear_player_faction_registry()
 	var scenario_loc = ScenarioScript.make_prototype_play_scenario()
+	if Warrior3DExperimentScript.env_debug_extra_3d_characters_enabled():
+		scenario_loc = ScenarioScript.with_debug_character_units(scenario_loc)
 	var game_state_loc = GameStateScript.new(scenario_loc)
 	var selection_loc = SelectionStateScript.new()
 	var city_view_state_loc = CityViewStateScript.new()
@@ -1628,4 +1631,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		if ek.pressed and not ek.echo and ek.keycode == KEY_F1:
 			if _faction_banner_gallery != null:
 				_faction_banner_gallery.toggle_visible()
+				return
+		if (
+			ek.pressed
+			and not ek.echo
+			and ek.keycode == KEY_F10
+			and _play_selection != null
+			and _play_selection.has_unit()
+		):
+			var map_layer = get_node_or_null("MapPresentation3DLayer")
+			if (
+				map_layer != null
+				and map_layer.handle_niclas_debug_input(ek, int(_play_selection.unit_id))
+			):
+				get_viewport().set_input_as_handled()
 				return

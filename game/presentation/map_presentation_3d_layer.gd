@@ -6,7 +6,6 @@ const MapCameraScript = preload("res://presentation/map_camera.gd")
 const Warrior3DExperimentScript = preload("res://presentation/warrior_3d_unit_experiment.gd")
 const City3DWorldViewScript = preload("res://presentation/city_3d_world_view.gd")
 const Unit3DWorldViewScript = preload("res://presentation/unit_3d_world_view.gd")
-const DebugCharacter3DTestViewScript = preload("res://presentation/debug_character_3d_test_view.gd")
 const RESIZE_FIX_VERSION: String = "2026-06-10b"
 
 ## When true (and EMPIRE_USE_3D_MODELS=1), cities use **City3DWorldView** scene instances.
@@ -33,7 +32,6 @@ var _world_pan_root: Node3D
 var _world_camera: Camera3D
 var _city_world_view: City3DWorldView
 var _unit_world_view
-var _debug_character_view
 var _logged_render_mode: bool = false
 var _logged_render_order_once: bool = false
 var _logged_composite_diag_once: bool = false
@@ -178,8 +176,6 @@ func prepare_for_draw() -> void:
 		_city_world_view.prepare_for_draw()
 	if _unit_world_view != null:
 		_unit_world_view.prepare_for_draw()
-	if _debug_character_view != null:
-		_debug_character_view.prepare_for_draw()
 	_log_render_mode_once()
 
 
@@ -194,10 +190,6 @@ func sync_from_scenario() -> void:
 		_unit_world_view.layout = layout
 		if uses_real_3d_units():
 			_unit_world_view.sync_from_scenario()
-	if _debug_character_view != null:
-		_debug_character_view.scenario = scenario
-		_debug_character_view.layout = layout
-		_debug_character_view.sync_from_scenario()
 	_update_active_state()
 
 
@@ -265,11 +257,6 @@ func _update_composite_view_state() -> void:
 			_world_camera, map_camera, map_layer_origin, world_camera_back_distance
 		)
 		_unit_world_view.refresh_placements()
-	if _debug_character_view != null:
-		_debug_character_view.set_placement_context(
-			_world_camera, map_camera, map_layer_origin, world_camera_back_distance
-		)
-		_debug_character_view.refresh_placements()
 
 
 static func apply_composite_subviewport_aa(subvp: SubViewport) -> void:
@@ -333,11 +320,6 @@ func _setup_viewport_composite() -> void:
 		_unit_world_view = Unit3DWorldViewScript.new()
 		_unit_world_view.name = "Unit3DWorldView"
 		_world_pan_root.add_child(_unit_world_view)
-	_debug_character_view = _world_pan_root.get_node_or_null("DebugCharacter3DTestView")
-	if _debug_character_view == null:
-		_debug_character_view = DebugCharacter3DTestViewScript.new()
-		_debug_character_view.name = "DebugCharacter3DTestView"
-		_world_pan_root.add_child(_debug_character_view)
 	_setup_debug_probes()
 	_resize_viewport_container()
 
@@ -661,19 +643,12 @@ func _update_active_state() -> void:
 		_city_world_view.visible = uses_real_3d_city()
 	if _unit_world_view != null:
 		_unit_world_view.visible = uses_real_3d_units()
-	if _debug_character_view != null:
-		_debug_character_view.visible = DebugCharacter3DTestViewScript.is_active()
 
 
-func handle_debug_character_input(event: InputEvent) -> bool:
-	if _debug_character_view == null:
+func handle_niclas_debug_input(event: InputEvent, unit_id: int) -> bool:
+	if _unit_world_view == null:
 		return false
-	return _debug_character_view.handle_input(event)
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if handle_debug_character_input(event):
-		get_viewport().set_input_as_handled()
+	return _unit_world_view.handle_niclas_debug_input(event, unit_id)
 
 
 func warn_auto_blit_fallback_once(city_id: int, reason: String) -> void:

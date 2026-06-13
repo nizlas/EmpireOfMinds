@@ -17,6 +17,7 @@ const ORDERED_UNIT_IDS: Array[String] = [
 	"unit_bronze_armed_warrior",
 	"unit_cart_support",
 	"unit_siege_precursor",
+	"unit_niclas",
 ]
 
 ## Active gameplay type_ids backed by canonical rows (engine `Unit.type_id` today).
@@ -208,8 +209,18 @@ static func _registry() -> Dictionary:
 		0,
 		0,
 		0,
-		["military", "land", "melee", "bronze"],
+		["military", "land", "melee", "bronze", "debug"],
 		"Strong ancient melee unit armed with early bronze weapons.",
+		{
+			"gameplay_type_id": "bronze_armed_warrior",
+			"debug_unit": true,
+			"glb_path": (
+				"res://assets/prototype/3d/units/bronze_armed_warrior/bronze_armed_warrior_3d.glb"
+			),
+			"model_scale_3d": 75.0,
+			"model_yaw_degrees": 48.0,
+			"idle_clip": "Attack",
+		},
 	),
 	# Wheelwrighting is late in the mini-game; logistics value is intentionally strong (behavior not implemented).
 	"unit_cart_support": _row(
@@ -270,6 +281,29 @@ static func _registry() -> Dictionary:
 				"effect": "adjacent_friendly_melee_attacks_reduce_or_ignore_palisade_defense",
 				"stacks": false,
 			},
+		},
+	),
+	"unit_niclas": _row(
+		"unit_niclas",
+		"Niclas",
+		"debug",
+		100,
+		0,
+		2,
+		10,
+		0,
+		0,
+		0,
+		["debug", "land", "civilian"],
+		"Debug-only preplaced figure for animation and movement testing.",
+		{
+			"gameplay_type_id": "niclas",
+			"debug_unit": true,
+			"glb_path": "res://assets/prototype/3d/units/niclas/niclas_3d.glb",
+			"model_scale_3d": 75.0,
+			"model_yaw_degrees": 48.0,
+			"idle_clip": "Idle_3",
+			"walk_clip": "Walking",
 		},
 	),
 	}
@@ -363,19 +397,36 @@ static func enrich_unit_row(row: Dictionary) -> Dictionary:
 	return out
 
 
-# --- Legacy gameplay type_id API (settler / warrior only) ---
+# --- Legacy gameplay type_id API (settler / warrior + debug gameplay types) ---
+
+
+static func resolve_unit_id_for_gameplay_type(type_id: String) -> String:
+	var tid: String = str(type_id).strip_edges()
+	if _UNLOCK_ID_BY_GAMEPLAY_TYPE.has(tid):
+		return str(_UNLOCK_ID_BY_GAMEPLAY_TYPE[tid])
+	var i: int = 0
+	while i < ORDERED_UNIT_IDS.size():
+		var unit_id: String = ORDERED_UNIT_IDS[i]
+		var unit: Dictionary = get_unit(unit_id)
+		if str(unit.get("gameplay_type_id", "")) == tid:
+			return unit_id
+		i += 1
+	return ""
+
+
+static func has_gameplay_type(type_id: String) -> bool:
+	return not resolve_unit_id_for_gameplay_type(type_id).is_empty()
 
 
 static func has(id: String) -> bool:
-	var key: String = str(id).strip_edges()
-	return _UNLOCK_ID_BY_GAMEPLAY_TYPE.has(key)
+	return has_gameplay_type(id)
 
 
 static func get_definition(id: String):
-	var gameplay_type: String = str(id).strip_edges()
-	if not _UNLOCK_ID_BY_GAMEPLAY_TYPE.has(gameplay_type):
+	var unit_id: String = resolve_unit_id_for_gameplay_type(id)
+	if unit_id.is_empty():
 		return null
-	return _legacy_definition_for_unlock_id(_UNLOCK_ID_BY_GAMEPLAY_TYPE[gameplay_type])
+	return _legacy_definition_for_unlock_id(unit_id)
 
 
 static func ids() -> Array:
@@ -387,18 +438,18 @@ static func can_found_city(id: String) -> bool:
 
 
 static func max_movement_for_type(type_id: String) -> int:
-	return movement_for(str(_UNLOCK_ID_BY_GAMEPLAY_TYPE.get(str(type_id).strip_edges(), "")))
+	return movement_for(resolve_unit_id_for_gameplay_type(type_id))
 
 
 static func max_hp_for_type(type_id: String) -> int:
-	var unit: Dictionary = get_unit(str(_UNLOCK_ID_BY_GAMEPLAY_TYPE.get(str(type_id).strip_edges(), "")))
+	var unit: Dictionary = get_unit(resolve_unit_id_for_gameplay_type(type_id))
 	if unit.is_empty():
 		return 0
 	return int(unit.get("hp", 0))
 
 
 static func combat_strength_for_type(type_id: String) -> int:
-	var unit: Dictionary = get_unit(str(_UNLOCK_ID_BY_GAMEPLAY_TYPE.get(str(type_id).strip_edges(), "")))
+	var unit: Dictionary = get_unit(resolve_unit_id_for_gameplay_type(type_id))
 	if unit.is_empty():
 		return 0
 	return int(unit.get("melee_strength", 0))

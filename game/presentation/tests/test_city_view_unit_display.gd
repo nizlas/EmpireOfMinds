@@ -6,8 +6,6 @@ const OverlayScript = preload("res://presentation/city_view_prototype_overlay.gd
 const GameStateScript = preload("res://domain/game_state.gd")
 const FoundCityScript = preload("res://domain/actions/found_city.gd")
 const CompleteProgressScript = preload("res://domain/actions/complete_progress.gd")
-const SetCityProductionScript = preload("res://domain/actions/set_city_production.gd")
-const LegalActionsScript = preload("res://domain/legal_actions.gd")
 const SelectionStateScript = preload("res://presentation/selection_state.gd")
 const UnitDefinitionsScript = preload("res://domain/content/unit_definitions.gd")
 
@@ -20,10 +18,14 @@ func _init() -> void:
 
 
 func _run() -> void:
+	_test_no_city_founded_baseline_units()
 	_test_new_game_available_units()
-	_test_without_city_selection_fallback()
-	_test_after_stone_tools_no_worker()
-	_test_matches_legal_actions()
+	_test_without_city_selection()
+	_test_before_stone_tools_no_worker()
+	_test_after_stone_tools_worker()
+	_test_tracker_and_cart_unlock_gating()
+	_test_slinger_never_appears()
+	_test_ordering_after_progress_unlocks()
 	_test_unit_stats_and_order()
 	if _any_fail:
 		call_deferred("quit", 1)
@@ -61,94 +63,105 @@ func _row_ids(rows: Array[Dictionary]) -> Array[String]:
 	return out
 
 
-func _blob_has_non_baseline_unit(rows: Array[Dictionary]) -> bool:
-	var blocked: PackedStringArray = PackedStringArray([
-		"unit_worker",
-		"unit_slinger",
-		"unit_tracker_scout",
-		"unit_cart_support",
-	])
-	var i: int = 0
-	while i < rows.size():
-		var row_id: String = str(rows[i].get("id", ""))
-		var name: String = str(rows[i].get("name", ""))
-		if blocked.has(row_id):
-			return true
-		if name.find("Slinger") >= 0 or name.find("Tracker") >= 0 or name.find("Cart") >= 0:
-			return true
-		i += 1
-	return false
+func _test_no_city_founded_baseline_units() -> void:
+	var gs = GameStateScript.make_tiny_test_state()
+	var sel = SelectionStateScript.new()
+	var available_ids: Array[String] = _row_ids(UnitDisplayScript.available_unit_rows(gs, sel))
+	_check(available_ids.size() == 2, "no city founded: available units are not empty")
+	_check(available_ids[0] == "unit_warrior", "no city: warrior first")
+	_check(available_ids[1] == "unit_settler", "no city: settler second")
 
 
 func _test_new_game_available_units() -> void:
 	var setup: Dictionary = _make_founded_capital()
 	var gs = setup["gs"]
 	var sel = setup["sel"]
-	var city_id: int = int(setup["city_id"])
-
-	var available: Array[Dictionary] = UnitDisplayScript.available_unit_rows(gs, sel)
-	var available_ids: Array[String] = _row_ids(available)
-	_check(available_ids.size() == 2, "new game available units are exactly two")
-	_check(available_ids[0] == "unit_warrior", "warrior first in legal project order")
-	_check(available_ids[1] == "unit_settler", "settler second in legal project order")
-	_check(not _blob_has_non_baseline_unit(available), "available excludes worker tracker cart slinger")
+	var available_ids: Array[String] = _row_ids(UnitDisplayScript.available_unit_rows(gs, sel))
+	_check(available_ids.size() == 2, "city founded: available units are exactly two")
+	_check(available_ids[0] == "unit_warrior", "warrior first")
+	_check(available_ids[1] == "unit_settler", "settler second")
 
 
-func _test_without_city_selection_fallback() -> void:
+func _test_without_city_selection() -> void:
 	var setup: Dictionary = _make_founded_capital(false)
 	var gs = setup["gs"]
 	var sel = setup["sel"]
 	var available_ids: Array[String] = _row_ids(UnitDisplayScript.available_unit_rows(gs, sel))
-	_check(available_ids.size() == 2, "available units without city selection uses owner city fallback")
-	_check(available_ids.has("unit_warrior"), "fallback includes Warrior")
-	_check(available_ids.has("unit_settler"), "fallback includes Settler")
+	_check(available_ids.size() == 2, "available units without city selection still lists baseline")
+	_check(available_ids.has("unit_warrior"), "no selection includes Warrior")
+	_check(available_ids.has("unit_settler"), "no selection includes Settler")
 
 
-func _test_after_stone_tools_no_worker() -> void:
+func _test_before_stone_tools_no_worker() -> void:
+	var setup: Dictionary = _make_founded_capital()
+	var gs = setup["gs"]
+	var sel = setup["sel"]
+	var available_ids: Array[String] = _row_ids(UnitDisplayScript.available_unit_rows(gs, sel))
+	_check(not available_ids.has("unit_worker"), "Worker hidden before stone_tools")
+
+
+func _test_after_stone_tools_worker() -> void:
 	var setup: Dictionary = _make_founded_capital()
 	var gs = setup["gs"]
 	var sel = setup["sel"]
 	_check(gs.try_apply(CompleteProgressScript.make(0, "stone_tools"))["accepted"], "complete stone_tools")
-
 	var available_ids: Array[String] = _row_ids(UnitDisplayScript.available_unit_rows(gs, sel))
-	_check(available_ids.size() == 2, "still only two available units after stone_tools")
-	_check(available_ids.has("unit_warrior"), "warrior still available after stone_tools")
-	_check(available_ids.has("unit_settler"), "settler still available after stone_tools")
-	_check(not available_ids.has("unit_worker"), "Worker not available without production project")
+	_check(available_ids.size() == 3, "three available units after stone_tools")
+	_check(available_ids[0] == "unit_warrior", "warrior remains first after stone_tools")
+	_check(available_ids[1] == "unit_settler", "settler remains second after stone_tools")
+	_check(available_ids[2] == "unit_worker", "worker third after stone_tools")
+	_check(
+		OverlayScript.available_unit_rows(gs, sel).size() == available_ids.size(),
+		"overlay wrapper matches adapter after stone_tools",
+	)
 
 
-func _test_matches_legal_actions() -> void:
+func _test_tracker_and_cart_unlock_gating() -> void:
 	var setup: Dictionary = _make_founded_capital()
 	var gs = setup["gs"]
 	var sel = setup["sel"]
-	var city_id: int = int(setup["city_id"])
-	var available: Array[Dictionary] = UnitDisplayScript.available_unit_rows(gs, sel)
+	var before_ids: Array[String] = _row_ids(UnitDisplayScript.available_unit_rows(gs, sel))
+	_check(not before_ids.has("unit_tracker_scout"), "tracker hidden before unlock")
+	_check(not before_ids.has("unit_cart_support"), "cart hidden before unlock")
 
-	_check(
-		OverlayScript.available_unit_rows(gs, sel).size() == available.size(),
-		"overlay wrapper matches adapter",
-	)
+	gs.progress_state = gs.progress_state.with_target_unlocked(0, "unit", "tracker")
+	var tracker_ids: Array[String] = _row_ids(UnitDisplayScript.available_unit_rows(gs, sel))
+	_check(tracker_ids.has("unit_tracker_scout"), "tracker appears after canonical unlock")
+	_check(not tracker_ids.has("unit_cart_support"), "cart still hidden without unlock")
 
-	var legal_projects: PackedStringArray = PackedStringArray()
-	var legal: Array = LegalActionsScript.for_current_player(gs)
-	var li: int = 0
-	while li < legal.size():
-		var action: Dictionary = legal[li] as Dictionary
-		if (
-			str(action.get("action_type", "")) == SetCityProductionScript.ACTION_TYPE
-			and int(action.get("city_id", -1)) == city_id
-			and str(action.get("project_id", "")).begins_with("produce_unit:")
-		):
-			legal_projects.append(str(action.get("project_id", "")))
-		li += 1
-	legal_projects.sort()
-	var row_projects: PackedStringArray = PackedStringArray()
-	var pi: int = 0
-	while pi < available.size():
-		row_projects.append(str(available[pi].get("project_id", "")))
-		pi += 1
-	row_projects.sort()
-	_check(row_projects == legal_projects, "available project ids match LegalActions exactly")
+	gs.progress_state = gs.progress_state.with_target_unlocked(0, "unit", "cart")
+	var cart_ids: Array[String] = _row_ids(UnitDisplayScript.available_unit_rows(gs, sel))
+	_check(cart_ids.has("unit_cart_support"), "cart appears after canonical unlock")
+
+
+func _test_slinger_never_appears() -> void:
+	var setup: Dictionary = _make_founded_capital()
+	var gs = setup["gs"]
+	var sel = setup["sel"]
+	_check(gs.try_apply(CompleteProgressScript.make(0, "stone_tools"))["accepted"], "stone_tools for slinger check")
+	var available_ids: Array[String] = _row_ids(UnitDisplayScript.available_unit_rows(gs, sel))
+	_check(not available_ids.has("unit_slinger"), "Slinger never appears in Available Units")
+
+
+func _test_ordering_after_progress_unlocks() -> void:
+	var setup: Dictionary = _make_founded_capital()
+	var gs = setup["gs"]
+	var sel = setup["sel"]
+	_check(gs.try_apply(CompleteProgressScript.make(0, "stone_tools"))["accepted"], "stone_tools")
+	_check(gs.try_apply(CompleteProgressScript.make(0, "foraging_systems"))["accepted"], "foraging")
+	_check(gs.try_apply(CompleteProgressScript.make(0, "oral_surveying"))["accepted"], "oral")
+	_check(gs.try_apply(CompleteProgressScript.make(0, "animal_tracking"))["accepted"], "animal_tracking")
+	_check(gs.try_apply(CompleteProgressScript.make(0, "controlled_fire"))["accepted"], "controlled_fire")
+	_check(gs.try_apply(CompleteProgressScript.make(0, "timber_working"))["accepted"], "timber")
+	_check(gs.try_apply(CompleteProgressScript.make(0, "wheelwrighting"))["accepted"], "wheelwrighting")
+
+	var available_ids: Array[String] = _row_ids(UnitDisplayScript.available_unit_rows(gs, sel))
+	_check(available_ids.size() >= 5, "baseline plus worker tracker cart listed")
+	_check(available_ids[0] == "unit_warrior", "ordering warrior first")
+	_check(available_ids[1] == "unit_settler", "ordering settler second")
+	_check(available_ids[2] == "unit_worker", "ordering worker third (stone_tools)")
+	_check(available_ids[3] == "unit_tracker_scout", "ordering tracker fourth (animal_tracking)")
+	_check(available_ids[4] == "unit_cart_support", "ordering cart fifth (wheelwrighting)")
 
 
 func _test_unit_stats_and_order() -> void:

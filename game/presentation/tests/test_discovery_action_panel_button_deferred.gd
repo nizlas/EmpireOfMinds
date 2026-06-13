@@ -4,7 +4,6 @@ extends SceneTree
 const GameStateScript = preload("res://domain/game_state.gd")
 const ScenarioScript = preload("res://domain/scenario.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
-const HexMapScript = preload("res://domain/hex_map.gd")
 const UnitScript = preload("res://domain/unit.gd")
 const MoveUnitScript = preload("res://domain/actions/move_unit.gd")
 const DiscoveryActionPanelScript = preload("res://presentation/discovery_action_panel.gd")
@@ -30,7 +29,7 @@ func _init() -> void:
 
 
 func _start() -> void:
-	var m = HexMapScript.make_tiny_test_map()
+	var m = ScenarioScript.make_tiny_test_scenario().map
 	var us: Array = [UnitScript.new(2, 0, HexCoordScript.new(0, 0), "warrior")]
 	var scen = ScenarioScript.new(m, us, [], -1, -1, HexCoordScript.new(1, 0))
 	_gs = GameStateScript.new(scen)

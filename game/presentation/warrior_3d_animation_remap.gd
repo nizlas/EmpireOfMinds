@@ -25,6 +25,19 @@ const SETTLER_GLB_CLIP_FOR_VISUAL: Dictionary = {
 	"Dead": "walking_2",
 }
 
+## Niclas debug GLB uses literal clip names (2026-06).
+const NICLAS_GLB_CLIP_FOR_VISUAL: Dictionary = {
+	"Idle_3": "Idle_3",
+	"Walking": "Walking",
+	"Running": "Running",
+}
+
+## Bronze-Armed Warrior: Walking is literal; idle mapping pending (temporary Attack).
+const BRONZE_ARMED_WARRIOR_GLB_CLIP_FOR_VISUAL: Dictionary = {
+	"Idle_3": "Attack",
+	"Walking": "Walking",
+}
+
 
 static func glb_clip_for_visual(
 	visual_name: String, use_remap: bool, type_id: String = "warrior"
@@ -34,4 +47,8 @@ static func glb_clip_for_visual(
 		return key
 	if str(type_id) == "settler":
 		return str(SETTLER_GLB_CLIP_FOR_VISUAL.get(key, key))
+	if str(type_id) == "niclas":
+		return str(NICLAS_GLB_CLIP_FOR_VISUAL.get(key, key))
+	if str(type_id) == "bronze_armed_warrior":
+		return str(BRONZE_ARMED_WARRIOR_GLB_CLIP_FOR_VISUAL.get(key, key))
 	return str(GLB_CLIP_FOR_VISUAL.get(key, key))

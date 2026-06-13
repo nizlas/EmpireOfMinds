@@ -282,3 +282,62 @@ static func make_prototype_play_scenario():
 	]
 	# Open GRASSLAND (no prototype woods). Phase 5.1.8c placement + 5.1.8a observation gate.
 	return _SCENARIO_SCRIPT.new(m, us, [], -1, -1, HexCoordScript.new(3, 0))
+
+
+const DEBUG_NICLAS_UNIT_ID: int = 4
+const DEBUG_BRONZE_UNIT_ID: int = 5
+const DEBUG_NICLAS_HEX_Q: int = 0
+const DEBUG_NICLAS_HEX_R: int = 1
+const DEBUG_BRONZE_HEX_Q: int = 1
+const DEBUG_BRONZE_HEX_R: int = -1
+
+
+static func debug_character_units() -> Array:
+	return [
+		UnitScript.new(
+			DEBUG_NICLAS_UNIT_ID,
+			0,
+			HexCoordScript.new(DEBUG_NICLAS_HEX_Q, DEBUG_NICLAS_HEX_R),
+			"niclas",
+		),
+		UnitScript.new(
+			DEBUG_BRONZE_UNIT_ID,
+			0,
+			HexCoordScript.new(DEBUG_BRONZE_HEX_Q, DEBUG_BRONZE_HEX_R),
+			"bronze_armed_warrior",
+		),
+	]
+
+
+static func with_debug_character_units(a_scenario):
+	var merged_units: Array = []
+	var seen_types: Dictionary = {}
+	var ulist: Array = a_scenario.units()
+	var i: int = 0
+	while i < ulist.size():
+		var unit = ulist[i]
+		merged_units.append(unit)
+		seen_types[str(unit.type_id)] = true
+		i += 1
+	var extras: Array = debug_character_units()
+	var ei: int = 0
+	while ei < extras.size():
+		var extra = extras[ei]
+		if not seen_types.has(str(extra.type_id)):
+			merged_units.append(extra)
+		ei += 1
+	var next_unit_id: int = a_scenario.peek_next_unit_id()
+	var ui: int = 0
+	while ui < merged_units.size():
+		var uid: int = int(merged_units[ui].id)
+		if uid >= next_unit_id:
+			next_unit_id = uid + 1
+		ui += 1
+	return _SCENARIO_SCRIPT.new(
+		a_scenario.map,
+		merged_units,
+		a_scenario.cities(),
+		next_unit_id,
+		a_scenario.peek_next_city_id(),
+		a_scenario.lightning_tree_hex,
+	)

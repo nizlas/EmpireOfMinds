@@ -403,15 +403,16 @@ func _test_canonical_unit_sections() -> void:
 
 	var available_ids: Array[String] = _row_ids(OverlayScript.available_unit_rows(gs, sel))
 	_check(available_ids.size() == 2, "overlay available units exactly two at new game")
-	_check(available_ids.has("unit_warrior"), "overlay available includes Warrior")
-	_check(available_ids.has("unit_settler"), "overlay available includes Settler")
-	_check(not available_ids.has("unit_worker"), "overlay available excludes Worker")
+	_check(available_ids[0] == "unit_warrior", "overlay available warrior first")
+	_check(available_ids[1] == "unit_settler", "overlay available settler second")
+	_check(not available_ids.has("unit_worker"), "overlay available excludes Worker before stone_tools")
 	_check(not available_ids.has("unit_slinger"), "overlay available excludes Slinger")
 
 	_check(gs.try_apply(CompleteProgressScript.make(0, "stone_tools"))["accepted"], "overlay stone_tools complete")
 	var after_st_ids: Array[String] = _row_ids(OverlayScript.available_unit_rows(gs, sel))
-	_check(after_st_ids.size() == 2, "still two available units after stone_tools")
-	_check(not after_st_ids.has("unit_worker"), "Worker still not available after stone_tools")
+	_check(after_st_ids.size() == 3, "three available units after stone_tools")
+	_check(after_st_ids.has("unit_worker"), "Worker appears after stone_tools unlock")
+	_check(after_st_ids[2] == "unit_worker", "Worker follows baseline units in tree order")
 
 	var overlay: OverlayScript = OverlayScript.new()
 	overlay._build_ui()
@@ -573,7 +574,7 @@ func _test_open_close_escape() -> void:
 	_check(avail_blob.contains("Pottery Workshop"), "available list shows Pottery Workshop")
 	_check(not avail_blob.contains("Scout Camp"), "available list excludes Scout Camp")
 	_check(not avail_blob.contains("Storage —"), "available list excludes stale Storage label")
-	_check(overlay._available_units_list.item_count == 2, "available units are Warrior and Settler only")
+	_check(overlay._available_units_list.item_count == 3, "available units are Warrior Settler and Worker after stone_tools")
 	var unit_blob: String = ""
 	var ui: int = 0
 	while ui < overlay._available_units_list.item_count:
@@ -581,10 +582,10 @@ func _test_open_close_escape() -> void:
 		ui += 1
 	_check(unit_blob.contains("Warrior"), "open overlay available shows Warrior")
 	_check(unit_blob.contains("Settler"), "open overlay available shows Settler")
+	_check(unit_blob.contains("Worker"), "open overlay available shows Worker after stone_tools")
 	_check(not unit_blob.contains("Slinger"), "open overlay available excludes Slinger")
-	_check(not unit_blob.contains("Worker"), "open overlay available excludes Worker")
-	_check(not unit_blob.contains("Tracker"), "open overlay available excludes Tracker")
-	_check(not unit_blob.contains("Cart"), "open overlay available excludes Cart")
+	_check(not unit_blob.contains("Tracker"), "open overlay available excludes Tracker before unlock")
+	_check(not unit_blob.contains("Cart"), "open overlay available excludes Cart before unlock")
 	_check(overlay._tile_improvements_list.item_count > 0, "tile improvements listed")
 	var exo_rows: Array[Dictionary] = OverlayScript.collect_unlock_rows(
 		["exoplanet_expedition"],

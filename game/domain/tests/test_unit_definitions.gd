@@ -18,6 +18,7 @@ const _ACTIVE_UNIT_IDS: Array[String] = [
 	"unit_bronze_armed_warrior",
 	"unit_cart_support",
 	"unit_siege_precursor",
+	"unit_niclas",
 ]
 
 var _total = 0
@@ -55,7 +56,7 @@ func _check(cond: bool, message: String) -> void:
 
 
 func _test_canonical_registry() -> void:
-	_check(UnitDefinitionsScript.unit_ids().size() == 12, "twelve canonical unit ids")
+	_check(UnitDefinitionsScript.unit_ids().size() == 13, "thirteen canonical unit ids")
 	var i: int = 0
 	while i < _ACTIVE_UNIT_IDS.size():
 		var unit_id: String = _ACTIVE_UNIT_IDS[i]
@@ -66,7 +67,7 @@ func _test_canonical_registry() -> void:
 		_check(int(unit.get("hp", 0)) == 100, "hp 100 for %s" % unit_id)
 		i += 1
 	var all_units: Array[Dictionary] = UnitDefinitionsScript.all_units()
-	_check(all_units.size() == 12, "all_units count")
+	_check(all_units.size() == 13, "all_units count")
 
 
 func _test_key_stats() -> void:
@@ -171,6 +172,12 @@ func _test_legacy_gameplay_api() -> void:
 	_check(UnitDefinitionsScript.can_found_city("settler"), "can_found settler")
 	_check(not UnitDefinitionsScript.can_found_city("warrior"), "cannot_found warrior")
 	_check(UnitDefinitionsScript.max_movement_for_type("warrior") == 2, "legacy warrior MP")
+	_check(UnitDefinitionsScript.max_movement_for_type("niclas") == 2, "debug niclas MP")
+	_check(
+		UnitDefinitionsScript.resolve_unit_id_for_gameplay_type("bronze_armed_warrior")
+			== "unit_bronze_armed_warrior",
+		"bronze gameplay resolves to unit id",
+	)
 	_check(UnitDefinitionsScript.max_hp_for_type("warrior") == 100, "legacy warrior max_hp")
 	_check(UnitDefinitionsScript.combat_strength_for_type("warrior") == 20, "legacy warrior str")
 

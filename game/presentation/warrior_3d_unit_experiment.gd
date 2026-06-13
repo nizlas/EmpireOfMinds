@@ -17,12 +17,17 @@ const SETTLER_ANIMATED_GLB_PATH: String = (
 const ANCIENT_VILLAGE_GLB_PATH: String = (
 	"res://assets/prototype/3d/cities/ancient_village/ancient_village.glb"
 )
+const BRONZE_ARMED_WARRIOR_GLB_PATH: String = (
+	"res://assets/prototype/3d/units/bronze_armed_warrior/bronze_armed_warrior_3d.glb"
+)
+const NICLAS_GLB_PATH: String = "res://assets/prototype/3d/units/niclas/niclas_3d.glb"
 const MAP_ANIMATION_ENV: String = "EOM_WARRIOR_3D_ANIM"
 const ANIM_AUDIT_ENV: String = "EOM_WARRIOR_3D_ANIM_AUDIT"
 ## TEMPORARY probe: built-in AnimationPlayer root_motion_track instead of manual anchor cancel.
 const SETTLER_BUILTIN_RM_ENV: String = "EOM_SETTLER_BUILTIN_RM"
 const DEFAULT_MAP_ANIMATION_NAME: String = "Idle_3"
-const SUPPORTED_3D_TYPE_IDS: Array = ["warrior", "settler"]
+const SUPPORTED_3D_TYPE_IDS: Array = ["warrior", "settler", "niclas", "bronze_armed_warrior"]
+const DEBUG_3D_TYPE_IDS: Array = ["niclas", "bronze_armed_warrior"]
 
 static var _logged_flag_state: bool = false
 
@@ -51,6 +56,14 @@ static func animated_scene_path_for_type(type_id: String) -> String:
 			return SETTLER_ANIMATED_GLB_PATH
 		if ResourceLoader.exists(SETTLER_GLB_PATH):
 			return SETTLER_GLB_PATH
+		return ""
+	if tid == "niclas":
+		if ResourceLoader.exists(NICLAS_GLB_PATH):
+			return NICLAS_GLB_PATH
+		return ""
+	if tid == "bronze_armed_warrior":
+		if ResourceLoader.exists(BRONZE_ARMED_WARRIOR_GLB_PATH):
+			return BRONZE_ARMED_WARRIOR_GLB_PATH
 		return ""
 	return ""
 
@@ -90,6 +103,9 @@ static func should_render_unit_as_3d(type_id: String) -> bool:
 			return false
 	elif tid == "warrior":
 		if not is_enabled():
+			return false
+	elif tid in DEBUG_3D_TYPE_IDS:
+		if not is_models_flag_enabled():
 			return false
 	else:
 		return false
@@ -135,9 +151,14 @@ static func env_real_3d_units_enabled() -> bool:
 	return is_models_flag_enabled() and OS.get_environment(ENV_REAL_3D_UNITS).strip_edges() == "1"
 
 
-## Env **EOM_DEBUG_EXTRA_3D_CHARACTERS=1**: bronze-armed warrior + Niclas debug figures in map composite.
+## Env **EOM_DEBUG_EXTRA_3D_CHARACTERS=1**: preplace Niclas + Bronze-Armed Warrior in local play scenario.
 static func env_debug_extra_3d_characters_enabled() -> bool:
 	return OS.get_environment(ENV_DEBUG_EXTRA_3D_CHARACTERS).strip_edges() == "1"
+
+
+## True when debug scenario units should also render as real 3D (requires models + real 3D flags).
+static func should_render_debug_character_as_3d(type_id: String) -> bool:
+	return str(type_id) in DEBUG_3D_TYPE_IDS and should_render_unit_as_3d(type_id)
 
 
 ## Env **EOM_NICLAS_3D_DIAG=1**: Niclas animation catalog cycling via **KEY_F10** (debug scene only).
@@ -148,7 +169,7 @@ static func env_niclas_3d_diag_enabled() -> bool:
 ## True when **type_id** should use **Unit3DWorldView** (not per-unit SubViewport blit).
 static func uses_real_3d_composite_for_type(type_id: String) -> bool:
 	var tid: String = str(type_id)
-	if tid != "warrior" and tid != "settler":
+	if tid not in SUPPORTED_3D_TYPE_IDS:
 		return false
 	return env_real_3d_units_enabled() and should_render_unit_as_3d(tid)
 

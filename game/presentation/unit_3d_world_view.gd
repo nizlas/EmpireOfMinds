@@ -5,6 +5,7 @@ extends Node3D
 const Warrior3DExperimentScript = preload("res://presentation/warrior_3d_unit_experiment.gd")
 const Warrior3DAnimationRemapScript = preload("res://presentation/warrior_3d_animation_remap.gd")
 const Warrior3DWalkSyncScript = preload("res://presentation/warrior_3d_walk_sync.gd")
+const Unit3DIdleVariationScript = preload("res://presentation/unit_3d_idle_variation.gd")
 const City3DWorldViewScript = preload("res://presentation/city_3d_world_view.gd")
 const HexLayoutScript = preload("res://presentation/hex_layout.gd")
 const MapCameraScript = preload("res://presentation/map_camera.gd")
@@ -17,6 +18,9 @@ const SEMANTIC_IDLE_CLIP: String = "Idle_3"
 const SEMANTIC_WALK_CLIP: String = "Walking"
 const WARRIOR_TYPE_ID: String = "warrior"
 const SETTLER_TYPE_ID: String = "settler"
+const NICLAS_TYPE_ID: String = "niclas"
+const BRONZE_ARMED_WARRIOR_TYPE_ID: String = "bronze_armed_warrior"
+const NICLAS_DEBUG_CYCLE_KEY: Key = KEY_F10
 const MODEL_ROOT_NAME: String = "ModelRoot"
 
 ## Base scale tuned at [member reference_world_y] (pan=0, zoom=1); row factor applied per frame.
@@ -42,6 +46,22 @@ const MODEL_ROOT_NAME: String = "ModelRoot"
 @export var settler_model_offset_y_local: float = 0.0
 @export var settler_travel_facing_yaw_offset_deg: float = 69.0
 
+@export_group("Niclas debug 3D")
+@export var niclas_model_scale_3d: float = 75.0
+@export var niclas_reference_world_y: float = 0.0
+@export var niclas_model_yaw_degrees: float = 48.0
+@export var niclas_model_pitch_degrees: float = 0.0
+@export var niclas_model_offset_y_local: float = 0.0
+@export var niclas_travel_facing_yaw_offset_deg: float = 69.0
+
+@export_group("Bronze-Armed Warrior debug 3D")
+@export var bronze_armed_warrior_model_scale_3d: float = 75.0
+@export var bronze_armed_warrior_reference_world_y: float = 0.0
+@export var bronze_armed_warrior_model_yaw_degrees: float = 48.0
+@export var bronze_armed_warrior_model_pitch_degrees: float = 0.0
+@export var bronze_armed_warrior_model_offset_y_local: float = 0.0
+@export var bronze_armed_warrior_travel_facing_yaw_offset_deg: float = 69.0
+
 var scenario
 var layout
 
@@ -58,6 +78,28 @@ var _active_hex_moves: Dictionary = {}
 var _facing_yaw_by_unit_id: Dictionary = {}
 var _ray_parallel_warned: Dictionary = {}
 var _logged_placement_diag: Dictionary = {}
+var _niclas_clip_names_by_unit_id: Dictionary = {}
+var _niclas_clip_index_by_unit_id: Dictionary = {}
+var _logged_niclas_catalog_by_unit_id: Dictionary = {}
+var _logged_bronze_catalog: bool = false
+var _idle_variation_by_unit_id: Dictionary = {}
+var _idle_tick_frame: int = -1
+var _last_idle_tick_sec: float = -1.0
+var _logged_niclas_idle_clip_error: Dictionary = {}
+
+
+func handle_niclas_debug_input(event: InputEvent, unit_id: int) -> bool:
+	if not Warrior3DExperimentScript.env_niclas_3d_diag_enabled():
+		return false
+	if type_id_for_unit(unit_id) != NICLAS_TYPE_ID:
+		return false
+	if not (event is InputEventKey):
+		return false
+	var ek: InputEventKey = event as InputEventKey
+	if not ek.pressed or ek.echo or ek.keycode != NICLAS_DEBUG_CYCLE_KEY:
+		return false
+	_cycle_niclas_animation(unit_id)
+	return true
 
 
 func set_placement_context(
@@ -133,8 +175,13 @@ func hex_move_progress(unit_id: int) -> float:
 	return float(_active_hex_moves[unit_id].get("progress", 0.0))
 
 
+func _ready() -> void:
+	set_process(true)
+
+
 func prepare_for_draw() -> void:
 	_sync_once_per_frame()
+	_tick_idle_variations_once_per_frame(_estimate_idle_tick_delta())
 	_refresh_placements()
 
 
@@ -184,15 +231,38 @@ func begin_hex_move(
 	}
 	var root: Node3D = _instance_by_unit_id.get(unit_id) as Node3D
 	if root != null:
+		_interrupt_idle_variation(unit_id, "movement_start")
 		_apply_instance_transform(root, unit_id)
 		_play_clip_on_instance(root, walk_glb, HEX_MOVE_WALK_ANIM_SPEED, 0.0, type_id)
 
 
 func _process(delta: float) -> void:
-	if not is_real_3d_active() or _active_hex_moves.is_empty():
+	if not is_real_3d_active():
 		return
-	_tick_hex_moves(delta)
-	_refresh_placements()
+	if not _active_hex_moves.is_empty():
+		_tick_hex_moves(delta)
+		_refresh_placements()
+	_tick_idle_variations_once_per_frame(delta)
+
+
+func _estimate_idle_tick_delta() -> float:
+	var now_sec: float = float(Time.get_ticks_usec()) / 1000000.0
+	if _last_idle_tick_sec < 0.0:
+		_last_idle_tick_sec = now_sec
+		return 1.0 / 60.0
+	var delta: float = clampf(now_sec - _last_idle_tick_sec, 0.001, 0.1)
+	_last_idle_tick_sec = now_sec
+	return delta
+
+
+func _tick_idle_variations_once_per_frame(delta: float) -> void:
+	if not is_real_3d_active():
+		return
+	var frame: int = Engine.get_frames_drawn()
+	if _idle_tick_frame == frame:
+		return
+	_idle_tick_frame = frame
+	_tick_idle_variations(delta)
 
 
 func _sync_once_per_frame() -> void:
@@ -231,7 +301,11 @@ func _sync_instances() -> void:
 				i += 1
 				continue
 		if not _active_hex_moves.has(unit_id):
-			_apply_idle_animation(root, type_id)
+			if Unit3DIdleVariationScript.has_variation(type_id):
+				_ensure_idle_variation_state(unit_id, type_id)
+				_bootstrap_idle_variation_if_needed(unit_id, root, type_id)
+			else:
+				_apply_idle_animation(root, type_id)
 		_apply_instance_transform(root, unit_id)
 		i += 1
 	var stale: Array = _instance_by_unit_id.keys()
@@ -247,6 +321,11 @@ func _sync_instances() -> void:
 			_active_hex_moves.erase(stale_id)
 			_facing_yaw_by_unit_id.erase(stale_id)
 			_logged_placement_diag.erase(stale_id)
+			_niclas_clip_names_by_unit_id.erase(stale_id)
+			_niclas_clip_index_by_unit_id.erase(stale_id)
+			_logged_niclas_catalog_by_unit_id.erase(stale_id)
+			_idle_variation_by_unit_id.erase(stale_id)
+			_logged_niclas_idle_clip_error.erase(stale_id)
 		si += 1
 
 
@@ -271,7 +350,14 @@ func _create_unit_instance(unit_id: int, unit) -> Node3D:
 	_instance_by_unit_id[unit_id] = unit_root
 	_type_id_by_unit_id[unit_id] = type_id
 	_prime_walk_clip_length(model, type_id)
-	_apply_idle_animation(unit_root, type_id)
+	_log_niclas_catalog_once(unit_id, unit_root, model, type_id)
+	_log_bronze_catalog_once(unit_root, model, type_id)
+	if Unit3DIdleVariationScript.has_variation(type_id):
+		_idle_variation_by_unit_id[unit_id] = Unit3DIdleVariationScript.make_state(unit_id)
+		_log_niclas_instance_ready(unit_id, unit_root)
+		_start_idle_variation_cycle(unit_id, unit_root, type_id, 0.0, "instance_create")
+	else:
+		_apply_idle_animation(unit_root, type_id)
 	print(
 		(
 			"[Unit3D world] created unit_id=%d hex=(%d,%d) type=%s render=real_scene_3d "
@@ -610,39 +696,75 @@ func _effective_scale_for_unit(unit_id: int) -> float:
 
 
 func _base_scale_for_type(type_id: String) -> float:
-	if str(type_id) == SETTLER_TYPE_ID:
-		return settler_model_scale_3d
-	return model_scale_3d
+	match str(type_id):
+		SETTLER_TYPE_ID:
+			return settler_model_scale_3d
+		NICLAS_TYPE_ID:
+			return niclas_model_scale_3d
+		BRONZE_ARMED_WARRIOR_TYPE_ID:
+			return bronze_armed_warrior_model_scale_3d
+		_:
+			return model_scale_3d
 
 
 func _reference_world_y_for_type(type_id: String) -> float:
-	if str(type_id) == SETTLER_TYPE_ID:
-		return settler_reference_world_y
-	return reference_world_y
+	match str(type_id):
+		SETTLER_TYPE_ID:
+			return settler_reference_world_y
+		NICLAS_TYPE_ID:
+			return niclas_reference_world_y
+		BRONZE_ARMED_WARRIOR_TYPE_ID:
+			return bronze_armed_warrior_reference_world_y
+		_:
+			return reference_world_y
 
 
 func _model_yaw_for_type(type_id: String) -> float:
-	if str(type_id) == SETTLER_TYPE_ID:
-		return settler_model_yaw_degrees
-	return model_yaw_degrees
+	match str(type_id):
+		SETTLER_TYPE_ID:
+			return settler_model_yaw_degrees
+		NICLAS_TYPE_ID:
+			return niclas_model_yaw_degrees
+		BRONZE_ARMED_WARRIOR_TYPE_ID:
+			return bronze_armed_warrior_model_yaw_degrees
+		_:
+			return model_yaw_degrees
 
 
 func _model_pitch_for_type(type_id: String) -> float:
-	if str(type_id) == SETTLER_TYPE_ID:
-		return settler_model_pitch_degrees
-	return model_pitch_degrees
+	match str(type_id):
+		SETTLER_TYPE_ID:
+			return settler_model_pitch_degrees
+		NICLAS_TYPE_ID:
+			return niclas_model_pitch_degrees
+		BRONZE_ARMED_WARRIOR_TYPE_ID:
+			return bronze_armed_warrior_model_pitch_degrees
+		_:
+			return model_pitch_degrees
 
 
 func _model_offset_y_local_for_type(type_id: String) -> float:
-	if str(type_id) == SETTLER_TYPE_ID:
-		return settler_model_offset_y_local
-	return model_offset_y_local
+	match str(type_id):
+		SETTLER_TYPE_ID:
+			return settler_model_offset_y_local
+		NICLAS_TYPE_ID:
+			return niclas_model_offset_y_local
+		BRONZE_ARMED_WARRIOR_TYPE_ID:
+			return bronze_armed_warrior_model_offset_y_local
+		_:
+			return model_offset_y_local
 
 
 func _travel_facing_yaw_offset_for_type(type_id: String) -> float:
-	if str(type_id) == SETTLER_TYPE_ID:
-		return settler_travel_facing_yaw_offset_deg
-	return travel_facing_yaw_offset_deg
+	match str(type_id):
+		SETTLER_TYPE_ID:
+			return settler_travel_facing_yaw_offset_deg
+		NICLAS_TYPE_ID:
+			return niclas_travel_facing_yaw_offset_deg
+		BRONZE_ARMED_WARRIOR_TYPE_ID:
+			return bronze_armed_warrior_travel_facing_yaw_offset_deg
+		_:
+			return travel_facing_yaw_offset_deg
 
 
 ## Bind-pose mesh extent in world space before UnitRoot scale (headless AABB omits parent scale).
@@ -732,7 +854,11 @@ func _tick_hex_moves(delta: float) -> void:
 		var root_done: Node3D = _instance_by_unit_id.get(done_id) as Node3D
 		if root_done != null:
 			var done_type: String = type_id_for_unit(done_id)
-			_apply_idle_animation(root_done, done_type, idle_end_blend_sec)
+			if Unit3DIdleVariationScript.has_variation(done_type):
+				_log_niclas_idle_event(done_id, "movement_arrival", "type=%s" % done_type)
+				_restart_idle_variation_after_arrival(done_id, root_done, done_type, idle_end_blend_sec)
+			else:
+				_apply_idle_animation(root_done, done_type, idle_end_blend_sec)
 			_apply_instance_transform(root_done, done_id)
 		fi += 1
 
@@ -927,6 +1053,423 @@ func _clear_all_instances() -> void:
 	_facing_yaw_by_unit_id.clear()
 	_ray_parallel_warned.clear()
 	_logged_placement_diag.clear()
+	_niclas_clip_names_by_unit_id.clear()
+	_niclas_clip_index_by_unit_id.clear()
+	_logged_niclas_catalog_by_unit_id.clear()
+	_idle_variation_by_unit_id.clear()
+	_logged_niclas_idle_clip_error.clear()
+	_logged_bronze_catalog = false
+
+
+func _log_niclas_catalog_once(unit_id: int, unit_root: Node3D, model: Node, type_id: String) -> void:
+	if str(type_id) != NICLAS_TYPE_ID or _logged_niclas_catalog_by_unit_id.has(unit_id):
+		return
+	_logged_niclas_catalog_by_unit_id[unit_id] = true
+	var clip_names: PackedStringArray = _animation_names_from_model(model)
+	_niclas_clip_names_by_unit_id[unit_id] = clip_names
+	var idle_glb: String = _glb_clip_for_semantic(SEMANTIC_IDLE_CLIP, type_id)
+	var idle_idx: int = 0
+	var ci: int = 0
+	while ci < clip_names.size():
+		if clip_names[ci] == idle_glb:
+			idle_idx = ci
+			break
+		ci += 1
+	_niclas_clip_index_by_unit_id[unit_id] = idle_idx
+	print(
+		"[Unit3D niclas diag] unit_id=%d animations=[%s] idle_candidate=%s cycle_key=F10"
+		% [unit_id, ", ".join(clip_names), idle_glb]
+	)
+
+
+func _log_bronze_catalog_once(unit_root: Node3D, model: Node, type_id: String) -> void:
+	if str(type_id) != BRONZE_ARMED_WARRIOR_TYPE_ID or _logged_bronze_catalog:
+		return
+	_logged_bronze_catalog = true
+	var clip_names: PackedStringArray = _animation_names_from_model(model)
+	var idle_glb: String = _glb_clip_for_semantic(SEMANTIC_IDLE_CLIP, type_id)
+	print(
+		"[Unit3D bronze diag] animations=[%s] idle_candidate=%s"
+		% [", ".join(clip_names), idle_glb]
+	)
+
+
+func _cycle_niclas_animation(unit_id: int) -> void:
+	var root: Node3D = _instance_by_unit_id.get(unit_id) as Node3D
+	if root == null:
+		return
+	_interrupt_idle_variation(unit_id, "debug_cycle")
+	var clip_names: PackedStringArray = _niclas_clip_names_by_unit_id.get(unit_id, PackedStringArray())
+	if clip_names.is_empty():
+		return
+	var next_index: int = int(_niclas_clip_index_by_unit_id.get(unit_id, 0))
+	next_index = (next_index + 1) % clip_names.size()
+	_niclas_clip_index_by_unit_id[unit_id] = next_index
+	var clip_name: String = str(clip_names[next_index])
+	var player: AnimationPlayer = _animation_player_for_root(root)
+	var duration: float = 0.0
+	if player != null:
+		var anim: Animation = player.get_animation(clip_name)
+		if anim != null:
+			duration = anim.length
+		_play_clip_on_instance(root, clip_name, 1.0, 0.0, NICLAS_TYPE_ID)
+	print(
+		(
+			"[Unit3D niclas diag] asset=niclas unit_id=%d animation_index=%d clip=%s "
+			+ "duration=%.3f loop_forced=true"
+		)
+		% [unit_id, next_index, clip_name, duration]
+	)
+
+
+func _ensure_idle_variation_state(unit_id: int, type_id: String) -> void:
+	if not Unit3DIdleVariationScript.has_variation(type_id):
+		return
+	if not _idle_variation_by_unit_id.has(unit_id):
+		_idle_variation_by_unit_id[unit_id] = Unit3DIdleVariationScript.make_state(unit_id)
+
+
+func _idle_variation_state(unit_id: int) -> Dictionary:
+	return _idle_variation_by_unit_id.get(unit_id, {}) as Dictionary
+
+
+func _interrupt_idle_variation(unit_id: int, reason: String = "") -> void:
+	var type_id: String = type_id_for_unit(unit_id)
+	if Unit3DIdleVariationScript.has_variation(type_id):
+		_ensure_idle_variation_state(unit_id, type_id)
+	if not _idle_variation_by_unit_id.has(unit_id):
+		return
+	var state: Dictionary = _idle_variation_state(unit_id)
+	var gen: int = Unit3DIdleVariationScript.interrupt_for_movement(state)
+	_idle_variation_by_unit_id[unit_id] = state
+	_log_niclas_idle_event(unit_id, "cancel", "reason=%s generation=%d" % [reason, gen])
+
+
+func _restart_idle_variation_after_arrival(
+	unit_id: int,
+	root: Node3D,
+	type_id: String,
+	arrival_blend_sec: float,
+) -> void:
+	_ensure_idle_variation_state(unit_id, type_id)
+	var state: Dictionary = _idle_variation_state(unit_id)
+	var gen: int = Unit3DIdleVariationScript.restart_after_arrival(state)
+	_idle_variation_by_unit_id[unit_id] = state
+	_log_niclas_idle_event(
+		unit_id,
+		"arrival_enter_chooser",
+		"generation=%d blend=%.2f path=chooser" % [gen, arrival_blend_sec],
+	)
+	_start_idle_variation_cycle(unit_id, root, type_id, arrival_blend_sec, "arrival")
+
+
+func _bootstrap_idle_variation_if_needed(unit_id: int, root: Node3D, type_id: String) -> void:
+	if not Unit3DIdleVariationScript.has_variation(type_id):
+		return
+	if _active_hex_moves.has(unit_id):
+		return
+	var state: Dictionary = _idle_variation_state(unit_id)
+	if str(state.get("phase", "")) == Unit3DIdleVariationScript.PHASE_MOVING:
+		return
+	var player: AnimationPlayer = _animation_player_for_root(root)
+	var needs_start: bool = not bool(state.get("clip_started", false))
+	if not needs_start and player != null:
+		needs_start = not player.is_playing()
+		var expected_clip: String = str(state.get("current_clip", ""))
+		if not expected_clip.is_empty() and str(player.current_animation) != expected_clip:
+			needs_start = true
+	if not needs_start:
+		return
+	var phase: String = str(state.get("phase", ""))
+	state["clip_started"] = false
+	state["clip_elapsed_sec"] = 0.0
+	state["clip_logical_length_sec"] = 0.0
+	if phase == Unit3DIdleVariationScript.PHASE_RECOVERY_IDLE:
+		state["current_clip"] = ""
+		_idle_variation_by_unit_id[unit_id] = state
+		var config: Dictionary = Unit3DIdleVariationScript.config_for_type(type_id)
+		var recovery_spec: Dictionary = {
+			"clip": str(config.get("recovery_clip", Unit3DIdleVariationScript.CLIP_IDLE_3)),
+			"blend_sec": float(config.get("blend_to_recovery_sec", Unit3DIdleVariationScript.NICLAS_BLEND_TO_RECOVERY_SEC)),
+			"phase": Unit3DIdleVariationScript.PHASE_RECOVERY_IDLE,
+			"reason": "bootstrap_recovery",
+		}
+		var gen: int = int(state.get("generation", 0))
+		_idle_variation_play_clip(
+			unit_id, root, type_id, state, recovery_spec, gen, 0.0, "bootstrap_recovery"
+		)
+		return
+	state["current_clip"] = ""
+	_idle_variation_by_unit_id[unit_id] = state
+	_start_idle_variation_cycle(unit_id, root, type_id, 0.0, "sync_bootstrap")
+
+
+func _start_idle_variation_cycle(
+	unit_id: int,
+	root: Node3D,
+	type_id: String,
+	blend_sec: float,
+	reason: String,
+) -> void:
+	if not Unit3DIdleVariationScript.has_variation(type_id):
+		return
+	_ensure_idle_variation_state(unit_id, type_id)
+	var state: Dictionary = _idle_variation_state(unit_id)
+	if str(state.get("phase", "")) == Unit3DIdleVariationScript.PHASE_MOVING:
+		return
+	if bool(state.get("clip_started", false)):
+		return
+	var config: Dictionary = Unit3DIdleVariationScript.config_for_type(type_id)
+	var play_spec: Dictionary = Unit3DIdleVariationScript.choose_from_chooser(state, config)
+	if play_spec.is_empty():
+		_play_niclas_idle_fallback(root, unit_id, type_id, state, blend_sec, "empty_choose")
+		return
+	_idle_variation_by_unit_id[unit_id] = state
+	var gen: int = int(state.get("generation", 0))
+	_log_niclas_idle_event(
+		unit_id,
+		"start_idle",
+		"generation=%d reason=%s" % [gen, reason],
+	)
+	_log_niclas_idle_choice(unit_id, str(play_spec.get("clip", "")))
+	_idle_variation_play_clip(unit_id, root, type_id, state, play_spec, gen, blend_sec, reason)
+
+
+func _idle_variation_play_clip(
+	unit_id: int,
+	root: Node3D,
+	type_id: String,
+	state: Dictionary,
+	play_spec: Dictionary,
+	expected_generation: int,
+	extra_blend_sec: float,
+	reason: String,
+) -> void:
+	if int(state.get("generation", 0)) != expected_generation:
+		return
+	var clip: String = str(play_spec.get("clip", ""))
+	if clip.is_empty():
+		_play_niclas_idle_fallback(root, unit_id, type_id, state, extra_blend_sec, "empty_clip")
+		return
+	var player: AnimationPlayer = _animation_player_for_root(root)
+	if player == null:
+		_log_niclas_idle_clip_error_once(unit_id, "AnimationPlayer not found")
+		_play_niclas_idle_fallback(root, unit_id, type_id, state, extra_blend_sec, "no_player")
+		return
+	if not player.has_animation(clip):
+		_log_niclas_idle_clip_error_once(unit_id, "missing clip '%s'" % clip)
+		if clip != Unit3DIdleVariationScript.CLIP_IDLE_3 and player.has_animation(
+			Unit3DIdleVariationScript.CLIP_IDLE_3
+		):
+			play_spec = play_spec.duplicate()
+			play_spec["clip"] = Unit3DIdleVariationScript.CLIP_IDLE_3
+			play_spec["blend_sec"] = maxf(float(play_spec.get("blend_sec", 0.0)), extra_blend_sec)
+			clip = Unit3DIdleVariationScript.CLIP_IDLE_3
+			state["phase"] = Unit3DIdleVariationScript.PHASE_NORMAL_IDLE
+		else:
+			_play_niclas_idle_fallback(root, unit_id, type_id, state, extra_blend_sec, "missing_clip")
+			return
+	var anim: Animation = player.get_animation(clip)
+	var import_length: float = anim.length if anim != null else 0.0
+	var phase: String = str(state.get("phase", ""))
+	var logical_length: float = Unit3DIdleVariationScript.logical_length_for_phase(
+		phase, clip, import_length
+	)
+	var walk_arrival_blend: float = extra_blend_sec if reason == "arrival" else 0.0
+	var blend_sec: float = maxf(float(play_spec.get("blend_sec", 0.0)), walk_arrival_blend)
+	player.speed_scale = 1.0
+	# INHERIT: visible playback advances each frame; logical elapsed timer handles looped imports.
+	player.process_mode = Node.PROCESS_MODE_INHERIT
+	if blend_sec > 0.0:
+		player.play(clip, blend_sec, -1.0)
+	else:
+		player.play(clip)
+	player.seek(0.0, true)
+	Unit3DIdleVariationScript.mark_clip_started(state, clip, logical_length)
+	_idle_variation_by_unit_id[unit_id] = state
+	_log_niclas_idle_event(
+		unit_id,
+		"play",
+		"clip=%s blend=%.2f import_len=%.3f logical_len=%.3f phase=%s generation=%d reason=%s"
+		% [clip, blend_sec, import_length, logical_length, phase, expected_generation, reason],
+	)
+
+
+func _play_niclas_idle_fallback(
+	root: Node3D,
+	unit_id: int,
+	type_id: String,
+	state: Dictionary,
+	blend_sec: float,
+	reason: String,
+) -> void:
+	var fallback_clip: String = Unit3DIdleVariationScript.CLIP_IDLE_3
+	var player: AnimationPlayer = _animation_player_for_root(root)
+	if player == null or not player.has_animation(fallback_clip):
+		_log_niclas_idle_clip_error_once(
+			unit_id,
+			"idle fallback failed (%s); no AnimationPlayer or Idle_3" % reason,
+		)
+		return
+	state["phase"] = Unit3DIdleVariationScript.PHASE_NORMAL_IDLE
+	var gen: int = int(state.get("generation", 0))
+	var play_spec: Dictionary = {
+		"clip": fallback_clip,
+		"blend_sec": blend_sec,
+		"phase": Unit3DIdleVariationScript.PHASE_NORMAL_IDLE,
+		"reason": "fallback_%s" % reason,
+	}
+	_idle_variation_by_unit_id[unit_id] = state
+	_log_niclas_idle_event(unit_id, "fallback", "clip=%s reason=%s" % [fallback_clip, reason])
+	_idle_variation_play_clip(
+		unit_id, root, type_id, state, play_spec, gen, blend_sec, "fallback_%s" % reason
+	)
+
+
+func _tick_idle_variations(delta: float) -> void:
+	if _idle_variation_by_unit_id.is_empty():
+		return
+	var unit_ids: Array = _idle_variation_by_unit_id.keys()
+	var ui: int = 0
+	while ui < unit_ids.size():
+		var unit_id: int = int(unit_ids[ui])
+		if _active_hex_moves.has(unit_id):
+			ui += 1
+			continue
+		var type_id: String = type_id_for_unit(unit_id)
+		if not Unit3DIdleVariationScript.has_variation(type_id):
+			ui += 1
+			continue
+		var state: Dictionary = _idle_variation_state(unit_id)
+		if str(state.get("phase", "")) == Unit3DIdleVariationScript.PHASE_MOVING:
+			ui += 1
+			continue
+		var root: Node3D = _instance_by_unit_id.get(unit_id) as Node3D
+		if root == null:
+			ui += 1
+			continue
+		if not bool(state.get("clip_started", false)):
+			_bootstrap_idle_variation_if_needed(unit_id, root, type_id)
+			ui += 1
+			continue
+		var gen_at_tick: int = int(state.get("generation", 0))
+		var player: AnimationPlayer = _animation_player_for_root(root)
+		if player == null:
+			state["clip_started"] = false
+			_idle_variation_by_unit_id[unit_id] = state
+			ui += 1
+			continue
+		var clip: String = str(state.get("current_clip", ""))
+		if clip.is_empty():
+			state["clip_started"] = false
+			_idle_variation_by_unit_id[unit_id] = state
+			ui += 1
+			continue
+		if not player.is_playing():
+			player.play(clip)
+		Unit3DIdleVariationScript.advance_elapsed(state, delta, player.speed_scale)
+		_idle_variation_by_unit_id[unit_id] = state
+		if not Unit3DIdleVariationScript.is_clip_logically_complete(state):
+			ui += 1
+			continue
+		if int(state.get("generation", 0)) != gen_at_tick:
+			ui += 1
+			continue
+		var config: Dictionary = Unit3DIdleVariationScript.config_for_type(type_id)
+		var next_spec: Dictionary = Unit3DIdleVariationScript.next_after_complete(state, config)
+		state["clip_started"] = false
+		state["clip_elapsed_sec"] = 0.0
+		state["clip_logical_length_sec"] = 0.0
+		state["current_clip"] = ""
+		_idle_variation_by_unit_id[unit_id] = state
+		_log_niclas_idle_event(
+			unit_id,
+			"cycle_complete",
+			"phase=%s clip=%s generation=%d" % [str(state.get("phase", "")), clip, gen_at_tick],
+		)
+		if next_spec.is_empty():
+			_bootstrap_idle_variation_if_needed(unit_id, root, type_id)
+			ui += 1
+			continue
+		_log_niclas_idle_choice(unit_id, str(next_spec.get("clip", "")))
+		_idle_variation_play_clip(
+			unit_id,
+			root,
+			type_id,
+			state,
+			next_spec,
+			gen_at_tick,
+			0.0,
+			str(next_spec.get("reason", "transition")),
+		)
+		ui += 1
+
+
+func _log_niclas_instance_ready(unit_id: int, root: Node3D) -> void:
+	if not Warrior3DExperimentScript.env_niclas_3d_diag_enabled():
+		return
+	var player: AnimationPlayer = _animation_player_for_root(root)
+	var clip_names: PackedStringArray = PackedStringArray()
+	if player != null:
+		clip_names = player.get_animation_list()
+	print(
+		"[Niclas3D idle] unit=%d event=instance_ready player_found=%s clips=[%s]"
+		% [unit_id, str(player != null), ", ".join(clip_names)]
+	)
+	if player == null:
+		return
+	for clip_name in [
+		Unit3DIdleVariationScript.CLIP_IDLE_3,
+		Unit3DIdleVariationScript.CLIP_FLYING_FIST_KICK,
+		"Walking",
+	]:
+		if not player.has_animation(clip_name):
+			print("[Niclas3D idle] unit=%d clip_duration %s missing" % [unit_id, clip_name])
+			continue
+		var anim: Animation = player.get_animation(clip_name)
+		var loop_label: String = "none"
+		if anim.loop_mode == Animation.LOOP_LINEAR:
+			loop_label = "linear"
+		elif anim.loop_mode == Animation.LOOP_PINGPONG:
+			loop_label = "pingpong"
+		print(
+			"[Niclas3D idle] unit=%d clip_duration name=%s length=%.6f loop=%s"
+			% [unit_id, clip_name, anim.length, loop_label]
+		)
+
+
+func _log_niclas_idle_choice(unit_id: int, clip: String) -> void:
+	if not Warrior3DExperimentScript.env_niclas_3d_diag_enabled():
+		return
+	if clip == Unit3DIdleVariationScript.CLIP_IDLE_3:
+		print("[Niclas3D idle] unit=%d choice=Idle_3" % unit_id)
+	elif clip == Unit3DIdleVariationScript.CLIP_FLYING_FIST_KICK:
+		print("[Niclas3D idle] unit=%d choice=Flying_Fist_Kick" % unit_id)
+	else:
+		print("[Niclas3D idle] unit=%d choice=%s" % [unit_id, clip])
+
+
+func _log_niclas_idle_event(unit_id: int, event: String, detail: String = "") -> void:
+	if not Warrior3DExperimentScript.env_niclas_3d_diag_enabled():
+		return
+	if detail.is_empty():
+		print("[Niclas3D idle] unit=%d event=%s" % [unit_id, event])
+	else:
+		print("[Niclas3D idle] unit=%d event=%s %s" % [unit_id, event, detail])
+
+
+func _log_niclas_idle_clip_error_once(unit_id: int, message: String) -> void:
+	if _logged_niclas_idle_clip_error.has(unit_id):
+		return
+	_logged_niclas_idle_clip_error[unit_id] = true
+	push_error("[Niclas3D idle] unit=%d %s" % [unit_id, message])
+
+
+static func _animation_names_from_model(model: Node) -> PackedStringArray:
+	var player: AnimationPlayer = _find_animation_player(model)
+	if player == null:
+		return PackedStringArray()
+	return player.get_animation_list()
 
 
 ## Matte PBR tuning only. Anisotropic texture_filter was tried for hair shimmer; reverted (no gain).
