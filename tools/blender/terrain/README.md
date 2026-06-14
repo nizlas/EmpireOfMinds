@@ -2,7 +2,7 @@
 
 Visual proof-of-concept for a future real 3D terrain model. **Not** runtime terrain, **not** canonical gameplay, and **not** connected to Godot or tile-improvement rules.
 
-Six Blender scripts exist:
+Seven Blender scripts exist:
 
 | Script | Model | Default output |
 |--------|-------|----------------|
@@ -12,6 +12,7 @@ Six Blender scripts exist:
 | `generate_terrain_single_patch_material_prototype.py` | Same geometry as single-patch; procedural material proof of concept | `terrain_prototype_7_hex_single_patch_material.blend` |
 | `generate_terrain_single_patch_pbr_ground_prototype.py` | Same geometry + procedural ash/stone; tileable PBR ground layer (Object coords) | `terrain_prototype_7_hex_single_patch_pbr_ground.blend` |
 | `generate_terrain_single_patch_pbr_ground_uv_prototype.py` | **Approved** ground-PBR baseline via world-anchored planar UV | `terrain_prototype_7_hex_single_patch_pbr_ground_uv.blend` |
+| `generate_terrain_single_patch_pbr_ground_stone_prototype.py` | Approved ground-PBR UV + full stone PBR via existing stone splat weight | `terrain_prototype_7_hex_single_patch_pbr_ground_stone.blend` |
 
 The third prototype generates one continuous terrain mesh (no per-hex terrain geometry), plus a toggleable `EOM_Hex_Overlay` object in Blender for logical hex edges. It is **not** runtime terrain or canonical gameplay implementation.
 
@@ -38,6 +39,26 @@ The sixth script is the **visually approved Blender 5.1.2 ground-PBR baseline**.
 **Not in this milestone:** stone PBR, ash PBR, chunk tiling, cliff UV, Godot import.
 
 **Next separate step:** add stone and ash PBR material packs and wire them through the existing stone mask and ground/ash splat weights.
+
+The seventh script adds a full stone PBR layer (`stone_albedo.png`, `stone_normal.png`, `stone_roughness.png`) on top of the approved ground-PBR UV baseline. Stone textures use the same `EOM_WorldUV` layer and `ShaderNodeUVMap` → `Ground UV Mapping` chain as ground. The **existing final stone weight** (slope mask + stone breakup, unchanged) drives albedo, tangent-space normal, and roughness together. Ground baseline values and graph are preserved; ash remains procedural color and still shares ground PBR normal/roughness under ash until a separate ash-PBR pass.
+
+### Stone PBR prototype (`generate_terrain_single_patch_pbr_ground_stone_prototype.py`)
+
+| Item | Value |
+|------|-------|
+| Script | `tools/blender/terrain/generate_terrain_single_patch_pbr_ground_stone_prototype.py` |
+| Blend output | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_stone.blend` |
+| GLB output | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_stone.glb` |
+| Stone textures | `source/materials/stone/stone_albedo.png`, `stone_normal.png`, `stone_roughness.png` |
+| Stone splat | Existing `mix_stone` factor (slope + breakup) — no new mask |
+| Stone albedo darken | `STONE_ALBEDO_MULTIPLIER` (default `0.55`; `1.0` = unchanged source albedo) |
+| Debug stages (new) | `stone_albedo`, `stone_normal`, `stone_roughness`, `ground_stone_pbr` |
+
+`STONE_ALBEDO_MULTIPLIER` darkens stone albedo RGB before splat blending only. It does not affect stone mask coverage, normal, or roughness. Lower values darken stone; `1.0` preserves the source texture. Initial evaluation baseline: `0.55`.
+
+**Known limits:** no ash PBR, no chunk tiling, no cliff UV, no Godot import. Side/skirt/chamfer/bottom use separate side material.
+
+**Next step:** separate ash-PBR prototype wired through existing ground/ash splat weights.
 
 ## Purpose
 
@@ -96,6 +117,15 @@ The first prototype is a fixed **7-hex cluster** (center + six neighbors) genera
 6. Optional **UV Editor** check: continuous planar XY layout on `EOM_WorldUV` (not per-hex islands).
 7. Do not change `WORLD_UV_SCALE` or material tuning unless starting a new deliberate baseline pass.
 
+**Single-patch PBR ground + stone prototype:**
+
+1. Place ground textures under `source/materials/ground/` and stone textures under `source/materials/stone/`:
+   - `stone_albedo.png`, `stone_normal.png`, `stone_roughness.png`
+2. **Scripting** workspace → **Open** → `tools/blender/terrain/generate_terrain_single_patch_pbr_ground_stone_prototype.py`
+3. **Text → Reload** → **Run Script**.
+4. **Material Preview** smoke test: `stone_albedo` → `stone_normal` → `stone_roughness` → `stone_mask` → `ground_stone_pbr` → `final`.
+5. Confirm stone appears only where the existing stone weight activates; ground unchanged elsewhere; ash still procedural.
+
 Each script clears the current scene, builds the cluster, sets up camera/lights/material, and optionally saves output.
 
 `bpy` exists only inside Blender. Syntax can be checked outside Blender with:
@@ -107,6 +137,7 @@ python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_si
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_material_prototype.py', encoding='utf-8').read())"
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_prototype.py', encoding='utf-8').read())"
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_uv_prototype.py', encoding='utf-8').read())"
+python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_stone_prototype.py', encoding='utf-8').read())"
 ```
 
 ## Output
@@ -127,6 +158,8 @@ Default paths (repo-relative, resolved from script location):
 | Single-patch PBR ground GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground.glb` |
 | Single-patch PBR ground UV blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_uv.blend` |
 | Single-patch PBR ground UV GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_uv.glb` |
+| Single-patch PBR ground + stone blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_stone.blend` |
+| Single-patch PBR ground + stone GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_stone.glb` |
 
 The output folder is created if missing.
 
