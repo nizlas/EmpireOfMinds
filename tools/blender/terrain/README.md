@@ -2,7 +2,7 @@
 
 Visual proof-of-concept for a future real 3D terrain model. **Not** runtime terrain, **not** canonical gameplay, and **not** connected to Godot or tile-improvement rules.
 
-Five Blender scripts exist:
+Six Blender scripts exist:
 
 | Script | Model | Default output |
 |--------|-------|----------------|
@@ -10,13 +10,16 @@ Five Blender scripts exist:
 | `generate_terrain_heightfield_prototype.py` | Multi-mesh global IDW heightfield | `terrain_prototype_7_hex_heightfield.blend` |
 | `generate_terrain_single_patch_prototype.py` | Single mesh, radial hill, separate hex overlay (approved geometry milestone) | `terrain_prototype_7_hex_single_patch.blend` |
 | `generate_terrain_single_patch_material_prototype.py` | Same geometry as single-patch; procedural material proof of concept | `terrain_prototype_7_hex_single_patch_material.blend` |
-| `generate_terrain_single_patch_pbr_ground_prototype.py` | Same geometry + procedural ash/stone; tileable PBR ground layer | `terrain_prototype_7_hex_single_patch_pbr_ground.blend` |
+| `generate_terrain_single_patch_pbr_ground_prototype.py` | Same geometry + procedural ash/stone; tileable PBR ground layer (Object coords) | `terrain_prototype_7_hex_single_patch_pbr_ground.blend` |
+| `generate_terrain_single_patch_pbr_ground_uv_prototype.py` | Same geometry + PBR ground via world-anchored planar UV on top faces | `terrain_prototype_7_hex_single_patch_pbr_ground_uv.blend` |
 
 The third prototype generates one continuous terrain mesh (no per-hex terrain geometry), plus a toggleable `EOM_Hex_Overlay` object in Blender for logical hex edges. It is **not** runtime terrain or canonical gameplay implementation.
 
 The fourth script copies that approved geometry unchanged and prototypes procedural terrain material blending (ground / ash / stone layers, slope masks, noise variation). Tileable PBR textures are expected to replace the simple procedural colors later while keeping the same blend logic.
 
-The fifth script adds the first tileable PBR ground texture set while ash and stone remain procedural colors with the existing mask/splatting logic. Ground normal and roughness maps currently provide shared surface microdetail across the whole top surface until ash/stone receive their own PBR sets.
+The fifth script adds the first tileable PBR ground texture set while ash and stone remain procedural colors with the existing mask/splatting logic. Ground normal and roughness maps currently provide shared surface microdetail across the whole top surface until ash/stone receive their own PBR sets. Object-space texture coordinates can show tangent-space normal triangulation artifacts on curved top surfaces.
+
+The sixth script is a narrow UV/normal fix: top faces get an explicit world-anchored planar UV layer (`EOM_WorldUV`) derived from stable object/world XY positions (`U = X * WORLD_UV_SCALE`, `V = Y * WORLD_UV_SCALE`). Albedo, roughness, and tangent-space normal maps all sample from the same UV source so the normal map gets a consistent tangent basis. UV is **not** normalized per patch or per hex; future terrain chunks must share the same texture origin, axis directions, and `WORLD_UV_SCALE`. Side/chamfer/skirt/bottom faces still use the separate side material and are out of scope for this UV pass. See also `Empire_of_Minds_World_Anchored_UV_and_Chunk_Continuity.docx` (design reference; not modified by these scripts).
 
 ## Purpose
 
@@ -65,6 +68,16 @@ The first prototype is a fixed **7-hex cluster** (center + six neighbors) genera
 4. Switch to **Layout** and **Material Preview**.
 5. Adjust `GROUND_TEXTURE_SCALE` at the top of the script if tiles feel too large or too small (higher = more repeats).
 
+**Single-patch PBR ground world-UV prototype:**
+
+1. Same ground textures as the PBR ground milestone (paths above).
+2. **Scripting** workspace → **Open** → `tools/blender/terrain/generate_terrain_single_patch_pbr_ground_uv_prototype.py`
+3. **Text → Reload** → **Run Script**.
+4. Switch to **Layout** and **Material Preview**.
+5. Test `DEBUG_MATERIAL_STAGE = "ground_pbr"` then `"final"`; rotate HDRI light and inspect hill edges for triangle lighting artifacts.
+6. In the **UV Editor**, confirm top faces use a continuous planar XY layout (not per-hex islands); UV values may lie outside 0–1 and repeat via texture `REPEAT`.
+7. Adjust `WORLD_UV_SCALE` if needed (higher = more tile repeats per world unit; must stay shared across future chunks).
+
 Each script clears the current scene, builds the cluster, sets up camera/lights/material, and optionally saves output.
 
 `bpy` exists only inside Blender. Syntax can be checked outside Blender with:
@@ -75,6 +88,7 @@ python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_he
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_prototype.py', encoding='utf-8').read())"
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_material_prototype.py', encoding='utf-8').read())"
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_prototype.py', encoding='utf-8').read())"
+python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_uv_prototype.py', encoding='utf-8').read())"
 ```
 
 ## Output
@@ -93,6 +107,8 @@ Default paths (repo-relative, resolved from script location):
 | Single-patch material GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_material.glb` |
 | Single-patch PBR ground blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground.blend` |
 | Single-patch PBR ground GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground.glb` |
+| Single-patch PBR ground UV blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_uv.blend` |
+| Single-patch PBR ground UV GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_uv.glb` |
 
 The output folder is created if missing.
 
