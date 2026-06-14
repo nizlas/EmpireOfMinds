@@ -8,9 +8,12 @@ Three Blender scripts exist:
 |--------|-------|----------------|
 | `generate_terrain_prototype.py` | Per-hex analytic top surface (milestone / reference) | `terrain_prototype_7_hex.blend` |
 | `generate_terrain_heightfield_prototype.py` | Multi-mesh global IDW heightfield | `terrain_prototype_7_hex_heightfield.blend` |
-| `generate_terrain_single_patch_prototype.py` | Single mesh, radial hill, separate hex overlay | `terrain_prototype_7_hex_single_patch.blend` |
+| `generate_terrain_single_patch_prototype.py` | Single mesh, radial hill, separate hex overlay (approved geometry milestone) | `terrain_prototype_7_hex_single_patch.blend` |
+| `generate_terrain_single_patch_material_prototype.py` | Same geometry as single-patch; procedural material proof of concept | `terrain_prototype_7_hex_single_patch_material.blend` |
 
 The third prototype generates one continuous terrain mesh (no per-hex terrain geometry), plus a toggleable `EOM_Hex_Overlay` object in Blender for logical hex edges. It is **not** runtime terrain or canonical gameplay implementation.
+
+The fourth script copies that approved geometry unchanged and prototypes procedural terrain material blending (ground / ash / stone layers, slope masks, noise variation). Tileable PBR textures are expected to replace the simple procedural colors later while keeping the same blend logic.
 
 ## Purpose
 
@@ -36,11 +39,17 @@ The first prototype is a fixed **7-hex cluster** (center + six neighbors) genera
 1. **Scripting** workspace → **Open** → `tools/blender/terrain/generate_terrain_heightfield_prototype.py`
 2. **Text → Reload** (after edits) → **Run Script**.
 
-**Single-patch radial hill prototype:**
+**Single-patch radial hill prototype (geometry milestone):**
 
 1. **Scripting** workspace → **Open** → `tools/blender/terrain/generate_terrain_single_patch_prototype.py`
 2. **Text → Reload** → **Run Script**.
 3. In the outliner, toggle visibility of `EOM_Hex_Overlay` to show/hide the logical hex grid.
+
+**Single-patch procedural material prototype:**
+
+1. **Scripting** workspace → **Open** → `tools/blender/terrain/generate_terrain_single_patch_material_prototype.py`
+2. **Text → Reload** → **Run Script**.
+3. Switch to **Layout** and **Material Preview** to inspect the procedural terrain material.
 
 Each script clears the current scene, builds the cluster, sets up camera/lights/material, and optionally saves output.
 
@@ -50,6 +59,7 @@ Each script clears the current scene, builds the cluster, sets up camera/lights/
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_prototype.py', encoding='utf-8').read())"
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_heightfield_prototype.py', encoding='utf-8').read())"
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_prototype.py', encoding='utf-8').read())"
+python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_material_prototype.py', encoding='utf-8').read())"
 ```
 
 ## Output
@@ -64,6 +74,8 @@ Default paths (repo-relative, resolved from script location):
 | Heightfield GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_heightfield.glb` |
 | Single-patch blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch.blend` |
 | Single-patch GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch.glb` |
+| Single-patch material blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_material.blend` |
+| Single-patch material GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_material.glb` |
 
 The output folder is created if missing.
 
