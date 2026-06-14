@@ -2,9 +2,9 @@
 # Run from Blender Scripting workspace: Open → Run Script.
 # Requires bpy (not available outside Blender).
 #
-# Geometry is intentionally kept identical to the approved single-patch milestones.
-# This script adds world-anchored planar UV on top faces so tangent-space normal maps
-# sample with a stable tangent basis (fixes object-projection triangulation artifacts).
+# Visually approved Blender 5.1.2 ground-PBR baseline (world-anchored UV + tangent-space
+# normal). Geometry matches the approved single-patch milestones. Stone and ash PBR belong
+# in a separate prototype pass; do not extend this script for those layers.
 #
 # Milestones preserved elsewhere:
 #   generate_terrain_prototype.py
@@ -66,6 +66,11 @@ EXPORT_GLB = False
 # Approved prototype baseline (current tuned look).
 # Preserve these values during material-node, debug, or compatibility work.
 # Do not reset to earlier defaults unless explicitly requested.
+
+# Approved Blender 5.1.2 ground-PBR baseline.
+# Preserve these values and the UV/material graph during unrelated compatibility, debug or
+# future layer work. Stone and ash PBR integration must be implemented in a separate
+# prototype pass.
 
 # Procedural material toggles and palette (proof-of-concept; colors replaceable later).
 USE_SLOPE_BLEND = True
@@ -1455,8 +1460,8 @@ def make_pbr_ground_terrain_material(
         stone_mask_color_output=stone_mask_color_output,
     )
 
-    # Prototype limitation: ground PBR normal/roughness currently provide shared
-    # surface microdetail across the whole top surface until ash/stone get PBR sets.
+    # Ground PBR normal/roughness provide shared top-surface microdetail until stone and
+    # ash receive their own PBR sets in a separate prototype pass.
     ground_normal_map = _new_node(nodes, "ShaderNodeNormalMap")
     ground_normal_map.location = (-640, -520)
     ground_normal_map.space = "TANGENT"

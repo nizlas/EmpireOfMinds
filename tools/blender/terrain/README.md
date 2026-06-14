@@ -11,7 +11,7 @@ Six Blender scripts exist:
 | `generate_terrain_single_patch_prototype.py` | Single mesh, radial hill, separate hex overlay (approved geometry milestone) | `terrain_prototype_7_hex_single_patch.blend` |
 | `generate_terrain_single_patch_material_prototype.py` | Same geometry as single-patch; procedural material proof of concept | `terrain_prototype_7_hex_single_patch_material.blend` |
 | `generate_terrain_single_patch_pbr_ground_prototype.py` | Same geometry + procedural ash/stone; tileable PBR ground layer (Object coords) | `terrain_prototype_7_hex_single_patch_pbr_ground.blend` |
-| `generate_terrain_single_patch_pbr_ground_uv_prototype.py` | Same geometry + PBR ground via world-anchored planar UV on top faces | `terrain_prototype_7_hex_single_patch_pbr_ground_uv.blend` |
+| `generate_terrain_single_patch_pbr_ground_uv_prototype.py` | **Approved** ground-PBR baseline via world-anchored planar UV | `terrain_prototype_7_hex_single_patch_pbr_ground_uv.blend` |
 
 The third prototype generates one continuous terrain mesh (no per-hex terrain geometry), plus a toggleable `EOM_Hex_Overlay` object in Blender for logical hex edges. It is **not** runtime terrain or canonical gameplay implementation.
 
@@ -19,7 +19,25 @@ The fourth script copies that approved geometry unchanged and prototypes procedu
 
 The fifth script adds the first tileable PBR ground texture set while ash and stone remain procedural colors with the existing mask/splatting logic. Ground normal and roughness maps currently provide shared surface microdetail across the whole top surface until ash/stone receive their own PBR sets. Object-space texture coordinates can show tangent-space normal triangulation artifacts on curved top surfaces.
 
-The sixth script is a narrow UV/normal fix: top faces get an explicit world-anchored planar UV layer (`EOM_WorldUV`) derived from stable object/world XY positions (`U = X * WORLD_UV_SCALE`, `V = Y * WORLD_UV_SCALE`). Albedo, roughness, and tangent-space normal maps all sample from the same UV source so the normal map gets a consistent tangent basis. UV is **not** normalized per patch or per hex; future terrain chunks must share the same texture origin, axis directions, and `WORLD_UV_SCALE`. Side/chamfer/skirt/bottom faces still use the separate side material and are out of scope for this UV pass. See also `Empire_of_Minds_World_Anchored_UV_and_Chunk_Continuity.docx` (design reference; not modified by these scripts).
+The sixth script is the **visually approved Blender 5.1.2 ground-PBR baseline**. Top faces use an explicit world-anchored planar UV layer (`EOM_WorldUV`) derived from stable object/world XY positions (`U = X * WORLD_UV_SCALE`, `V = Y * WORLD_UV_SCALE`). Albedo, roughness, and tangent-space normal maps sample through one shared `ShaderNodeUVMap` → `ShaderNodeMapping` chain, giving a stable tangent basis without the triangle-shaped shading artifacts seen with object-space projection. UV is **not** normalized per patch or per hex; values may lie outside 0–1 and repeat via texture `REPEAT`. Future terrain chunks must share the same texture origin, axis directions, and `WORLD_UV_SCALE`. Side/chamfer/skirt/bottom faces still use the separate side material (cliff UV is future work). Stone and ash remain procedural colors with the existing splat weights; their PBR texture sets are the next separate prototype passes. See `Empire_of_Minds_World_Anchored_UV_and_Chunk_Continuity.docx` (design reference; not modified by these scripts).
+
+### Approved ground-PBR UV baseline (`generate_terrain_single_patch_pbr_ground_uv_prototype.py`)
+
+| Item | Value |
+|------|-------|
+| Script | `tools/blender/terrain/generate_terrain_single_patch_pbr_ground_uv_prototype.py` |
+| Blend output | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_uv.blend` |
+| GLB output | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_uv.glb` |
+| UV layer | `EOM_WorldUV` on top faces only |
+| UV formula | `U = object_x * WORLD_UV_SCALE`, `V = object_y * WORLD_UV_SCALE` (default scale `0.35`) |
+| Ground PBR coord chain | `ShaderNodeUVMap` → `Ground UV Mapping` → `ground_albedo` / `ground_normal` / `ground_roughness` |
+| Textures | `source/materials/ground/ground_albedo.png`, `ground_normal.png`, `ground_roughness.png` |
+
+**Verified in Blender 5.1.2:** script completes; world-anchored UV is continuous across hex boundaries; tangent-space normal is active without hill-edge triangulation artifacts; normal response is smooth under rotating Material Preview light; subtle surface pits read naturally; prior normal/roughness mask worm artifacts are gone; side/skirt/chamfer/bottom unchanged.
+
+**Not in this milestone:** stone PBR, ash PBR, chunk tiling, cliff UV, Godot import.
+
+**Next separate step:** add stone and ash PBR material packs and wire them through the existing stone mask and ground/ash splat weights.
 
 ## Purpose
 
@@ -68,15 +86,15 @@ The first prototype is a fixed **7-hex cluster** (center + six neighbors) genera
 4. Switch to **Layout** and **Material Preview**.
 5. Adjust `GROUND_TEXTURE_SCALE` at the top of the script if tiles feel too large or too small (higher = more repeats).
 
-**Single-patch PBR ground world-UV prototype:**
+**Single-patch PBR ground world-UV prototype (approved baseline):**
 
 1. Same ground textures as the PBR ground milestone (paths above).
 2. **Scripting** workspace → **Open** → `tools/blender/terrain/generate_terrain_single_patch_pbr_ground_uv_prototype.py`
 3. **Text → Reload** → **Run Script**.
 4. Switch to **Layout** and **Material Preview**.
-5. Test `DEBUG_MATERIAL_STAGE = "ground_pbr"` then `"final"`; rotate HDRI light and inspect hill edges for triangle lighting artifacts.
-6. In the **UV Editor**, confirm top faces use a continuous planar XY layout (not per-hex islands); UV values may lie outside 0–1 and repeat via texture `REPEAT`.
-7. Adjust `WORLD_UV_SCALE` if needed (higher = more tile repeats per world unit; must stay shared across future chunks).
+5. Smoke test: `DEBUG_MATERIAL_STAGE = "ground_pbr"` then `"final"`; confirm no triangle artifacts on hill edges, continuous texture across hex boundaries, smooth normal under rotating light.
+6. Optional **UV Editor** check: continuous planar XY layout on `EOM_WorldUV` (not per-hex islands).
+7. Do not change `WORLD_UV_SCALE` or material tuning unless starting a new deliberate baseline pass.
 
 Each script clears the current scene, builds the cluster, sets up camera/lights/material, and optionally saves output.
 
