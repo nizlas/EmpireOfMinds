@@ -2,7 +2,7 @@
 
 Visual proof-of-concept for a future real 3D terrain model. **Not** runtime terrain, **not** canonical gameplay, and **not** connected to Godot or tile-improvement rules.
 
-Three Blender scripts exist:
+Five Blender scripts exist:
 
 | Script | Model | Default output |
 |--------|-------|----------------|
@@ -10,10 +10,13 @@ Three Blender scripts exist:
 | `generate_terrain_heightfield_prototype.py` | Multi-mesh global IDW heightfield | `terrain_prototype_7_hex_heightfield.blend` |
 | `generate_terrain_single_patch_prototype.py` | Single mesh, radial hill, separate hex overlay (approved geometry milestone) | `terrain_prototype_7_hex_single_patch.blend` |
 | `generate_terrain_single_patch_material_prototype.py` | Same geometry as single-patch; procedural material proof of concept | `terrain_prototype_7_hex_single_patch_material.blend` |
+| `generate_terrain_single_patch_pbr_ground_prototype.py` | Same geometry + procedural ash/stone; tileable PBR ground layer | `terrain_prototype_7_hex_single_patch_pbr_ground.blend` |
 
 The third prototype generates one continuous terrain mesh (no per-hex terrain geometry), plus a toggleable `EOM_Hex_Overlay` object in Blender for logical hex edges. It is **not** runtime terrain or canonical gameplay implementation.
 
 The fourth script copies that approved geometry unchanged and prototypes procedural terrain material blending (ground / ash / stone layers, slope masks, noise variation). Tileable PBR textures are expected to replace the simple procedural colors later while keeping the same blend logic.
+
+The fifth script adds the first tileable PBR ground texture set while ash and stone remain procedural colors with the existing mask/splatting logic. Ground normal and roughness maps currently provide shared surface microdetail across the whole top surface until ash/stone receive their own PBR sets.
 
 ## Purpose
 
@@ -51,6 +54,17 @@ The first prototype is a fixed **7-hex cluster** (center + six neighbors) genera
 2. **Text → Reload** → **Run Script**.
 3. Switch to **Layout** and **Material Preview** to inspect the procedural terrain material.
 
+**Single-patch PBR ground prototype:**
+
+1. Place required textures under `game/assets/prototype/3d/terrain/prototype_3d_terrain/source/materials/ground/`:
+   - `ground_albedo.png`
+   - `ground_normal.png`
+   - `ground_roughness.png`
+2. **Scripting** workspace → **Open** → `tools/blender/terrain/generate_terrain_single_patch_pbr_ground_prototype.py`
+3. **Text → Reload** → **Run Script**.
+4. Switch to **Layout** and **Material Preview**.
+5. Adjust `GROUND_TEXTURE_SCALE` at the top of the script if tiles feel too large or too small (higher = more repeats).
+
 Each script clears the current scene, builds the cluster, sets up camera/lights/material, and optionally saves output.
 
 `bpy` exists only inside Blender. Syntax can be checked outside Blender with:
@@ -60,6 +74,7 @@ python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_pr
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_heightfield_prototype.py', encoding='utf-8').read())"
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_prototype.py', encoding='utf-8').read())"
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_material_prototype.py', encoding='utf-8').read())"
+python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_prototype.py', encoding='utf-8').read())"
 ```
 
 ## Output
@@ -76,6 +91,8 @@ Default paths (repo-relative, resolved from script location):
 | Single-patch GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch.glb` |
 | Single-patch material blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_material.blend` |
 | Single-patch material GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_material.glb` |
+| Single-patch PBR ground blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground.blend` |
+| Single-patch PBR ground GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground.glb` |
 
 The output folder is created if missing.
 
