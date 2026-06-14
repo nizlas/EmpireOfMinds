@@ -28,6 +28,11 @@ ELEVATION_STEP = 0.4
 PLAIN_LEVEL = 0
 HILL_LEVEL = 1
 
+# Parametric top-surface refinement (analytic height; not mesh subdivision modifier).
+SURFACE_SUBDIVISIONS = 8
+INNER_FLAT_RADIUS_FACTOR = 0.12
+HEIGHT_PROFILE = "quadratic"
+
 # Repo-relative output (resolved from this script's location).
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
@@ -247,6 +252,109 @@ def build_corner_height_map(
     }
 
 
+def validate_surface_params() -> None:
+    if not isinstance(SURFACE_SUBDIVISIONS, int) or SURFACE_SUBDIVISIONS < 1:
+        raise ValueError(
+            f"SURFACE_SUBDIVISIONS must be an integer >= 1, got {SURFACE_SUBDIVISIONS!r}"
+        )
+    if not (0.0 <= INNER_FLAT_RADIUS_FACTOR < 1.0):
+        raise ValueError(
+            f"INNER_FLAT_RADIUS_FACTOR must be in [0.0, 1.0), got {INNER_FLAT_RADIUS_FACTOR!r}"
+        )
+    if HEIGHT_PROFILE not in ("linear", "smoothstep", "ease_in_cubic", "quadratic"):
+        raise ValueError(
+            f"HEIGHT_PROFILE must be 'linear', 'smoothstep', 'ease_in_cubic', or 'quadratic', "
+            f"got {HEIGHT_PROFILE!r}"
+        )
+
+
+def height_profile_weight(t: float) -> float:
+    t_clamped = max(0.0, min(1.0, t))
+    if HEIGHT_PROFILE == "linear":
+        return t_clamped
+    if HEIGHT_PROFILE == "smoothstep":
+        return t_clamped * t_clamped * (3.0 - 2.0 * t_clamped)
+    if HEIGHT_PROFILE == "ease_in_cubic":
+        return t_clamped * t_clamped * (2.0 - t_clamped)
+    if HEIGHT_PROFILE == "quadratic":
+        return t_clamped * t_clamped
+    return t_clamped * t_clamped * (3.0 - 2.0 * t_clamped)
+
+
+def analytic_surface_height(
+    center_height: float,
+    edge_height: float,
+    radial: float,
+) -> float:
+    if radial <= INNER_FLAT_RADIUS_FACTOR:
+        return center_height
+    denom = 1.0 - INNER_FLAT_RADIUS_FACTOR
+    t = (radial - INNER_FLAT_RADIUS_FACTOR) / denom
+    t = max(0.0, min(1.0, t))
+    profile = height_profile_weight(t)
+    return center_height + (edge_height - center_height) * profile
+
+
+def sector_barycentric_xy(
+    sector: int,
+    si: int,
+    sj: int,
+    subdiv: int,
+) -> tuple[float, float, float, float]:
+    """
+    Barycentric grid in sector `sector` (triangle: center, corner i, corner i+1).
+    si, sj >= 0, si + sj <= subdiv. Returns local lx, ly, radial [0..1], edge_t [0..1].
+    """
+    ci = sector
+    cj = (sector + 1) % 6
+    bx, by = corner_xy_local(ci, HEX_RADIUS)
+    cx, cy = corner_xy_local(cj, HEX_RADIUS)
+    denom = float(subdiv)
+    wb = float(si) / denom
+    wc = float(sj) / denom
+    lx = wb * bx + wc * cx
+    ly = wb * by + wc * cy
+    # Barycentric radial: 0 at center, 1 anywhere on the outer chord (corner i → corner i+1).
+    radial = (float(si) + float(sj)) / denom
+    edge_t = (float(sj) / float(si + sj)) if (si + sj) > 0 else 0.0
+    return lx, ly, radial, edge_t
+
+
+def sector_edge_height(
+    q: int,
+    r: int,
+    sector: int,
+    edge_t: float,
+    corner_heights: dict[tuple[float, float], float],
+) -> float:
+    ci = sector
+    cj = (sector + 1) % 6
+    hi = corner_heights[corner_world_key(q, r, ci)]
+    hj = corner_heights[corner_world_key(q, r, cj)]
+    return hi * (1.0 - edge_t) + hj * edge_t
+
+
+def subdivided_outer_edge_world(
+    q: int,
+    r: int,
+    sector: int,
+    step_k: int,
+    corner_heights: dict[tuple[float, float], float],
+    level: int,
+) -> tuple[float, float, float, tuple[float, float]]:
+    """Sample k=0..SURFACE_SUBDIVISIONS along sector outer edge (corner i → corner i+1)."""
+    subdiv = SURFACE_SUBDIVISIONS
+    si = subdiv - step_k
+    sj = step_k
+    lx, ly, radial, edge_t = sector_barycentric_xy(sector, si, sj, subdiv)
+    cx, cy = axial_to_world_xy(q, r, HEX_RADIUS)
+    wx, wy = cx + lx, cy + ly
+    center_height = level_to_z(level)
+    edge_height = sector_edge_height(q, r, sector, edge_t, corner_heights)
+    wz = analytic_surface_height(center_height, edge_height, radial)
+    return wx, wy, wz, pos_key(wx, wy)
+
+
 def _remove_unused_datablocks(block_collection) -> None:
     for block in list(block_collection):
         if block.users == 0:
@@ -369,73 +477,96 @@ def build_hex_mesh(
     corner_heights: dict[tuple[float, float], float],
     material: bpy.types.Material,
     collection: bpy.types.Collection,
-) -> bpy.types.Object:
+) -> tuple[bpy.types.Object, dict]:
     cx, cy = axial_to_world_xy(q, r, HEX_RADIUS)
-    center_z = level_to_z(level)
-    inner_r = HEX_RADIUS * INNER_RADIUS_FACTOR
+    center_height = level_to_z(level)
     bottom_z = -BASE_THICKNESS
+    subdiv = SURFACE_SUBDIVISIONS
 
     verts: list[tuple[float, float, float]] = []
     faces: list[tuple[int, ...]] = []
+    top_cache: dict[tuple[float, float], int] = {}
+    bottom_cache: dict[tuple[float, float], int] = {}
+    sector_grid: list[dict[tuple[int, int], int]] = []
 
-    def add_vert(x: float, y: float, z: float) -> int:
-        verts.append((x, y, z))
-        return len(verts) - 1
+    def add_top_vertex(wx: float, wy: float, wz: float) -> int:
+        key = pos_key(wx, wy)
+        cached = top_cache.get(key)
+        if cached is not None:
+            return cached
+        idx = len(verts)
+        verts.append((wx, wy, wz))
+        top_cache[key] = idx
+        return idx
 
-    # --- Top inner plateau (indices 0..6) ---
-    center_top = add_vert(cx, cy, center_z)
-    inner_top: list[int] = []
-    for ci in range(6):
-        lx, ly = corner_xy_local(ci, inner_r)
-        inner_top.append(add_vert(cx + lx, cy + ly, center_z))
+    def add_bottom_vertex(wx: float, wy: float) -> int:
+        key = pos_key(wx, wy)
+        cached = bottom_cache.get(key)
+        if cached is not None:
+            return cached
+        idx = len(verts)
+        verts.append((wx, wy, bottom_z))
+        bottom_cache[key] = idx
+        return idx
 
-    # --- Top outer ring (indices 7..12) ---
-    outer_top: list[int] = []
-    for ci in range(6):
-        lx, ly = corner_xy_local(ci, HEX_RADIUS)
-        wx, wy = cx + lx, cy + ly
-        z_top = corner_heights[pos_key(wx, wy)]
-        outer_top.append(add_vert(wx, wy, z_top))
+    for sector in range(6):
+        grid: dict[tuple[int, int], int] = {}
+        for si in range(subdiv + 1):
+            sj_max = subdiv - si
+            sj = 0
+            while sj <= sj_max:
+                lx, ly, radial, edge_t = sector_barycentric_xy(sector, si, sj, subdiv)
+                wx = cx + lx
+                wy = cy + ly
+                edge_height = sector_edge_height(q, r, sector, edge_t, corner_heights)
+                wz = analytic_surface_height(center_height, edge_height, radial)
+                grid[(si, sj)] = add_top_vertex(wx, wy, wz)
+                sj += 1
+        sector_grid.append(grid)
 
-    # --- Bottom rings (indices 13..19) ---
-    center_bottom = add_vert(cx, cy, bottom_z)
-    inner_bottom: list[int] = []
-    for ci in range(6):
-        lx, ly = corner_xy_local(ci, inner_r)
-        inner_bottom.append(add_vert(cx + lx, cy + ly, bottom_z))
+        # Top triangles (CCW from +Z).
+        for si in range(subdiv):
+            sj = 0
+            while sj <= subdiv - si - 1:
+                v00 = grid[(si, sj)]
+                v10 = grid[(si + 1, sj)]
+                v01 = grid[(si, sj + 1)]
+                faces.append((v00, v10, v01))
+                if sj + 1 <= subdiv - (si + 1):
+                    v11 = grid[(si + 1, sj + 1)]
+                    faces.append((v10, v01, v11))
+                sj += 1
 
-    outer_bottom: list[int] = []
-    for ci in range(6):
-        lx, ly = corner_xy_local(ci, HEX_RADIUS)
-        outer_bottom.append(add_vert(cx + lx, cy + ly, bottom_z))
+        # Side walls along outer sector edge (subdivided top → bottom).
+        for step_k in range(subdiv):
+            si_a = subdiv - step_k
+            sj_a = step_k
+            si_b = subdiv - step_k - 1
+            sj_b = step_k + 1
+            top_a = grid[(si_a, sj_a)]
+            top_b = grid[(si_b, sj_b)]
+            wx_a, wy_a, _ = verts[top_a]
+            wx_b, wy_b, _ = verts[top_b]
+            bot_a = add_bottom_vertex(wx_a, wy_a)
+            bot_b = add_bottom_vertex(wx_b, wy_b)
+            faces.append((top_a, top_b, bot_b, bot_a))
 
-    # Top inner fan (CCW when viewed from +Z → upward normal).
-    for i in range(6):
-        nxt = (i + 1) % 6
-        faces.append((center_top, inner_top[i], inner_top[nxt]))
+    center_bottom = len(verts)
+    verts.append((cx, cy, bottom_z))
 
-    # Top slope wedges: inner → outer (shared edge ramp between neighbors).
-    for i in range(6):
-        nxt = (i + 1) % 6
-        faces.append((inner_top[i], inner_top[nxt], outer_top[nxt], outer_top[i]))
-
-    # Outer side walls down to base.
-    for i in range(6):
-        nxt = (i + 1) % 6
-        faces.append((outer_top[i], outer_top[nxt], outer_bottom[nxt], outer_bottom[i]))
-
-    # Inner skirt walls (plateau down to base).
-    for i in range(6):
-        nxt = (i + 1) % 6
-        faces.append((inner_top[i], inner_top[nxt], inner_bottom[nxt], inner_bottom[i]))
-
-    # Bottom cap: center + rings.
-    for i in range(6):
-        nxt = (i + 1) % 6
-        faces.append((center_bottom, inner_bottom[nxt], inner_bottom[i]))
-    for i in range(6):
-        nxt = (i + 1) % 6
-        faces.append((inner_bottom[i], inner_bottom[nxt], outer_bottom[nxt], outer_bottom[i]))
+    # Bottom cap: fan per sector along subdivided outer ring.
+    for sector in range(6):
+        grid = sector_grid[sector]
+        for step_k in range(subdiv):
+            si_a = subdiv - step_k
+            sj_a = step_k
+            si_b = subdiv - step_k - 1
+            sj_b = step_k + 1
+            wx_a, wy_a, _ = verts[grid[(si_a, sj_a)]]
+            wx_b, wy_b, _ = verts[grid[(si_b, sj_b)]]
+            bot_a = bottom_cache[pos_key(wx_a, wy_a)]
+            bot_b = bottom_cache[pos_key(wx_b, wy_b)]
+            faces.append((center_bottom, bot_b, bot_a))
 
     mesh = bpy.data.meshes.new(f"HexMesh_{q}_{r}")
     mesh.from_pydata(verts, [], faces)
@@ -445,7 +576,8 @@ def build_hex_mesh(
     obj = bpy.data.objects.new(obj_name, mesh)
     obj.data.materials.append(material)
     collection.objects.link(obj)
-    return obj
+    stats = {"verts": len(verts), "faces": len(faces)}
+    return obj, stats
 
 
 def setup_camera_and_lights() -> None:
@@ -536,6 +668,7 @@ def save_outputs() -> None:
 
 
 WORLD_XY_TOLERANCE = 1e-5
+WORLD_Z_TOLERANCE = 1e-5
 
 
 def opposite_neighbor_direction(direction: int) -> int:
@@ -610,13 +743,51 @@ def log_shared_edge_check(
             f"shared lattice corner {key}: Z={z:.4f} "
             f"(3-hex avg where plain+hill+plain meet)"
         )
-    _log("shared-edge validation passed")
+
+    # Subdivided samples along the full shared edge (center sector 5 ↔ east sector 2).
+    subdiv = SURFACE_SUBDIVISIONS
+    center_samples = [
+        subdivided_outer_edge_world(
+            center_q, center_r, edge_center, step_k, corner_heights, hex_levels[(center_q, center_r)]
+        )
+        for step_k in range(subdiv + 1)
+    ]
+    east_samples = [
+        subdivided_outer_edge_world(
+            east_q, east_r, edge_east, step_k, corner_heights, hex_levels[(east_q, east_r)]
+        )
+        for step_k in range(subdiv + 1)
+    ]
+    assert len(center_samples) == len(east_samples), "subdivided edge sample count mismatch"
+    _log(f"subdivided shared-edge samples: {len(center_samples)} per hex")
+
+    for step_k in range(subdiv + 1):
+        rev_k = subdiv - step_k
+        wx_c, wy_c, wz_c, _ = center_samples[step_k]
+        wx_e, wy_e, wz_e, _ = east_samples[rev_k]
+        assert abs(wx_c - wx_e) < WORLD_XY_TOLERANCE, (
+            f"subdivided edge XY mismatch at step {step_k}: "
+            f"center ({wx_c:.6f},{wy_c:.6f}) vs east ({wx_e:.6f},{wy_e:.6f})"
+        )
+        assert abs(wy_c - wy_e) < WORLD_XY_TOLERANCE, (
+            f"subdivided edge Y mismatch at step {step_k}"
+        )
+        assert abs(wz_c - wz_e) < WORLD_Z_TOLERANCE, (
+            f"subdivided edge Z mismatch at step {step_k}: "
+            f"center {wz_c:.6f} vs east {wz_e:.6f}"
+        )
+
+    _log("shared-edge validation passed (corners + subdivided edge chain)")
 
 
 def main() -> None:
+    validate_surface_params()
     _log(f"Blender version: {_blender_version_label()}")
     _log("generating 7-hex flat-top prototype…")
     _log(f"repo root: {REPO_ROOT}")
+    _log(f"surface subdivisions: {SURFACE_SUBDIVISIONS}")
+    _log(f"inner flat radius factor: {INNER_FLAT_RADIUS_FACTOR}")
+    _log(f"height profile: {HEIGHT_PROFILE}")
 
     clear_scene()
     coll = ensure_collection(COLLECTION_NAME)
@@ -627,9 +798,20 @@ def main() -> None:
     corner_heights = build_corner_height_map(hex_levels)
     log_shared_edge_check(hex_levels, corner_heights)
 
+    total_verts = 0
+    total_faces = 0
     for q, r, level, terrain_label in PROTOTYPE_HEXES:
-        build_hex_mesh(q, r, level, terrain_label, corner_heights, material, coll)
-    _log(f"meshes created: {len(PROTOTYPE_HEXES)}")
+        _obj, stats = build_hex_mesh(q, r, level, terrain_label, corner_heights, material, coll)
+        total_verts += stats["verts"]
+        total_faces += stats["faces"]
+        _log(
+            f"hex ({q},{r}) {terrain_label}: "
+            f"{stats['verts']} verts, {stats['faces']} faces"
+        )
+    _log(
+        f"meshes created: {len(PROTOTYPE_HEXES)}; "
+        f"total {total_verts} verts, {total_faces} faces"
+    )
 
     setup_camera_and_lights()
     setup_render_and_world()

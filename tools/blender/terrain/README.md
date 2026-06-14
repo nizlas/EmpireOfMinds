@@ -2,6 +2,16 @@
 
 Visual proof-of-concept for a future real 3D terrain model. **Not** runtime terrain, **not** canonical gameplay, and **not** connected to Godot or tile-improvement rules.
 
+Three Blender scripts exist:
+
+| Script | Model | Default output |
+|--------|-------|----------------|
+| `generate_terrain_prototype.py` | Per-hex analytic top surface (milestone / reference) | `terrain_prototype_7_hex.blend` |
+| `generate_terrain_heightfield_prototype.py` | Multi-mesh global IDW heightfield | `terrain_prototype_7_hex_heightfield.blend` |
+| `generate_terrain_single_patch_prototype.py` | Single mesh, radial hill, separate hex overlay | `terrain_prototype_7_hex_single_patch.blend` |
+
+The third prototype generates one continuous terrain mesh (no per-hex terrain geometry), plus a toggleable `EOM_Hex_Overlay` object in Blender for logical hex edges. It is **not** runtime terrain or canonical gameplay implementation.
+
 ## Purpose
 
 Explore flat-top hex meshes where:
@@ -15,16 +25,31 @@ The first prototype is a fixed **7-hex cluster** (center + six neighbors) genera
 
 ## How to run
 
+**Per-hex analytic milestone:**
+
 1. Open **Blender** (3.x or 4.x with Python API).
 2. **Scripting** workspace → **Open** → `tools/blender/terrain/generate_terrain_prototype.py`
 3. Click **Run Script**.
 
-The script clears the current scene, builds the cluster, sets up camera/lights/material, and optionally saves output.
+**Global heightfield prototype:**
+
+1. **Scripting** workspace → **Open** → `tools/blender/terrain/generate_terrain_heightfield_prototype.py`
+2. **Text → Reload** (after edits) → **Run Script**.
+
+**Single-patch radial hill prototype:**
+
+1. **Scripting** workspace → **Open** → `tools/blender/terrain/generate_terrain_single_patch_prototype.py`
+2. **Text → Reload** → **Run Script**.
+3. In the outliner, toggle visibility of `EOM_Hex_Overlay` to show/hide the logical hex grid.
+
+Each script clears the current scene, builds the cluster, sets up camera/lights/material, and optionally saves output.
 
 `bpy` exists only inside Blender. Syntax can be checked outside Blender with:
 
 ```powershell
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_prototype.py', encoding='utf-8').read())"
+python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_heightfield_prototype.py', encoding='utf-8').read())"
+python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_prototype.py', encoding='utf-8').read())"
 ```
 
 ## Output
@@ -33,8 +58,12 @@ Default paths (repo-relative, resolved from script location):
 
 | File | Path |
 |------|------|
-| Generated blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex.blend` |
-| Generated GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex.glb` |
+| Analytic blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex.blend` |
+| Analytic GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex.glb` |
+| Heightfield blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_heightfield.blend` |
+| Heightfield GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_heightfield.glb` |
+| Single-patch blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch.blend` |
+| Single-patch GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch.glb` |
 
 The output folder is created if missing.
 
