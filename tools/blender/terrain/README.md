@@ -13,6 +13,7 @@ Seven Blender scripts exist:
 | `generate_terrain_single_patch_pbr_ground_prototype.py` | Same geometry + procedural ash/stone; tileable PBR ground layer (Object coords) | `terrain_prototype_7_hex_single_patch_pbr_ground.blend` |
 | `generate_terrain_single_patch_pbr_ground_uv_prototype.py` | **Approved** ground-PBR baseline via world-anchored planar UV | `terrain_prototype_7_hex_single_patch_pbr_ground_uv.blend` |
 | `generate_terrain_single_patch_pbr_ground_stone_prototype.py` | Approved ground-PBR UV + full stone PBR via existing stone splat weight | `terrain_prototype_7_hex_single_patch_pbr_ground_stone.blend` |
+| `generate_terrain_single_patch_pbr_ground_stone_ash_prototype.py` | Approved ground + stone PBR UV + full ash PBR via existing ash splat weight | `terrain_prototype_7_hex_single_patch_pbr_ground_stone_ash.blend` |
 
 The third prototype generates one continuous terrain mesh (no per-hex terrain geometry), plus a toggleable `EOM_Hex_Overlay` object in Blender for logical hex edges. It is **not** runtime terrain or canonical gameplay implementation.
 
@@ -59,6 +60,68 @@ The seventh script adds a full stone PBR layer (`stone_albedo.png`, `stone_norma
 **Known limits:** no ash PBR, no chunk tiling, no cliff UV, no Godot import. Side/skirt/chamfer/bottom use separate side material.
 
 **Next step:** separate ash-PBR prototype wired through existing ground/ash splat weights.
+
+The eighth script adds a full ash PBR layer (`ash_albedo.png`, `ash_normal.png`, `ash_roughness.png`) on top of the approved ground + stone PBR UV baseline. Ash textures use the same `EOM_WorldUV` layer and `ShaderNodeUVMap` → `Ground UV Mapping` chain as ground and stone. The **existing ash weight** (large-scale noise mask, unchanged) drives ash albedo, tangent-space normal, and roughness together. The **existing stone weight** still applies after ground/ash blending. Ground and stone baseline values and masks are preserved; this is the first full three-layer PBR splatting prototype.
+
+### Ash PBR prototype (`generate_terrain_single_patch_pbr_ground_stone_ash_prototype.py`)
+
+| Item | Value |
+|------|-------|
+| Script | `tools/blender/terrain/generate_terrain_single_patch_pbr_ground_stone_ash_prototype.py` |
+| Blend output | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_stone_ash.blend` |
+| GLB output | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_stone_ash.glb` |
+| Ash textures | `source/materials/ash/ash_albedo.png`, `ash_normal.png`, `ash_roughness.png` |
+| Ash splat | Regional `large_factor_map.Result` × medium-frequency breakup → ash-weight remap → `mix_ground_ash` factor |
+| Ash weight remap | `ASH_WEIGHT_INPUT_MIN`/`ASH_WEIGHT_INPUT_MAX` = `0.30`/`0.95` (approved baseline) |
+| Stone splat | Slope mask + stone breakup; applied after ground/ash blend |
+| Ash PBR params | `ASH_ALBEDO_TINT_STRENGTH=0.0`, `ASH_NORMAL_STRENGTH=0.55`, `ASH_ROUGHNESS_MULTIPLIER=1.0`, `ASH_ROUGHNESS_VARIATION_STRENGTH=0.0` |
+| Debug stages (new) | `ash_albedo`, `ash_normal`, `ash_roughness`, `ash_mask`, `ground_ash_pbr`, `ground_stone_ash_pbr` |
+| Brightness diagnostics | `ash_albedo_raw` (Emission bypass, raw PNG color) and `ash_albedo_diffuse` (neutral matte Principled, Specular IOR Level 0) — for isolating Material Preview lighting vs texture data |
+| Mask diagnostics | `ash_mask_raw` shows regional ash source (`large_factor_map.Result`) through Emission; `ash_breakup_raw` shows breakup factor only; `ash_mask_combined_raw` shows regional source after breakup multiply (before ash-weight remap); `ash_mask_remapped_raw` shows the final remapped PBR splat weight through Emission — all unaffected by lighting |
+
+#### Approved Blender porting baseline — 2026-06-15
+
+**Verified in Blender 5.1.2.** Scene World + Scene Lights were used as the reference for material assessment. Standard screenshots (not mobile photos) were used for color evaluation.
+
+This baseline is the **reproducible Blender source for the upcoming Godot port**. It is not a claim about final in-game luminance — overall luminance and lighting must still be validated in the Godot runtime environment.
+
+**What works in this baseline:**
+
+- Three-layer ground / ash / stone PBR
+- Continuous world-anchored UV (`EOM_WorldUV`, `WORLD_UV_SCALE=0.35`)
+- Tangent-space normal maps without triangle-shaped artifacts
+- Ground, ash, and stone share the same UV source
+- Same splat weight per layer drives albedo, normal, and roughness
+- Blend order: ground ↔ ash, then result ↔ stone
+
+**Ash mask chain:** regional `large_factor_map.Result` source → medium-frequency breakup → final weight remap (`ASH_WEIGHT_INPUT_MIN/MAX` = `0.30`/`0.95`).
+
+**Stone mask chain:** slope mask + breakup (`STONE_BREAKUP_STRENGTH=0.080`).
+
+**`USE_FINE_DETAIL = False` is intentionally locked.** Fine-detail albedo modulation produced a global gray patchy haze; `FINE_NOISE_*` parameters remain for future dedicated experiments only.
+
+**Guardrail:** `APPROVED_BLENDER_PORTING_BASELINE` is checked at startup via `_validate_blender_porting_baseline()`. Changes to locked parameters raise `RuntimeError` unless `ALLOW_BLENDER_PORTING_BASELINE_RETUNE = True`.
+
+**Do not retune this Blender source during the Godot port** unless a dedicated baseline revision is explicitly requested.
+
+**Baseline revision procedure:**
+
+1. Create a separate baseline-revision task.
+2. Set `ALLOW_BLENDER_PORTING_BASELINE_RETUNE = True`.
+3. Change one parameter family at a time.
+4. Verify in Blender (Scene World + Scene Lights).
+5. Update `APPROVED_BLENDER_PORTING_BASELINE` and this README.
+6. Reset `ALLOW_BLENDER_PORTING_BASELINE_RETUNE = False` before completing the pass.
+
+**Ash breakup:** regional ash source subdivided multiplicatively by calm medium-frequency breakup before ash-weight remap. Stone weight still applies after ground/ash blending.
+
+All nine PBR textures (ground, ash, stone albedo/normal/roughness) share one world-anchored UV source: `ShaderNodeUVMap` (`EOM_WorldUV`) → `Ground UV Mapping` → image textures. No separate ash UV layer or mapping scale.
+
+Blend order: ground ↔ ash (existing ash weight) → result ↔ stone (existing stone weight). Side/chamfer/skirt/bottom still use the separate side material.
+
+**Known limits:** no chunk tiling, no cliff UV, no Godot import, no height-based blending. Height-based layer blending remains future work.
+
+**Next step:** Godot port of material and lighting logic from this Blender baseline.
 
 ## Purpose
 
@@ -126,6 +189,15 @@ The first prototype is a fixed **7-hex cluster** (center + six neighbors) genera
 4. **Material Preview** smoke test: `stone_albedo` → `stone_normal` → `stone_roughness` → `stone_mask` → `ground_stone_pbr` → `final`.
 5. Confirm stone appears only where the existing stone weight activates; ground unchanged elsewhere; ash still procedural.
 
+**Single-patch PBR ground + stone + ash prototype:**
+
+1. Place ground textures under `source/materials/ground/`, stone under `source/materials/stone/`, and ash under `source/materials/ash/`:
+   - `ash_albedo.png`, `ash_normal.png`, `ash_roughness.png`
+2. **Scripting** workspace → **Open** → `tools/blender/terrain/generate_terrain_single_patch_pbr_ground_stone_ash_prototype.py`
+3. **Text → Reload** → **Run Script**.
+4. **Material Preview** smoke test: `ash_albedo` → `ash_normal` → `ash_roughness` → `ash_mask` → `ground_ash_pbr` → `ground_stone_ash_pbr` → `final`.
+5. Confirm ash appears only where the existing ash weight activates; stone blend unchanged from stone milestone; ground unchanged where ash-weight = 0.
+
 Each script clears the current scene, builds the cluster, sets up camera/lights/material, and optionally saves output.
 
 `bpy` exists only inside Blender. Syntax can be checked outside Blender with:
@@ -138,6 +210,7 @@ python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_si
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_prototype.py', encoding='utf-8').read())"
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_uv_prototype.py', encoding='utf-8').read())"
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_stone_prototype.py', encoding='utf-8').read())"
+python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_stone_ash_prototype.py', encoding='utf-8').read())"
 ```
 
 ## Output
@@ -160,6 +233,8 @@ Default paths (repo-relative, resolved from script location):
 | Single-patch PBR ground UV GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_uv.glb` |
 | Single-patch PBR ground + stone blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_stone.blend` |
 | Single-patch PBR ground + stone GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_stone.glb` |
+| Single-patch PBR ground + stone + ash blend | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_stone_ash.blend` |
+| Single-patch PBR ground + stone + ash GLB | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_prototype_7_hex_single_patch_pbr_ground_stone_ash.glb` |
 
 The output folder is created if missing.
 
