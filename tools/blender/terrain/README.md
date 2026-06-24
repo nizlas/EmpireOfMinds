@@ -14,6 +14,7 @@ Seven Blender scripts exist:
 | `generate_terrain_single_patch_pbr_ground_uv_prototype.py` | **Approved** ground-PBR baseline via world-anchored planar UV | `terrain_prototype_7_hex_single_patch_pbr_ground_uv.blend` |
 | `generate_terrain_single_patch_pbr_ground_stone_prototype.py` | Approved ground-PBR UV + full stone PBR via existing stone splat weight | `terrain_prototype_7_hex_single_patch_pbr_ground_stone.blend` |
 | `generate_terrain_single_patch_pbr_ground_stone_ash_prototype.py` | Approved ground + stone PBR UV + full ash PBR via existing ash splat weight | `terrain_prototype_7_hex_single_patch_pbr_ground_stone_ash.blend` |
+| `generate_terrain_single_patch_pbr_ground_stone_ash_niclas_demo.py` | Niclas idle/kick visual demo on locked porting baseline (no terrain retune) | `terrain_prototype_7_hex_single_patch_pbr_ground_stone_ash_niclas_demo.blend` |
 
 The third prototype generates one continuous terrain mesh (no per-hex terrain geometry), plus a toggleable `EOM_Hex_Overlay` object in Blender for logical hex edges. It is **not** runtime terrain or canonical gameplay implementation.
 
@@ -198,6 +199,18 @@ The first prototype is a fixed **7-hex cluster** (center + six neighbors) genera
 4. **Material Preview** smoke test: `ash_albedo` → `ash_normal` → `ash_roughness` → `ash_mask` → `ground_ash_pbr` → `ground_stone_ash_pbr` → `final`.
 5. Confirm ash appears only where the existing ash weight activates; stone blend unchanged from stone milestone; ground unchanged where ash-weight = 0.
 
+**Niclas idle/kick demo on approved porting baseline:**
+
+1. Same ground/stone/ash textures as the ash PBR milestone.
+2. Niclas asset at `game/assets/prototype/3d/units/niclas/niclas_3d.glb` (actions `Idle_3`, `Flying_Fist_Kick`).
+3. **Scripting** workspace → **Open** → `tools/blender/terrain/generate_terrain_single_patch_pbr_ground_stone_ash_niclas_demo.py`
+4. **Text → Reload** → **Run Script**.
+5. Press timeline **Play** and verify at least three full cycles: trimmed idle → full kick → reset → repeat.
+6. Niclas stands on west outer hex `(-1,0)` with center `(0,0)` between him and hill `(1,0)`; faces flat neighbor `(0,0)` so kick root motion moves along flat ground (not toward hill or patch edge).
+7. Does **not** modify the locked terrain baseline script or its output files.
+
+This is a visual prototype only: idle is trimmed to `NICLAS_IDLE_DURATION_SECONDS` (default `2.5`); kick always plays its full imported frame range with root motion preserved; world transform resets at each cycle boundary to prevent drift. No Godot or gameplay changes.
+
 Each script clears the current scene, builds the cluster, sets up camera/lights/material, and optionally saves output.
 
 `bpy` exists only inside Blender. Syntax can be checked outside Blender with:
@@ -211,6 +224,7 @@ python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_si
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_uv_prototype.py', encoding='utf-8').read())"
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_stone_prototype.py', encoding='utf-8').read())"
 python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_stone_ash_prototype.py', encoding='utf-8').read())"
+python -c "import ast; ast.parse(open('tools/blender/terrain/generate_terrain_single_patch_pbr_ground_stone_ash_niclas_demo.py', encoding='utf-8').read())"
 ```
 
 ## Output
