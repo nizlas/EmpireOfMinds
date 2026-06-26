@@ -265,7 +265,12 @@ OVERLAY_OBJECT_NAME = "EOM_Terrain_TerrainMapFull01_Overlay"
 CLIFF_WALL_OBJECT_NAME = "EOM_Terrain_TerrainMapFull01_CliffPlaceholder"
 
 OUTPUT_BLEND_FILENAME = "terrain_handdrawn_test_map_full_01.blend"
+OUTPUT_BLEND_FILENAME_HEXPATCH_V1 = "terrain_handdrawn_test_map_full_01_hexpatch_v1.blend"
 SAVE_BLEND = True
+# §§12–13 HexPatch IDW evaluator (SharedCorner/Ribbon + center bubble). Legacy sector path when False.
+USE_HEXPATCH_SURFACE = True
+# HXP-03: side-blend v1.0 S_final diagnostic path. Default off; does not replace IDW unless True.
+USE_HEXPATCH_V1_SURFACE = False
 
 OUTPUT_BLEND_PATH: Path | None = None
 
@@ -344,8 +349,15 @@ def _resolve_repo_root() -> tuple[Path, list[Path]]:
 
 _TERRAIN_MATH_REQUIRED_NAMES: tuple[str, ...] = (
     "DEFAULT_HEX_RADIUS",
+    "DEFAULT_SSC_DEFORMATION_RADIUS_FACTOR",
     "DEFAULT_SURFACE_SUBDIVISIONS",
     "NEIGHBOR_DIRS",
+    "shared_edge_z_at",
+    "audit_smooth_edge_continuity",
+    "audit_mid_edge_canonical_profile",
+    "audit_transverse_spike_seams",
+    "audit_center_corner_ray_artifacts",
+    "audit_ssc_corner_continuity",
     "audit_summary",
     "baseline_to_handdrawn_axial",
     "build_terrain_model",
@@ -354,7 +366,15 @@ _TERRAIN_MATH_REQUIRED_NAMES: tuple[str, ...] = (
     "handdrawn_to_baseline_axial",
     "parse_terrain_map_json",
     "pos_key",
+    "reset_ssc_deformation_audit",
     "sample_smooth_domain_surface_world",
+    "ssc_deformation_audit",
+)
+
+
+_HEXPATCH_REQUIRED_NAMES: tuple[str, ...] = (
+    "sample_hexpatch_surface_world",
+    "audit_hexpatch_suite",
 )
 
 
@@ -418,10 +438,79 @@ def _load_terrain_math_core() -> object:
     return module
 
 
+def _load_hexpatch_v1_surface(core_path: Path) -> object:
+    v1_path = core_path.parent / "eom_hexpatch_v1_surface.py"
+    if not v1_path.is_file():
+        raise RuntimeError(f"eom_hexpatch_v1_surface.py not found beside {core_path}")
+
+    sys.modules.pop("eom_hexpatch_v1_surface", None)
+    spec = importlib.util.spec_from_file_location("eom_hexpatch_v1_surface", v1_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load hexpatch v1 surface from {v1_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["eom_hexpatch_v1_surface"] = module
+    spec.loader.exec_module(module)
+
+    for name in ("HexPatchV1SurfaceSampler",):
+        if not hasattr(module, name):
+            raise RuntimeError(f"eom_hexpatch_v1_surface missing {name}")
+    _log(f"hexpatch v1 surface: {v1_path}")
+    return module
+
+
+def _load_hexpatch_v1_audits(core_path: Path) -> object:
+    audits_path = core_path.parent / "eom_hexpatch_v1_audits.py"
+    if not audits_path.is_file():
+        raise RuntimeError(f"eom_hexpatch_v1_audits.py not found beside {core_path}")
+
+    sys.modules.pop("eom_hexpatch_v1_audits", None)
+    spec = importlib.util.spec_from_file_location("eom_hexpatch_v1_audits", audits_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load hexpatch v1 audits from {audits_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["eom_hexpatch_v1_audits"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_hexpatch_surface(core_path: Path) -> object:
+    hexpatch_path = core_path.parent / "eom_hexpatch_surface.py"
+    if not hexpatch_path.is_file():
+        raise RuntimeError(f"eom_hexpatch_surface.py not found beside {core_path}")
+
+    sys.modules.pop("eom_hexpatch_surface", None)
+    spec = importlib.util.spec_from_file_location("eom_hexpatch_surface", hexpatch_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load hexpatch surface from {hexpatch_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["eom_hexpatch_surface"] = module
+    spec.loader.exec_module(module)
+
+    missing = [name for name in _HEXPATCH_REQUIRED_NAMES if not hasattr(module, name)]
+    if missing:
+        raise RuntimeError(
+            f"eom_hexpatch_surface at {hexpatch_path} is outdated or incomplete. "
+            f"Missing: {', '.join(missing)}."
+        )
+
+    _log(f"hexpatch surface: {hexpatch_path}")
+    return module
+
+
 _terrain_math = _load_terrain_math_core()
+_hexpatch_surface = _load_hexpatch_surface(
+    Path(getattr(_terrain_math, "__file__", SCRIPT_DIR / "eom_terrain_math_core.py"))
+)
 DEFAULT_HEX_RADIUS = _terrain_math.DEFAULT_HEX_RADIUS
+DEFAULT_SSC_DEFORMATION_RADIUS_FACTOR = _terrain_math.DEFAULT_SSC_DEFORMATION_RADIUS_FACTOR
 DEFAULT_SURFACE_SUBDIVISIONS = _terrain_math.DEFAULT_SURFACE_SUBDIVISIONS
 NEIGHBOR_DIRS = _terrain_math.NEIGHBOR_DIRS
+shared_edge_z_at = _terrain_math.shared_edge_z_at
+audit_smooth_edge_continuity = _terrain_math.audit_smooth_edge_continuity
+audit_mid_edge_canonical_profile = _terrain_math.audit_mid_edge_canonical_profile
+audit_transverse_spike_seams = _terrain_math.audit_transverse_spike_seams
+audit_center_corner_ray_artifacts = _terrain_math.audit_center_corner_ray_artifacts
+audit_ssc_corner_continuity = _terrain_math.audit_ssc_corner_continuity
 audit_summary = _terrain_math.audit_summary
 baseline_to_handdrawn_axial = _terrain_math.baseline_to_handdrawn_axial
 build_terrain_model = _terrain_math.build_terrain_model
@@ -430,7 +519,11 @@ handdrawn_tile_at_world = _terrain_math.handdrawn_tile_at_world
 handdrawn_to_baseline_axial = _terrain_math.handdrawn_to_baseline_axial
 parse_terrain_map_json = _terrain_math.parse_terrain_map_json
 pos_key = _terrain_math.pos_key
+reset_ssc_deformation_audit = _terrain_math.reset_ssc_deformation_audit
 sample_smooth_domain_surface_world = _terrain_math.sample_smooth_domain_surface_world
+sample_hexpatch_surface_world = _hexpatch_surface.sample_hexpatch_surface_world
+audit_hexpatch_suite = _hexpatch_surface.audit_hexpatch_suite
+ssc_deformation_audit = _terrain_math.ssc_deformation_audit
 
 
 def _load_baseline_module(repo_root: Path, *, examined_starts: list[Path]) -> object:
@@ -512,7 +605,20 @@ def _print_curvature_influence_audit(baseline: object) -> None:
         _log(f"baseline module HILL_RADIUS / HEX_RADIUS: {influence_radius_factor:.4f}")
 
 
-def build_analytic_terrain_mesh(model, baseline: object) -> tuple[bpy.types.Mesh, dict[str, Any]]:
+def build_analytic_terrain_mesh(
+    model,
+    baseline: object,
+    *,
+    hexpatch_v1_sampler: object | None = None,
+) -> tuple[bpy.types.Mesh, dict[str, Any]]:
+    reset_ssc_deformation_audit()
+    if USE_HEXPATCH_V1_SURFACE:
+        sampler_label = "hexpatch v1.0 S_final (HXP-03 diagnostic)"
+    elif USE_HEXPATCH_SURFACE:
+        sampler_label = "hexpatch IDW (§§12–13)"
+    else:
+        sampler_label = "legacy sector/radial"
+    _log(f"analytic surface sampler: {sampler_label}")
     subdiv = DEFAULT_SURFACE_SUBDIVISIONS
     radius = baseline.HEX_RADIUS
     bottom_z = -baseline.BASE_THICKNESS
@@ -556,10 +662,16 @@ def build_analytic_terrain_mesh(model, baseline: object) -> tuple[bpy.types.Mesh
         domain_id: int,
         q: int,
         r: int,
+        *,
+        sector: int | None = None,
+        at_sector_corner: bool = False,
     ) -> int:
         position_key = pos_key(wx, wy)
         merge_key = (position_key, domain_id)
-        tile_key = (position_key, domain_id, q, r)
+        if at_sector_corner and sector is not None:
+            tile_key = (position_key, domain_id, q, r, sector)
+        else:
+            tile_key = (position_key, domain_id, q, r)
 
         cached_tile = top_cache.get(tile_key)
         if cached_tile is not None:
@@ -598,15 +710,87 @@ def build_analytic_terrain_mesh(model, baseline: object) -> tuple[bpy.types.Mesh
                     )
                     wx = cx + lx
                     wy = cy + ly
-                    wz = sample_smooth_domain_surface_world(
+                    at_corner = (si == subdiv and sj == 0) or (si == 0 and sj == subdiv)
+                    if USE_HEXPATCH_V1_SURFACE:
+                        assert hexpatch_v1_sampler is not None
+
+                        def _idw_fallback(fwx: float, fwy: float, fq: int, fr: int) -> float:
+                            return sample_hexpatch_surface_world(
+                                fwx,
+                                fwy,
+                                fq,
+                                fr,
+                                model,
+                                radius=radius,
+                            )
+
+                        def _legacy_fallback(
+                            fwx: float,
+                            fwy: float,
+                            fq: int,
+                            fr: int,
+                            *,
+                            fsector: int = sector,
+                            fat_corner: bool = at_corner,
+                        ) -> float:
+                            wz_legacy = sample_smooth_domain_surface_world(
+                                fwx,
+                                fwy,
+                                fq,
+                                fr,
+                                model,
+                                radius=radius,
+                                sector=fsector,
+                                at_sector_corner=fat_corner,
+                            )
+                            if si + sj == subdiv:
+                                shared_z = shared_edge_z_at(model, pos_key(fwx, fwy))
+                                if shared_z is not None:
+                                    wz_legacy = shared_z
+                            return wz_legacy
+
+                        wz, _route = hexpatch_v1_sampler.sample_world(
+                            wx,
+                            wy,
+                            q_h,
+                            r_h,
+                            idw_fallback=_idw_fallback,
+                            legacy_fallback=_legacy_fallback,
+                        )
+                    elif USE_HEXPATCH_SURFACE:
+                        wz = sample_hexpatch_surface_world(
+                            wx,
+                            wy,
+                            q_h,
+                            r_h,
+                            model,
+                            radius=radius,
+                        )
+                    else:
+                        wz = sample_smooth_domain_surface_world(
+                            wx,
+                            wy,
+                            q_h,
+                            r_h,
+                            model,
+                            radius=radius,
+                            sector=sector,
+                            at_sector_corner=at_corner,
+                        )
+                        if si + sj == subdiv:
+                            shared_z = shared_edge_z_at(model, pos_key(wx, wy))
+                            if shared_z is not None:
+                                wz = shared_z
+                    grid[(si, sj)] = add_top_vertex(
                         wx,
                         wy,
+                        wz,
+                        domain_id,
                         q_h,
                         r_h,
-                        model,
-                        radius=radius,
+                        sector=sector,
+                        at_sector_corner=at_corner,
                     )
-                    grid[(si, sj)] = add_top_vertex(wx, wy, wz, domain_id, q_h, r_h)
                     sj += 1
             sector_grids[(q_h, r_h, domain_id, sector)] = grid
 
@@ -813,7 +997,10 @@ def build_analytic_terrain_mesh(model, baseline: object) -> tuple[bpy.types.Mesh
         "perimeter_verts": len(perimeter_loop),
         "total_verts": len(verts),
         "total_faces": len(all_faces),
+        "ssc_deformation": ssc_deformation_audit(),
     }
+    if hexpatch_v1_sampler is not None:
+        stats["hexpatch_v1_sample_stats"] = hexpatch_v1_sampler.stats.as_dict()
     return mesh, stats
 
 
@@ -915,6 +1102,345 @@ def _print_model_audit(model, output_path: Path) -> None:
         )
 
 
+def _print_ssc_corner_audit(model) -> None:
+    _log("--- SSC mixed-corner audit ---")
+    _log(f"SSC deformation radius factor: {DEFAULT_SSC_DEFORMATION_RADIUS_FACTOR:.4f} of HEX_RADIUS")
+    _log(f"detected SSC corners: {len(model.ssc_corners)}")
+    for record in model.ssc_corners:
+        _log(
+            "SSC corner: "
+            f"world {record.corner_world} "
+            f"cliff {record.cliff_a} <-> {record.cliff_b} "
+            f"bridge {record.bridge} "
+            f"corner_bc_z {record.target_z:.4f}"
+        )
+
+    continuity = audit_ssc_corner_continuity(model, radius=DEFAULT_HEX_RADIUS)
+    _log("--- SSC corner continuity audit ---")
+    _log(f"SSC corners checked: {continuity['corner_count']}")
+    _log(f"passed: {continuity['passed_count']}")
+    _log(f"failed: {continuity['failure_count']}")
+
+    if continuity["continuity_ok"]:
+        _log("SSC corner continuity: OK")
+        return
+
+    _log("SSC corner continuity: FAILED")
+    for index, failure in enumerate(continuity["failures"], start=1):
+        _log(f"--- SSC continuity failure {index}/{continuity['failure_count']} ---")
+        _log(f"corner world XY: {failure['corner_world']}")
+        _log(f"corner key (pos_key): {failure['corner_key']}")
+        _log(f"corner_bc_z (target): {failure['corner_bc_z']:.6f}")
+        _log(f"height spread (max-min): {failure['height_spread']:.6e}")
+
+        topology = failure["topology"]
+        _log("incident tiles:")
+        for tile_info in topology["incident_tiles"]:
+            _log(
+                f"  tile {tile_info['tile']} "
+                f"elevation {tile_info['elevation']} "
+                f"world_z {tile_info['world_z']:.4f} "
+                f"role {tile_info['role']} "
+                f"corner_index {tile_info['corner_index']}"
+            )
+
+        cliff = topology["cliff_pair"]
+        _log(
+            "cliff pair: "
+            f"{cliff['tile_a']} (elev {cliff['elevation_a']}) "
+            f"<-> {cliff['tile_b']} (elev {cliff['elevation_b']}) "
+            f"delta {cliff['delta']}"
+        )
+        _log("smooth pairs:")
+        for pair in topology["smooth_pairs"]:
+            _log(
+                f"  {pair['tile_a']} (elev {pair['elevation_a']}) "
+                f"<-> {pair['tile_b']} (elev {pair['elevation_b']}) "
+                f"delta {pair['delta']}"
+            )
+        _log(f"bridge tile: {topology['bridge']}")
+
+        if failure["excluded_sector_reports"]:
+            _log("excluded sectors (deformation intentionally skipped):")
+            for excluded in failure["excluded_sector_reports"]:
+                _log(
+                    f"  tile {excluded['tile']} sector {excluded['sector']} "
+                    f"corner_index {excluded['corner_index']} "
+                    f"cliff_sector {excluded['cliff_sector']} "
+                    f"reason: {excluded['reason']}"
+                )
+
+        _log("participating smooth sector samples:")
+        for sample in failure["participating_sample_reports"]:
+            tq, tr = sample["tile"]
+            _log(
+                f"  tile ({tq},{tr}) elev {sample['elevation']} role {sample['tile_role']} "
+                f"corner_index {sample['corner_index']} sector {sample['sector']} "
+                f"sector_corner_vertex {sample['sector_corner_vertex']}"
+            )
+            _log(
+                f"    sample_world_xy {sample['sample_world_xy']} "
+                f"computed_corner_xy {sample['computed_corner_xy']} "
+                f"computed_corner_key {sample['computed_corner_key']}"
+            )
+            _log(
+                f"    ssc_corner_key {sample['ssc_corner_key']} "
+                f"corner_key_matches {sample['corner_key_matches']} "
+                f"local_xy {sample['local_xy']} "
+                f"dist_to_ssc_corner {sample['dist_to_ssc_corner']:.6e}"
+            )
+            _log(
+                f"    at_sector_corner_input {sample['at_sector_corner_input']} "
+                f"at_sector_corner_detected {sample['at_sector_corner_detected']} "
+                f"at_this_ssc_corner {sample['at_this_ssc_corner']}"
+            )
+            _log(
+                f"    radial_base_height {sample['radial_base_height']:.6f} "
+                f"corner_bc_z {sample['corner_bc_z']:.6f} "
+                f"sampled_height {sample['sampled_height']:.6f}"
+            )
+            _log(
+                f"    expected_height {sample['expected_height']:.6f} "
+                f"error_from_corner_bc_z {sample['error_from_corner_bc_z']:.6e} "
+                f"error_from_expected {sample['error_from_expected']:.6e}"
+            )
+            _log(
+                f"    deformation_applied {sample['deformation_applied']} "
+                f"mode {sample['deformation_mode']} "
+                f"falloff_weight {sample['falloff_weight']:.6f} "
+                f"zone_radius {sample['deformation_zone_radius']:.6f}"
+            )
+            if sample["deformation_skip_reason"]:
+                _log(f"    deformation_skip_reason: {sample['deformation_skip_reason']}")
+            if sample["cliff_sector_excluded"] is not None:
+                _log(f"    cliff_sector_excluded {sample['cliff_sector_excluded']}")
+
+    raise RuntimeError(
+        f"SSC corner continuity audit failed: {continuity['failure_count']} of "
+        f"{continuity['corner_count']} corners (see log above for per-corner detail)"
+    )
+
+
+def _print_smooth_edge_audit(model) -> None:
+    _log("--- smooth-edge continuity audit ---")
+    audit = audit_smooth_edge_continuity(
+        model,
+        radius=DEFAULT_HEX_RADIUS,
+        subdiv=DEFAULT_SURFACE_SUBDIVISIONS,
+    )
+    _log(f"smooth edges checked: {audit['smooth_edge_count']}")
+    _log(f"height epsilon: {audit['height_epsilon']:.6e}")
+    _log(f"subdiv sample points per edge: {audit['subdiv'] + 1}")
+    _log(f"global max abs Z diff: {audit['global_max_abs_z_diff']:.6e}")
+    _log(f"mismatch count (diff > epsilon): {audit['mismatch_count']}")
+    _log("category counts:")
+    for category, count in sorted(audit["category_counts"].items()):
+        _log(f"  {category}: {count}")
+    _log(
+        "note: hex overlay draws a line above every hex edge (HEX_OVERLAY_HEIGHT_OFFSET); "
+        "a bright line at an edge may be overlay, not a surface Z split. "
+        "This audit Z-diff is the source of truth for an actual top-surface gap."
+    )
+    if audit["mismatch_count"] == 0:
+        _log("smooth-edge continuity: all edges within epsilon")
+        return
+
+    _log(f"worst smooth edges (top {len(audit['worst_edges'])}):")
+    for index, edge in enumerate(audit["worst_edges"], start=1):
+        if edge["max_abs_z_diff"] <= audit["height_epsilon"]:
+            break
+        endpoint_a = edge["endpoint_a"]
+        endpoint_b = edge["endpoint_b"]
+        _log(
+            f"  {index}. {edge['tile_a']} (elev {edge['elevation_a']}) "
+            f"<-> {edge['tile_b']} (elev {edge['elevation_b']}) "
+            f"delta {edge['delta']} "
+            f"category {edge['category']}"
+        )
+        _log(
+            f"     physical edges: {edge['physical_edge_a']} / {edge['physical_edge_b']} "
+            f"max abs Z diff {edge['max_abs_z_diff']:.6e} "
+            f"peak at subdiv {edge['peak_subdiv_index']} "
+            f"world {edge['peak_world_xy']} "
+            f"peak_at_endpoint {edge['peak_at_endpoint']} "
+            f"touches_ssc {edge['touches_ssc']}"
+        )
+        _log(
+            f"     peak Z: tile_a {edge['peak_z_a']:.6f} tile_b {edge['peak_z_b']:.6f}"
+        )
+        _log(
+            f"     endpoint_a {endpoint_a['corner_world']} "
+            f"touching {endpoint_a['touching_count']} "
+            f"cliff_pairs {endpoint_a['cliff_pair_count']} "
+            f"is_ssc {endpoint_a['is_ssc']} "
+            f"is_perimeter {endpoint_a['is_perimeter']}"
+        )
+        _log(
+            f"     endpoint_b {endpoint_b['corner_world']} "
+            f"touching {endpoint_b['touching_count']} "
+            f"cliff_pairs {endpoint_b['cliff_pair_count']} "
+            f"is_ssc {endpoint_b['is_ssc']} "
+            f"is_perimeter {endpoint_b['is_perimeter']}"
+        )
+
+
+def _print_mid_edge_invariant_audit(model) -> None:
+    _log("--- mid-edge canonical profile audit (§11 sector patch) ---")
+    audit = audit_mid_edge_canonical_profile(
+        model,
+        radius=DEFAULT_HEX_RADIUS,
+        subdiv=DEFAULT_SURFACE_SUBDIVISIONS,
+    )
+    _log(f"smooth edges checked: {audit['smooth_edge_count']}")
+    _log(f"median samples checked: {audit['sample_count']}")
+    _log(f"height epsilon: {audit['height_epsilon']:.6e}")
+    _log(f"global max deviation: {audit['global_max_deviation']:.6e}")
+    _log(f"profile ok: {audit['profile_ok']}")
+    _log(f"midpoint tile agreement ok: {audit['midpoint_tile_agreement_ok']}")
+    if audit["invariant_ok"]:
+        _log("mid-edge invariant: all medians match canonical 7-hex reference")
+        return
+    if audit["midpoint_tile_mismatches"]:
+        _log(f"midpoint tile mismatches: {len(audit['midpoint_tile_mismatches'])}")
+        for row in audit["midpoint_tile_mismatches"][:5]:
+            _log(
+                f"  {row['tile_a']} <-> {row['tile_b']} delta {row['delta']} "
+                f"world {row['world_xy']} diff {row['abs_diff']:.6e}"
+            )
+    if audit["worst_profile_failures"]:
+        _log(f"profile failures (top {len(audit['worst_profile_failures'])}):")
+        for row in audit["worst_profile_failures"][:5]:
+            _log(
+                f"  tile {row['tile']} neighbor {row['neighbor']} u {row['u']:.3f} "
+                f"deviation {row['abs_deviation']:.6e}"
+            )
+
+
+def _print_transverse_spike_audit(model) -> None:
+    _log("--- transverse spike seam audit (§11 sector patch) ---")
+    audit = audit_transverse_spike_seams(
+        model,
+        radius=DEFAULT_HEX_RADIUS,
+        subdiv=DEFAULT_SURFACE_SUBDIVISIONS,
+    )
+    _log(f"sample pairs checked: {audit['sample_pairs']}")
+    _log(f"global max spike: {audit['global_max_spike']:.6e}")
+    _log(
+        "note: pre-sector-field baseline ~0.07-0.08 on delta-1 edges; "
+        "lower is better (needle-ridge indicator)"
+    )
+    for row in audit["worst_spikes"][:5]:
+        _log(
+            f"  tile {row['tile']} sector {row['sector']} step {row['median_step']} "
+            f"transverse {row['transverse']} spike {row['abs_spike']:.6e} "
+            f"Z {row['z_median']:.6f} vs {row['z_transverse']:.6f}"
+        )
+
+
+def _print_center_corner_ray_audit(model) -> None:
+    _log("--- center→corner ray artifact audit (§11 sector patch) ---")
+    audit = audit_center_corner_ray_artifacts(
+        model,
+        radius=DEFAULT_HEX_RADIUS,
+        subdiv=DEFAULT_SURFACE_SUBDIVISIONS,
+    )
+    _log(f"sample pairs checked: {audit['sample_pairs']}")
+    _log(f"global max star-shell asymmetry: {audit['global_max_star_shell']:.6e}")
+    _log(
+        f"global max side-radial decouple: {audit['global_max_side_radial_decouple']:.6e}"
+    )
+    _log(f"side curve exact: {audit['side_curve_ok']}")
+    _log(
+        "note: side-radial decouple > 0 confirms side lines no longer follow legacy kernel; "
+        "lower star-shell asymmetry vs old radial+correction field is the visual goal"
+    )
+    for row in audit["worst_star_shells"][:5]:
+        _log(
+            f"  tile {row['tile']} sector {row['sector']} step {row['radial_step']} "
+            f"star {row['star_shell_asymmetry']:.6e} "
+            f"side-radial {row['side_radial_decouple']:.6e}"
+        )
+
+
+def _print_hexpatch_audit(model) -> None:
+    _log("--- HexPatch/Ribbon audit (TERRAIN_MODEL §§12–13 IDW) ---")
+    _log(f"surface sampler: {'hexpatch IDW' if USE_HEXPATCH_SURFACE else 'legacy sector/radial'}")
+    audit = audit_hexpatch_suite(
+        model,
+        radius=DEFAULT_HEX_RADIUS,
+        subdiv=DEFAULT_SURFACE_SUBDIVISIONS,
+    )
+    se = audit["smooth_edge_height"]
+    _log(
+        f"smooth-edge height mismatch: max {se.get('global_max_abs_z_diff', 0.0):.6e} "
+        f"ok={se['ok']}"
+    )
+    g1 = audit["g1_ribbons"]
+    _log(f"G1 ribbon cross-edge slope diff max: {g1['global_max_slope_diff']:.6e} ok={g1['ok']}")
+    br = audit["boundary_reproduction"]
+    _log(f"boundary reproduction max error: {br['global_max_abs_error']:.6e} ok={br['ok']}")
+    cd = audit["cross_derivative"]
+    _log(f"cross-derivative reproduction max error: {cd['global_max_abs_error']:.6e} ok={cd['ok']}")
+    cen = audit["center"]
+    _log(
+        f"center exact after bubble: ok={cen['ok']} "
+        f"drift before bubble max={cen.get('drift_max', 0.0):.6f} "
+        f"mean={cen.get('drift_mean', 0.0):.6f} "
+        f"warn_count={cen.get('drift_warn_count', 0)}"
+    )
+    ns = audit["no_spoke"]
+    _log(
+        f"no-spoke derivative discontinuity max: {ns['global_max_derivative_discontinuity']:.6e} "
+        f"ok={ns['ok']} "
+        "(informational; former sector boundaries may still show curvature seams)"
+    )
+
+
+def _print_hexpatch_v1_visual_audit(model, v1_audits: object) -> None:
+    graph = model.hexpatch_v1_graph
+    if graph is None:
+        raise RuntimeError("hexpatch_v1_graph missing on TerrainModel")
+    _log("--- HexPatch v1.0 contract audit (HXP-02b visual gate) ---")
+    report = v1_audits.audit_hexpatch_v1_suite(model, graph, radius=DEFAULT_HEX_RADIUS)
+    _log(v1_audits.format_hexpatch_v1_audit_report(report, fixture_name="handdrawn_full_168_tiles"))
+    gate = v1_audits.audit_hexpatch_v1_visual_gate(report)
+    _log(v1_audits.format_hexpatch_v1_visual_gate_report(gate))
+    if not gate["ok"]:
+        raise RuntimeError(
+            "HexPatch v1 visual gate failed before regeneration: "
+            f"{gate['failures']}"
+        )
+
+
+def _print_hxp03_diagnostic_report(
+    *,
+    output_path: Path,
+    sample_stats: dict[str, int] | None,
+) -> None:
+    _log("--- HXP-03 HexPatch v1 diagnostic report ---")
+    _log(f"USE_HEXPATCH_V1_SURFACE: {USE_HEXPATCH_V1_SURFACE}")
+    _log(f"USE_HEXPATCH_SURFACE (IDW default path when v1 off): {USE_HEXPATCH_SURFACE}")
+    _log(f"IDW path unchanged when v1 toggle False: {not USE_HEXPATCH_V1_SURFACE}")
+    _log(f"blend output path: {output_path}")
+    if sample_stats is not None:
+        _log(
+            "top-surface sample routing: "
+            f"v1 S_final={sample_stats.get('hexpatch_v1_total', 0)} "
+            f"(all-smooth={sample_stats.get('hexpatch_v1_smooth', 0)} "
+            f"mixed-interior={sample_stats.get('hexpatch_v1_mixed_interior', 0)}) "
+            f"cliff IDW fallback={sample_stats.get('cliff_fallback_idw', 0)} "
+            f"cliff legacy fallback={sample_stats.get('cliff_fallback_legacy', 0)} "
+            f"total={sample_stats.get('total', 0)}"
+        )
+    _log(
+        "visual-risk notes: "
+        "cliff-adjacent tiles use IDW fallback (Cliff Model v1 deferred); "
+        "H3 corner height exact on vertices, gradient jet report-only; "
+        "center bubble may dominate where pre-bubble drift is large; "
+        "compare against terrain_handdrawn_test_map_full_01.blend (IDW) side-by-side."
+    )
+
+
 def _adjust_camera(baseline: object, model) -> None:
     radius = baseline.HEX_RADIUS
     wx_values: list[float] = []
@@ -959,17 +1485,39 @@ def _save_blend(output_path: Path) -> None:
 
 
 def main() -> None:
+    if USE_HEXPATCH_V1_SURFACE and not USE_HEXPATCH_SURFACE:
+        _log(
+            "note: USE_HEXPATCH_V1_SURFACE=True uses IDW fallback on cliff-adjacent tiles; "
+            "USE_HEXPATCH_SURFACE=False only affects non-v1 legacy path."
+        )
+
     terrain_map = parse_terrain_map_json(TERRAIN_MAP_JSON)
     model = build_terrain_model(terrain_map)
 
     repo_root, examined_starts = _resolve_repo_root()
     _log(f"repo root: {repo_root}")
 
+    core_path = Path(getattr(_terrain_math, "__file__", SCRIPT_DIR / "eom_terrain_math_core.py"))
+    hexpatch_v1_sampler: object | None = None
+    v1_audits: object | None = None
+    if USE_HEXPATCH_V1_SURFACE:
+        v1_surface = _load_hexpatch_v1_surface(core_path)
+        v1_audits = _load_hexpatch_v1_audits(core_path)
+        hexpatch_v1_sampler = v1_surface.HexPatchV1SurfaceSampler.from_model(
+            model,
+            radius=DEFAULT_HEX_RADIUS,
+        )
+
     baseline = _load_baseline_module(repo_root, examined_starts=examined_starts)
     _assert_baseline_unchanged(baseline)
     baseline.validate_params()
     baseline.validate_material_params()
 
+    blend_filename = (
+        OUTPUT_BLEND_FILENAME_HEXPATCH_V1
+        if USE_HEXPATCH_V1_SURFACE
+        else OUTPUT_BLEND_FILENAME
+    )
     output_path = (
         repo_root
         / "game"
@@ -979,12 +1527,22 @@ def main() -> None:
         / "terrain"
         / "prototype_3d_terrain"
         / "generated"
-        / OUTPUT_BLEND_FILENAME
+        / blend_filename
     )
 
     _print_orientation_audit()
     _print_curvature_influence_audit(baseline)
     _print_model_audit(model, output_path)
+    _print_ssc_corner_audit(model)
+    _print_smooth_edge_audit(model)
+    _print_mid_edge_invariant_audit(model)
+    _print_transverse_spike_audit(model)
+    _print_center_corner_ray_audit(model)
+    if USE_HEXPATCH_V1_SURFACE:
+        assert v1_audits is not None
+        _print_hexpatch_v1_visual_audit(model, v1_audits)
+    else:
+        _print_hexpatch_audit(model)
 
     ground_albedo_path, ground_normal_path, ground_roughness_path = (
         baseline.resolve_ground_texture_paths(repo_root)
@@ -1013,7 +1571,11 @@ def main() -> None:
     side_material = baseline.make_side_terrain_material()
     baseline._log_material_setup()
 
-    terrain_mesh, stats = build_analytic_terrain_mesh(model, baseline)
+    terrain_mesh, stats = build_analytic_terrain_mesh(
+        model,
+        baseline,
+        hexpatch_v1_sampler=hexpatch_v1_sampler,
+    )
     baseline.assign_world_anchored_top_uv(terrain_mesh, stats["top_faces"])
     baseline.assign_patch_materials(
         terrain_mesh,
@@ -1035,6 +1597,17 @@ def main() -> None:
     _log(f"cliff wall segments skipped (degenerate): {stats['cliff_segments_skipped']}")
     all_cliffs_filled = stats["cliff_edges_filled"] == len(model.cliff_edge_graph)
     _log(f"all cliff edges received solid fill: {all_cliffs_filled}")
+    ssc_audit = stats["ssc_deformation"]
+    _log(f"SSC deformation affected samples: {ssc_audit['affected_sample_count']}")
+    _log(
+        "edge counts unchanged: "
+        f"smooth {len(model.smooth_edges)}, cliff {len(model.cliff_edges)}"
+    )
+    if USE_HEXPATCH_V1_SURFACE:
+        _print_hxp03_diagnostic_report(
+            output_path=output_path,
+            sample_stats=stats.get("hexpatch_v1_sample_stats"),
+        )
     _log(f"total vertices: {stats['total_verts']}")
     _log(f"total faces: {stats['total_faces']}")
 
