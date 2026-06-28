@@ -1,0 +1,13 @@
+﻿TS05_MESH === TS05_MESH_REP_CLIFF ===
+TS05_MESH   cliff_pair=((4, 0), (5, 0)) front_id=4
+TS05_MESH   tile=(4, 0) role=lower side_release=front=4 side=lower fallback=downsampled_tps in_direct_cliff_tiles=True tile_key_type=int,int handdrawn_in_map=True
+TS05_MESH     direct_set_match=True band_set_match=True
+TS05_MESH   tile=(5, 0) role=upper side_release=front=4 side=upper fallback=downsampled_tps in_direct_cliff_tiles=True tile_key_type=int,int handdrawn_in_map=True
+TS05_MESH     direct_set_match=True band_set_match=True
+TS05_MESH === TS05_MESH_COORD_CONFIRM === build_analytic_terrain_mesh passes handdrawn (q_h, r_h) to sample_world; map.tile_key_sample=(0, 0) key_type=int
+TS05_MESH === TS05_MESH_SAMPLE_COUNTS ===
+TS05_MESH   tile=(4, 0) release=546 base=0 cliff_sector_release=26 cliff_sector_base=0 direct_fallback=0
+TS05_MESH   tile=(5, 0) release=546 base=0 cliff_sector_release=13 cliff_sector_base=0 direct_fallback=0
+TS05_MESH === TS05_MESH_RIM_VERTICES ===
+TS05_MESH   tile=(4, 0) role=lower vertex_id=54976 base_z=0.285804 release_z=0.285804 final_z=0.285804 weight=1.000000 used_release=True
+TS05_MESH   tile=(5, 0) role=upper vertex_id=60702 base_z=0.660158 release_z=0.660158 final_z=0.660158 weight=1.000000 used_release=True

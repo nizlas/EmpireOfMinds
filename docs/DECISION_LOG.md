@@ -1,3 +1,33 @@
+## 2026-06-27 — Terrain — select variational spline family as current research direction
+
+- **Status:** **Research-direction decision, not a final implementation decision.** This records the current best-supported direction based on evidence gathered so far (HexPatch and GlobalBiharmonic investigations). It does **not** finalize a terrain algorithm.
+- **Decision:** The current **primary research direction** is **variational spline methods**, specifically the **Thin-Plate / Polyharmonic Spline family with affine precision**. They are **currently the strongest known candidate family satisfying the required invariance properties** — **not** "the only correct solution." Current evidence is sufficient to prioritize this family for the next prototype, but **not** yet to declare it the final terrain model.
+- **Evidence chain:**
+  - **HexPatch (local interpolation) falsified:** local per-hex patch assembly produced visible hex-local artifacts on the canonical 168-tile map; the local modelling assumption does not yield a global landscape. HexPatch v1 is retained as a **diagnostic reference backend** only.
+  - **Graph-Laplacian GlobalBiharmonic (TS-02) falsified the current discrete formulation:** the relaxation fixed point is the tensioned biharmonic with a **random-walk graph Laplacian** whose nullspace is `{constants}` only. It therefore **lacks linear precision** (planes carry spurious energy → bow toward a flat sheet) and the membrane component reintroduces `log r` point-load cusps. The failure is the **discrete operator + membrane term**, **not** evidence that point-center constraints are fundamentally insufficient. TS-02 is retained as a diagnostic reference backend.
+- **Required mathematical properties** any future terrain solver must satisfy:
+  - exact interpolation of tile-center elevations;
+  - **affine precision** — constants reproduced exactly, planes reproduced exactly;
+  - **no implicit rest elevation** — no attraction toward a flat reference sheet or mean; terrain determined entirely by tile elevations and topology;
+  - a **global fairness objective**;
+  - natural handling of **disconnected smooth components** created by cliffs.
+- **Relationship between methods:**
+  - **Thin-Plate Splines and Polyharmonic Splines** are the **primary research family**.
+  - **Universal kriging with a thin-plate (intrinsic) covariance** is **mathematically very closely related** (reduces to the same interpolant); not a separate destination.
+  - **FEM thin-plate with a cotangent/FEM Laplacian** is **not a competing idea** — it is a future **discretization / evolution path** within the same variational problem, advantageous once larger-scale constraints (area/edge) or mesh-based solving are wanted.
+  - **MLS** and **Natural Neighbour** remain **valuable secondary techniques** for editing, previews, or local reconstruction, but are **not** the current primary direction.
+- **Level of selection (explicit):** only the **research family** is selected here. The chain **research family → specific mathematical formulation → numerical discretization → implementation** remains open below the first level; future work is free to choose the most appropriate formulation and discretization within the selected family.
+- **Scope:** docs/decision only (T2 docs-only). No solver code, no equations, no numerical formulation, no prototype in this entry. Full direction: **[docs/TERRAIN_MODEL.md](TERRAIN_MODEL.md) §17**.
+
+## 2026-06-27 — Terrain — pivot to Global Terrain Optimization (TerrainSolver framework)
+
+- **Decision:** Pivot terrain surface generation from **local per-hex patch assembly** to **Global Terrain Optimization**: hexes define constraints (exact tile-center height, C¹ smooth edges, cliff-split domains), and the surface emerges from solving a **global constrained fair-surface problem** per smooth-connected component. Visual evaluation on the established large map (`handdrawn_test_map_full_01`, 168 tiles) falsified the local patch modelling assumption; this is treated as a modelling conclusion, not a bug.
+- **Framework:** Introduce a **`TerrainSolver`** interface in `tools/blender/terrain/eom_terrain_solver.py` with pluggable backends: **IDW** (reference), **HexPatch v1** (diagnostic reference), **legacy sector**, and reserved **`global_biharmonic`** (TS-02). Backend selection derives from existing generator flags by default; no behavior change in TS-01.
+- **HexPatch v1 retained as reference:** §15–§16 HexPatch Mathematics v1.0 remains implemented and selectable for comparison; it is **not** assumed to be the final terrain model.
+- **Canonical benchmark:** The established large terrain map is the **primary and exhaustive** visual/mathematical benchmark. No new toy evaluation maps.
+- **Leading solver candidate (TS-02):** Iterative fair-surface relaxation (biharmonic-with-tension) on the cliff-cut triangulation, with tile centers Dirichlet-pinned; exact sparse biharmonic deferred pending dependency/conditioning review.
+- **Scope (TS-01):** Architectural plumbing only — behavior-preserving wrappers and backend selection; no formula changes, no global solver implementation yet.
+
 ## 2026-06-26 — Terrain planning — freeze HexPatch Mathematics v1.0
 
 - **Decision:** **Freeze** the HexPatch **smooth surface core** as **HexPatch Mathematics v1.0** — the canonical implementation specification for SharedCorner, SharedRibbon, the **HexPatch side-blend transfinite operator**, center bubble, and surface evaluation. Full design of record: **[docs/TERRAIN_MODEL.md](TERRAIN_MODEL.md) §15–§16**.

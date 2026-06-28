@@ -266,11 +266,49 @@ CLIFF_WALL_OBJECT_NAME = "EOM_Terrain_TerrainMapFull01_CliffPlaceholder"
 
 OUTPUT_BLEND_FILENAME = "terrain_handdrawn_test_map_full_01.blend"
 OUTPUT_BLEND_FILENAME_HEXPATCH_V1 = "terrain_handdrawn_test_map_full_01_hexpatch_v1.blend"
+OUTPUT_BLEND_FILENAME_GLOBAL_BIHARMONIC = (
+    "terrain_handdrawn_test_map_full_01_global_biharmonic.blend"
+)
+OUTPUT_BLEND_FILENAME_VARIATIONAL_SPLINE = (
+    "terrain_handdrawn_test_map_full_01_variational_spline.blend"
+)
+OUTPUT_BLEND_FILENAME_FEM_THIN_PLATE = (
+    "terrain_handdrawn_test_map_full_01_fem_thin_plate.blend"
+)
+OUTPUT_BLEND_FILENAME_TPS_CLIFF_RELEASE = (
+    "terrain_handdrawn_test_map_full_01_tps_cliff_release.blend"
+)
+OUTPUT_BLEND_FILENAME_TPS_RIM_CONSTRAINTS = (
+    "terrain_handdrawn_test_map_full_01_tps_rim_constraints.blend"
+)
+OUTPUT_BLEND_FILENAME_TS07A_TS03_CLONE = (
+    "terrain_handdrawn_test_map_full_01_ts07a_ts03_clone.blend"
+)
 SAVE_BLEND = True
 # §§12–13 HexPatch IDW evaluator (SharedCorner/Ribbon + center bubble). Legacy sector path when False.
 USE_HEXPATCH_SURFACE = True
 # HXP-03: side-blend v1.0 S_final diagnostic path. Default off; does not replace IDW unless True.
 USE_HEXPATCH_V1_SURFACE = False
+# TS-02: global fair-surface / biharmonic-with-tension diagnostic path. Default off.
+USE_GLOBAL_BIHARMONIC_SURFACE = False
+# TS-03: thin-plate variational spline (affine-precision) path. Default off.
+USE_VARIATIONAL_SPLINE_SURFACE = False
+# TS-05: experimental TPS cliff-band release wrapper over variational spline. Default off.
+USE_TPS_CLIFF_RELEASE = False
+# TS-06: explicit cliff-front rim constraints in per-cluster TPS. Default off.
+USE_TPS_RIM_CONSTRAINTS = False
+# TS-07a: control clone of TS-03 variational spline (alternate output filename only). Default off.
+USE_TS07A_TS03_CLONE = False
+# TS-05 debug: release-region overlay collection (visualization only; does not change terrain mesh).
+USE_TS05_DEBUG_OVERLAY = True
+# TS-04: FEM cotan thin-plate on cliff-cut mesh. Default off.
+USE_FEM_THIN_PLATE_SURFACE = False
+# TS-03e: cliff wall visibility debug (rendering verification only; does not change mesh topology).
+DEBUG_SHOW_CLIFF_WALLS = False
+DEBUG_HIDE_TOP_SURFACE = False
+CLIFF_WALL_DEBUG_MATERIAL_NAME = "EOM_Terrain_CliffWall_Debug_MidGrey"
+# TS-01: optional explicit backend override; None = derive from USE_* flags at runtime.
+TERRAIN_SOLVER_BACKEND: str | None = None
 
 OUTPUT_BLEND_PATH: Path | None = None
 
@@ -497,10 +535,42 @@ def _load_hexpatch_surface(core_path: Path) -> object:
     return module
 
 
+def _load_terrain_solver(core_path: Path) -> object:
+    solver_path = core_path.parent / "eom_terrain_solver.py"
+    if not solver_path.is_file():
+        raise RuntimeError(f"eom_terrain_solver.py not found beside {core_path}")
+
+    sys.modules.pop("eom_terrain_solver", None)
+    spec = importlib.util.spec_from_file_location("eom_terrain_solver", solver_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load terrain solver from {solver_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["eom_terrain_solver"] = module
+    spec.loader.exec_module(module)
+
+    for name in (
+        "TerrainBackend",
+        "make_terrain_solver",
+        "resolve_terrain_solver_backend",
+        "sampler_label_for_backend",
+    ):
+        if not hasattr(module, name):
+            raise RuntimeError(f"eom_terrain_solver missing {name}")
+    _log(f"terrain solver: {solver_path}")
+    return module
+
+
 _terrain_math = _load_terrain_math_core()
 _hexpatch_surface = _load_hexpatch_surface(
     Path(getattr(_terrain_math, "__file__", SCRIPT_DIR / "eom_terrain_math_core.py"))
 )
+_terrain_solver = _load_terrain_solver(
+    Path(getattr(_terrain_math, "__file__", SCRIPT_DIR / "eom_terrain_math_core.py"))
+)
+TerrainBackend = _terrain_solver.TerrainBackend
+make_terrain_solver = _terrain_solver.make_terrain_solver
+resolve_terrain_solver_backend = _terrain_solver.resolve_terrain_solver_backend
+sampler_label_for_backend = _terrain_solver.sampler_label_for_backend
 DEFAULT_HEX_RADIUS = _terrain_math.DEFAULT_HEX_RADIUS
 DEFAULT_SSC_DEFORMATION_RADIUS_FACTOR = _terrain_math.DEFAULT_SSC_DEFORMATION_RADIUS_FACTOR
 DEFAULT_SURFACE_SUBDIVISIONS = _terrain_math.DEFAULT_SURFACE_SUBDIVISIONS
@@ -562,6 +632,23 @@ def _physical_edge_for_baseline_neighbor(direction: int) -> int:
     return (5 - direction) % 6
 
 
+def _build_cliff_physical_edges_by_tile(model) -> dict[tuple[int, int], frozenset[int]]:
+    """Physical edge indices per tile where the neighbor across that edge is a cliff."""
+    by_tile: dict[tuple[int, int], set[int]] = {}
+    for cliff in model.cliff_edge_graph:
+        tile_a = cliff.tile_a
+        tile_b = cliff.tile_b
+        edge_a = _physical_edge_for_baseline_neighbor(
+            _baseline_neighbor_direction(tile_a, tile_b)
+        )
+        edge_b = _physical_edge_for_baseline_neighbor(
+            _baseline_neighbor_direction(tile_b, tile_a)
+        )
+        by_tile.setdefault(tile_a, set()).add(edge_a)
+        by_tile.setdefault(tile_b, set()).add(edge_b)
+    return {tile: frozenset(edges) for tile, edges in by_tile.items()}
+
+
 def _is_map_outer_edge(
     q: int,
     r: int,
@@ -609,16 +696,10 @@ def build_analytic_terrain_mesh(
     model,
     baseline: object,
     *,
-    hexpatch_v1_sampler: object | None = None,
+    terrain_solver: object,
 ) -> tuple[bpy.types.Mesh, dict[str, Any]]:
     reset_ssc_deformation_audit()
-    if USE_HEXPATCH_V1_SURFACE:
-        sampler_label = "hexpatch v1.0 S_final (HXP-03 diagnostic)"
-    elif USE_HEXPATCH_SURFACE:
-        sampler_label = "hexpatch IDW (§§12–13)"
-    else:
-        sampler_label = "legacy sector/radial"
-    _log(f"analytic surface sampler: {sampler_label}")
+    _log(f"analytic surface sampler: {sampler_label_for_backend(terrain_solver.backend)}")
     subdiv = DEFAULT_SURFACE_SUBDIVISIONS
     radius = baseline.HEX_RADIUS
     bottom_z = -baseline.BASE_THICKNESS
@@ -636,6 +717,77 @@ def build_analytic_terrain_mesh(
     cliff_neighbor_pairs: set[frozenset[tuple[int, int]]] = {
         frozenset((cliff.tile_a, cliff.tile_b)) for cliff in model.cliff_edge_graph
     }
+    cliff_physical_edges_by_tile = _build_cliff_physical_edges_by_tile(model)
+
+    ts05_mesh_audit = None
+    try:
+        from eom_terrain_tps_cliff_release import (
+            TpsCliffReleaseTerrainSolver,
+            Ts05MeshSamplingAudit,
+        )
+
+        if isinstance(terrain_solver, TpsCliffReleaseTerrainSolver):
+            ts05_mesh_audit = Ts05MeshSamplingAudit(
+                terrain_solver,
+                model,
+                radius=radius,
+                subdiv=subdiv,
+            )
+            terrain_solver.begin_mesh_sampling_audit(ts05_mesh_audit)
+            ts05_mesh_audit.print_representative_cliff_ownership()
+            sample_tile_key = next(iter(model.map.tiles.keys()), None)
+            print(
+                "TS05_MESH === TS05_MESH_COORD_CONFIRM === "
+                "build_analytic_terrain_mesh passes handdrawn (q_h, r_h) to sample_world; "
+                f"map.tile_key_sample={sample_tile_key!r} "
+                f"key_type="
+                f"{type(sample_tile_key[0]).__name__ if sample_tile_key else 'n/a'}"
+            )
+    except ImportError:
+        pass
+
+    def tile_cliff_physical_edges(q: int, r: int) -> frozenset[int]:
+        return cliff_physical_edges_by_tile.get((q, r), frozenset())
+
+    def _incident_physical_edges_at_sample(
+        sector: int,
+        *,
+        at_corner: bool,
+        si: int,
+        sj: int,
+    ) -> tuple[int, ...]:
+        if at_corner:
+            if si == subdiv and sj == 0:
+                return ((sector - 1) % 6, sector)
+            return (sector, (sector + 1) % 6)
+        return ()
+
+    def sample_on_cliff_boundary(
+        q: int,
+        r: int,
+        sector: int,
+        *,
+        at_sector_outer_edge: bool,
+        at_corner: bool,
+        si: int,
+        sj: int,
+    ) -> bool:
+        cliff_edges = tile_cliff_physical_edges(q, r)
+        if not cliff_edges:
+            return False
+        if at_sector_outer_edge and sector in cliff_edges:
+            return True
+        if at_corner:
+            return any(
+                edge in cliff_edges
+                for edge in _incident_physical_edges_at_sample(
+                    sector,
+                    at_corner=True,
+                    si=si,
+                    sj=sj,
+                )
+            )
+        return False
 
     def tiles_are_cliff_neighbors(
         tile_a: tuple[int, int],
@@ -665,8 +817,29 @@ def build_analytic_terrain_mesh(
         *,
         sector: int | None = None,
         at_sector_corner: bool = False,
+        at_sector_outer_edge: bool = False,
+        si: int = 0,
+        sj: int = 0,
     ) -> int:
         position_key = pos_key(wx, wy)
+        if sector is not None and sample_on_cliff_boundary(
+            q,
+            r,
+            sector,
+            at_sector_outer_edge=at_sector_outer_edge,
+            at_corner=at_sector_corner,
+            si=si,
+            sj=sj,
+        ):
+            cliff_side_key = (position_key, domain_id, q, r)
+            cached = top_cache.get(cliff_side_key)
+            if cached is not None:
+                return cached
+            idx = len(verts)
+            verts.append((wx, wy, wz))
+            top_cache[cliff_side_key] = idx
+            return idx
+
         merge_key = (position_key, domain_id)
         if at_sector_corner and sector is not None:
             tile_key = (position_key, domain_id, q, r, sector)
@@ -678,11 +851,12 @@ def build_analytic_terrain_mesh(
             return cached_tile
 
         cached_merge = top_cache.get(merge_key)
-        if cached_merge is not None and abs(verts[cached_merge][2] - wz) <= height_epsilon:
+        if cached_merge is not None:
             owner = merge_owner.get(merge_key)
             if owner is None or not tiles_are_cliff_neighbors((q, r), owner):
-                top_cache[tile_key] = cached_merge
-                return cached_merge
+                if abs(verts[cached_merge][2] - wz) <= height_epsilon:
+                    top_cache[tile_key] = cached_merge
+                    return cached_merge
 
         idx = len(verts)
         verts.append((wx, wy, wz))
@@ -711,77 +885,23 @@ def build_analytic_terrain_mesh(
                     wx = cx + lx
                     wy = cy + ly
                     at_corner = (si == subdiv and sj == 0) or (si == 0 and sj == subdiv)
-                    if USE_HEXPATCH_V1_SURFACE:
-                        assert hexpatch_v1_sampler is not None
-
-                        def _idw_fallback(fwx: float, fwy: float, fq: int, fr: int) -> float:
-                            return sample_hexpatch_surface_world(
-                                fwx,
-                                fwy,
-                                fq,
-                                fr,
-                                model,
-                                radius=radius,
-                            )
-
-                        def _legacy_fallback(
-                            fwx: float,
-                            fwy: float,
-                            fq: int,
-                            fr: int,
-                            *,
-                            fsector: int = sector,
-                            fat_corner: bool = at_corner,
-                        ) -> float:
-                            wz_legacy = sample_smooth_domain_surface_world(
-                                fwx,
-                                fwy,
-                                fq,
-                                fr,
-                                model,
-                                radius=radius,
-                                sector=fsector,
-                                at_sector_corner=fat_corner,
-                            )
-                            if si + sj == subdiv:
-                                shared_z = shared_edge_z_at(model, pos_key(fwx, fwy))
-                                if shared_z is not None:
-                                    wz_legacy = shared_z
-                            return wz_legacy
-
-                        wz, _route = hexpatch_v1_sampler.sample_world(
-                            wx,
-                            wy,
-                            q_h,
-                            r_h,
-                            idw_fallback=_idw_fallback,
-                            legacy_fallback=_legacy_fallback,
-                        )
-                    elif USE_HEXPATCH_SURFACE:
-                        wz = sample_hexpatch_surface_world(
-                            wx,
-                            wy,
-                            q_h,
-                            r_h,
-                            model,
-                            radius=radius,
-                        )
-                    else:
-                        wz = sample_smooth_domain_surface_world(
-                            wx,
-                            wy,
-                            q_h,
-                            r_h,
-                            model,
-                            radius=radius,
-                            sector=sector,
-                            at_sector_corner=at_corner,
-                        )
-                        if si + sj == subdiv:
-                            shared_z = shared_edge_z_at(model, pos_key(wx, wy))
-                            if shared_z is not None:
-                                wz = shared_z
-                    grid[(si, sj)] = add_top_vertex(
+                    at_outer = si + sj == subdiv
+                    sample_kwargs: dict[str, Any] = {
+                        "sector": sector,
+                        "at_corner": at_corner,
+                        "at_sector_outer_edge": at_outer,
+                    }
+                    if ts05_mesh_audit is not None:
+                        sample_kwargs["mesh_si"] = si
+                        sample_kwargs["mesh_sj"] = sj
+                    wz = terrain_solver.sample_world(
+                        wx,
+                        wy,
+                        q_h,
+                        r_h,
+                        **sample_kwargs,
+                    )
+                    vertex_id = add_top_vertex(
                         wx,
                         wy,
                         wz,
@@ -790,7 +910,21 @@ def build_analytic_terrain_mesh(
                         r_h,
                         sector=sector,
                         at_sector_corner=at_corner,
+                        at_sector_outer_edge=at_outer,
+                        si=si,
+                        sj=sj,
                     )
+                    grid[(si, sj)] = vertex_id
+                    if ts05_mesh_audit is not None:
+                        ts05_mesh_audit.attach_rim_vertex_id(
+                            q_h,
+                            r_h,
+                            sector,
+                            si,
+                            sj,
+                            at_outer,
+                            vertex_id,
+                        )
                     sj += 1
             sector_grids[(q_h, r_h, domain_id, sector)] = grid
 
@@ -974,10 +1108,15 @@ def build_analytic_terrain_mesh(
         ]
         bottom_faces.append((center_bottom, bot_b, bot_a))
 
+    skirt_face_count = len(skirt_faces)
+    chamfer_face_count = len(chamfer_faces)
+    cliff_wall_quad_count = len(cliff_wall_faces)
     top_face_count = len(top_faces)
-    side_face_count = len(skirt_faces) + len(chamfer_faces) + len(cliff_wall_faces)
+    cliff_wall_poly_start = top_face_count + skirt_face_count + chamfer_face_count
+    side_face_count = skirt_face_count + chamfer_face_count + cliff_wall_quad_count
     bottom_face_count = len(bottom_faces)
     all_faces = top_faces + skirt_faces + chamfer_faces + cliff_wall_faces + bottom_faces
+    cliff_wall_vertex_indices = sorted({v for face in cliff_wall_faces for v in face})
 
     mesh = bpy.data.meshes.new("TerrainMapFull01")
     mesh.from_pydata(verts, [], all_faces)
@@ -987,8 +1126,15 @@ def build_analytic_terrain_mesh(
     stats = {
         "top_verts": len(set(top_cache.values())),
         "top_faces": top_face_count,
-        "cliff_wall_faces": len(cliff_wall_faces),
-        "cliff_wall_verts": len(verts) - cliff_wall_verts_before,
+        "cliff_wall_faces": cliff_wall_quad_count,
+        "cliff_wall_quads": cliff_wall_quad_count,
+        "cliff_wall_poly_start": cliff_wall_poly_start,
+        "cliff_wall_poly_count": cliff_wall_quad_count,
+        "cliff_wall_vertex_indices": cliff_wall_vertex_indices,
+        "cliff_wall_verts": len(cliff_wall_vertex_indices),
+        "cliff_wall_new_verts": len(verts) - cliff_wall_verts_before,
+        "skirt_face_count": skirt_face_count,
+        "chamfer_face_count": chamfer_face_count,
         "cliff_edges_filled": cliff_edges_filled,
         "cliff_segments_filled": cliff_segments_filled,
         "cliff_segments_skipped": cliff_segments_skipped,
@@ -999,8 +1145,18 @@ def build_analytic_terrain_mesh(
         "total_faces": len(all_faces),
         "ssc_deformation": ssc_deformation_audit(),
     }
-    if hexpatch_v1_sampler is not None:
-        stats["hexpatch_v1_sample_stats"] = hexpatch_v1_sampler.stats.as_dict()
+    solver_stats = terrain_solver.stats
+    if solver_stats is not None:
+        if terrain_solver.backend.value == "hexpatch_v1":
+            stats["hexpatch_v1_sample_stats"] = solver_stats
+        elif terrain_solver.backend.value == "global_biharmonic":
+            stats["global_biharmonic_stats"] = solver_stats
+        elif terrain_solver.backend.value == "variational_spline":
+            stats["variational_spline_stats"] = solver_stats
+        elif terrain_solver.backend.value == "fem_thin_plate":
+            stats["fem_thin_plate_stats"] = solver_stats
+    if ts05_mesh_audit is not None:
+        terrain_solver.finish_mesh_sampling_audit()
     return mesh, stats
 
 
@@ -1441,6 +1597,236 @@ def _print_hxp03_diagnostic_report(
     )
 
 
+def _print_global_biharmonic_diagnostic_report(
+    *,
+    output_path: Path,
+    solve_stats: dict[str, Any] | None,
+) -> None:
+    _log("--- TS-02 GlobalBiharmonic diagnostic report ---")
+    _log(f"USE_GLOBAL_BIHARMONIC_SURFACE: {USE_GLOBAL_BIHARMONIC_SURFACE}")
+    _log(f"blend output path: {output_path}")
+    if solve_stats is not None:
+        _log(f"backend: global_biharmonic (tension={solve_stats.get('tension', 0.0)})")
+        _log(f"node_count: {solve_stats.get('node_count', 0)}")
+        _log(f"component_count: {solve_stats.get('component_count', 0)}")
+        _log(f"pinned_center_count: {solve_stats.get('pinned_center_count', 0)}")
+        _log(f"free_boundary_count: {solve_stats.get('free_boundary_count', 0)}")
+        _log(f"iteration_count: {solve_stats.get('iteration_count', 0)}")
+        _log(f"final_max_update: {solve_stats.get('final_max_update', 0.0)}")
+        _log(
+            "max_center_constraint_error: "
+            f"{solve_stats.get('max_center_constraint_error', 0.0)}"
+        )
+        _log(f"z_min: {solve_stats.get('z_min', 0.0)}")
+        _log(f"z_max: {solve_stats.get('z_max', 0.0)}")
+        warnings = solve_stats.get("warnings") or []
+        if warnings:
+            _log(f"warnings: {'; '.join(warnings)}")
+    _log(
+        "visual-risk notes: "
+        "iterative fair-surface prototype (not exact sparse biharmonic); "
+        "cliff/perimeter nodes are free natural boundaries; "
+        "compare against terrain_handdrawn_test_map_full_01.blend (IDW) side-by-side."
+    )
+
+
+def _print_variational_spline_diagnostic_report(
+    *,
+    output_path: Path,
+    solve_stats: dict[str, Any] | None,
+) -> None:
+    _log("--- TS-03 VariationalSpline diagnostic report ---")
+    _log(f"USE_VARIATIONAL_SPLINE_SURFACE: {USE_VARIATIONAL_SPLINE_SURFACE}")
+    _log(f"blend output path: {output_path}")
+    if solve_stats is not None:
+        _log(f"backend: {solve_stats.get('backend', 'variational_spline')}")
+        _log(
+            f"cliff_cut_field_count: {solve_stats.get('cliff_cut_field_count', solve_stats.get('component_count', 0))}"
+        )
+        _log(f"component_count: {solve_stats.get('component_count', 0)}")
+        for comp in solve_stats.get("components") or []:
+            _log(
+                "  field "
+                f"{comp.get('domain_id')}: centers={comp.get('center_count')}, "
+                f"matrix_size={comp.get('matrix_size')}, kind={comp.get('kind')}, "
+                f"residual={comp.get('solve_residual')}, "
+                f"max_center_error={comp.get('max_center_error')}"
+            )
+        cliff = solve_stats.get("representative_cliff")
+        if cliff is not None:
+            _log("--- TS-03d representative cliff (4,0) <-> (5,0) ---")
+            _log(f"lower tile center Z: {cliff.get('lower_center_z')} (tile {cliff.get('lower_tile')})")
+            _log(f"upper tile center Z: {cliff.get('upper_center_z')} (tile {cliff.get('upper_tile')})")
+            _log(f"lower rim midpoint Z: {cliff.get('lower_rim_mid_z')}")
+            _log(f"upper rim midpoint Z: {cliff.get('upper_rim_mid_z')}")
+            _log(f"rim Z gap: {cliff.get('rim_z_gap')}")
+            _log(f"expected canonical gap: {cliff.get('expected_canonical_gap')}")
+            _log(f"distinct solver fields: {cliff.get('used_distinct_fields')}")
+            _log(
+                f"field ids: lower={cliff.get('lower_field_id')} "
+                f"upper={cliff.get('upper_field_id')}"
+            )
+        _log(
+            "max_center_interpolation_error: "
+            f"{solve_stats.get('max_center_interpolation_error', 0.0)}"
+        )
+        _log(f"max_solve_residual: {solve_stats.get('max_solve_residual', 0.0)}")
+        _log(
+            "affine_constant_ok: "
+            f"{solve_stats.get('affine_constant_ok')} "
+            f"(max_error={solve_stats.get('affine_constant_max_error', 0.0)})"
+        )
+        _log(
+            "affine_planar_ok: "
+            f"{solve_stats.get('affine_planar_ok')} "
+            f"(max_error={solve_stats.get('affine_planar_max_error', 0.0)})"
+        )
+        _log(f"z_min: {solve_stats.get('z_min', 0.0)}")
+        _log(f"z_max: {solve_stats.get('z_max', 0.0)}")
+        _log(f"input_z_min: {solve_stats.get('input_z_min', 0.0)}")
+        _log(f"input_z_max: {solve_stats.get('input_z_max', 0.0)}")
+        _log(f"max_overshoot: {solve_stats.get('max_overshoot', 0.0)}")
+        warnings = solve_stats.get("warnings") or []
+        if warnings:
+            _log(f"warnings: {'; '.join(warnings)}")
+    _log(
+        "visual-risk notes: "
+        "thin-plate spline may overshoot between centers; "
+        "cliff-side fields decouple across cliff edges (TS-03d); "
+        "compare against terrain_handdrawn_test_map_full_01.blend (IDW) side-by-side."
+    )
+
+
+def _print_tps_cliff_release_diagnostic_report(
+    *,
+    output_path: Path,
+    solve_stats: dict[str, Any] | None,
+) -> None:
+    _log("--- TS-05 TPS cliff-band release prototype report ---")
+    _log(f"USE_TPS_CLIFF_RELEASE: {USE_TPS_CLIFF_RELEASE}")
+    _log(f"blend output path: {output_path}")
+    if solve_stats is None:
+        _log("solve_stats: unavailable")
+        return
+    release = solve_stats.get("ts05_cliff_release")
+    if release is None:
+        _log("ts05_cliff_release: unavailable")
+        return
+    _log(f"connected cliff fronts: {release.get('front_count', 0)}")
+    _log(f"side band releases solved: {release.get('band_release_count', 0)}")
+    for front in release.get("fronts") or []:
+        _log(
+            f"  front {front.get('front_id')}: edges={front.get('edge_count')}, "
+            f"upper_band_tiles={front.get('upper_band_tiles')}, "
+            f"lower_band_tiles={front.get('lower_band_tiles')}, "
+            f"upper_anchors={front.get('upper_anchor_count')}, "
+            f"lower_anchors={front.get('lower_anchor_count')}"
+        )
+    rep = release.get("representative_cliff_release")
+    if rep is not None:
+        _log("--- representative cliff front (4,0) <-> (5,0) rim release ---")
+        _log(f"lower rim before correction: {rep.get('lower_rim_before')}")
+        _log(f"upper rim before correction: {rep.get('upper_rim_before')}")
+        _log(f"lower rim after correction: {rep.get('lower_rim_after')}")
+        _log(f"upper rim after correction: {rep.get('upper_rim_after')}")
+        _log(f"rim gap before: {rep.get('rim_gap_before')}")
+        _log(f"rim gap after: {rep.get('rim_gap_after')}")
+        _log(f"expected canonical gap: {rep.get('expected_canonical_gap')}")
+    warnings = release.get("warnings") or []
+    if warnings:
+        _log(f"warnings: {'; '.join(warnings)}")
+    band_diags = release.get("band_solve_diagnostics") or []
+    if band_diags:
+        _log(f"band solve diagnostics ({len(band_diags)} side bands):")
+        for diag in band_diags:
+            if diag.get("fallback") == "tps" and not diag.get("conflict_messages"):
+                continue
+            _log(
+                f"  front={diag.get('front_id')} side={diag.get('side')}: "
+                f"anchors={diag.get('anchor_count_before_dedupe')} "
+                f"unique={diag.get('unique_anchor_count_after_dedupe')} "
+                f"affine_rank={diag.get('affine_rank')} "
+                f"duplicate_xy={diag.get('duplicate_xy_anchors')} "
+                f"fallback={diag.get('fallback')}"
+                + (" LinAlgError" if diag.get("lin_alg_error") else "")
+            )
+    _log(
+        "visual-risk notes: prototype band re-fit; away from cliffs uses unchanged TS-03; "
+        "compare side-by-side with terrain_handdrawn_test_map_full_01_variational_spline.blend."
+    )
+
+
+def _print_fem_thin_plate_diagnostic_report(
+    *,
+    output_path: Path,
+    solve_stats: dict[str, Any] | None,
+) -> None:
+    _log("--- TS-04 FemThinPlate diagnostic report ---")
+    _log(f"USE_FEM_THIN_PLATE_SURFACE: {USE_FEM_THIN_PLATE_SURFACE}")
+    _log(f"blend output path: {output_path}")
+    if solve_stats is not None:
+        _log(f"backend: {solve_stats.get('backend', 'fem_thin_plate')}")
+        _log(f"node_count: {solve_stats.get('node_count', 0)}")
+        _log(f"triangle_count: {solve_stats.get('triangle_count', 0)}")
+        _log(f"cut_mesh_component_count: {solve_stats.get('component_count', 0)}")
+        if solve_stats.get("mesh_connected_via_smooth_detour"):
+            _log(
+                "mesh_connected_via_smooth_detour: true "
+                "(one component via legitimate smooth paths — cliff independence "
+                "verified by stencil audit, not component count)"
+            )
+        _log(f"free_dof_count: {solve_stats.get('free_dof_count', 0)}")
+        _log(f"laplacian_nnz: {solve_stats.get('laplacian_nnz', 0)}")
+        _log(f"cg_solve_blocks: {solve_stats.get('cg_solve_blocks', 0)}")
+        _log(f"pinned_center_count: {solve_stats.get('pinned_center_count', 0)}")
+        _log(f"cg_iterations: {solve_stats.get('cg_iterations', 0)}")
+        _log(f"final_residual: {solve_stats.get('final_residual', 0.0)}")
+        _log(f"relative_residual: {solve_stats.get('relative_residual', 0.0)}")
+        _log(
+            "no_stencil_across_cliff: "
+            f"{solve_stats.get('no_stencil_across_cliff')} "
+            f"(cross_cliff_stencil_count="
+            f"{solve_stats.get('cross_cliff_stencil_count', 0)})"
+        )
+        rim_gap = solve_stats.get("representative_cliff_rim_gap")
+        if rim_gap is not None:
+            _log(f"representative_cliff_rim_gap (4,0)-(5,0): {rim_gap}")
+        delete_delta = solve_stats.get("delete_opposite_side_max_delta")
+        if delete_delta is not None:
+            _log(f"delete_opposite_side_max_delta: {delete_delta}")
+        _log(
+            "max_center_interpolation_error: "
+            f"{solve_stats.get('max_center_interpolation_error', 0.0)}"
+        )
+        _log(
+            "affine_constant_ok: "
+            f"{solve_stats.get('affine_constant_ok')} "
+            f"(max_error={solve_stats.get('affine_constant_max_error', 0.0)})"
+        )
+        _log(
+            "affine_planar_ok: "
+            f"{solve_stats.get('affine_planar_ok')} "
+            f"(max_error={solve_stats.get('affine_planar_max_error', 0.0)})"
+        )
+        _log(f"z_min: {solve_stats.get('z_min', 0.0)}")
+        _log(f"z_max: {solve_stats.get('z_max', 0.0)}")
+        _log(f"input_z_min: {solve_stats.get('input_z_min', 0.0)}")
+        _log(f"input_z_max: {solve_stats.get('input_z_max', 0.0)}")
+        _log(f"max_overshoot: {solve_stats.get('max_overshoot', 0.0)}")
+        _log(f"cliff_cut_two_tile_ok: {solve_stats.get('cliff_cut_two_tile_ok')}")
+        delta = solve_stats.get("cross_cliff_decoupling_delta")
+        if delta is not None:
+            _log(f"cross_cliff_decoupling_delta: {delta}")
+        warnings = solve_stats.get("warnings") or []
+        if warnings:
+            _log(f"warnings: {'; '.join(warnings)}")
+    _log(
+        "visual-risk notes: "
+        "FEM thin-plate on cliff-cut mesh; cliffs are domain cuts; "
+        "compare against terrain_handdrawn_test_map_full_01.blend (IDW) side-by-side."
+    )
+
+
 def _adjust_camera(baseline: object, model) -> None:
     radius = baseline.HEX_RADIUS
     wx_values: list[float] = []
@@ -1461,6 +1847,517 @@ def _adjust_camera(baseline: object, model) -> None:
         return
     cam_obj.location = Vector((center_x, center_y - extent * 1.15, extent * 0.75 + 2.5))
     cam_obj.rotation_euler = (math.radians(58.0), 0.0, 0.0)
+
+
+def _make_cliff_wall_debug_material() -> bpy.types.Material:
+    """Flat mid-grey — TS-03e cliff wall visibility debug only."""
+    mat = bpy.data.materials.get(CLIFF_WALL_DEBUG_MATERIAL_NAME)
+    if mat is not None:
+        bpy.data.materials.remove(mat)
+
+    mat = bpy.data.materials.new(CLIFF_WALL_DEBUG_MATERIAL_NAME)
+    mat.use_nodes = True
+    node_tree = mat.node_tree
+    if node_tree is None:
+        raise RuntimeError(f"material {CLIFF_WALL_DEBUG_MATERIAL_NAME!r} has no node tree")
+    nodes = node_tree.nodes
+    links = node_tree.links
+    nodes.clear()
+
+    out = nodes.new("ShaderNodeOutputMaterial")
+    out.location = (300, 0)
+    principled = nodes.new("ShaderNodeBsdfPrincipled")
+    principled.location = (0, 0)
+    principled.inputs["Base Color"].default_value = (0.55, 0.55, 0.55, 1.0)
+    principled.inputs["Roughness"].default_value = 1.0
+    principled.inputs["Specular IOR Level"].default_value = 0.0
+    links.new(principled.outputs["BSDF"], out.inputs["Surface"])
+    return mat
+
+
+def _assign_materials_with_cliff_debug(
+    mesh: bpy.types.Mesh,
+    stats: dict[str, Any],
+    *,
+    procedural_material: bpy.types.Material,
+    side_material: bpy.types.Material,
+    cliff_debug_material: bpy.types.Material,
+    hide_top_surface: bool,
+) -> None:
+    """Slot 0 top, 1 other side/bottom, 2 cliff wall quads (mid-grey)."""
+    top_face_count = stats["top_faces"]
+    cliff_start = stats["cliff_wall_poly_start"]
+    cliff_end = cliff_start + stats["cliff_wall_poly_count"]
+
+    mesh.materials.clear()
+    mesh.materials.append(procedural_material)
+    mesh.materials.append(side_material)
+    mesh.materials.append(cliff_debug_material)
+
+    cliff_assigned = 0
+    top_assigned = 0
+    side_assigned = 0
+    for polygon in mesh.polygons:
+        if polygon.index < top_face_count:
+            polygon.material_index = 0
+            top_assigned += 1
+        elif cliff_start <= polygon.index < cliff_end:
+            polygon.material_index = 2
+            cliff_assigned += 1
+        else:
+            polygon.material_index = 1
+            side_assigned += 1
+
+    stats["cliff_wall_material_slot"] = 2
+    stats["cliff_wall_material_assigned"] = cliff_assigned
+    stats["top_faces_hidden_for_debug"] = hide_top_surface
+    _log(f"Material assigned to top faces: {top_assigned}")
+    _log(f"Side material assigned to side faces: {side_assigned}")
+    _log(f"Cliff debug material assigned to cliff wall quads: {cliff_assigned}")
+
+
+def _build_cliff_wall_isolated_mesh(
+    source_mesh: bpy.types.Mesh,
+    stats: dict[str, Any],
+) -> bpy.types.Mesh:
+    """Extract cliff-wall quads into a standalone mesh (debug isolation; topology unchanged on source)."""
+    start = stats["cliff_wall_poly_start"]
+    count = stats["cliff_wall_poly_count"]
+    vert_remap: dict[int, int] = {}
+    new_verts: list[tuple[float, float, float]] = []
+    new_faces: list[tuple[int, ...]] = []
+
+    for poly_index in range(start, start + count):
+        polygon = source_mesh.polygons[poly_index]
+        remapped: list[int] = []
+        for vert_index in polygon.vertices:
+            mapped = vert_remap.get(vert_index)
+            if mapped is None:
+                mapped = len(new_verts)
+                vert_remap[vert_index] = mapped
+                co = source_mesh.vertices[vert_index].co
+                new_verts.append((co.x, co.y, co.z))
+            remapped.append(mapped)
+        new_faces.append(tuple(remapped))
+
+    isolated = bpy.data.meshes.new("CliffWallDebugIsolated")
+    isolated.from_pydata(new_verts, [], new_faces)
+    isolated.update()
+    return isolated
+
+
+def _mesh_polygon_normal(
+    mesh: bpy.types.Mesh,
+    polygon: bpy.types.MeshPolygon,
+) -> tuple[float, float, float]:
+    if len(polygon.vertices) < 3:
+        return (0.0, 0.0, 0.0)
+    v0 = mesh.vertices[polygon.vertices[0]].co
+    v1 = mesh.vertices[polygon.vertices[1]].co
+    v2 = mesh.vertices[polygon.vertices[2]].co
+    normal = (v1 - v0).cross(v2 - v0)
+    if normal.length <= 1e-12:
+        return (0.0, 0.0, 0.0)
+    normal.normalize()
+    return (normal.x, normal.y, normal.z)
+
+
+def _print_cliff_wall_verification_report(
+    *,
+    terrain_mesh: bpy.types.Mesh,
+    terrain_obj: bpy.types.Object,
+    cliff_isolated_obj: bpy.types.Object | None,
+    coll: bpy.types.Collection,
+    stats: dict[str, Any],
+) -> None:
+    _log("--- TS-03e cliff wall verification report ---")
+    _log(f"DEBUG_SHOW_CLIFF_WALLS: {DEBUG_SHOW_CLIFF_WALLS}")
+    _log(f"DEBUG_HIDE_TOP_SURFACE: {DEBUG_HIDE_TOP_SURFACE}")
+    _log(f"terrain object: {terrain_obj.name}")
+    _log(f"collection: {coll.name}")
+    _log(
+        f"terrain mesh vertices: {len(terrain_mesh.vertices)}, "
+        f"polygons: {len(terrain_mesh.polygons)}"
+    )
+    _log(f"material slots: {[m.name if m else None for m in terrain_mesh.materials]}")
+    _log(f"cliff wall quads (internal counter): {stats['cliff_wall_quads']}")
+    _log(f"cliff wall polygon index range: [{stats['cliff_wall_poly_start']}, "
+         f"{stats['cliff_wall_poly_start'] + stats['cliff_wall_poly_count']})")
+    _log(f"cliff wall unique vertex indices: {stats['cliff_wall_verts']}")
+    _log(f"cliff wall verts added during wall pass: {stats['cliff_wall_new_verts']}")
+    _log(f"skirt quads: {stats['skirt_face_count']}, chamfer quads: {stats['chamfer_face_count']}")
+
+    cliff_start = stats["cliff_wall_poly_start"]
+    cliff_end = cliff_start + stats["cliff_wall_poly_count"]
+    cliff_polys = [terrain_mesh.polygons[i] for i in range(cliff_start, cliff_end)]
+
+    quad_count = sum(1 for poly in cliff_polys if len(poly.vertices) == 4)
+    tri_count = sum(1 for poly in cliff_polys if len(poly.vertices) == 3)
+    _log(f"cliff wall quads in mesh: {quad_count}, triangles: {tri_count}")
+
+    coords: list[tuple[float, float, float]] = []
+    vertical_count = 0
+    for poly in cliff_polys:
+        nx, ny, nz = _mesh_polygon_normal(terrain_mesh, poly)
+        if abs(nz) < 0.15:
+            vertical_count += 1
+        for vert_index in poly.vertices:
+            co = terrain_mesh.vertices[vert_index].co
+            coords.append((co.x, co.y, co.z))
+
+    if coords:
+        xs = [c[0] for c in coords]
+        ys = [c[1] for c in coords]
+        zs = [c[2] for c in coords]
+        _log(
+            "cliff wall bounding box: "
+            f"X [{min(xs):.3f}, {max(xs):.3f}] "
+            f"Y [{min(ys):.3f}, {max(ys):.3f}] "
+            f"Z [{min(zs):.4f}, {max(zs):.4f}]"
+        )
+        _log(f"cliff wall Z range span: {max(zs) - min(zs):.4f}")
+    _log(f"cliff wall faces with |normal.z| < 0.15 (vertical-ish): {vertical_count}")
+
+    cliff_vert_indices = stats["cliff_wall_vertex_indices"]
+    _log("first 10 cliff wall vertex indices (source mesh):")
+    for vert_index in cliff_vert_indices[:10]:
+        co = terrain_mesh.vertices[vert_index].co
+        _log(f"  v{vert_index}: ({co.x:.4f}, {co.y:.4f}, {co.z:.4f})")
+
+    _log("first 10 cliff wall faces (polygon index, vert indices, z):")
+    for poly in cliff_polys[:10]:
+        vert_list = list(poly.vertices)
+        z_vals = [terrain_mesh.vertices[v].co.z for v in vert_list]
+        _log(f"  poly {poly.index}: verts {vert_list}, z {[round(z, 4) for z in z_vals]}")
+
+    if cliff_isolated_obj is not None:
+        iso_mesh = cliff_isolated_obj.data
+        _log(f"isolated cliff object: {cliff_isolated_obj.name}")
+        _log(
+            f"isolated cliff mesh: vertices={len(iso_mesh.vertices)}, "
+            f"polygons={len(iso_mesh.polygons)}"
+        )
+        _log(f"isolated cliff hide_viewport: {cliff_isolated_obj.hide_viewport}")
+
+    _log(f"terrain hide_viewport: {terrain_obj.hide_viewport}, hide_render: {terrain_obj.hide_render}")
+    if DEBUG_SHOW_CLIFF_WALLS and not DEBUG_HIDE_TOP_SURFACE:
+        _log(
+            "visibility note: cliff walls use mid-grey slot 2; "
+            "production side material is near-black (0.09,0.10,0.09) and is easy to miss."
+        )
+
+
+def _print_ts07a_control_clone_diagnostics(
+    *,
+    terrain_solver: Any,
+    terrain_mesh: bpy.types.Mesh,
+    output_path: Path,
+) -> None:
+    """TS-07a control clone: confirm identical TS-03 path with alternate output only."""
+    from collections import Counter
+
+    solver_class = type(terrain_solver).__name__
+    mesh_builder = build_analytic_terrain_mesh.__qualname__
+    material_path = "baseline.assign_patch_materials"
+    slot_names = [mat.name if mat else "<none>" for mat in terrain_mesh.materials]
+    slot_poly_counts = Counter(polygon.material_index for polygon in terrain_mesh.polygons)
+
+    print("TS07A_CONTROL_CLONE === diagnostics ===")
+    print("TS07A_CONTROL_CLONE=True")
+    print(f"TS07A_CONTROL_CLONE   solver_class={solver_class}")
+    print(f"TS07A_CONTROL_CLONE   mesh_builder={mesh_builder}")
+    print(f"TS07A_CONTROL_CLONE   material_path={material_path}")
+    print(f"TS07A_CONTROL_CLONE   output_filename={output_path.name}")
+    print(f"TS07A_CONTROL_CLONE   terrain_vertex_count={len(terrain_mesh.vertices)}")
+    print(f"TS07A_CONTROL_CLONE   terrain_face_count={len(terrain_mesh.polygons)}")
+    for slot_index in sorted(slot_poly_counts):
+        name = slot_names[slot_index] if slot_index < len(slot_names) else "<unknown>"
+        print(
+            f"TS07A_CONTROL_CLONE   material_slot_{slot_index}={name!r} "
+            f"poly_count={slot_poly_counts[slot_index]}"
+        )
+
+
+def _ts05_debug_overlay_enabled() -> bool:
+    overlay_flag = globals().get("USE_TS05_DEBUG_OVERLAY", True)
+    return bool(USE_TPS_CLIFF_RELEASE and overlay_flag)
+
+
+def _log_ts06_path_invariant(*, use_ts06: bool) -> None:
+    """Hard invariant: TS-06 must share TS-03 mesh builder and material assignment."""
+    mesh_builder = build_analytic_terrain_mesh.__qualname__
+    material_builder = "baseline.assign_patch_materials"
+    print(
+        "TS06_PATH_INVARIANT === mesh/material path === "
+        f"use_ts06={use_ts06}"
+    )
+    print(
+        f"TS06_PATH_INVARIANT   mesh_builder={mesh_builder} "
+        f"(same for TS-03 and TS-06: True)"
+    )
+    print(
+        f"TS06_PATH_INVARIANT   material_builder={material_builder} "
+        f"(same for TS-03 and TS-06 when debug flags off: True)"
+    )
+    print(
+        "TS06_PATH_INVARIANT   solver_diff=constraint_set_only "
+        "(TS-06 adds cliff-rim samples to solve_component_field inputs)"
+    )
+
+
+def _mesh_edge_key(v0: int, v1: int) -> tuple[int, int]:
+    return (v0, v1) if v0 < v1 else (v1, v0)
+
+
+def _print_mesh_geometry_integrity(
+    mesh: bpy.types.Mesh,
+    stats: dict[str, Any],
+    *,
+    bottom_z: float,
+    z_bottom_tol: float = 1e-4,
+) -> None:
+    """Pre-save geometry integrity: open edges, material slot counts, cliff wall polys."""
+    from collections import Counter
+
+    edge_counts: Counter[tuple[int, int]] = Counter()
+    for polygon in mesh.polygons:
+        verts = polygon.vertices
+        vert_count = len(verts)
+        for i in range(vert_count):
+            edge_counts[_mesh_edge_key(verts[i], verts[(i + 1) % vert_count])] += 1
+
+    open_edges = [edge for edge, count in edge_counts.items() if count == 1]
+    cliff_wall_verts = set(stats.get("cliff_wall_vertex_indices") or [])
+    bottom_open = 0
+    vertical_open = 0
+    top_perimeter_open = 0
+    interior_hole_candidates = 0
+    hole_samples: list[tuple[int, int]] = []
+
+    for v0, v1 in open_edges:
+        z0 = mesh.vertices[v0].co.z
+        z1 = mesh.vertices[v1].co.z
+        both_bottom = z0 <= bottom_z + z_bottom_tol and z1 <= bottom_z + z_bottom_tol
+        one_bottom = (z0 <= bottom_z + z_bottom_tol) ^ (z1 <= bottom_z + z_bottom_tol)
+        if both_bottom:
+            bottom_open += 1
+        elif one_bottom:
+            vertical_open += 1
+        elif v0 in cliff_wall_verts or v1 in cliff_wall_verts:
+            top_perimeter_open += 1
+        else:
+            top_perimeter_open += 1
+            if (
+                z0 > bottom_z + 0.01
+                and z1 > bottom_z + 0.01
+                and abs(z0 - z1) <= 0.002
+            ):
+                interior_hole_candidates += 1
+                if len(hole_samples) < 8:
+                    hole_samples.append((v0, v1))
+
+    slot_names = [mat.name if mat else "<none>" for mat in mesh.materials]
+    slot_poly_counts = Counter(polygon.material_index for polygon in mesh.polygons)
+
+    cliff_start = stats.get("cliff_wall_poly_start", 0)
+    cliff_count = stats.get("cliff_wall_poly_count", 0)
+    cliff_material_indices: Counter[int] = Counter()
+    for poly_index in range(cliff_start, cliff_start + cliff_count):
+        if poly_index < len(mesh.polygons):
+            cliff_material_indices[mesh.polygons[poly_index].material_index] += 1
+
+    print("TS06_MESH_INTEGRITY === geometry/material audit ===")
+    print(
+        f"TS06_MESH_INTEGRITY   open_edges_total={len(open_edges)} "
+        f"bottom_cap={bottom_open} vertical_skirt_cliff={vertical_open} "
+        f"top_boundary={top_perimeter_open} "
+        f"interior_hole_candidates={interior_hole_candidates}"
+    )
+    if interior_hole_candidates:
+        print(
+            f"TS06_MESH_INTEGRITY   WARNING interior_hole_candidates="
+            f"{interior_hole_candidates} (horizontal open top edges away from cliff walls)"
+        )
+        for edge in hole_samples:
+            v0, v1 = edge
+            c0 = mesh.vertices[v0].co
+            c1 = mesh.vertices[v1].co
+            print(
+                f"TS06_MESH_INTEGRITY     edge ({v0},{v1}) "
+                f"z=({c0.z:.4f},{c1.z:.4f}) xy="
+                f"({c0.x:.3f},{c0.y:.3f})-({c1.x:.3f},{c1.y:.3f})"
+            )
+    for slot_index in sorted(slot_poly_counts):
+        name = slot_names[slot_index] if slot_index < len(slot_names) else "<unknown>"
+        print(
+            f"TS06_MESH_INTEGRITY   material_slot_{slot_index}={name!r} "
+            f"poly_count={slot_poly_counts[slot_index]}"
+        )
+    cliff_slot = (
+        cliff_material_indices.most_common(1)[0][0]
+        if cliff_material_indices
+        else None
+    )
+    cliff_mat_name = (
+        slot_names[cliff_slot]
+        if cliff_slot is not None and cliff_slot < len(slot_names)
+        else "<none>"
+    )
+    print(
+        f"TS06_MESH_INTEGRITY   cliff_wall_poly_count={cliff_count} "
+        f"cliff_wall_material_slot={cliff_slot} cliff_wall_material_name={cliff_mat_name!r}"
+    )
+    print(
+        f"TS06_MESH_INTEGRITY   cliff_edges_filled={stats.get('cliff_edges_filled', 0)} "
+        f"cliff_segments_filled={stats.get('cliff_segments_filled', 0)} "
+        f"cliff_segments_skipped={stats.get('cliff_segments_skipped', 0)}"
+    )
+
+
+def _print_ts05_debug_final_report(result: dict[str, Any]) -> None:
+    import sys
+
+    print(f"TS05_DEBUG_OVERLAY_REQUESTED={result.get('requested')}")
+    print(f"TS05_DEBUG_OVERLAY_BUILDER_CALLED={result.get('builder_called')}")
+    print(f"TS05_DEBUG_SKIP_REASON={result.get('skip_reason', 'none')}")
+    collection_name = result.get("collection_name")
+    print(f"TS05_DEBUG_COLLECTION_CREATED={collection_name if collection_name else 'none'}")
+    print(f"TS05_DEBUG_OBJECT_COUNT={result.get('object_count', 0)}")
+    if result.get("requested") and int(result.get("object_count", 0)) == 0:
+        print(
+            "TS05_DEBUG_ZERO_OBJECT_REASON="
+            f"{result.get('empty_reason') or result.get('skip_reason') or 'unknown'}"
+        )
+    sys.stdout.flush()
+
+
+def _ensure_ts05_debug_overlay_before_save(
+    *,
+    terrain_solver: Any,
+    model: Any,
+    coll: bpy.types.Collection,
+    ts05_debug: Any | None,
+) -> dict[str, Any]:
+    import bpy
+
+    result: dict[str, Any] = {
+        "requested": _ts05_debug_overlay_enabled(),
+        "builder_called": False,
+        "skip_reason": "none",
+        "collection_name": None,
+        "object_count": 0,
+        "front_count": 0,
+        "empty_reason": "",
+    }
+
+    if not result["requested"]:
+        result["skip_reason"] = (
+            f"flags_disabled(USE_TPS_CLIFF_RELEASE={USE_TPS_CLIFF_RELEASE},"
+            f"USE_TS05_DEBUG_OVERLAY={globals().get('USE_TS05_DEBUG_OVERLAY', True)})"
+        )
+        _print_ts05_debug_final_report(result)
+        return result
+
+    try:
+        from eom_terrain_tps_cliff_release import TpsCliffReleaseTerrainSolver
+        from eom_terrain_tps_cliff_release_debug import (
+            TS05_DEBUG_COLLECTION_NAME,
+            build_ts05_debug_blender_overlays,
+            build_ts05_debug_export,
+        )
+    except ImportError as exc:
+        result["skip_reason"] = f"debug_module_import_failed:{exc}"
+        _print_ts05_debug_final_report(result)
+        return result
+
+    result["builder_called"] = True
+    try:
+        if ts05_debug is None:
+            if not isinstance(terrain_solver, TpsCliffReleaseTerrainSolver):
+                result["skip_reason"] = "terrain_solver_not_tps_cliff_release"
+                result["builder_called"] = False
+                _print_ts05_debug_final_report(result)
+                return result
+            _log("TS-05 debug export missing before save; rebuilding from prepared solver")
+            ts05_debug = build_ts05_debug_export(
+                terrain_solver,
+                model,
+                radius=DEFAULT_HEX_RADIUS,
+                subdiv=DEFAULT_SURFACE_SUBDIVISIONS,
+            )
+
+        debug_stats = build_ts05_debug_blender_overlays(
+            ts05_debug,
+            model,
+            parent_collection=coll,
+        )
+        result["front_count"] = int(debug_stats.get("front_count", 0))
+        result["object_count"] = int(debug_stats.get("object_count", 0))
+        result["empty_reason"] = str(debug_stats.get("empty_reason", ""))
+        result["collection_name"] = TS05_DEBUG_COLLECTION_NAME
+        if TS05_DEBUG_COLLECTION_NAME not in bpy.data.collections:
+            result["skip_reason"] = "collection_missing_after_build"
+        elif result["object_count"] == 0 and result["front_count"] > 0:
+            result["skip_reason"] = f"zero_objects:{result['empty_reason'] or 'unknown'}"
+        _log(f"TS-05 debug overlay: {debug_stats}")
+    except Exception as exc:
+        result["skip_reason"] = f"overlay_build_failed:{type(exc).__name__}:{exc}"
+        import traceback
+
+        traceback.print_exc()
+
+    _print_ts05_debug_final_report(result)
+    return result
+
+
+def _print_pre_save_collection_diagnostics() -> None:
+    print("=== ALL COLLECTIONS ===")
+    for collection in bpy.data.collections:
+        print(
+            f"  {collection.name!r}: "
+            f"direct_objects={len(collection.objects)}, "
+            f"child_collections={len(collection.children)}"
+        )
+
+    print("=== ALL SCENES ===")
+    for scene in bpy.data.scenes:
+        root = scene.collection
+        child_collection_names = [child.name for child in root.children]
+        direct_object_names = [obj.name for obj in root.objects]
+        print(f"  scene {scene.name!r}:")
+        print(f"    child_collections={child_collection_names}")
+        print(f"    direct_objects={direct_object_names}")
+
+    print("=== TS05 DEBUG ===")
+    if "TS05_Debug" not in bpy.data.collections:
+        print("  TS05_Debug: not in bpy.data.collections")
+        return
+
+    ts05 = bpy.data.collections["TS05_Debug"]
+    print(f"  id={id(ts05)}")
+    print(f"  direct_objects={len(ts05.objects)}")
+    print(f"  child_collections={[child.name for child in ts05.children]}")
+    for child in ts05.children:
+        print(f"    {child.name!r}: direct_objects={len(child.objects)}")
+
+    for scene in bpy.data.scenes:
+        root = scene.collection
+        linked_direct = any(child.name == "TS05_Debug" for child in root.children)
+
+        def _linked_under(parent: bpy.types.Collection) -> bool:
+            for child in parent.children:
+                if child.name == "TS05_Debug":
+                    return True
+                if _linked_under(child):
+                    return True
+            return False
+
+        linked_in_tree = _linked_under(root)
+        print(
+            f"  scene {scene.name!r}: "
+            f"linked_direct_under_root={linked_direct}, "
+            f"linked_in_scene_tree={linked_in_tree}"
+        )
 
 
 def _save_blend(output_path: Path) -> None:
@@ -1485,10 +2382,71 @@ def _save_blend(output_path: Path) -> None:
 
 
 def main() -> None:
+    import sys
+
+    ts05_debug = None
+    print(
+        "[EOM main] runtime flags: "
+        f"USE_TS07A_TS03_CLONE={USE_TS07A_TS03_CLONE} "
+        f"USE_TPS_RIM_CONSTRAINTS={USE_TPS_RIM_CONSTRAINTS} "
+        f"USE_TPS_CLIFF_RELEASE={USE_TPS_CLIFF_RELEASE} "
+        f"USE_TS05_DEBUG_OVERLAY={globals().get('USE_TS05_DEBUG_OVERLAY', True)} "
+        f"USE_VARIATIONAL_SPLINE_SURFACE={USE_VARIATIONAL_SPLINE_SURFACE}"
+    )
+    sys.stdout.flush()
     if USE_HEXPATCH_V1_SURFACE and not USE_HEXPATCH_SURFACE:
         _log(
             "note: USE_HEXPATCH_V1_SURFACE=True uses IDW fallback on cliff-adjacent tiles; "
             "USE_HEXPATCH_SURFACE=False only affects non-v1 legacy path."
+        )
+    if USE_TPS_RIM_CONSTRAINTS and USE_TPS_CLIFF_RELEASE:
+        raise RuntimeError(
+            "USE_TPS_RIM_CONSTRAINTS and USE_TPS_CLIFF_RELEASE are mutually exclusive."
+        )
+    if USE_TS07A_TS03_CLONE and (
+        USE_TPS_RIM_CONSTRAINTS or USE_TPS_CLIFF_RELEASE
+    ):
+        raise RuntimeError(
+            "USE_TS07A_TS03_CLONE is mutually exclusive with TS-05 and TS-06."
+        )
+    if USE_TS07A_TS03_CLONE and not USE_VARIATIONAL_SPLINE_SURFACE:
+        raise RuntimeError(
+            "USE_TS07A_TS03_CLONE requires USE_VARIATIONAL_SPLINE_SURFACE=True "
+            "(control clone of approved TS-03 variational spline path)."
+        )
+    if USE_TPS_RIM_CONSTRAINTS and not USE_VARIATIONAL_SPLINE_SURFACE:
+        raise RuntimeError(
+            "USE_TPS_RIM_CONSTRAINTS requires USE_VARIATIONAL_SPLINE_SURFACE=True "
+            "(TS-06 extends TS-03 per-cluster TPS with rim constraints)."
+        )
+    if USE_TPS_CLIFF_RELEASE and not USE_VARIATIONAL_SPLINE_SURFACE:
+        raise RuntimeError(
+            "USE_TPS_CLIFF_RELEASE requires USE_VARIATIONAL_SPLINE_SURFACE=True "
+            "(TS-05 wraps TS-03; it does not replace the base TPS path)."
+        )
+    if USE_FEM_THIN_PLATE_SURFACE and (
+        USE_VARIATIONAL_SPLINE_SURFACE
+        or USE_GLOBAL_BIHARMONIC_SURFACE
+        or USE_HEXPATCH_V1_SURFACE
+        or not USE_HEXPATCH_SURFACE
+    ):
+        _log(
+            "note: USE_FEM_THIN_PLATE_SURFACE=True selects fem_thin_plate backend "
+            "regardless of other USE_* flags."
+        )
+    if USE_VARIATIONAL_SPLINE_SURFACE and (
+        USE_GLOBAL_BIHARMONIC_SURFACE or USE_HEXPATCH_V1_SURFACE or not USE_HEXPATCH_SURFACE
+    ):
+        _log(
+            "note: USE_VARIATIONAL_SPLINE_SURFACE=True selects variational_spline backend "
+            "regardless of USE_HEXPATCH_* / USE_GLOBAL_BIHARMONIC_SURFACE flags."
+        )
+    if USE_GLOBAL_BIHARMONIC_SURFACE and (
+        USE_HEXPATCH_V1_SURFACE or not USE_HEXPATCH_SURFACE
+    ):
+        _log(
+            "note: USE_GLOBAL_BIHARMONIC_SURFACE=True selects global_biharmonic backend "
+            "regardless of USE_HEXPATCH_* flags."
         )
 
     terrain_map = parse_terrain_map_json(TERRAIN_MAP_JSON)
@@ -1497,27 +2455,97 @@ def main() -> None:
     repo_root, examined_starts = _resolve_repo_root()
     _log(f"repo root: {repo_root}")
 
-    core_path = Path(getattr(_terrain_math, "__file__", SCRIPT_DIR / "eom_terrain_math_core.py"))
-    hexpatch_v1_sampler: object | None = None
-    v1_audits: object | None = None
-    if USE_HEXPATCH_V1_SURFACE:
-        v1_surface = _load_hexpatch_v1_surface(core_path)
-        v1_audits = _load_hexpatch_v1_audits(core_path)
-        hexpatch_v1_sampler = v1_surface.HexPatchV1SurfaceSampler.from_model(
-            model,
-            radius=DEFAULT_HEX_RADIUS,
-        )
-
     baseline = _load_baseline_module(repo_root, examined_starts=examined_starts)
     _assert_baseline_unchanged(baseline)
     baseline.validate_params()
     baseline.validate_material_params()
 
-    blend_filename = (
-        OUTPUT_BLEND_FILENAME_HEXPATCH_V1
-        if USE_HEXPATCH_V1_SURFACE
-        else OUTPUT_BLEND_FILENAME
+    core_path = Path(getattr(_terrain_math, "__file__", SCRIPT_DIR / "eom_terrain_math_core.py"))
+    v1_audits: object | None = None
+    if USE_HEXPATCH_V1_SURFACE:
+        _load_hexpatch_v1_surface(core_path)
+        v1_audits = _load_hexpatch_v1_audits(core_path)
+
+    solver_backend = resolve_terrain_solver_backend(
+        use_fem_thin_plate_surface=USE_FEM_THIN_PLATE_SURFACE,
+        use_variational_spline_surface=USE_VARIATIONAL_SPLINE_SURFACE,
+        use_global_biharmonic_surface=USE_GLOBAL_BIHARMONIC_SURFACE,
+        use_hexpatch_v1_surface=USE_HEXPATCH_V1_SURFACE,
+        use_hexpatch_surface=USE_HEXPATCH_SURFACE,
+        explicit_backend=TERRAIN_SOLVER_BACKEND,
     )
+    if USE_TPS_RIM_CONSTRAINTS:
+        from eom_terrain_tps_rim_constraints import (
+            TpsRimConstraintsTerrainSolver,
+            print_ts06_rim_diag,
+        )
+        from eom_terrain_variational_spline import VariationalSplineTerrainSolver
+
+        TpsRimConstraintsTerrainSolver.backend = TerrainBackend.variational_spline  # type: ignore[attr-defined]
+        terrain_solver = TpsRimConstraintsTerrainSolver()
+        terrain_solver.prepare(model, radius=DEFAULT_HEX_RADIUS)
+        _log("TS-06 TpsRimConstraints solver active over variational spline clusters")
+        base_solver = VariationalSplineTerrainSolver()
+        base_solver.prepare(model, radius=DEFAULT_HEX_RADIUS)
+        print_ts06_rim_diag(
+            model,
+            radius=DEFAULT_HEX_RADIUS,
+            subdiv=DEFAULT_SURFACE_SUBDIVISIONS,
+            base_solver=base_solver,
+            ts06_solver=terrain_solver,
+        )
+    elif USE_TPS_CLIFF_RELEASE:
+        from eom_terrain_tps_cliff_release import TpsCliffReleaseTerrainSolver
+
+        TpsCliffReleaseTerrainSolver.backend = TerrainBackend.variational_spline  # type: ignore[attr-defined]
+        terrain_solver = TpsCliffReleaseTerrainSolver()
+        terrain_solver.prepare(model, radius=DEFAULT_HEX_RADIUS)
+        _log("TS-05 TpsCliffRelease wrapper active over variational spline base")
+        print(
+            f"TS05_DEBUG_OVERLAY_REQUESTED={bool(USE_TPS_CLIFF_RELEASE and USE_TS05_DEBUG_OVERLAY)}"
+        )
+        if USE_TS05_DEBUG_OVERLAY:
+            from eom_terrain_tps_cliff_release_debug import (
+                build_ts05_debug_export,
+                print_ts05_front_diagnostics,
+            )
+
+            ts05_debug = build_ts05_debug_export(
+                terrain_solver,
+                model,
+                radius=DEFAULT_HEX_RADIUS,
+                subdiv=DEFAULT_SURFACE_SUBDIVISIONS,
+            )
+            _log("--- TS-05 release region debug (verbose tile lists) ---")
+            print_ts05_front_diagnostics(ts05_debug)
+    else:
+        terrain_solver = make_terrain_solver(
+            solver_backend,
+            model,
+            radius=DEFAULT_HEX_RADIUS,
+            baseline=baseline if (USE_GLOBAL_BIHARMONIC_SURFACE or USE_FEM_THIN_PLATE_SURFACE) else None,
+            subdiv=DEFAULT_SURFACE_SUBDIVISIONS,
+        )
+
+    if USE_TPS_RIM_CONSTRAINTS:
+        blend_filename = OUTPUT_BLEND_FILENAME_TPS_RIM_CONSTRAINTS
+    elif USE_TPS_CLIFF_RELEASE:
+        blend_filename = OUTPUT_BLEND_FILENAME_TPS_CLIFF_RELEASE
+    elif USE_FEM_THIN_PLATE_SURFACE:
+        blend_filename = OUTPUT_BLEND_FILENAME_FEM_THIN_PLATE
+    elif USE_VARIATIONAL_SPLINE_SURFACE:
+        if USE_TS07A_TS03_CLONE:
+            blend_filename = OUTPUT_BLEND_FILENAME_TS07A_TS03_CLONE
+        else:
+            blend_filename = OUTPUT_BLEND_FILENAME_VARIATIONAL_SPLINE
+    elif USE_GLOBAL_BIHARMONIC_SURFACE:
+        blend_filename = OUTPUT_BLEND_FILENAME_GLOBAL_BIHARMONIC
+    elif USE_HEXPATCH_V1_SURFACE:
+        blend_filename = OUTPUT_BLEND_FILENAME_HEXPATCH_V1
+    else:
+        blend_filename = OUTPUT_BLEND_FILENAME
+    if DEBUG_SHOW_CLIFF_WALLS or DEBUG_HIDE_TOP_SURFACE:
+        blend_filename = f"{Path(blend_filename).stem}_cliff_debug.blend"
     output_path = (
         repo_root
         / "game"
@@ -1541,7 +2569,71 @@ def main() -> None:
     if USE_HEXPATCH_V1_SURFACE:
         assert v1_audits is not None
         _print_hexpatch_v1_visual_audit(model, v1_audits)
-    else:
+    elif USE_FEM_THIN_PLATE_SURFACE:
+        _log("--- FEM thin-plate pre-mesh solve (TS-04) ---")
+        fem_stats = terrain_solver.stats
+        if fem_stats is not None:
+            _log(f"pre-mesh node_count: {fem_stats.get('node_count', 0)}")
+            _log(f"pre-mesh cut_mesh_component_count: {fem_stats.get('component_count', 0)}")
+            _log(
+                "pre-mesh max_center_interpolation_error: "
+                f"{fem_stats.get('max_center_interpolation_error', 0.0)}"
+            )
+            _log(
+                "pre-mesh affine_constant_ok: "
+                f"{fem_stats.get('affine_constant_ok')} "
+                f"affine_planar_ok: {fem_stats.get('affine_planar_ok')}"
+            )
+    elif USE_TPS_RIM_CONSTRAINTS:
+        _log("--- TS-06 rim-constraint TPS pre-mesh solve ---")
+        ts06_stats = terrain_solver.stats
+        if ts06_stats is not None:
+            rim_report = ts06_stats.get("ts06_rim_constraints") or {}
+            _log(f"pre-mesh connected_front_count: {rim_report.get('front_count', 0)}")
+            _log(f"pre-mesh total_rim_constraints: {rim_report.get('total_rim_constraints', 0)}")
+            _log(
+                "pre-mesh max_center_interpolation_error: "
+                f"{ts06_stats.get('max_center_interpolation_error', 0.0)}"
+            )
+    elif USE_TS07A_TS03_CLONE:
+        _log("--- TS-07a control clone pre-mesh solve (TS-03 variational spline) ---")
+        vs_stats = terrain_solver.stats
+        if vs_stats is not None:
+            _log(f"pre-mesh component_count: {vs_stats.get('component_count', 0)}")
+            _log(
+                "pre-mesh max_center_interpolation_error: "
+                f"{vs_stats.get('max_center_interpolation_error', 0.0)}"
+            )
+            _log(
+                "pre-mesh affine_constant_ok: "
+                f"{vs_stats.get('affine_constant_ok')} "
+                f"affine_planar_ok: {vs_stats.get('affine_planar_ok')}"
+            )
+    elif USE_VARIATIONAL_SPLINE_SURFACE and not USE_TPS_CLIFF_RELEASE:
+        _log("--- variational spline pre-mesh solve (TS-03) ---")
+        vs_stats = terrain_solver.stats
+        if vs_stats is not None:
+            _log(f"pre-mesh component_count: {vs_stats.get('component_count', 0)}")
+            _log(
+                "pre-mesh max_center_interpolation_error: "
+                f"{vs_stats.get('max_center_interpolation_error', 0.0)}"
+            )
+            _log(
+                "pre-mesh affine_constant_ok: "
+                f"{vs_stats.get('affine_constant_ok')} "
+                f"affine_planar_ok: {vs_stats.get('affine_planar_ok')}"
+            )
+    elif USE_GLOBAL_BIHARMONIC_SURFACE:
+        _log("--- global biharmonic pre-mesh solve (TS-02) ---")
+        gb_stats = terrain_solver.stats
+        if gb_stats is not None:
+            _log(f"pre-mesh node_count: {gb_stats.get('node_count', 0)}")
+            _log(f"pre-mesh component_count: {gb_stats.get('component_count', 0)}")
+            _log(
+                "pre-mesh max_center_constraint_error: "
+                f"{gb_stats.get('max_center_constraint_error', 0.0)}"
+            )
+    elif USE_HEXPATCH_SURFACE:
         _print_hexpatch_audit(model)
 
     ground_albedo_path, ground_normal_path, ground_roughness_path = (
@@ -1571,20 +2663,47 @@ def main() -> None:
     side_material = baseline.make_side_terrain_material()
     baseline._log_material_setup()
 
+    if USE_TPS_RIM_CONSTRAINTS or (
+        USE_VARIATIONAL_SPLINE_SURFACE and not USE_TPS_CLIFF_RELEASE
+    ):
+        _log_ts06_path_invariant(use_ts06=USE_TPS_RIM_CONSTRAINTS)
+
     terrain_mesh, stats = build_analytic_terrain_mesh(
         model,
         baseline,
-        hexpatch_v1_sampler=hexpatch_v1_sampler,
+        terrain_solver=terrain_solver,
     )
     baseline.assign_world_anchored_top_uv(terrain_mesh, stats["top_faces"])
-    baseline.assign_patch_materials(
-        terrain_mesh,
-        stats["top_faces"],
-        procedural_material,
-        side_material,
-    )
+    cliff_isolated_obj: bpy.types.Object | None = None
+    if DEBUG_SHOW_CLIFF_WALLS or DEBUG_HIDE_TOP_SURFACE:
+        cliff_debug_material = _make_cliff_wall_debug_material()
+        _assign_materials_with_cliff_debug(
+            terrain_mesh,
+            stats,
+            procedural_material=procedural_material,
+            side_material=side_material,
+            cliff_debug_material=cliff_debug_material,
+            hide_top_surface=DEBUG_HIDE_TOP_SURFACE,
+        )
+        if DEBUG_HIDE_TOP_SURFACE:
+            isolated_mesh = _build_cliff_wall_isolated_mesh(terrain_mesh, stats)
+            cliff_isolated_obj = bpy.data.objects.new(CLIFF_WALL_OBJECT_NAME, isolated_mesh)
+            cliff_isolated_obj.data.materials.append(cliff_debug_material)
+            coll.objects.link(cliff_isolated_obj)
+            _log(f"cliff wall isolated debug object created: {CLIFF_WALL_OBJECT_NAME}")
+    else:
+        baseline.assign_patch_materials(
+            terrain_mesh,
+            stats["top_faces"],
+            procedural_material,
+            side_material,
+        )
     terrain_obj = bpy.data.objects.new(TERRAIN_OBJECT_NAME, terrain_mesh)
     coll.objects.link(terrain_obj)
+    if DEBUG_HIDE_TOP_SURFACE:
+        terrain_obj.hide_viewport = True
+        terrain_obj.hide_render = True
+        _log("terrain object hidden for cliff-wall isolation debug")
     _log("terrain mesh created")
     _log(f"top vertices: {stats['top_verts']}")
     _log(f"top faces: {stats['top_faces']}")
@@ -1597,6 +2716,26 @@ def main() -> None:
     _log(f"cliff wall segments skipped (degenerate): {stats['cliff_segments_skipped']}")
     all_cliffs_filled = stats["cliff_edges_filled"] == len(model.cliff_edge_graph)
     _log(f"all cliff edges received solid fill: {all_cliffs_filled}")
+    if USE_TPS_RIM_CONSTRAINTS:
+        from eom_terrain_tps_rim_constraints import print_ts06_representative_mesh_audit
+
+        print_ts06_representative_mesh_audit(
+            model,
+            terrain_mesh,
+            stats,
+            terrain_solver,
+            radius=DEFAULT_HEX_RADIUS,
+            subdiv=DEFAULT_SURFACE_SUBDIVISIONS,
+            bottom_z=-baseline.BASE_THICKNESS,
+        )
+    if DEBUG_SHOW_CLIFF_WALLS or DEBUG_HIDE_TOP_SURFACE:
+        _print_cliff_wall_verification_report(
+            terrain_mesh=terrain_mesh,
+            terrain_obj=terrain_obj,
+            cliff_isolated_obj=cliff_isolated_obj,
+            coll=coll,
+            stats=stats,
+        )
     ssc_audit = stats["ssc_deformation"]
     _log(f"SSC deformation affected samples: {ssc_audit['affected_sample_count']}")
     _log(
@@ -1607,6 +2746,26 @@ def main() -> None:
         _print_hxp03_diagnostic_report(
             output_path=output_path,
             sample_stats=stats.get("hexpatch_v1_sample_stats"),
+        )
+    if USE_FEM_THIN_PLATE_SURFACE:
+        _print_fem_thin_plate_diagnostic_report(
+            output_path=output_path,
+            solve_stats=stats.get("fem_thin_plate_stats"),
+        )
+    if USE_VARIATIONAL_SPLINE_SURFACE:
+        _print_variational_spline_diagnostic_report(
+            output_path=output_path,
+            solve_stats=stats.get("variational_spline_stats"),
+        )
+    if USE_TPS_CLIFF_RELEASE:
+        _print_tps_cliff_release_diagnostic_report(
+            output_path=output_path,
+            solve_stats=stats.get("variational_spline_stats"),
+        )
+    if USE_GLOBAL_BIHARMONIC_SURFACE:
+        _print_global_biharmonic_diagnostic_report(
+            output_path=output_path,
+            solve_stats=stats.get("global_biharmonic_stats"),
         )
     _log(f"total vertices: {stats['total_verts']}")
     _log(f"total faces: {stats['total_faces']}")
@@ -1635,8 +2794,70 @@ def main() -> None:
         stone_roughness_path=stone_roughness_path,
     )
 
+    ts05_overlay_result = _ensure_ts05_debug_overlay_before_save(
+        terrain_solver=terrain_solver,
+        model=model,
+        coll=coll,
+        ts05_debug=ts05_debug,
+    )
+    if ts05_overlay_result.get("requested"):
+        from eom_terrain_tps_cliff_release_debug import TS05_DEBUG_COLLECTION_NAME
+
+        if TS05_DEBUG_COLLECTION_NAME not in bpy.data.collections:
+            raise RuntimeError(
+                f"TS-05 debug overlay requested but {TS05_DEBUG_COLLECTION_NAME!r} "
+                "is missing from bpy.data.collections before save"
+            )
+
+    if USE_TPS_RIM_CONSTRAINTS or (
+        USE_VARIATIONAL_SPLINE_SURFACE and not USE_TPS_CLIFF_RELEASE
+    ):
+        _print_mesh_geometry_integrity(
+            terrain_mesh,
+            stats,
+            bottom_z=-baseline.BASE_THICKNESS,
+        )
+        if USE_TPS_RIM_CONSTRAINTS:
+            ts05_in_scene = "TS05_Debug" in bpy.data.collections
+            print(
+                f"TS06_MESH_INTEGRITY   ts05_debug_collection_present={ts05_in_scene} "
+                f"(must be False for TS-06)"
+            )
+
+    if USE_TS07A_TS03_CLONE:
+        _print_ts07a_control_clone_diagnostics(
+            terrain_solver=terrain_solver,
+            terrain_mesh=terrain_mesh,
+            output_path=output_path,
+        )
+
     if SAVE_BLEND:
+        if ts05_overlay_result.get("requested"):
+            print("PRE_SAVE filepath:", bpy.data.filepath)
+            print(
+                "PRE_SAVE collections:",
+                "TS05_Debug" in bpy.data.collections,
+            )
+            if "TS05_Debug" in bpy.data.collections:
+                c = bpy.data.collections["TS05_Debug"]
+                print("PRE_SAVE object count:", len(c.objects))
+            else:
+                raise RuntimeError("TS05_Debug does not exist immediately before save.")
+            _print_pre_save_collection_diagnostics()
+
         _save_blend(output_path)
+
+        if ts05_overlay_result.get("requested"):
+            print(
+                "POST_SAVE collections:",
+                "TS05_Debug" in bpy.data.collections,
+            )
+            if "TS05_Debug" in bpy.data.collections:
+                c = bpy.data.collections["TS05_Debug"]
+                print("POST_SAVE object count:", len(c.objects))
+            else:
+                print("POST_SAVE: TS05_Debug missing after save")
+
         _log(f"saved blend: {output_path}")
 
     _log("done")

@@ -1,6 +1,6 @@
 # Empire of Minds — Canonical terrain model (planning)
 
-Status: **planning / design-of-record**. This document defines the canonical mathematical model for Empire of Minds 3D terrain generation. It is the source of truth for future implementation; **no implementation is described here as done** unless a section explicitly states otherwise (e.g. §10 current boundary snap). The **Mid-Edge Invariant** (§11) defines canonical center→edge-midpoint heights; the **Smooth Ribbon G1 gate** (§12) resolves cross-edge tangents; the **HexPatch center bubble anchor** (§13) fixes tile center height; **§14 falsifies** the first-slice IDW operator; **§15–§16 freeze HexPatch Mathematics v1.0** (smooth core) as the canonical implementation specification. See the decision-log entry "Freeze HexPatch Mathematics v1.0" in [DECISION_LOG.md](DECISION_LOG.md). It does not change gameplay, the domain `HexMap` (tag-only; see [MAP_MODEL.md](MAP_MODEL.md)), or any Godot code.
+Status: **planning / design-of-record**. This document defines the canonical mathematical model for Empire of Minds 3D terrain generation. It is the source of truth for future implementation; **no implementation is described here as done** unless a section explicitly states otherwise (e.g. §10 current boundary snap). The **Mid-Edge Invariant** (§11) defines canonical center→edge-midpoint heights; the **Smooth Ribbon G1 gate** (§12) resolves cross-edge tangents; the **HexPatch center bubble anchor** (§13) fixes tile center height; **§14 falsifies** the first-slice IDW operator; **§15–§16 freeze HexPatch Mathematics v1.0** (smooth core) as a **reference backend specification** under the **`TerrainSolver`** framework (see [DECISION_LOG.md](DECISION_LOG.md) entry "pivot to Global Terrain Optimization") — not the assumed final terrain model. It does not change gameplay, the domain `HexMap` (tag-only; see [MAP_MODEL.md](MAP_MODEL.md)), or any Godot code.
 
 This model was selected in the Terrain Mathematics Design Review. See the decision-log entry "Adopt heightfield + edge constraints as canonical terrain model" in [DECISION_LOG.md](DECISION_LOG.md).
 
@@ -769,3 +769,41 @@ Sequence per §15.10; reference H1–H10 at each stage.
 ### Dependency graph (acyclic)
 
 `TerrainModel → SmoothComponents → SharedCorner → {SharedRibbon, CliffInterface} → HexPatchAssembly → SurfaceEvaluation → MeshSampling → Validation`. Cliff Model v1 feeds Stage 4 only. No cycles; SharedCorner never reads ribbons; HexPatch never reads neighbors.
+
+**TerrainSolver framework (TS-01):** §15–§16 describe the **HexPatch v1 reference backend** — one implementation path behind the shared `TerrainSolver` interface (`tools/blender/terrain/eom_terrain_solver.py`). Global fair-surface optimization backends are the forward path for the canonical terrain model; HexPatch v1 remains available for diagnostic comparison against IDW and future global solvers on the established large map benchmark.
+
+---
+
+## 17. Global terrain surface — current research direction (active, not finalized)
+
+Status: **active research direction**, not a finalized terrain algorithm. This section records the mathematical requirements that emerged from the HexPatch and GlobalBiharmonic investigations and the family currently preferred for the next prototype. It selects a **research family only** — not a specific formulation, discretization, or implementation. See the decision-log entry "select variational spline family as current research direction" in [DECISION_LOG.md](DECISION_LOG.md).
+
+### 17.1 Required invariance properties
+
+Any future global terrain solver must satisfy all of the following:
+
+1. **Constant precision.** If every tile elevation increases by a constant `C`, the reconstructed terrain increases everywhere by `C` with identical shape.
+2. **Linear precision.** If all tile elevations lie on a plane `z = ax + by + c`, the reconstructed terrain reproduces that plane exactly — no bowing toward a flat sheet.
+3. **No implicit rest elevation.** The objective contains no hidden preference for a constant-height reference surface or mean elevation. The terrain is determined entirely by exact tile-center elevations, cliff topology, smooth connectivity, and a fairness objective.
+
+Additional standing requirements: **exact interpolation** of tile-center elevations, a **global fairness objective**, and **natural handling of the disconnected smooth components** created by cliffs (no coupling across cliff edges).
+
+### 17.2 Why affine precision matters
+
+Terrain that reads as a global landscape must not invent features that the data does not imply. Constant precision guarantees the model has no absolute zero plane; linear precision guarantees a uniform regional slope is reproduced rather than flattened. A method without linear precision treats a tilted region as "non-fair," spends spurious energy resisting it, and relaxes toward a flat reference sheet — exactly the artifact observed. Affine precision is therefore a hard correctness gate, not a quality preference.
+
+### 17.3 Why the graph-Laplacian formulation failed
+
+The GlobalBiharmonic prototype (TS-02) minimized a tensioned-biharmonic energy discretized with a **random-walk / combinatorial graph Laplacian**. That operator's nullspace is `{constants}` only: it reproduces constants (constant precision holds) but **lacks linear precision** — planes are not in its nullspace at boundary and irregular vertices, so planar data carries spurious energy and the surface bows toward a flat sheet. The membrane (tension) component additionally behaves like a 2D point-load response with `log r` cusps at the pinned centers. The result — a flat reference sheet pulled into local spikes — is the **expected** output of that discrete operator. The failure is the **discrete operator (missing linear precision) plus the membrane term**, **not** evidence that point-center constraints are fundamentally insufficient.
+
+### 17.4 Why the spline family is currently preferred
+
+The **Thin-Plate / Polyharmonic Spline family with a polynomial tail** is **currently the strongest known candidate family satisfying the required invariance properties** (not the only correct solution). It provides exact interpolation, exact affine precision (the polynomial tail carries constants and planes), a pure bending-energy fairness objective with no implicit rest elevation, and clean per-component handling of cliffs (one spline per smooth-connected component; no cross-cliff coupling). Related and adjacent methods:
+
+- **Universal kriging with a thin-plate (intrinsic) covariance** is mathematically very closely related and reduces to the same interpolant; not a separate destination.
+- **FEM thin-plate with a cotangent/FEM Laplacian** is **not a competing idea** but a future discretization / evolution path within the same variational problem — advantageous once mesh-based solving or larger-scale **area/edge constraints** (e.g. flat plateaus, explicit smooth-edge ramps) become desirable.
+- **Moving Least Squares** and **Natural Neighbour** interpolation remain valuable **secondary techniques** for editing, previews, or local reconstruction, but are not the current primary direction.
+
+### 17.5 Why this remains an active research direction
+
+This selects only the **research family** in the chain **research family → specific mathematical formulation → numerical discretization → implementation**. Current evidence is sufficient to prioritize this family for the next prototype, but not to finalize the terrain algorithm. Open questions deferred to future slices include: the specific spline formulation and kernel; a tension/regularization term to curb overshoot while preserving affine precision; whether crisp flat tile-tops are desired (which would add area/edge constraints, more naturally expressed in the FEM discretization); the treatment of small cliff-isolated components (a single-elevation component reduces to a flat top); and the numerical discretization and solver. The canonical 168-tile map remains the primary benchmark; no new evaluation maps.
