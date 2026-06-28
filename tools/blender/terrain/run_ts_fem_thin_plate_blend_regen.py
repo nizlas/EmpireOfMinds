@@ -61,6 +61,8 @@ if spec is None or spec.loader is None:
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
+module.PROTOTYPE_ID = "TS-04"
+module.RUNNER_FILE = __file__
 module.USE_FEM_THIN_PLATE_SURFACE = True
 print("[TS-04] USE_FEM_THIN_PLATE_SURFACE=True (FEM thin-plate regeneration)")
 module.main()

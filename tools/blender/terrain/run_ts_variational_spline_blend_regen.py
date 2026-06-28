@@ -61,6 +61,8 @@ if spec is None or spec.loader is None:
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
+module.PROTOTYPE_ID = "TS-03"
+module.RUNNER_FILE = __file__
 module.USE_VARIATIONAL_SPLINE_SURFACE = True
 print("[TS-03] USE_VARIATIONAL_SPLINE_SURFACE=True (variational spline regeneration)")
 module.main()

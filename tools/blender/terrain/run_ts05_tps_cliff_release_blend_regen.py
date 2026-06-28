@@ -153,6 +153,8 @@ if spec is None or spec.loader is None:
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
+module.PROTOTYPE_ID = "TS-05"
+module.RUNNER_FILE = __file__
 module.USE_VARIATIONAL_SPLINE_SURFACE = True
 module.USE_TPS_CLIFF_RELEASE = True
 module.USE_TS05_DEBUG_OVERLAY = True

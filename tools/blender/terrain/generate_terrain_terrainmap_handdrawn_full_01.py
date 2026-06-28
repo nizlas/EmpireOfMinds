@@ -311,6 +311,12 @@ CLIFF_WALL_DEBUG_MATERIAL_NAME = "EOM_Terrain_CliffWall_Debug_MidGrey"
 TERRAIN_SOLVER_BACKEND: str | None = None
 
 OUTPUT_BLEND_PATH: Path | None = None
+FROZEN_BASELINE_BLEND_FILENAME = (
+    "terrain_handdrawn_test_map_full_01_variational_spline_BASELINE_2026-06-27.blend"
+)
+# Set by run_*_blend_regen.py wrappers before main(); None when generator runs directly.
+PROTOTYPE_ID: str | None = None
+RUNNER_FILE: str | None = None
 
 
 def _log(message: str) -> None:
@@ -2360,7 +2366,95 @@ def _print_pre_save_collection_diagnostics() -> None:
         )
 
 
+def _resolve_blend_filename() -> str:
+    if USE_TPS_RIM_CONSTRAINTS:
+        blend_filename = OUTPUT_BLEND_FILENAME_TPS_RIM_CONSTRAINTS
+    elif USE_TPS_CLIFF_RELEASE:
+        blend_filename = OUTPUT_BLEND_FILENAME_TPS_CLIFF_RELEASE
+    elif USE_FEM_THIN_PLATE_SURFACE:
+        blend_filename = OUTPUT_BLEND_FILENAME_FEM_THIN_PLATE
+    elif USE_VARIATIONAL_SPLINE_SURFACE:
+        if USE_TS07A_TS03_CLONE:
+            blend_filename = OUTPUT_BLEND_FILENAME_TS07A_TS03_CLONE
+        else:
+            blend_filename = OUTPUT_BLEND_FILENAME_VARIATIONAL_SPLINE
+    elif USE_GLOBAL_BIHARMONIC_SURFACE:
+        blend_filename = OUTPUT_BLEND_FILENAME_GLOBAL_BIHARMONIC
+    elif USE_HEXPATCH_V1_SURFACE:
+        blend_filename = OUTPUT_BLEND_FILENAME_HEXPATCH_V1
+    else:
+        blend_filename = OUTPUT_BLEND_FILENAME
+    if DEBUG_SHOW_CLIFF_WALLS or DEBUG_HIDE_TOP_SURFACE:
+        blend_filename = f"{Path(blend_filename).stem}_cliff_debug.blend"
+    return blend_filename
+
+
+def _generated_output_path(repo_root: Path) -> Path:
+    return (
+        repo_root
+        / "game"
+        / "assets"
+        / "prototype"
+        / "3d"
+        / "terrain"
+        / "prototype_3d_terrain"
+        / "generated"
+        / _resolve_blend_filename()
+    )
+
+
+def _assert_not_frozen_baseline_path(output_path: Path) -> None:
+    if output_path.name == FROZEN_BASELINE_BLEND_FILENAME or "_BASELINE_" in output_path.stem:
+        raise RuntimeError(
+            f"Refusing to overwrite frozen baseline artifact: {output_path.name}. "
+            "Runners must never write to *_BASELINE_* blends."
+        )
+
+
+def _print_prototype_traceability_banner(
+    *,
+    phase: str,
+    output_path: Path | None = None,
+    solver_backend: object | None = None,
+    terrain_solver: object | None = None,
+) -> None:
+    import sys
+
+    planned_filename = _resolve_blend_filename()
+    proto_id = PROTOTYPE_ID or "FULL01-DEFAULT"
+    runner = RUNNER_FILE or "generate_terrain_terrainmap_handdrawn_full_01.py (direct)"
+    backend_label = (
+        getattr(solver_backend, "value", str(solver_backend))
+        if solver_backend is not None
+        else "pending"
+    )
+    solver_class = (
+        type(terrain_solver).__name__ if terrain_solver is not None else "pending"
+    )
+    cliff_wall_enabled = bool(DEBUG_SHOW_CLIFF_WALLS or DEBUG_HIDE_TOP_SURFACE)
+    ts05_debug_overlay = bool(globals().get("USE_TS05_DEBUG_OVERLAY", True))
+
+    print("=== EOM TERRAIN PROTOTYPE TRACEABILITY ===")
+    print(f"TRACEABILITY_PHASE={phase}")
+    print(f"PROTOTYPE_ID={proto_id}")
+    print(f"RUNNER_FILE={runner}")
+    print(f"OUTPUT_BLEND_FILENAME={planned_filename}")
+    if output_path is not None:
+        print(f"OUTPUT_BLEND_PATH={output_path.resolve()}")
+    print(f"TERRAIN_SOLVER_BACKEND={backend_label}")
+    print(f"TERRAIN_SOLVER_CLASS={solver_class}")
+    print(f"USE_VARIATIONAL_SPLINE_SURFACE={USE_VARIATIONAL_SPLINE_SURFACE}")
+    print(f"CLIFF_WALL_DEBUG_ENABLED={cliff_wall_enabled}")
+    print(f"USE_TPS_CLIFF_RELEASE={USE_TPS_CLIFF_RELEASE}")
+    print(f"USE_TPS_RIM_CONSTRAINTS={USE_TPS_RIM_CONSTRAINTS}")
+    print(f"USE_TS07A_TS03_CLONE={USE_TS07A_TS03_CLONE}")
+    print(f"USE_TS05_DEBUG_OVERLAY={ts05_debug_overlay}")
+    print("=== END TRACEABILITY ===")
+    sys.stdout.flush()
+
+
 def _save_blend(output_path: Path) -> None:
+    _assert_not_frozen_baseline_path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     scene = bpy.context.scene
     wm = bpy.context.window_manager
@@ -2385,14 +2479,7 @@ def main() -> None:
     import sys
 
     ts05_debug = None
-    print(
-        "[EOM main] runtime flags: "
-        f"USE_TS07A_TS03_CLONE={USE_TS07A_TS03_CLONE} "
-        f"USE_TPS_RIM_CONSTRAINTS={USE_TPS_RIM_CONSTRAINTS} "
-        f"USE_TPS_CLIFF_RELEASE={USE_TPS_CLIFF_RELEASE} "
-        f"USE_TS05_DEBUG_OVERLAY={globals().get('USE_TS05_DEBUG_OVERLAY', True)} "
-        f"USE_VARIATIONAL_SPLINE_SURFACE={USE_VARIATIONAL_SPLINE_SURFACE}"
-    )
+    _print_prototype_traceability_banner(phase="START")
     sys.stdout.flush()
     if USE_HEXPATCH_V1_SURFACE and not USE_HEXPATCH_SURFACE:
         _log(
@@ -2527,36 +2614,8 @@ def main() -> None:
             subdiv=DEFAULT_SURFACE_SUBDIVISIONS,
         )
 
-    if USE_TPS_RIM_CONSTRAINTS:
-        blend_filename = OUTPUT_BLEND_FILENAME_TPS_RIM_CONSTRAINTS
-    elif USE_TPS_CLIFF_RELEASE:
-        blend_filename = OUTPUT_BLEND_FILENAME_TPS_CLIFF_RELEASE
-    elif USE_FEM_THIN_PLATE_SURFACE:
-        blend_filename = OUTPUT_BLEND_FILENAME_FEM_THIN_PLATE
-    elif USE_VARIATIONAL_SPLINE_SURFACE:
-        if USE_TS07A_TS03_CLONE:
-            blend_filename = OUTPUT_BLEND_FILENAME_TS07A_TS03_CLONE
-        else:
-            blend_filename = OUTPUT_BLEND_FILENAME_VARIATIONAL_SPLINE
-    elif USE_GLOBAL_BIHARMONIC_SURFACE:
-        blend_filename = OUTPUT_BLEND_FILENAME_GLOBAL_BIHARMONIC
-    elif USE_HEXPATCH_V1_SURFACE:
-        blend_filename = OUTPUT_BLEND_FILENAME_HEXPATCH_V1
-    else:
-        blend_filename = OUTPUT_BLEND_FILENAME
-    if DEBUG_SHOW_CLIFF_WALLS or DEBUG_HIDE_TOP_SURFACE:
-        blend_filename = f"{Path(blend_filename).stem}_cliff_debug.blend"
-    output_path = (
-        repo_root
-        / "game"
-        / "assets"
-        / "prototype"
-        / "3d"
-        / "terrain"
-        / "prototype_3d_terrain"
-        / "generated"
-        / blend_filename
-    )
+    output_path = _generated_output_path(repo_root)
+    _assert_not_frozen_baseline_path(output_path)
 
     _print_orientation_audit()
     _print_curvature_influence_audit(baseline)
@@ -2830,6 +2889,13 @@ def main() -> None:
             terrain_mesh=terrain_mesh,
             output_path=output_path,
         )
+
+    _print_prototype_traceability_banner(
+        phase="END",
+        output_path=output_path,
+        solver_backend=solver_backend,
+        terrain_solver=terrain_solver,
+    )
 
     if SAVE_BLEND:
         if ts05_overlay_result.get("requested"):

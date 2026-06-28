@@ -1,3 +1,13 @@
+## 2026-06-28 — Terrain — TS-03 baseline recovery lock (manifest + traceability)
+
+- **Decision:** Lock the recovered smooth **TS-03 variational-spline baseline** before any further terrain feature work. The smooth baseline shown in 2026-06-27 screenshots existed only as uncommitted working-tree code plus Blender artifacts; it was **not** in git history on `main` alone.
+- **Recovery state:** Commit `248dc8b` on branch **`terrain-ts03-recovery-checkpoint`** preserves the full untracked toolchain, modified generator, and frozen baseline copy `terrain_handdrawn_test_map_full_01_variational_spline_BASELINE_2026-06-27.blend`. That checkpoint branch is **immutable**; working changes go on **`terrain-ts03-baseline`**.
+- **Frozen baseline:** `*_BASELINE_2026-06-27.blend` is a read-only artifact. Runners must never overwrite it; `_save_blend` rejects any `*_BASELINE_*` output path.
+- **Traceability additions (this slice only):** `tools/blender/terrain/TERRAIN_PROTOTYPE_MANIFEST.md` indexes every handdrawn-map prototype (id, runner, output, solver, flags, cliff/material behavior, status). Hard runtime logging banner in `generate_terrain_terrainmap_handdrawn_full_01.py` prints `PROTOTYPE_ID`, runner file, output filename/path, solver backend/class, and TS-05/06/07a/debug flags. Each `run_*_blend_regen.py` wrapper sets `PROTOTYPE_ID` and `RUNNER_FILE` before `main()`.
+- **Headless audit:** `audit_ts03_baseline_blend.py` is strictly read-only supporting evidence for the frozen baseline (connectivity, loose geometry, material slots); visual confirmation remains manual in Blender.
+- **TS-07b guard (not started):** Future TS-07b may **only** add extra cliff-rim TPS interpolation points before `solve_component_field` on the exact TS-03 path. It must not create a new solver, override `sample_world`, or alter mesh/wall/material/overlay/TS-05/TS-06/FEM/biharmonic code. Formulation: `Empire_of_Minds_Explicit_Cliff_Rim_Formulation_Long_Spec_v2.docx`.
+- **Scope:** manifest, logging, read-only audit, frozen-path guard only. No terrain math, mesh, wall, material, or overlay behavior changes. No TS-07b implementation.
+
 ## 2026-06-27 — Terrain — select variational spline family as current research direction
 
 - **Status:** **Research-direction decision, not a final implementation decision.** This records the current best-supported direction based on evidence gathered so far (HexPatch and GlobalBiharmonic investigations). It does **not** finalize a terrain algorithm.

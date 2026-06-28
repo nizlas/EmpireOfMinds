@@ -61,6 +61,8 @@ if spec is None or spec.loader is None:
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
+module.PROTOTYPE_ID = "TS-07a"
+module.RUNNER_FILE = __file__
 module.USE_VARIATIONAL_SPLINE_SURFACE = True
 module.USE_TS07A_TS03_CLONE = True
 module.USE_TPS_CLIFF_RELEASE = False

@@ -61,6 +61,8 @@ if spec is None or spec.loader is None:
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
+module.PROTOTYPE_ID = "TS-02"
+module.RUNNER_FILE = __file__
 module.USE_GLOBAL_BIHARMONIC_SURFACE = True
 print("[TS-02] USE_GLOBAL_BIHARMONIC_SURFACE=True (diagnostic regeneration)")
 module.main()
