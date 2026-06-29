@@ -703,6 +703,7 @@ def build_analytic_terrain_mesh(
     baseline: object,
     *,
     terrain_solver: object,
+    split_top_at_cliff_edges: bool = True,
 ) -> tuple[bpy.types.Mesh, dict[str, Any]]:
     reset_ssc_deformation_audit()
     _log(f"analytic surface sampler: {sampler_label_for_backend(terrain_solver.backend)}")
@@ -778,6 +779,8 @@ def build_analytic_terrain_mesh(
         si: int,
         sj: int,
     ) -> bool:
+        if not split_top_at_cliff_edges:
+            return False
         cliff_edges = tile_cliff_physical_edges(q, r)
         if not cliff_edges:
             return False
@@ -846,11 +849,20 @@ def build_analytic_terrain_mesh(
             top_cache[cliff_side_key] = idx
             return idx
 
-        merge_key = (position_key, domain_id)
-        if at_sector_corner and sector is not None:
-            tile_key = (position_key, domain_id, q, r, sector)
+        if split_top_at_cliff_edges:
+            merge_key: tuple[Any, ...] = (position_key, domain_id)
         else:
-            tile_key = (position_key, domain_id, q, r)
+            merge_key = (position_key,)
+        if at_sector_corner and sector is not None:
+            if split_top_at_cliff_edges:
+                tile_key: tuple[Any, ...] = (position_key, domain_id, q, r, sector)
+            else:
+                tile_key = (position_key, q, r, sector)
+        else:
+            if split_top_at_cliff_edges:
+                tile_key = (position_key, domain_id, q, r)
+            else:
+                tile_key = (position_key, q, r)
 
         cached_tile = top_cache.get(tile_key)
         if cached_tile is not None:
@@ -859,8 +871,12 @@ def build_analytic_terrain_mesh(
         cached_merge = top_cache.get(merge_key)
         if cached_merge is not None:
             owner = merge_owner.get(merge_key)
-            if owner is None or not tiles_are_cliff_neighbors((q, r), owner):
-                if abs(verts[cached_merge][2] - wz) <= height_epsilon:
+            allow_merge = (
+                not split_top_at_cliff_edges
+                or owner is None
+                or not tiles_are_cliff_neighbors((q, r), owner)
+            )
+            if allow_merge and abs(verts[cached_merge][2] - wz) <= height_epsilon:
                     top_cache[tile_key] = cached_merge
                     return cached_merge
 

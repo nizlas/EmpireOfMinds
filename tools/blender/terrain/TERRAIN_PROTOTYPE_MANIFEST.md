@@ -14,22 +14,40 @@ Traceability index for `generate_terrain_terrainmap_handdrawn_full_01.py` and it
 
 ---
 
-## TS-03 — Variational spline (approved baseline)
+## TS-03 — Variational spline (legacy cliff-cut runner)
 
 | Field | Value |
 |-------|-------|
 | Prototype ID | `TS-03` |
 | Runner | `tools/blender/terrain/run_ts_variational_spline_blend_regen.py` |
 | Output | `terrain_handdrawn_test_map_full_01_variational_spline.blend` |
-| Solver | `VariationalSplineTerrainSolver` (`TerrainBackend.variational_spline`) |
+| Solver | `VariationalSplineTerrainSolver` (per-cliff-side cluster / TS-03d cliff-cut) |
 | Flags | `USE_VARIATIONAL_SPLINE_SURFACE=True`; all other TS flags `False` |
-| Cliff behavior | Standard cliff-wall placeholder geometry (not debug-isolated) |
+| Cliff behavior | Per-cliff-side TPS + top vertex split at cliff edges |
 | Material behavior | Full PBR ground/stone/ash splatting via locked 7-hex baseline |
-| Status | **APPROVED BASELINE** |
+| Status | **DEPRECATED** — produces cut top surface (77 islands); use dedicated baseline script below |
 
-Visual target: one broad continuous smooth TPS-like surface; material/splatting works;
-no holes; no disconnected surfaces; cliff walls exist but must not dominate as blocky
-plateaus. Matches 2026-06-27 screenshots.
+---
+
+## TS-03-GLOBAL-CONTINUOUS-BASELINE — Approved smooth baseline regeneration
+
+| Field | Value |
+|-------|-------|
+| Prototype ID | `TS-03-GLOBAL-CONTINUOUS-BASELINE` |
+| Generator | `tools/blender/terrain/generate_ts03_global_continuous_baseline.py` |
+| Runner | `tools/blender/terrain/run_ts03_global_continuous_baseline_regen.py` |
+| Output | `terrain_handdrawn_test_map_full_01_ts03_global_continuous_baseline.blend` |
+| Solver | `GlobalContinuousVariationalSplineTerrainSolver` (single global TPS, all tile centers) |
+| Mesh mode | `split_top_at_cliff_edges=False`; position-key top merge (continuous top island) |
+| Cliff behavior | Presentation walls only; no per-cliff-side clustering; no rim/release constraints |
+| Material behavior | Full PBR ground/stone/ash splatting (unchanged) |
+| Status | **CANONICAL REGEN PATH** for approved smooth TS-03 baseline |
+| Audit | `blender --background --python tools/blender/terrain/audit_ts03_global_continuous_baseline_blend.py` |
+
+Does **not** read or set shared experiment `USE_*` flags. Never writes to `*_BASELINE_*` files.
+
+Visual target: one broad continuous smooth TPS-like surface matching
+`terrain_handdrawn_test_map_full_01_variational_spline_BASELINE_2026-06-27.blend`.
 
 Math reference: `Empire_of_Minds_TS03_Surface_Math_Spec_EXTENDED.docx`.
 

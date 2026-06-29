@@ -1369,7 +1369,103 @@ class VariationalSplineTerrainSolver:
         return self._report.as_dict()
 
 
+class GlobalContinuousVariationalSplineTerrainSolver:
+    """Single global TPS over all tile-center points (approved TS-03 baseline path)."""
 
+    backend = None  # attached in dedicated baseline generator
+
+    def __init__(self) -> None:
+        self._model: Any | None = None
+        self._radius: float = DEFAULT_HEX_RADIUS
+        self._field: ComponentField | None = None
+        self._report: VariationalSplineSolveReport | None = None
+
+    def prepare(self, model: Any, *, radius: float = DEFAULT_HEX_RADIUS) -> None:
+        self._model = model
+        self._radius = radius
+        all_tiles = frozenset(model.map.tiles.keys())
+        xy, zz = _component_centers(model, all_tiles, radius=radius)
+        field, residual, center_err = solve_component_field(
+            xy,
+            zz,
+            prefer_numpy=_NUMPY_AVAILABLE,
+        )
+        self._field = field
+        const_ok, const_err, planar_ok, planar_err = _affine_invariance_tests(
+            xy,
+            prefer_numpy=_NUMPY_AVAILABLE,
+        )
+        input_min = min(zz) if zz else 0.0
+        input_max = max(zz) if zz else 0.0
+        input_range = input_max - input_min
+        z_samples = [field.eval_at(x, y) for x, y in xy]
+        if len(xy) >= 3:
+            cx = sum(p[0] for p in xy) / float(len(xy))
+            cy = sum(p[1] for p in xy) / float(len(xy))
+            z_samples.append(field.eval_at(cx, cy))
+        z_min = min(z_samples) if z_samples else input_min
+        z_max = max(z_samples) if z_samples else input_max
+        overshoot = max(0.0, z_max - input_max, input_min - z_min) if input_range > 0.0 else 0.0
+        warnings: list[str] = []
+        if input_range > 0.0 and overshoot > 0.25 * input_range:
+            warnings.append(
+                f"overshoot {overshoot:.4f} exceeds 25% of input elevation range {input_range:.4f}"
+            )
+        if not const_ok:
+            warnings.append(f"affine constant self-test failed (max error {const_err:.3e})")
+        if not planar_ok:
+            warnings.append(f"affine planar self-test failed (max error {planar_err:.3e})")
+        matrix_size = len(xy) + 3 if len(xy) >= 3 else len(xy)
+        self._report = VariationalSplineSolveReport(
+            component_count=1,
+            components=[
+                ComponentSolveReport(
+                    domain_id=0,
+                    center_count=len(xy),
+                    matrix_size=matrix_size,
+                    solve_residual=residual,
+                    max_center_error=center_err,
+                    kind=field.kind,
+                )
+            ],
+            max_center_interpolation_error=center_err,
+            max_solve_residual=residual,
+            z_min=z_min,
+            z_max=z_max,
+            input_z_min=input_min,
+            input_z_max=input_max,
+            max_overshoot=overshoot,
+            affine_constant_ok=const_ok,
+            affine_constant_max_error=const_err,
+            affine_planar_ok=planar_ok,
+            affine_planar_max_error=planar_err,
+            cliff_cut_field_count=0,
+            representative_cliff=None,
+            warnings=warnings,
+        )
+
+    def sample_world(
+        self,
+        wx: float,
+        wy: float,
+        q: int,
+        r: int,
+        *,
+        sector: int | None = None,
+        at_corner: bool = False,
+        at_sector_outer_edge: bool = False,
+        idw_fallback: Any = None,
+        legacy_fallback: Any = None,
+    ) -> float:
+        del sector, at_corner, at_sector_outer_edge, idw_fallback, legacy_fallback, q, r
+        assert self._field is not None
+        return self._field.eval_at(wx, wy)
+
+    @property
+    def stats(self) -> dict[str, Any] | None:
+        if self._report is None:
+            return None
+        return self._report.as_dict()
 
 
 def _run_self_tests() -> None:
