@@ -2,6 +2,8 @@
 
 Visual proof-of-concept for a future real 3D terrain model. **Not** runtime terrain, **not** canonical gameplay, and **not** connected to Godot or tile-improvement rules.
 
+Handdrawn full-map terrain prototypes (`generate_terrain_terrainmap_handdrawn_full_01.py` and `run_*_blend_regen.py` runners) are indexed in **[TERRAIN_PROTOTYPE_MANIFEST.md](TERRAIN_PROTOTYPE_MANIFEST.md)**. The approved smooth TS-03 baseline is regenerated via **`generate_ts03_global_continuous_baseline.py`** (not the legacy cliff-cut `run_ts_variational_spline_blend_regen.py` path). Frozen baseline blends are audited read-only via `audit_ts03_baseline_blend.py`.
+
 Seven Blender scripts exist:
 
 | Script | Model | Default output |

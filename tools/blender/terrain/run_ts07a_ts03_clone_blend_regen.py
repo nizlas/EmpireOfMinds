@@ -1,0 +1,81 @@
+# Empire of Minds — TS-07a control clone of approved TS-03 variational spline output.
+# Run: blender --background --python tools/blender/terrain/run_ts07a_ts03_clone_blend_regen.py
+# Leaves generate_terrain_terrainmap_handdrawn_full_01.py toggles at default False.
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+_GENERATOR_NAME = "generate_terrain_terrainmap_handdrawn_full_01.py"
+
+
+def _resolve_terrain_tools_dir() -> Path:
+    """Locate tools/blender/terrain; never infer generator path from blend CWD alone."""
+    starts: list[Path] = []
+
+    try:
+        import bpy
+
+        script_path = bpy.path.abspath(__file__)
+        if script_path:
+            starts.append(Path(script_path).resolve().parent)
+        for text in bpy.data.texts:
+            if text.filepath and Path(text.filepath).name == "run_ts07a_ts03_clone_blend_regen.py":
+                starts.append(Path(bpy.path.abspath(text.filepath)).resolve().parent)
+    except (ImportError, NameError, TypeError):
+        pass
+
+    try:
+        here = Path(__file__)
+        if here.is_absolute():
+            starts.append(here.resolve().parent)
+    except NameError:
+        pass
+
+    seen: set[str] = set()
+    for start in starts:
+        key = str(start.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        for candidate in (start, *start.parents):
+            if (candidate / _GENERATOR_NAME).is_file():
+                return candidate
+            terrain = candidate / "tools" / "blender" / "terrain"
+            if (terrain / _GENERATOR_NAME).is_file():
+                return terrain
+
+    raise FileNotFoundError(
+        f"Could not locate tools/blender/terrain/{_GENERATOR_NAME}; "
+        f"searched from: {[str(s) for s in starts]}"
+    )
+
+
+SCRIPT_DIR = _resolve_terrain_tools_dir()
+GENERATOR = SCRIPT_DIR / _GENERATOR_NAME
+
+spec = importlib.util.spec_from_file_location("eom_gen_full01", GENERATOR)
+if spec is None or spec.loader is None:
+    raise RuntimeError(f"Could not load {GENERATOR}")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+module.PROTOTYPE_ID = "TS-07a"
+module.RUNNER_FILE = __file__
+module.USE_VARIATIONAL_SPLINE_SURFACE = True
+module.USE_TS07A_TS03_CLONE = True
+module.USE_TPS_CLIFF_RELEASE = False
+module.USE_TPS_RIM_CONSTRAINTS = False
+module.USE_TS05_DEBUG_OVERLAY = False
+print(
+    "[TS-07a] USE_VARIATIONAL_SPLINE_SURFACE=True + USE_TS07A_TS03_CLONE=True "
+    "(TS-03 variational spline control clone; no rim constraints)"
+)
+print(
+    f"[TS-07a] generator flags: USE_TS07A_TS03_CLONE={module.USE_TS07A_TS03_CLONE} "
+    f"USE_TPS_CLIFF_RELEASE={module.USE_TPS_CLIFF_RELEASE} "
+    f"USE_TPS_RIM_CONSTRAINTS={module.USE_TPS_RIM_CONSTRAINTS} "
+    f"USE_TS05_DEBUG_OVERLAY={module.USE_TS05_DEBUG_OVERLAY}"
+)
+module.main()
