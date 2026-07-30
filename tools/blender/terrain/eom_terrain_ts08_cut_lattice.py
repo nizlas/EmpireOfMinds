@@ -402,16 +402,23 @@ def build_uncut_lattice_node_count(
 
 
 @dataclass
-class _CutLatticeBuild:
+class CutLatticeBuild:
     node_count: int
     adjacency: list[list[int]]
     node_keys: list[Hashable]
     node_sheet_ids: list[int]
     node_pos_keys: list[tuple[float, float]]
+    node_xy: list[tuple[float, float]]
     pinned: dict[int, float]
     pin_hex_by_node: dict[int, tuple[int, int]]
     component_ids: list[int]
     corner_sample_nodes: dict[tuple[float, float], set[int]]
+    tile_pos_to_node: dict[tuple[tuple[float, float], tuple[int, int]], int]
+    triangles: list[tuple[int, int, int]]
+
+
+# Backward-compatible alias for Stage 0 audit internals.
+_CutLatticeBuild = CutLatticeBuild
 
 
 def build_cut_lattice_topology(
@@ -424,7 +431,7 @@ def build_cut_lattice_topology(
     *,
     subdiv: int = DEFAULT_SURFACE_SUBDIVISIONS,
     radius: float = DEFAULT_HEX_RADIUS,
-) -> _CutLatticeBuild:
+) -> CutLatticeBuild:
     hex_coords = set(model.map.tiles.keys())
     corner_by_pos = {record.world_xy_key: record for record in corner_registry}
     smooth_adjacency = _build_smooth_adjacency(model)
@@ -438,10 +445,13 @@ def build_cut_lattice_topology(
     node_keys: list[Hashable] = []
     node_sheet_ids: list[int] = []
     node_pos_keys: list[tuple[float, float]] = []
+    node_xy: list[tuple[float, float]] = []
     pinned: dict[int, float] = {}
     pin_hex_by_node: dict[int, tuple[int, int]] = {}
     adjacency_sets: list[set[int]] = []
     corner_sample_nodes: dict[tuple[float, float], set[int]] = {}
+    tile_pos_to_node: dict[tuple[tuple[float, float], tuple[int, int]], int] = {}
+    triangles: list[tuple[int, int, int]] = []
 
     def tiles_are_cliff_neighbors(
         tile_a: tuple[int, int],
@@ -451,13 +461,24 @@ def build_cut_lattice_topology(
             return False
         return frozenset((tile_a, tile_b)) in cliff_neighbor_pairs
 
-    def _create_node(key: Hashable, pk: tuple[float, float], sheet_id: int) -> int:
+    def _create_node(
+        key: Hashable,
+        pk: tuple[float, float],
+        sheet_id: int,
+        wx: float,
+        wy: float,
+    ) -> int:
         index = len(adjacency_sets)
         merge_map[key] = index
         node_keys.append(key)
         node_sheet_ids.append(sheet_id)
         node_pos_keys.append(pk)
+        node_xy.append((wx, wy))
         adjacency_sets.append(set())
+        return index
+
+    def _record_tile_lookup(index: int, pk: tuple[float, float], tile: tuple[int, int]) -> int:
+        tile_pos_to_node[(pk, tile)] = index
         return index
 
     def node_id_for(
@@ -476,15 +497,16 @@ def build_cut_lattice_topology(
         pk = pos_key(wx, wy)
         corner = _corner_record_at(corner_by_pos, wx, wy)
 
+        tile = (q, r)
         if at_corner and corner is not None and corner.is_interior and corner.case == 1:
             key: Hashable = ("crack_tip", pk)
             existing = merge_map.get(key)
             if existing is not None:
                 corner_sample_nodes.setdefault(pk, set()).add(existing)
-                return existing
-            index = _create_node(key, pk, sheet_id)
+                return _record_tile_lookup(existing, pk, tile)
+            index = _create_node(key, pk, sheet_id, wx, wy)
             corner_sample_nodes.setdefault(pk, set()).add(index)
-            return index
+            return _record_tile_lookup(index, pk, tile)
 
         if (
             at_corner
@@ -497,17 +519,18 @@ def build_cut_lattice_topology(
             existing = merge_map.get(key)
             if existing is not None:
                 corner_sample_nodes.setdefault(pk, set()).add(existing)
-                return existing
-            index = _create_node(key, pk, sheet_id)
+                return _record_tile_lookup(existing, pk, tile)
+            index = _create_node(key, pk, sheet_id, wx, wy)
             corner_sample_nodes.setdefault(pk, set()).add(index)
-            return index
+            return _record_tile_lookup(index, pk, tile)
 
         if on_cliff_boundary:
             key = ("cliff_line", pk, sheet_id, q, r)
             existing = merge_map.get(key)
             if existing is not None:
-                return existing
-            return _create_node(key, pk, sheet_id)
+                return _record_tile_lookup(existing, pk, tile)
+            index = _create_node(key, pk, sheet_id, wx, wy)
+            return _record_tile_lookup(index, pk, tile)
 
         merge_key: Hashable = (pk, sheet_id)
         if at_corner:
@@ -519,7 +542,7 @@ def build_cut_lattice_topology(
         if cached_tile is not None:
             if at_corner:
                 corner_sample_nodes.setdefault(pk, set()).add(cached_tile)
-            return cached_tile
+            return _record_tile_lookup(cached_tile, pk, tile)
 
         cached_merge = merge_map.get(merge_key)
         if cached_merge is not None:
@@ -529,20 +552,21 @@ def build_cut_lattice_topology(
                 merge_map[tile_key] = cached_merge
                 if at_corner:
                     corner_sample_nodes.setdefault(pk, set()).add(cached_merge)
-                return cached_merge
+                return _record_tile_lookup(cached_merge, pk, tile)
 
         index = len(adjacency_sets)
         merge_map[tile_key] = index
         node_keys.append(tile_key)
         node_sheet_ids.append(sheet_id)
         node_pos_keys.append(pk)
+        node_xy.append((wx, wy))
         adjacency_sets.append(set())
         if cached_merge is None:
             merge_map[merge_key] = index
             merge_owner[(pk, sheet_id)] = (q, r)
         if at_corner:
             corner_sample_nodes.setdefault(pk, set()).add(index)
-        return index
+        return _record_tile_lookup(index, pk, tile)
 
     for q_h, r_h in sorted(hex_coords):
         q_b, r_b = handdrawn_to_baseline_axial(q_h, r_h)
@@ -594,24 +618,29 @@ def build_cut_lattice_topology(
                     _add_undirected_edge(adjacency_sets, v00, v10)
                     _add_undirected_edge(adjacency_sets, v10, v01)
                     _add_undirected_edge(adjacency_sets, v00, v01)
+                    triangles.append((v00, v10, v01))
                     if sj + 1 <= subdiv - (si + 1):
                         v11 = grid[(si + 1, sj + 1)]
                         _add_undirected_edge(adjacency_sets, v10, v11)
                         _add_undirected_edge(adjacency_sets, v01, v11)
+                        triangles.append((v10, v01, v11))
                     sj += 1
 
     adjacency = [sorted(neighbors) for neighbors in adjacency_sets]
     component_ids, _ = _connected_components(adjacency)
-    return _CutLatticeBuild(
+    return CutLatticeBuild(
         node_count=len(adjacency),
         adjacency=adjacency,
         node_keys=node_keys,
         node_sheet_ids=node_sheet_ids,
         node_pos_keys=node_pos_keys,
+        node_xy=node_xy,
         pinned=pinned,
         pin_hex_by_node=pin_hex_by_node,
         component_ids=component_ids,
         corner_sample_nodes=corner_sample_nodes,
+        tile_pos_to_node=tile_pos_to_node,
+        triangles=triangles,
     )
 
 
@@ -781,6 +810,36 @@ def build_component_reports(
             )
         )
     return reports
+
+
+EXPECTED_HEX_COUNT = 168
+EXPECTED_CUT_TOPOLOGICAL_NODE_COUNT = 74129
+EXPECTED_CENTER_PIN_COUNT = 168
+EXPECTED_CLIFF_EDGE_COUNT = 78
+EXPECTED_TRIANGLE_COUNT = 145152
+
+
+def build_cut_lattice_for_model(
+    model: Any,
+    baseline: Any,
+    *,
+    subdiv: int = DEFAULT_SURFACE_SUBDIVISIONS,
+    radius: float = DEFAULT_HEX_RADIUS,
+) -> CutLatticeBuild:
+    cliff_pairs = build_cliff_neighbor_pairs(model)
+    cliff_physical = build_cliff_physical_edges_by_tile(cliff_pairs)
+    sheet_lookup = build_sheet_lookup(model)
+    corner_registry = build_corner_registry(model, cliff_pairs, radius=radius)
+    return build_cut_lattice_topology(
+        model,
+        baseline,
+        corner_registry,
+        cliff_physical,
+        sheet_lookup,
+        cliff_pairs,
+        subdiv=subdiv,
+        radius=radius,
+    )
 
 
 def run_cut_lattice_topology_audit(
