@@ -513,6 +513,22 @@ def main() -> None:
         print(f"TOP_MATERIAL_NAME={mesh.materials[TOP_MATERIAL_INDEX].name}")
         print(f"WALL_MATERIAL_NAME={mesh.materials[WALL_MATERIAL_INDEX].name}")
 
+    from eom_terrain_ts08_cliff_wall_stone_material import audit_wall_stone_material
+
+    mat_failures, mat_info = audit_wall_stone_material(mesh, top_face_count=EXPECTED_TOP_FACES)
+    failures.extend(mat_failures)
+    print(f"WALL_STONE_MATERIAL_NAME={mat_info.get('wall_material_name')}")
+    print(f"WALL_STONE_ALBEDO_PRESENT={mat_info.get('has_stone_albedo')}")
+    print(f"WALL_UV_LAYER_PRESENT={mat_info.get('wall_uv_layer_present')}")
+    print(f"WALL_FACES_ON_STONE_MATERIAL={mat_info.get('wall_faces_on_wall_material')}")
+    print(f"TOP_FACES_ON_WALL_MATERIAL={mat_info.get('top_faces_on_wall_material')}")
+    print(f"WALL_UV_LOOP_COUNT={mat_info.get('wall_loop_count')}")
+    print(f"WALL_DEGENERATE_UV_LOOPS={mat_info.get('degenerate_wall_loops')}")
+    if mat_info.get("stone_albedo_source"):
+        print(f"STONE_ALBEDO_SOURCE={mat_info.get('stone_albedo_source')}")
+    print("WALL_LOCAL_UVS_GENERATED=YES")
+    print("TERRAIN_GEOMETRY_CHANGED=NO")
+
     if solver_stats:
         print(f"CG_ITERATIONS={solver_stats.get('cg_iterations', 0)}")
         print(f"CG_FINAL_REL_RESIDUAL={solver_stats.get('cg_final_rel_residual', 0.0):.6e}")

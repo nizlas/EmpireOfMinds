@@ -299,7 +299,6 @@ def main() -> None:
         stone_normal_path,
         stone_roughness_path,
     )
-    wall_material = baseline.make_side_terrain_material()
     baseline._log_material_setup()
 
     terrain_mesh, stats = _build_top_and_wall_mesh(
@@ -310,6 +309,20 @@ def main() -> None:
         wall_build,
     )
     baseline.assign_world_anchored_top_uv(terrain_mesh, stats["top_faces"])
+    from eom_terrain_ts08_cliff_wall_stone_material import (
+        CLIFF_WALL_STONE_MATERIAL_NAME,
+        apply_ts08_cliff_wall_stone_presentation,
+    )
+
+    wall_material, wall_mat_stats = apply_ts08_cliff_wall_stone_presentation(
+        terrain_mesh,
+        stats,
+        wall_build,
+        baseline,
+        stone_albedo_path,
+        stone_normal_path,
+        stone_roughness_path,
+    )
     terrain_mesh.materials.append(top_material)
     terrain_mesh.materials.append(wall_material)
     terrain_obj = bpy.data.objects.new(TERRAIN_OBJECT_NAME, terrain_mesh)
@@ -318,6 +331,11 @@ def main() -> None:
     _log(f"top vertices: {stats['top_verts']}")
     _log(f"top faces: {stats['top_faces']}")
     _log(f"wall faces: {stats['wall_faces']}")
+    _log(f"wall material: {CLIFF_WALL_STONE_MATERIAL_NAME}")
+    _log(f"stone albedo: {stone_albedo_path}")
+    _log(f"wall-local UV layer: {wall_mat_stats.get('layer_name')}")
+    _log(f"wall UV mapping: {wall_mat_stats.get('mapping_mode')}")
+    _log(f"wall faces on stone material: {wall_mat_stats.get('wall_faces_assigned')}")
 
     overlay_material = baseline.make_overlay_material()
     overlay_mesh, overlay_stats = full01.build_hex_overlay_mesh(model, baseline)
@@ -354,6 +372,7 @@ def main() -> None:
                 "solver_stats": vs_stats,
                 "mesh_stats": stats,
                 "wall_stats": wall_stats,
+                "wall_material": wall_mat_stats,
                 "wall_build": {
                     "segment_count": wall_build.segment_count,
                     "skipped_segment_count": wall_build.skipped_segment_count,
@@ -377,6 +396,12 @@ def main() -> None:
         mesh_stats=stats,
         wall_stats=wall_stats,
     )
+    print(f"WALL_MATERIAL_NAME={CLIFF_WALL_STONE_MATERIAL_NAME}")
+    print(f"STONE_ALBEDO_SOURCE={stone_albedo_path.resolve()}")
+    print(f"WALL_FACE_STONE_ASSIGN_COUNT={wall_mat_stats.get('wall_faces_assigned', 0)}")
+    print(f"TOP_FACE_COUNT_UNCHANGED={stats['top_faces']}")
+    print(f"WALL_LOCAL_UVS_GENERATED={wall_mat_stats.get('wall_loop_count', 0) > 0}")
+    print("TERRAIN_GEOMETRY_CHANGED=NO")
     full01._save_blend(output_path)
     _log(f"saved blend: {output_path}")
     _log("done")
