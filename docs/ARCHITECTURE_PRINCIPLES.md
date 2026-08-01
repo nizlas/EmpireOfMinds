@@ -67,6 +67,16 @@ May ask the domain layer:
 
 Must not bypass validation.
 
+#### Terrain: three layers within the domain/presentation split
+
+For terrain specifically, the architecture distinguishes **three layers** (canonical detail: [TERRAIN_MODEL.md](TERRAIN_MODEL.md) "Current canonical model" and [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md)):
+
+1. **Logical/domain map** — the authoritative axial hex grid (terrain, elevation, tags, transitions). Domain layer; gameplay truth.
+2. **Terrain construction** — deterministic derivation of the continuous 3D terrain surface from the logical map. Pure math, engine-agnostic; no `bpy`, no Godot nodes in the construction logic.
+3. **Presentation** — the engine mesh/material/collision, camera, and visual units built from the constructed surface.
+
+The generated terrain mesh is **derived presentation geometry** and must never become authoritative gameplay state; movement legality (including cliff blocking) stays in domain rules, never inferred from geometry.
+
 ### 3. AI layer
 
 Owns:

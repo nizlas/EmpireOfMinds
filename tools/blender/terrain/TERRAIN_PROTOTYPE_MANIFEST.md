@@ -1,15 +1,21 @@
 # Empire of Minds — Handdrawn full-map terrain prototype manifest
 
 Traceability index for `generate_terrain_terrainmap_handdrawn_full_01.py` and its
-`run_*_blend_regen.py` runners. Each row is one selectable prototype path.
+`run_*_blend_regen.py` runners, plus the later standalone TS-07c/TS-07d/TS-08 generators.
+Each entry is one selectable prototype path.
 
-**Frozen baseline artifact (never overwritten by runners):**
+> **Current accepted reference: TS-08** (see the TS-08 section below and
+> [docs/TERRAIN_SURFACE_TARGET.md](../../../docs/TERRAIN_SURFACE_TARGET.md)). All TS-01…TS-07
+> entries are earlier history; the TS-03 baseline remains a frozen historical visual
+> baseline but is superseded as the terrain model.
+
+**Frozen TS-03 baseline artifact (never overwritten by runners; historical):**
 
 | Item | Value |
 |------|-------|
 | File | `game/assets/prototype/3d/terrain/prototype_3d_terrain/generated/terrain_handdrawn_test_map_full_01_variational_spline_BASELINE_2026-06-27.blend` |
 | Origin | Copy of `..._variational_spline.blend1` (mtime 2026-06-27 14:37) |
-| Status | **APPROVED BASELINE (frozen)** |
+| Status | **HISTORICAL BASELINE (frozen)** — superseded as terrain model by TS-08 |
 | Audit | `blender --background --python tools/blender/terrain/audit_ts03_baseline_blend.py` (read-only) |
 
 ---
@@ -41,7 +47,7 @@ Traceability index for `generate_terrain_terrainmap_handdrawn_full_01.py` and it
 | Mesh mode | `split_top_at_cliff_edges=False`; position-key top merge (continuous top island) |
 | Cliff behavior | Presentation walls only; no per-cliff-side clustering; no rim/release constraints |
 | Material behavior | Full PBR ground/stone/ash splatting (unchanged) |
-| Status | **CANONICAL REGEN PATH** for approved smooth TS-03 baseline |
+| Status | **HISTORICAL** — regen path for the frozen smooth TS-03 baseline; superseded as terrain model by TS-08 |
 | Audit | `blender --background --python tools/blender/terrain/audit_ts03_global_continuous_baseline_blend.py` |
 
 Does **not** read or set shared experiment `USE_*` flags. Never writes to `*_BASELINE_*` files.
@@ -182,7 +188,7 @@ Math reference: `Empire_of_Minds_TS03_Surface_Math_Spec_EXTENDED.docx`.
 | Output | *(TBD)* |
 | Solver | `VariationalSplineTerrainSolver` (same as TS-03) |
 | Flags | Exact recovered TS-03 path + extra cliff-rim interpolation points only |
-| Status | **PLANNED — DO NOT IMPLEMENT until TS-03 baseline is locked** |
+| Status | **OBSOLETE — never implement.** The TS-03 + cliff-rim direction was superseded by the TS-08 cut-domain thin-plate chain. |
 
 ### Non-negotiable invariant for TS-07b
 
@@ -203,6 +209,44 @@ Future cliff-rim formulation: `Empire_of_Minds_Explicit_Cliff_Rim_Formulation_Lo
 Cliff-rim samples are ordinary TPS interpolation constraints (not PDE boundary conditions).
 XY follows exact hex edges; only Z along the edge is interpolated; no rim slope condition;
 corner/termination elevation = halfway between adjacent upper and lower cliff-side elevations.
+
+---
+
+## TS-07c — Global TPS + virtual cliff rails (SUPERSEDED)
+
+| Field | Value |
+|-------|-------|
+| Prototype ID | `TS-07c` |
+| Generator / runner | `generate_ts07c_global_tps_virtual_cliff_rails.py` / `run_ts07c_global_tps_virtual_cliff_rails_regen.py` |
+| Output | `terrain_handdrawn_test_map_full_01_ts07c_global_tps_virtual_cliff_rails.blend` |
+| Status | **SUPERSEDED — do not build on.** Virtual-rail constraint experiment; replaced by the TS-08 cut-domain topology. Cautionary reference only. |
+
+---
+
+## TS-07d — Weighted-curvature cliff band (SUPERSEDED)
+
+| Field | Value |
+|-------|-------|
+| Prototype ID | `TS-07d` |
+| Generator / runner | `generate_ts07d_weighted_curvature_cliff_band.py` / `run_ts07d_weighted_curvature_cliff_band_regen.py` |
+| Output | `terrain_handdrawn_test_map_full_01_ts07d_weighted_curvature_cliff_band.blend` |
+| Status | **SUPERSEDED — do not build on.** Curvature-weighting experiment; replaced by the TS-08 cut-domain topology. Cautionary reference only. |
+
+---
+
+## TS-08 — Cut-domain thin-plate chain (CURRENT ACCEPTED REFERENCE)
+
+Canonical model: [docs/TERRAIN_SURFACE_TARGET.md](../../../docs/TERRAIN_SURFACE_TARGET.md).
+
+| Stage | Meaning | Generator | Output |
+|-------|---------|-----------|--------|
+| Stage 0 | Cut-lattice topology audit (no height solve) | `audit_ts08_cut_lattice_topology.py` (module `eom_terrain_ts08_cut_lattice.py`) | `reports/ts08_cut_lattice_topology_audit.json` |
+| Stage 1 | No-cut thin-plate CG solve (Γ = ∅ gate) | `generate_ts08_stage1_no_cut_thin_plate_cg.py` | `terrain_handdrawn_test_map_full_01_ts08_stage1_no_cut_thin_plate_cg.blend` |
+| Stage 2 | Cut-domain thin-plate CG solve | `generate_ts08_stage2_cut_domain_thin_plate_cg.py` | `terrain_handdrawn_test_map_full_01_ts08_stage2_cut_domain_thin_plate_cg.blend` |
+| Stage 3a | Basic cliff walls + stone wall material | `generate_ts08_stage3a_basic_cliff_walls.py` | `terrain_handdrawn_test_map_full_01_ts08_stage3a_basic_cliff_walls.blend` |
+| Stage 3b | Fitted cliff-panel / Meshy asset fit test | `generate_ts08_stage3b_cliff_asset_fit_test.py` | `terrain_handdrawn_test_map_full_01_ts08_stage3b_cliff_asset_fit_test.blend` |
+
+Status: **Stages 0–3a are the current accepted reference chain** (each with matching `run_*`/`audit_*` scripts and JSON reports under `reports/`). **Stage 3b is a superseded experiment — do not revive**; external cliff props remain deferred future work.
 
 ---
 

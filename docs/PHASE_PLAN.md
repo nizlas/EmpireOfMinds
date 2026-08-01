@@ -788,6 +788,8 @@ Must not (roadmap):
 Note:
 **Placeholders** from **Phase 2.x** / **Phase 3.x** may remain until replaced here; **Phase 4** owns **coherent visual identity**.
 
+**Current-target note (2026-08):** The **Phase 4.x** slices below built the **current implemented presentation** — a 2D/2.5D projected map. They remain valid history and the running game still uses them. The **approved presentation target** is now **Godot 3D terrain** (see the milestone **Fixed-grid Godot 3D terrain parity** below and [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md)); the 2D map presentation is no longer the end-state visual direction. Nothing in Phase 4.x is retroactively invalidated by this note.
+
 **Phase 4 asset workflow:** Non-trivial prototype assets should use the **Asset Request Pack** workflow in **[VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)** (section **Asset request workflow**). Phase implementation must **not** silently generate or add visual assets **outside** approved scope; trivial programmatic placeholders remain allowed when **explicitly in scope** (see **VISUAL_DIRECTION.md**).
 
 ### Phase 4.0 — Visual direction checkpoint (implemented; documentation-only)
@@ -2629,6 +2631,40 @@ Shipped:
 Validation:
 
 - Manual: open **`docs/player/index.html`** in a browser; follow **Early City Economy**; no JavaScript required.
+
+## Milestone — Fixed-grid Godot 3D terrain parity (approved next terrain milestone)
+
+**Status:** approved direction; **not started**. This milestone is decoupled from the Phase 5.x gameplay numbering: it is presentation/terrain work and does not change gameplay rules.
+
+Goal:
+Reproduce the accepted **TS-08** Blender reference terrain (see [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md) and the canonical section of [TERRAIN_MODEL.md](TERRAIN_MODEL.md)) as **Godot-native runtime terrain construction** from the **fixed hand-authored logical hex grid** (`terrain_handdrawn_test_map_full_01`). Blender remains a development/reference implementation only — never a runtime dependency.
+
+**Reference contract.** Parity is validated against the reference contract as a whole: the canonical logical grid, the TS-08 algorithm and parameters, a deterministic reference dataset exported from the Blender chain, the audit chain, and the visually accepted Blender result. The committed Stage 3a `.blend` is one artifact within that contract, not the sole authority.
+
+Decomposable slices (indicative; each independently reviewable):
+
+1. **Canonical logical-map input.** Extract the fixed hand-authored grid — currently embedded as `TERRAIN_MAP_JSON` inside a Blender tooling Python file, which is a repository fact and an input-extraction problem, not the approved permanent home — into a canonical runtime-readable input consumed by both the Blender tooling and Godot. The final serialization format is not prematurely fixed by this milestone; the slice must only establish one canonical source.
+2. **Deterministic reference dataset.** Export solved heights / cut-lattice data from the Blender TS-08 chain in a form the Godot side can compare against.
+3. **Godot terrain construction.** Cut-lattice topology (cliff classification delta > 1, duplicated seam identity) and the cut-domain thin-plate CG solve, engine-native, deterministic.
+4. **Godot mesh + material + collision.** Mesh from the solved lattice; top-surface and stone cliff-wall materials; collision corresponding to the generated surface.
+5. **Parity audit + static scene.** Numerical and visual parity validation; a static Godot scene rendering the terrain.
+
+Parity requirements (related but **distinct** validation concerns — not one inseparable target):
+
+- **Geometric surface and topology:** numerical parity against the reference dataset within documented tolerances — bit-identical floating-point output is **not** required. Exact topology comparison applies only where the Blender and Godot representations are deliberately constructed to match; surface-equivalent cliff-wall geometry with different triangulation may be acceptable subject to visual approval.
+- **Material and camera:** visual parity judged against the accepted Blender render, not numeric comparison.
+- **Collision:** must correspond to the generated surface; identical Blender topology is not required.
+
+Must not (this milestone):
+
+- **No** random/procedural generation of logical map layouts (deferred; the architecture must merely not preclude a future seeded generator).
+- **No** gameplay/domain rule changes; the generated mesh never becomes authoritative gameplay state.
+- **No** unit height-following movement or 3D unit presentation — that is a **post-parity slice** and is not part of terrain-parity acceptance.
+- **No** cliff facade props / fitted cliff panels (the Stage 3b experiment is superseded), **no** water, **no** LOD or performance optimization passes, **no** runtime terrain editing.
+- **No** new Blender runtime dependency in the game.
+
+Validation:
+Parity audit results per the reference contract; headless test suite stays green per [TESTING.md](TESTING.md).
 
 ## Phase 6 — Empire of Minds worldbuilding and identity
 

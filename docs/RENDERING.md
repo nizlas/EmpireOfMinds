@@ -1,5 +1,7 @@
 # Empire of Minds — Rendering (Phase 1.3+)
 
+> **Current implementation vs approved target.** This document describes the **current implemented presentation**: a 2D/2.5D projected map (`Node2D` / `CanvasItem` drawing with `MapPlaneProjection`). The **approved presentation target** is Godot-native **3D terrain** built from the fixed logical hex grid — see the milestone "Fixed-grid Godot 3D terrain parity" in [PHASE_PLAN.md](PHASE_PLAN.md) and [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md). Nothing here forbids that work; the Presentation boundary rules below apply unchanged to the 3D target (the terrain mesh stays derived presentation, never gameplay truth).
+
 ## Presentation boundary
 
 - **`game/presentation/`** may use Godot `Node2D` / `CanvasItem` and drawing APIs. It must **not** own authoritative game rules or mutable domain objects as the long-term source of truth.
@@ -78,6 +80,8 @@
 - Coordinate text on tiles is **optional**; the first implementation may draw **polygons only** to stay robust across Godot versions. If labels are added later, they remain presentation-only and must not become gameplay state.
 
 ## Explicitly deferred
+
+This list is **Phase 1.3-era scope control**, not a permanent architecture rule. In particular, the "custom meshes" deferral is superseded for terrain by the approved 3D terrain milestone in [PHASE_PLAN.md](PHASE_PLAN.md).
 
 - `Camera2D` (pan / zoom), parallax, fit-to-screen.
 - **Input** beyond Phase 1.5 unit pick / clear (menus, camera drag, global shortcuts), **hover**, tooltips.

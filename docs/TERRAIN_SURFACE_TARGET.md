@@ -2,9 +2,11 @@
 
 ## Status
 
-This document defines the intended mathematical target for Empire of Minds terrain surface generation.
+This document defines the **canonical mathematical target** for Empire of Minds terrain surface generation.
 
 It is a **design target**, not an implementation report. Nothing in this document is implemented by the document itself.
+
+**Implementation status (2026-08):** the validation stages below are implemented in Blender as the accepted **TS-08 reference chain** (`tools/blender/terrain/`, Stage 0 cut-lattice audit, Stage 1 no-cut CG, Stage 2 cut-domain CG, Stage 3a walls + stone material; see [TERRAIN_MODEL.md](TERRAIN_MODEL.md) "Current canonical model"). The approved next step is reproducing this target in Godot — see the "Fixed-grid Godot 3D terrain parity" milestone in [PHASE_PLAN.md](PHASE_PLAN.md). This document remains the target both implementations are judged against.
 
 Where this formulation conflicts with any ad-hoc terrain solver experiment (past or future), **this document supersedes the experiment**. Experiments are judged against this target; the target is only revised by editing this document deliberately and reviewably.
 

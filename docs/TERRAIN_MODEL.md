@@ -1,8 +1,47 @@
-# Empire of Minds — Canonical terrain model (planning)
+# Empire of Minds — Terrain model (canonical summary + design history)
 
-Status: **planning / design-of-record**. This document defines the canonical mathematical model for Empire of Minds 3D terrain generation. It is the source of truth for future implementation; **no implementation is described here as done** unless a section explicitly states otherwise (e.g. §10 current boundary snap). The **Mid-Edge Invariant** (§11) defines canonical center→edge-midpoint heights; the **Smooth Ribbon G1 gate** (§12) resolves cross-edge tangents; the **HexPatch center bubble anchor** (§13) fixes tile center height; **§14 falsifies** the first-slice IDW operator; **§15–§16 freeze HexPatch Mathematics v1.0** (smooth core) as a **reference backend specification** under the **`TerrainSolver`** framework (see [DECISION_LOG.md](DECISION_LOG.md) entry "pivot to Global Terrain Optimization") — not the assumed final terrain model. It does not change gameplay, the domain `HexMap` (tag-only; see [MAP_MODEL.md](MAP_MODEL.md)), or any Godot code.
+Status: **mixed**. This document contains (a) a short **current canonical model** section immediately below — read that first — and (b) the accumulated terrain design history that led to it. Large parts of the history (notably §9–§16 and the kernel discussion) are **historical/superseded** and are labeled as such. The canonical mathematical target itself lives in [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md); this document does not change gameplay, the domain `HexMap` (tag-only; see [MAP_MODEL.md](MAP_MODEL.md)), or any Godot code.
 
-This model was selected in the Terrain Mathematics Design Review. See the decision-log entry "Adopt heightfield + edge constraints as canonical terrain model" in [DECISION_LOG.md](DECISION_LOG.md).
+## Current canonical model (TS-08) — read this first
+
+The canonical terrain model is the **cut-domain thin-plate model** defined in [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md). It has two deliberately distinct components:
+
+1. **Cut-domain topology.** Cliff edges (authoritative discrete elevation delta > 1) are internal topological cuts (Γ). The surface domain is cut along Γ: upper and lower cliff sides may share world XY while remaining mathematically and topologically separate points, with duplicated solve/mesh identity along the seam and no smoothing, coupling, or operator stencil across it. Delta ≤ 1 transitions remain ordinary smooth surface.
+2. **Discrete thin-plate solve.** On the (cut) lattice, minimize the squared-graph-Laplacian bending energy with hard hex-center height pins (world-z units), solved by plain-NumPy Conjugate Gradient. Deficient components are handled by the documented gauge convention, never by a global regularizer.
+
+**Approved reference (implemented, Blender, development-only):** the TS-08 chain under `tools/blender/terrain/`, on the fixed hand-authored test map (`terrain_handdrawn_test_map_full_01`):
+
+| Stage | Meaning | Key files |
+|---|---|---|
+| Stage 0 | Cut-lattice topology audit (no height solve) | `eom_terrain_ts08_cut_lattice.py`, `audit_ts08_cut_lattice_topology.py` |
+| Stage 1 | No-cut thin-plate CG solve (Γ = ∅ gate) | `eom_terrain_ts08_thin_plate_cg.py`, `generate_ts08_stage1_no_cut_thin_plate_cg.py` |
+| Stage 2 | Cut-domain thin-plate CG solve | `eom_terrain_ts08_stage2_cut_thin_plate_cg.py`, `generate_ts08_stage2_cut_domain_thin_plate_cg.py` |
+| Stage 3a | Basic cliff walls + stone wall material | `eom_terrain_ts08_cliff_walls.py`, `eom_terrain_ts08_cliff_wall_stone_material.py`, `generate_ts08_stage3a_basic_cliff_walls.py` |
+
+Each stage has matching `run_*`/`audit_*` scripts and JSON reports under `tools/blender/terrain/reports/`. The **reference authority is the contract as a whole**: the canonical logical grid, the algorithm and parameters documented in [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), a deterministic reference dataset, the audit chain, and the visually accepted Blender result. The committed Stage 3a `.blend` is one reference artifact within that contract — not the architectural source of truth.
+
+**Approved target (not implemented):** Godot-native runtime terrain construction that generates the continuous 3D terrain mesh directly from the fixed logical hex grid and reproduces the TS-08 reference numerically and visually. See the "Fixed-grid Godot 3D terrain parity" milestone in [PHASE_PLAN.md](PHASE_PLAN.md). Blender remains a development/reference implementation: never a runtime dependency, and the Blender mesh is not the final source of the playable terrain.
+
+**Three layers (must not blend):**
+
+1. **Logical/domain map** — authoritative axial hex grid: terrain/elevation/tags, transitions, gameplay rules. Gameplay truth.
+2. **Terrain construction** — deterministic continuous 3D surface derived from the logical map, including cut topology at cliffs.
+3. **Presentation** — Godot mesh/material/collision, camera, visual units, height-following animation.
+
+The generated mesh is derived presentation geometry and must never become authoritative gameplay state. Cliff passages remain blocked by gameplay/domain rules, not by geometry.
+
+**Still-valid general invariants** (survive from the design history below):
+
+- Integer heightfield + sparse edge overrides as the source representation (§1); world height = `(elevation − base) · elevation_step`.
+- Cliff classification only from authoritative discrete data (delta > 1, plus explicit overrides) — never inferred from generated geometry or visuals.
+- No smoothing, interpolation, or solver coupling across a cliff edge.
+- Cliff walls are presentation-only, built downstream of the solved top surfaces, never feeding back into the solve.
+- Deterministic construction: identical inputs produce identical terrain.
+- Random/procedural generation of the **logical map layout** is deferred future work; the architecture must not prevent a future seeded generator replacing the fixed hand-authored grid. Generating the 3D terrain mesh **from** the fixed grid is the current approved work and is a different thing.
+
+**How to read the rest of this document:** the Background and §3/§5 kernel/pipeline mechanics are historical (superseded by the TS-08 construction); §1–§2 invariants remain valid as stated above; §4 remains valid except that Stage 3a stone-material walls are the current reference wall treatment (external cliff props remain deferred); §6–§8 remain valid with the amendments noted in place; **§9–§16 are an entirely historical design chain**; §17 is resolved — its research direction concluded into TS-08.
+
+This model was selected in the Terrain Mathematics Design Review and refined through the decision-log chain ending in the TS-08 / Godot-parity decision. See [DECISION_LOG.md](DECISION_LOG.md).
 
 ## Scope and intent
 
@@ -13,6 +52,8 @@ This model was selected in the Terrain Mathematics Design Review. See the decisi
 Axial coordinates `(q, r)` and neighbor directions follow [HEX_COORDINATES.md](HEX_COORDINATES.md) (E, NE, NW, W, SW, SE). The terrain tooling's `NEIGHBOR_DIRS` already matches this table.
 
 ## Background: two curvature kernels exist today
+
+> **Historical.** Both kernels below are superseded as height models by the TS-08 cut-domain thin-plate solve (see the canonical section above). This background is preserved because it explains the crumpling failure and why the model moved to a global solve.
 
 The repository contains two different curvature implementations, and conflating them is the root cause of recent crumpled / faceted output.
 
@@ -51,6 +92,8 @@ Why this model (option C) rather than alternatives:
 
 ## 2. Smoothing domains and cliff semantics
 
+> **Amended by TS-08.** The invariant here — cliffs partition the surface and nothing blends across them — remains canonical. The *mechanism* (per-domain corner-height means) is superseded: TS-08 realizes the partition as a topological cut of the solve lattice, and heights come from the global thin-plate solve, not corner means.
+
 Define a **smoothing graph**: nodes are tiles; an edge exists between two neighboring tiles only when their resolved transition is **smooth**. Cliff edges are simply absent.
 
 - **A smoothing domain is a connected component of the smoothing graph.**
@@ -62,11 +105,15 @@ This is mathematically clean: smoothing is defined independently within each dom
 
 ## 3. Top-surface generation
 
+> **Historical (superseded).** The per-hex analytic kernel described here is no longer the height model. TS-08 generates the top surface from the cut-domain thin-plate solve sampled on the cut lattice. The first two bullets' *topology* intent (merged vertices within smooth regions, duplicated coincident-XY vertices at cliffs) survives in the TS-08 cut lattice.
+
 - **Smooth-connected tiles form one continuous surface.** Within a domain, shared `pos_key` world-XY vertices merge, exactly as the approved baseline already merges them in `build_single_patch_mesh`.
 - **Cliff-separated regions are independent local smoothing domains.** At a cliff boundary a shared lattice corner becomes **two coincident-XY vertices with different Z** (one per adjacent domain); these are deliberately **not** merged. That intentional gap is the cliff.
 - **Within each domain, use the analytic per-hex kernel unchanged.** Height is `center + (edge - center) * profile(radial)`, with edge heights derived from per-domain shared-corner means (`analytic_surface_height` / `sector_edge_height` semantics). Use the same profile that reproduces the approved appearance (`smootherstep`); tuning the profile to match the approved look is allowed, inventing a new smoother is not.
 
 ## 4. Cliff edges and cliff walls
+
+> **Amended by TS-08.** Still valid, with one update: the current approved reference wall treatment is the Stage 3a basic cliff walls with the stone wall material (`TS08_Cliff_Wall_Stone`), not an untextured placeholder. External rock/cliff props along the cliff-edge graph remain **deferred future work** (the Stage 3b fitted-cliff-panel experiment is superseded — do not revive).
 
 Cliff and ravine edges are treated as **internal hard borders between two elevation regions**, not as ordinary textured terrain slopes.
 
@@ -77,6 +124,8 @@ Cliff and ravine edges are treated as **internal hard borders between two elevat
 - **Intended final visual: external rock/cliff props.** Later, deterministic 3D rock/cliff formation props (for example Meshy-generated) are placed **along the authoritative cliff-edge graph**. Cliff walls in the generated mesh remain placeholders until props cover them.
 
 ## 5. Mesh-generation phases
+
+> **Historical (superseded).** Phases 3–5 below describe the per-domain analytic pipeline. The TS-08 pipeline is: parse TerrainMap IR → classify cliff edges (delta > 1 + overrides) → build the cut lattice (Stage 0 topology) → solve cut-domain thin-plate CG (Stage 2; Stage 1 is the uncut gate) → build the mesh from the solved cut lattice → append presentation cliff walls (Stage 3a). Steps 1–2 and 6–8 remain conceptually valid.
 
 1. Parse source (PowerPoint-derived / JSON / future procedural) into the **TerrainMap IR**.
 2. Resolve edge transitions (default rule + sparse overrides).
@@ -91,22 +140,24 @@ A later, separate phase places rock/cliff props along the cliff-edge graph.
 
 ## 6. Long-term architecture
 
+> **Amended by TS-08 / Godot-parity decision.** The math-core-plus-thin-backends idea stands, but the construction inside the core is the TS-08 cut-domain thin-plate model (not the analytic sampler), and the **Godot runtime backend is the approved target for the playable terrain** — Blender is the development/reference backend, never a runtime dependency.
+
 ```
-PowerPoint export ┐
-JSON maps         ├─> TerrainMap IR ─> pure deterministic math core ─┬─> Blender mesh backend
-future procedural ┘    (heightfield +     (domains, per-domain        ├─> future Godot runtime backend
-                        edge constraints)   corner heights, analytic   └─> later prop-placement pass
-                                            sampler, cliff-edge graph)      (along cliff-edge graph)
+fixed hand-authored grid ┐
+(future: map type + seed ├─> TerrainMap IR ─> deterministic terrain construction ─┬─> Blender reference backend (TS-08, dev-only)
+ → generated logical grid)┘   (heightfield +     (cut lattice, cut-domain           ├─> Godot runtime backend (approved target)
+                               edge constraints)   thin-plate solve,                 └─> later prop-placement pass (deferred)
+                                                   cliff-edge graph, walls)
 ```
 
-- **Pure deterministic math core** (no `bpy`, no Godot): domain partitioning, per-domain corner heights, the analytic height sampler, and cliff-edge resolution. Identical results across Blender prototyping and a future Godot runtime, and testable outside Blender.
+- **Pure deterministic terrain construction** (no `bpy`, no Godot in the math): cliff classification, cut-lattice topology, the cut-domain thin-plate solve, and cliff-edge resolution. Equivalent construction across the Blender reference and the Godot runtime, validated by a numerical/visual parity audit (see the parity milestone in [PHASE_PLAN.md](PHASE_PLAN.md)) rather than by assuming bit-identical floating-point output.
 - **Thin backends.** The Blender backend keeps the approved baseline's mesh assembly and material graph and consumes the math core. The current handdrawn test's approach — monkeypatching the imported baseline module via `importlib` plus `inspect.getsource` string replacement — is fragile and should be retired in favor of the math core.
 - **Separation of concerns.** This terrain mesh model is presentation/tooling. The gameplay domain `HexMap` stays tag-only (see [MAP_MODEL.md](MAP_MODEL.md)); axial conventions stay aligned with [HEX_COORDINATES.md](HEX_COORDINATES.md).
 
 ## 7. Risks and tradeoffs
 
 - **Appearance parity is not automatic.** The radial and analytic kernels are different functions; the analytic kernel must be visually validated against the approved 7-hex baseline, with profile tuning if needed (appearance-preserving, not a new model). This gates adoption.
-- **Slope continuity at smooth edges.** The legacy per-tile analytic / radial models match heights at shared edges but not necessarily cross-edge tangents (§7 historical note). The **Smooth Ribbon G1 gate** (§12) targets **G1 across smooth edges** by sharing a cross-edge tangent while preserving the canonical midpoint height; cliff edges remain intentionally discontinuous.
+- **Slope continuity at smooth edges.** The legacy per-tile analytic / radial models match heights at shared edges but not necessarily cross-edge tangents. The Smooth Ribbon G1 gate (§12, historical) targeted this per-patch; in TS-08 the concern is resolved globally — the thin-plate minimizer is C¹ within each smooth sheet, and cliff edges remain intentionally discontinuous.
 - **Vertex duplication at cliffs** increases counts and requires careful `(pos_key, domain)` keying to avoid accidental merges or T-junctions along boundaries.
 - **Subdivision cost.** `SURFACE_SUBDIVISIONS` (currently 12) trades faceting against mesh size; keep it a single knob.
 - **Cliff-edge graph is a contract.** Because rock/cliff props will be placed along it, the edge graph must be stable, deterministic, and order-independent across runs and sources — treat it as a versioned output, not a debug log.
@@ -119,6 +170,10 @@ future procedural ┘    (heightfield +     (domains, per-domain        ├─> 
 - Do not redesign terrain appearance.
 - Do not optimize prematurely.
 - This document is model/architecture only; implementation is a later, separate task and must not modify the approved prototype scripts.
+
+## Historical — superseded design chain (§9–§16)
+
+> **Everything from §9 through §16 is historical design material, preserved for its reasoning and forensic value. None of it is the current model.** The SSC mixed-corner treatment, SharedEdgeCurve, Mid-Edge Invariant, Smooth Ribbon G1 gate, HexPatch center bubble anchor, the IDW falsification, and HexPatch Mathematics v1.0 were all superseded by the TS-08 cut-domain thin-plate model (see "Current canonical model (TS-08)" at the top and [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md)). In TS-08, corner behavior at cliffs follows from the path-metric cut topology (Case 0–3 corner rules) instead of §9's local deformation, and smooth-surface heights come from the global solve instead of §10–§16's per-patch construction. Do not implement anything below as current work.
 
 ## 9. Mixed corners (SSC) and local corner deformation
 
@@ -774,9 +829,11 @@ Sequence per §15.10; reference H1–H10 at each stage.
 
 ---
 
-## 17. Global terrain surface — current research direction (active, not finalized)
+## 17. Global terrain surface — research direction (resolved into TS-08)
 
-Status: **active research direction**, not a finalized terrain algorithm. This section records the mathematical requirements that emerged from the HexPatch and GlobalBiharmonic investigations and the family currently preferred for the next prototype. It selects a **research family only** — not a specific formulation, discretization, or implementation. See the decision-log entry "select variational spline family as current research direction" in [DECISION_LOG.md](DECISION_LOG.md).
+Status: **resolved**. This research direction concluded in the cut-domain thin-plate model: the requirements below were satisfied by the TS-08 formulation in [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md) and its accepted Blender reference implementation (Stages 1/2/3a). The invariance requirements in §17.1–§17.3 remain valid constraints on any future solver change. The intermediate experiments this direction spawned (TS-07c virtual rails, TS-07d weighted curvature) are superseded — cautionary references only. Original text follows.
+
+This section records the mathematical requirements that emerged from the HexPatch and GlobalBiharmonic investigations and the family preferred at the time for the next prototype. It selects a **research family only** — not a specific formulation, discretization, or implementation. See the decision-log entry "select variational spline family as current research direction" in [DECISION_LOG.md](DECISION_LOG.md).
 
 ### 17.1 Required invariance properties
 

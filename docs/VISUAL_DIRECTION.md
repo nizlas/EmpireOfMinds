@@ -1,5 +1,7 @@
 # Prototype visual direction (Empire of Minds)
 
+> **Direction update (2026-08).** The 2D / light-2.5D map presentation this document targets was the **Phase 4 prototype direction** and is the **current implemented presentation** — it is no longer the approved end-state. The **approved presentation target** is Godot-native **3D terrain** built from the fixed logical hex grid: see the milestone "Fixed-grid Godot 3D terrain parity" in [PHASE_PLAN.md](PHASE_PLAN.md), [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), and the accepted Blender terrain prototypes (painterly/parchment intent carries forward as the 3D material direction). The readability principles, asset workflow, and provenance rules in this document remain in force for all visual work, 2D or 3D.
+
 ## Status and purpose
 
 - **Phase 4.0** is **documentation-only**. It ships **this file** and steering updates only — **no** code, **no** assets, **no** UI, **no** tests, **no** scene changes.

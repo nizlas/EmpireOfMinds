@@ -21,6 +21,7 @@ Before implementation:
 - Read `docs/CLOUD_PLAY.md`
 - Read `docs/LICENSE_STRATEGY.md`
 - Read `docs/VALIDATION_CHECKLIST.md`
+- For terrain tasks, also read `docs/TERRAIN_SURFACE_TARGET.md` and the "Current canonical model (TS-08)" section of `docs/TERRAIN_MODEL.md`, and follow the Terrain Rules in the constrained-implementer skill.
 
 During implementation:
 - Keep changes within the requested phase and scope.

@@ -86,6 +86,16 @@ Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative 
 
 ---
 
+## Terrain: current vs target vs reference tooling
+
+Keep these three strictly apart; do not mix target components into the current inventory above.
+
+- **Current runnable architecture:** the 2D/2.5D projected map presentation described in the tables above ([RENDERING.md](RENDERING.md)). No 3D terrain exists in the running game (the opt-in 3D unit/city marker experiment blits SubViewport textures into the 2D pipeline).
+- **Approved target (not implemented):** Godot-native 3D terrain construction from the fixed logical hex grid, reproducing the TS-08 reference — see the "Fixed-grid Godot 3D terrain parity" milestone in [PHASE_PLAN.md](PHASE_PLAN.md), [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), and the canonical section of [TERRAIN_MODEL.md](TERRAIN_MODEL.md).
+- **Blender reference/tooling (development-only, outside the game):** the TS-08 chain under `tools/blender/terrain/` (see its `README.md` and `TERRAIN_PROTOTYPE_MANIFEST.md`). Never a runtime dependency; the Blender mesh is not the final source of the playable terrain.
+
+---
+
 ## Test architecture
 
 - **Runner:** from repo root, [scripts/run-godot-tests.ps1](../scripts/run-godot-tests.ps1) runs a **fixed ordered list** of Godot headless scripts (**`-s res://…`**); count grows with new phases (see script array — includes **5.2.3** visibility tests, **5.2.4k** presentation gating tests, **5.2.4l** prototype sea-shell tests, **5.2.5** movement-points tests, **5.2.6** turn-start banner test, **5.2.6a** playtest display-name test).

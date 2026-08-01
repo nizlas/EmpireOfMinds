@@ -86,6 +86,19 @@ Treat the update as a proposal until explicitly approved.
 - Avoid unclear asset licenses.
 - Avoid copying Civilization-specific IP or exact systems.
 
+## Terrain Rules (3D terrain direction)
+
+For any terrain-related task, first read `docs/TERRAIN_SURFACE_TARGET.md` (canonical model), the "Current canonical model (TS-08)" section of `docs/TERRAIN_MODEL.md`, and the "Fixed-grid Godot 3D terrain parity" milestone in `docs/PHASE_PLAN.md`. Then:
+
+- **Distinguish three states and never conflate them:**
+  - *Current implementation* — the 2D/2.5D projected map presentation in `game/presentation/` (`docs/RENDERING.md`).
+  - *Approved target (not implemented)* — Godot-native 3D terrain construction from the fixed logical hex grid reproducing the TS-08 reference.
+  - *Blender reference/tooling* — the TS-08 chain under `tools/blender/terrain/`; development-only, never a runtime dependency, and its `.blend` output is one reference artifact, not the architectural source of truth.
+- **Distinguish logical map from mesh generation:** the logical/domain hex map (`HexMap`) is authoritative gameplay state; the terrain mesh is deterministically derived presentation geometry. Never write gameplay state into the mesh, and never infer rules (e.g. cliff blocking) from geometry.
+- **Preserve the domain/rendering boundary:** terrain construction math must stay engine-agnostic (no `bpy`, no Godot nodes in the construction logic); Godot code consumes it in the presentation layer.
+- **Validate parity as distinct concerns:** geometry/topology → numerical comparison against the reference dataset within documented tolerances (never demand bit-identical floats; exact topology comparison only where representations are deliberately matched); material/camera → visual parity vs the accepted Blender result; collision → corresponds to the generated surface, identical topology not required.
+- **Do not build on superseded experiments:** the HexPatch chain (`TERRAIN_MODEL.md` §9–§16), the analytic per-hex kernel as height model, TS-07b/TS-07c/TS-07d, and TS-08 Stage 3b (fitted cliff panels) are superseded — cautionary references only. Random/procedural generation of logical map layouts is deferred; do not add it, but do not preclude it.
+
 ## Phase 1 Specific Rules
 
 Phase 1 is a local playable prototype.
