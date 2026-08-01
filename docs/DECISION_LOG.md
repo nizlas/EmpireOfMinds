@@ -1,3 +1,12 @@
+## 2026-08-01 — Map content — approve repo-root content/maps/ architecture and JSON envelope schema v1 (docs-only, Slice A)
+
+- **Decision:** Logical map source content lives at repo-root **`content/maps/`** with three categories: **`reference/`** (parity/regression/audit maps), **`authored/`** (intentionally designed playable maps), **`generated/`** (curated generator results deliberately promoted into version control). Ordinary runtime-generated maps belong in **future user save/cache data**, not under `content/maps/`.
+- **Schema v1:** JSON envelope with `schema_version`, `origin`, `provenance`, and `logical_map` (the existing TerrainMap IR unchanged). **`logical_map.id`** is the canonical map identity; no duplicate envelope-level `map_id` or `display_name` in v1. Reserved for future use: `generator_id`, `seed`, promotion status — not added until a concrete consumer exists.
+- **Rules:** folder placement is not the only semantic indicator; all map origins must produce the same authoritative logical map representation; generator algorithms belong in code; logical map is authoritative, Blender/Godot terrain outputs are deterministic derivatives.
+- **First reference file (planned, not yet created):** `content/maps/reference/handdrawn_test_map_full_01.json` — the current TS-08 hand-authored grid, currently embedded as `TERRAIN_MAP_JSON` in Blender tooling.
+- **Deferred:** Godot loading, coordinate translation, elevation integration, export packaging (Slice D); promotion admin workflow design; save-game map serialization.
+- **Scope:** documentation only ([MAP_CONTENT.md](MAP_CONTENT.md) created; cross-links in MAP_MODEL.md, CURRENT_ARCHITECTURE.md, constrained-implementer skill). No extraction, no code changes.
+
 ## 2026-08-01 — Terrain — adopt TS-08 as canonical model; approve fixed-grid Godot 3D terrain parity direction (docs-only)
 
 - **Decision:** The **TS-08 cut-domain thin-plate model** ([TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md)) is the **canonical terrain model**, and its accepted Blender chain (Stage 0 cut-lattice topology audit, Stage 1 no-cut thin-plate CG, Stage 2 cut-domain thin-plate CG, Stage 3a basic cliff walls + stone wall material) is the **approved reference implementation**. The **approved next terrain milestone** is **Fixed-grid Godot 3D terrain parity** ([PHASE_PLAN.md](PHASE_PLAN.md)): Godot-native runtime terrain construction from the fixed hand-authored logical hex grid, reproducing the TS-08 reference numerically (tolerances, not bit-identical) and visually.

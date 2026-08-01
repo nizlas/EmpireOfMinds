@@ -88,7 +88,7 @@ Treat the update as a proposal until explicitly approved.
 
 ## Terrain Rules (3D terrain direction)
 
-For any terrain-related task, first read `docs/TERRAIN_SURFACE_TARGET.md` (canonical model), the "Current canonical model (TS-08)" section of `docs/TERRAIN_MODEL.md`, and the "Fixed-grid Godot 3D terrain parity" milestone in `docs/PHASE_PLAN.md`. Then:
+For any terrain-related or logical-map task, first read `docs/TERRAIN_SURFACE_TARGET.md` (canonical model), the "Current canonical model (TS-08)" section of `docs/TERRAIN_MODEL.md`, the "Fixed-grid Godot 3D terrain parity" milestone in `docs/PHASE_PLAN.md`, and `docs/MAP_CONTENT.md` (map content categories, JSON envelope schema, ownership). Then:
 
 - **Distinguish three states and never conflate them:**
   - *Current implementation* — the 2D/2.5D projected map presentation in `game/presentation/` (`docs/RENDERING.md`).

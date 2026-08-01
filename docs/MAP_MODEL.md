@@ -2,7 +2,7 @@
 
 Hex cell addressing uses axial coordinates; see [HEX_COORDINATES.md](HEX_COORDINATES.md) for `(q, r)` and neighbor directions. This document only describes the **map container** in Phase 1.2.
 
-**Terrain layering note:** `HexMap` is the **logical/domain map** — layer 1 of the three terrain layers (logical map → terrain construction → presentation; see [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) and [TERRAIN_MODEL.md](TERRAIN_MODEL.md)). The presentation notes in this document describe the **current implemented 2D map presentation**; the approved target adds Godot 3D terrain construction that reads the same logical map (see the parity milestone in [PHASE_PLAN.md](PHASE_PLAN.md)) without changing `HexMap`'s role as gameplay truth.
+**Terrain layering note:** `HexMap` is the **logical/domain map** — layer 1 of the three terrain layers (logical map → terrain construction → presentation; see [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) and [TERRAIN_MODEL.md](TERRAIN_MODEL.md)). The presentation notes in this document describe the **current implemented 2D map presentation**; the approved target adds Godot 3D terrain construction that reads the same logical map (see the parity milestone in [PHASE_PLAN.md](PHASE_PLAN.md)) without changing `HexMap`'s role as gameplay truth. **Map content ownership and serialization** (reference/authored/generated categories, JSON envelope schema) are defined in [MAP_CONTENT.md](MAP_CONTENT.md).
 
 ## Representation
 
