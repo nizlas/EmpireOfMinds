@@ -1,3 +1,10 @@
+## 2026-08-01 — Map content — extract TS-08 reference map to content/maps/ (Slice B+C)
+
+- **Decision:** Extract the embedded `TERRAIN_MAP_JSON` payload into **`content/maps/reference/handdrawn_test_map_full_01.json`** (JSON envelope schema v1). Blender tooling loads the canonical file via **`tools/blender/terrain/eom_map_content.py`**; `generate_terrain_terrainmap_handdrawn_full_01.py` preserves the `TERRAIN_MAP_JSON` module attribute for existing consumers.
+- **Validation:** parsed-value equality with the pre-extraction embedded payload; TS-08 Stage 0–3a audit reports regenerated and compared against accepted pre-change reports.
+- **Deferred unchanged:** Godot loading, coordinate translation, elevation integration, export packaging (Slice D).
+- **Scope:** canonical JSON file, bpy-free loader, Blender consumer migration, documentation alignment, accepted regression artifacts. No Godot/server/gameplay changes.
+
 ## 2026-08-01 — Map content — approve repo-root content/maps/ architecture and JSON envelope schema v1 (docs-only, Slice A)
 
 - **Decision:** Logical map source content lives at repo-root **`content/maps/`** with three categories: **`reference/`** (parity/regression/audit maps), **`authored/`** (intentionally designed playable maps), **`generated/`** (curated generator results deliberately promoted into version control). Ordinary runtime-generated maps belong in **future user save/cache data**, not under `content/maps/`.

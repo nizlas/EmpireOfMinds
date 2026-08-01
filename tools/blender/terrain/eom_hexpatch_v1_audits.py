@@ -988,13 +988,9 @@ def format_hexpatch_v1_audit_report(
 
 
 def load_handdrawn_full_map_json() -> str:
-    text = Path(__file__).with_name(
-        "generate_terrain_terrainmap_handdrawn_full_01.py"
-    ).read_text(encoding="utf-8")
-    match = re.search(r'TERRAIN_MAP_JSON = """([\s\S]*?)"""', text)
-    if not match:
-        raise RuntimeError("TERRAIN_MAP_JSON not found in handdrawn full01 generator")
-    return match.group(1)
+    from eom_map_content import load_reference_map_json_text
+
+    return load_reference_map_json_text()
 
 
 def run_hexpatch_v1_audit_fixtures() -> list[dict[str, Any]]:

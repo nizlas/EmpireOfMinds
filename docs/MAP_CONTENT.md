@@ -2,7 +2,7 @@
 
 This document is the **canonical detailed source** for how logical map data is owned, categorized, serialized, and consumed. Other steering documents link here rather than duplicating the full architecture.
 
-**Status:** the architecture and schema direction below are **approved but not yet implemented** in the repository. The current TS-08 reference grid is still embedded as `TERRAIN_MAP_JSON` inside [tools/blender/terrain/generate_terrain_terrainmap_handdrawn_full_01.py](../tools/blender/terrain/generate_terrain_terrainmap_handdrawn_full_01.py). Extraction into `content/maps/` is planned for Slice B+C of the Fixed-grid Godot 3D terrain parity milestone ([PHASE_PLAN.md](PHASE_PLAN.md)).
+**Status:** implemented (Slice B+C, 2026-08). The TS-08 reference grid is owned by [content/maps/reference/handdrawn_test_map_full_01.json](../content/maps/reference/handdrawn_test_map_full_01.json). Blender tooling loads it via [tools/blender/terrain/eom_map_content.py](../tools/blender/terrain/eom_map_content.py); `generate_terrain_terrainmap_handdrawn_full_01.py` exposes the payload as `TERRAIN_MAP_JSON` for existing consumers.
 
 ---
 
@@ -40,7 +40,7 @@ The first planned reference file:
 
 `content/maps/reference/handdrawn_test_map_full_01.json`
 
-**Not created yet.** Slice B+C will add this file and migrate Blender consumers.
+**Implemented** (Slice B+C). See [content/maps/reference/handdrawn_test_map_full_01.json](../content/maps/reference/handdrawn_test_map_full_01.json).
 
 ---
 

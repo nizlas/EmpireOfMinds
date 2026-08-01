@@ -2643,7 +2643,7 @@ Reproduce the accepted **TS-08** Blender reference terrain (see [TERRAIN_SURFACE
 
 Decomposable slices (indicative; each independently reviewable):
 
-1. **Canonical logical-map input.** Extract the fixed hand-authored grid — currently embedded as `TERRAIN_MAP_JSON` inside a Blender tooling Python file, which is a repository fact and an input-extraction problem, not the approved permanent home — into a canonical runtime-readable input consumed by both the Blender tooling and Godot. The final serialization format is not prematurely fixed by this milestone; the slice must only establish one canonical source.
+1. **Canonical logical-map input.** **Done (Slice B+C).** The fixed hand-authored grid is extracted to `content/maps/reference/handdrawn_test_map_full_01.json` (JSON envelope v1; see [MAP_CONTENT.md](MAP_CONTENT.md)). Blender tooling consumes it via `eom_map_content.py`; Godot loading remains Slice D.
 2. **Deterministic reference dataset.** Export solved heights / cut-lattice data from the Blender TS-08 chain in a form the Godot side can compare against.
 3. **Godot terrain construction.** Cut-lattice topology (cliff classification delta > 1, duplicated seam identity) and the cut-domain thin-plate CG solve, engine-native, deterministic.
 4. **Godot mesh + material + collision.** Mesh from the solved lattice; top-surface and stone cliff-wall materials; collision corresponding to the generated surface.

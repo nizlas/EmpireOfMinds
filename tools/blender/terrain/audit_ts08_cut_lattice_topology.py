@@ -56,6 +56,14 @@ def main() -> None:
     print_traceability_banner(phase="START", runner_file=runner_file)
 
     full01 = _load_full01_module()
+    from eom_map_content import load_reference_map_envelope
+
+    envelope = load_reference_map_envelope()
+    if envelope["logical_map"].get("id") != MAP_JSON_ID:
+        print(
+            f"WARNING: terrain json id={envelope['logical_map'].get('id')!r} "
+            f"(expected {MAP_JSON_ID})"
+        )
     terrain_map = full01.parse_terrain_map_json(full01.TERRAIN_MAP_JSON)
     if terrain_map.map_id != MAP_JSON_ID:
         print(

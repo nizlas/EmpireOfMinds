@@ -237,6 +237,7 @@ corner/termination elevation = halfway between adjacent upper and lower cliff-si
 ## TS-08 — Cut-domain thin-plate chain (CURRENT ACCEPTED REFERENCE)
 
 Canonical model: [docs/TERRAIN_SURFACE_TARGET.md](../../../docs/TERRAIN_SURFACE_TARGET.md).
+Reference logical map: `content/maps/reference/handdrawn_test_map_full_01.json` (JSON envelope v1; see [docs/MAP_CONTENT.md](../../../docs/MAP_CONTENT.md)). Loaded by Blender tooling via `eom_map_content.py`.
 
 | Stage | Meaning | Generator | Output |
 |-------|---------|-----------|--------|
