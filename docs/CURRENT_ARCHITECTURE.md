@@ -104,7 +104,7 @@ The following **still exist in code today** but are **deprecated, frozen, and sc
 
 | Legacy component | Still exists? | Target disposition |
 |------------------|---------------|-------------------|
-| **`HexMap`** (GD + Python) | Yes | Remove N8; replaced by **`WorldMap`** (planned N1) |
+| **`HexMap`** (GD + Python) | Yes | Remove N8; replaced by **`WorldMap`** (implemented N1 foundation) |
 | Categorical `terrain` / `landform` / `woods` | Yes | Remove; physical properties + derived classifications |
 | Category-based **`CityYields`** tables | Yes | Replace with yields v2 (planned N6) |
 | Snapshot v2 cells `{terrain, landform, woods}` | Yes | Replace with snapshot v3 + `MapIdentity` (planned N7) |

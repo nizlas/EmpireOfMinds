@@ -91,7 +91,7 @@ world_y = (elevation − elevation_base) · elevation_step
 
 ---
 
-## MapIdentity (approved — planned N1/N7)
+## MapIdentity (approved — implemented N1; server usage planned N7)
 
 A **`map_id` alone is insufficient.** Canonical immutable map content is identified by:
 
@@ -101,13 +101,13 @@ A **`map_id` alone is insufficient.** Canonical immutable map content is identif
 | `schema_version` | envelope `schema_version` |
 | `content_hash` | deterministic hash of the canonical file’s **raw bytes** (SHA-256) |
 
-**Usage (planned):**
+**Usage:**
 
-- **Godot loader (N1):** computes and exposes `MapIdentity` when loading packaged content.
-- **Local debug init (N3+):** stamps identity into match state.
-- **Server match init (N7):** stores identity in match metadata and snapshots.
-- **Packaging freshness (N1):** compares source hash vs derived copy vs manifest.
-- **Automated tests:** pin current hash as a golden; update deliberately when the map legitimately changes.
+- **Godot loader (N1):** computes and exposes `MapIdentity` when loading packaged content — **implemented**.
+- **Local debug init (N3+):** stamps identity into match state — **planned**.
+- **Server match init (N7):** stores identity in match metadata and snapshots — **planned**.
+- **Packaging freshness (N1):** compares source hash vs derived copy vs manifest — **implemented**.
+- **Automated tests:** pin current hash as a golden; update deliberately when the map legitimately changes — **implemented**.
 
 Clients and server **independently load** the canonical content matching the identity and **verify the hash**. A mismatch must **fail explicitly** — never silently continue with stale or wrong content.
 
@@ -117,13 +117,13 @@ Clients and server **independently load** the canonical content matching the ide
 
 ```text
 logical_map (authoritative source input)
-    → WorldMap (canonical in-memory authority — planned N1)
+    → WorldMap (canonical in-memory authority — implemented N1 foundation)
         → terrain construction (deterministic derived geometry — TS-08)
             → presentation (mesh, material, collision, overlays, UI)
 ```
 
 - The **logical map** in `content/maps/` is authoritative **source** data.
-- **`WorldMap`** is the authoritative **in-memory** representation for gameplay (planned).
+- **`WorldMap`** is the authoritative **in-memory** representation for gameplay — **implemented** as non-rendered foundation code (N1); not yet wired to gameplay, server, or 3D presentation.
 - **Blender TS-08** outputs and **Godot** terrain are **deterministic derivatives** — never gameplay authority.
 - Reference authority for terrain parity is the **contract as a whole**: canonical logical grid, TS-08 algorithm/parameters, deterministic reference dataset, audit chain, accepted visual result.
 

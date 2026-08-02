@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "origin": "reference",
+  "provenance": "Unsupported orientation must be rejected.",
+  "logical_map": {
+    "id": "fixture_bad_orientation",
+    "orientation": "axial_v1",
+    "elevation_step": 0.4,
+    "edge_rule": { "default": "smooth", "cliff_if_abs_delta_greater_than": 1 },
+    "edge_overrides": [],
+    "tiles": [{ "q": 0, "r": 0, "elevation": 1 }]
+  }
+}

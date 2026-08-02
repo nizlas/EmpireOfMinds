@@ -26,10 +26,21 @@ func _init() -> void:
 
 
 func _test_neighbor_deltas() -> void:
+	var expected: Array[Vector2i] = [
+		Vector2i(1, 0),
+		Vector2i(1, -1),
+		Vector2i(0, -1),
+		Vector2i(-1, 0),
+		Vector2i(-1, 1),
+		Vector2i(0, 1),
+	]
 	for d in range(6):
-		var offset: Vector2i = HexCoord.DIRECTIONS[d]
 		var n := HexCoord.new(0, 0).neighbor(d)
-		_check(n.q == offset.x and n.r == offset.y, "neighbor delta %d" % d)
+		var exp: Vector2i = expected[d]
+		_check(
+			n.q == exp.x and n.r == exp.y,
+			"neighbor delta %d -> (%d,%d)" % [d, exp.x, exp.y]
+		)
 
 
 func _test_axial_to_world_exact() -> void:

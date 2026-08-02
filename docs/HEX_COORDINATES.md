@@ -21,7 +21,7 @@ Neighbor offsets are fixed in this order, matching `HexCoord.Direction` (E throu
 
 ## Orientation neutrality
 
-The names E / NE / … are **labels for the six directions** in axial space. Whether a direction aligns with screen or world axes is an **embedding** concern — see the normative coordinate contract in [WORLD_COORDINATES.md](WORLD_COORDINATES.md) (approved target for `WorldMap`, projection, world axes, elevation conversion, and runtime embedding; **not yet implemented** as a full projection module).
+The names E / NE / … are **labels for the six directions** in axial space. Whether a direction aligns with screen or world axes is an **embedding** concern — see the normative coordinate contract in [WORLD_COORDINATES.md](WORLD_COORDINATES.md). The **`HexWorldProjection`** module (N1 foundation) implements world-axis embedding and elevation conversion; full 3D presentation remains planned (N3+).
 
 This document describes the existing **`HexCoord`** utility and historical domain context. [WORLD_COORDINATES.md](WORLD_COORDINATES.md) is the normative contract for the 3D world integration phase.
 
@@ -37,7 +37,7 @@ Code under `game/domain/` (e.g. `hex_coord.gd`) must not reference Godot scene n
 
 - **Cube coordinates** and public `to_cube()` / `from_cube()` helpers (useful for line-drawing later; distance already uses cube math internally).
 - **Range**, **line of sight**, **pathfinding** (beyond the existing distance primitive).
-- **Pixel / world / screen** mapping, tile size, origin, and layout orientation — normative contract: [WORLD_COORDINATES.md](WORLD_COORDINATES.md) (planned N1).
+- **Pixel / world / screen** mapping, tile size, origin, and layout orientation — normative contract: [WORLD_COORDINATES.md](WORLD_COORDINATES.md); **`HexWorldProjection`** implements the approved world embedding (N1 foundation). Screen/presentation layout remains future work (N3+).
 - **Serialization** of coordinates (action log, save games): schema and versioning come with those features.
 
 Add these only when a later phase needs them, with validation and docs updated accordingly.

@@ -30,6 +30,16 @@ func _test_invalid_fixtures() -> void:
 	var cases := [
 		"res://domain/tests/fixtures/world/envelope_invalid_missing_schema.json",
 		"res://domain/tests/fixtures/world/envelope_invalid_bad_origin.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_string_schema_version.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_fractional_tile_q.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_orientation.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_edge_rule_default.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_threshold_string.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_string_elevation.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_override_missing_tile.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_override_non_adjacent.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_override_malformed_edge.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_duplicate_override.json",
 	]
 	for path in cases:
 		var result = MapContentLoader.try_load_world_map_from_res_path(path)

@@ -1,6 +1,6 @@
 # Empire of Minds — World coordinate contract
 
-**Status:** approved target architecture (slice **N0**, 2026-08). This document is the **normative coordinate contract** for the 3D world integration phase. It is **not yet implemented** in Godot runtime code — see [MAP_MODEL.md](MAP_MODEL.md) for the approved `WorldMap` authority and [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) for what runs today.
+**Status:** approved target architecture (slice **N0**, 2026-08). The **projection module** (`HexWorldProjection`) and **`WorldMap`** loader under `game/domain/world/` implement this contract as **non-rendered foundation code** (slice **N1**, 2026-08). Gameplay wiring, server runtime, and 3D presentation remain future slices — see [MAP_MODEL.md](MAP_MODEL.md) and [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md).
 
 Related: axial cell identity (orientation-neutral) — [HEX_COORDINATES.md](HEX_COORDINATES.md). Map content ownership — [MAP_CONTENT.md](MAP_CONTENT.md).
 

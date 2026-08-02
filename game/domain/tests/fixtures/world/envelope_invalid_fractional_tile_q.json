@@ -1,16 +1,13 @@
 {
   "schema_version": 1,
   "origin": "reference",
-  "provenance": "Fixture for envelope validation tests.",
+  "provenance": "Fractional tile q must be rejected.",
   "logical_map": {
-    "id": "fixture_two_tile_01",
+    "id": "fixture_bad_q",
     "orientation": "pointy_top_custom_axes",
     "elevation_step": 0.4,
     "edge_rule": { "default": "smooth", "cliff_if_abs_delta_greater_than": 1 },
     "edge_overrides": [],
-    "tiles": [
-      { "q": 0, "r": 0, "elevation": 1 },
-      { "q": 1, "r": 0, "elevation": 3 }
-    ]
+    "tiles": [{ "q": 1.5, "r": 0, "elevation": 1 }]
   }
 }
