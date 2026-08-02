@@ -19,6 +19,10 @@ mono_crash.*.json
 # Development-only terrain preview renders (N3b visual verification)
 game/dev/terrain_preview/output/
 
+# Native GDExtension build output (N3b.1a; build with scripts/build-native.ps1)
+native/build/
+game/bin/
+
 # Local authority server (Cloud 0.1)
 server/data/
 **/__pycache__/
