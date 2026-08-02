@@ -2659,7 +2659,7 @@ Reproduce the accepted **TS-08** Blender reference terrain (see [TERRAIN_SURFACE
 | **N1** | **Done (2026-08)** | `WorldMap`, projection, loader, `MapIdentity`, packaging sync, headless tests — **no rendering** |
 | **N2** | **Done (2026-08)** | Blender TS-08 reference-dataset export + audit — `content/terrain/reference/handdrawn_test_map_full_01_ts08_stage2_reference_v1.json`; exporter `tools/blender/terrain/export_ts08_reference_dataset.py` |
 | **N3** | Planned | First visible 3D world: TS-08-equivalent solver-generated surface (target path), orbit camera, tile/edge picking; optional N3 checkpoint may load N2 pre-solved dataset temporarily for visual parity — not target architecture |
-| **N3a** | **Done (2026-08)** | Native TS-08 Stage-0 cut-lattice topology from **`WorldMap`** (`Ts08CutLattice`); parity vs N2 via compact test manifest (not runtime content); no height solve, mesh, or rendering |
+| **N3a** | **Done (2026-08)** | Native TS-08 Stage-0 cut-lattice topology from **`WorldMap`** (`Ts08CutLattice`); parity vs N2 via compact digest manifest (counts + SHA-256 stream digests; not runtime content); no height solve, mesh, or rendering |
 | **N3b+** | Planned | Cut-domain height solve, mesh/material/collision, visible world (N3), anchors/UI (N4), … |
 | **N4** | Planned | World anchors + projected screen-space UI |
 | **N5** | Planned | New match core on `WorldMap`: units, movement, actions (debug harness) |

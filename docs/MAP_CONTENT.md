@@ -65,7 +65,8 @@ Parsed today by `parse_terrain_map_ir` in [tools/blender/terrain/eom_terrain_mat
 - `orientation` — **historical label** for the stored coordinate convention (`"pointy_top_custom_axes"` on the reference map). Orientation in the architectural sense is defined by embeddings ([WORLD_COORDINATES.md](WORLD_COORDINATES.md)), not by this string. Do **not** rename it to `axial_v1`; a future schema may add a properly named field such as `coordinate_convention`.
 - `elevation_step` — float world-units per elevation integer step (**0.4** on the reference map).
 - `elevation_base` — **optional**; **absent** on the current reference file. Effective base **1** comes from the parser default (`DEFAULT_ELEVATION_BASE = 1`). Adding explicit `"elevation_base": 1` is an approved **future hygiene change** (with TS-08 regression validation); not part of N0.
-- `edge_rule` / cliff threshold, `edge_overrides`
+- `edge_rule` / cliff threshold — the locked derivation rule for edge classification.
+- `edge_overrides` — **reserved for possible future use; must be an empty array (or absent) in schema v1.** Override behavior is not implemented; loaders reject a non-empty list as unsupported.
 - `tiles` — array of `{q, r, elevation}`
 
 **No rendering, mesh, material, camera, collision, or Blender object state** belongs in `logical_map`.
@@ -123,18 +124,22 @@ logical_map (authoritative source input — 2D grid + elevation levels)
         → reference dataset (N2 — derived golden for parity/audit only; not production source)
 ```
 
-- The **logical map** in `content/maps/` is authoritative **source** data: the canonical 2D hex grid and its height-level field (plus edge transitions/overrides).
+- The **logical map** in `content/maps/` is authoritative **source** data: the canonical 2D hex grid and its height-level field (edge classifications are derived from it by the locked rule).
 - **`WorldMap`** is the authoritative **in-memory** representation for gameplay — **implemented** as non-rendered foundation code (N1); not yet wired to gameplay, server, or 3D presentation.
 - **Production terrain** must be **generated** from the logical map by running a **TS-08-equivalent solver**. The solver is part of the construction pipeline, not replaced by a pre-solved export.
 - The **N2 Stage-2 reference dataset** (`content/terrain/reference/`) is a **derived reference golden** for parity testing and auditing the accepted TS-08 result. It is **not** the final production terrain source.
 - **Blender TS-08** tooling outputs and **Godot** terrain meshes are **deterministic derivatives** — never gameplay authority.
-- **Parity validation** compares solver output against the N2 golden, the TS-08 algorithm/parameters in [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), and the audit chain. Godot headless tests use a **compact parity manifest** (`game/domain/tests/fixtures/world/handdrawn_test_map_full_01_ts08_n3a_topology_parity_v1.json`) deterministically derived from N2 — not runtime content, not a weakened sample. Regenerate/check: `python tools/blender/terrain/generate_ts08_n3a_parity_manifest.py write|check`. An optional N3 checkpoint that loads the pre-solved N2 dataset for early visual parity is **temporary only** — not target architecture.
+- **Parity validation** compares solver output against the N2 golden, the TS-08 algorithm/parameters in [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), and the audit chain. Godot headless tests use a **compact digest manifest** (`game/domain/tests/fixtures/world/handdrawn_test_map_full_01_ts08_n3a_topology_parity_v1.json`, ~2 KB): counts plus **SHA-256 digests over complete canonical streams** (ordered node identities, pos keys, sheet IDs, Godot X/Z positions, canonical triangle set, center-pin mapping) with integer-quantized coordinates — no raw topology arrays, no solved non-center Y values, no sampling. N2 stays the sole comparison golden: `python tools/blender/terrain/generate_ts08_n3a_parity_manifest.py write|check` regenerates/verifies the manifest from N2. An optional N3 checkpoint that loads the pre-solved N2 dataset for early visual parity is **temporary only** — not target architecture.
 
 ### Edge classification vs terrain authority (locked)
 
-- **`edge_rule` + `edge_overrides`** in the logical map envelope define how shared edges become **`smooth`** or **`cliff`** from the height-level grid ([MAP_MODEL.md](MAP_MODEL.md)).
+- **`edge_rule`** in the logical map envelope defines how shared edges become **`smooth`** or **`cliff`** from the height-level grid ([MAP_MODEL.md](MAP_MODEL.md)). **`edge_overrides` is reserved and must be empty in schema v1** — every current edge classification is derived from the canonical height grid and the locked threshold rule.
 - **`WorldMap`** may cache the resolved classification for consumers; that cache is **derived**, not a second authored terrain source.
 - Continuous height under partial-hex / cliff-corner boundary conditions is **N3b solver** scope — outside N3a topology parity.
+
+### Lattice persistence (direction only — not implemented)
+
+N3a constructs the cut lattice **in memory** from `WorldMap`; there is **no persisted lattice cache**. If persistence/caching is later justified, the lattice must use a **compact, versioned binary representation** (packed numeric/index arrays) carrying the source `WorldMap` content hash, a format version, and an integrity checksum — **regenerable derived data, never canonical map content**. JSON remains reserved for the small human-inspectable digest manifest, not for storing the lattice itself.
 
 ---
 

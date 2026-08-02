@@ -7,13 +7,6 @@ const Ts08TerrainMathScript = preload("res://domain/world/ts08_terrain_math.gd")
 const HexWorldProjectionScript = preload("res://domain/world/hex_world_projection.gd")
 const WorldMapScript = preload("res://domain/world/world_map.gd")
 
-const EXPECTED_HEX_COUNT := 168
-const EXPECTED_CUT_TOPOLOGICAL_NODE_COUNT := 74129
-const EXPECTED_CENTER_PIN_COUNT := 168
-const EXPECTED_CLIFF_EDGE_COUNT := 78
-const EXPECTED_TRIANGLE_COUNT := 145152
-const EXPECTED_DUPLICATED_CLIFF_LINE_NODES := 861
-
 
 class CornerRecord extends RefCounted:
 	var world_xy_key: String
@@ -69,32 +62,21 @@ static func build_from_world_map(
 	)
 
 
-static func audit_topology(build: BuildResult, cliff_pairs: Dictionary) -> Dictionary:
+# Generic topology audit for any valid WorldMap build. Zero cross-cliff
+# adjacency is the only universal invariant; reference-map golden counts
+# live in the N3a test and its digest manifest, not here.
+static func audit_topology(build: BuildResult) -> Dictionary:
 	var failures: Array[String] = []
-	if build.node_count != EXPECTED_CUT_TOPOLOGICAL_NODE_COUNT:
-		failures.append(
-			"node_count %d != %d" % [build.node_count, EXPECTED_CUT_TOPOLOGICAL_NODE_COUNT]
-		)
-	if build.triangles.size() != EXPECTED_TRIANGLE_COUNT:
-		failures.append(
-			"triangle_count %d != %d" % [build.triangles.size(), EXPECTED_TRIANGLE_COUNT]
-		)
-	if build.pinned_world_y.size() != EXPECTED_CENTER_PIN_COUNT:
-		failures.append(
-			"center_pin_count %d != %d" % [build.pinned_world_y.size(), EXPECTED_CENTER_PIN_COUNT]
-		)
-	var duplicated := _count_duplicated_cliff_line_nodes(build)
-	if duplicated != EXPECTED_DUPLICATED_CLIFF_LINE_NODES:
-		failures.append(
-			"duplicated_cliff_line_nodes %d != %d" % [duplicated, EXPECTED_DUPLICATED_CLIFF_LINE_NODES]
-		)
 	var cross_cliff := _audit_adjacency_cross_cliff(build)
 	if cross_cliff > 0:
 		failures.append("adjacency_cross_cliff_violations %d != 0" % cross_cliff)
 	return {
 		"passed": failures.is_empty(),
 		"failures": failures,
-		"duplicated_cliff_line_nodes": duplicated,
+		"node_count": build.node_count,
+		"triangle_count": build.triangles.size(),
+		"center_pin_count": build.pinned_world_y.size(),
+		"duplicated_cliff_line_nodes": _count_duplicated_cliff_line_nodes(build),
 		"adjacency_cross_cliff_violations": cross_cliff,
 	}
 

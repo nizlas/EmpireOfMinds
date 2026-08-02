@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "origin": "reference",
+  "provenance": "Well-formed but non-empty edge_overrides must be rejected: overrides are reserved and unsupported in schema v1.",
+  "logical_map": {
+    "id": "fixture_nonempty_overrides",
+    "orientation": "pointy_top_custom_axes",
+    "elevation_step": 0.4,
+    "edge_rule": { "default": "smooth", "cliff_if_abs_delta_greater_than": 1 },
+    "edge_overrides": [
+      { "edge": [[0, 0], [1, 0]], "transition": "cliff" }
+    ],
+    "tiles": [
+      { "q": 0, "r": 0, "elevation": 1 },
+      { "q": 1, "r": 0, "elevation": 1 }
+    ]
+  }
+}

@@ -15,15 +15,6 @@ const WorldMapScript = preload("res://domain/world/world_map.gd")
 const MapIdentityScript = preload("res://domain/world/map_identity.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 
-const _CANONICAL_NEIGHBOR_DELTAS: Array[Vector2i] = [
-	Vector2i(1, 0),
-	Vector2i(1, -1),
-	Vector2i(0, -1),
-	Vector2i(-1, 0),
-	Vector2i(-1, 1),
-	Vector2i(0, 1),
-]
-
 
 static func sha256_hex_lower(raw_bytes: PackedByteArray) -> String:
 	var ctx := HashingContext.new()
@@ -69,9 +60,8 @@ static func try_load_world_map_from_res_path(res_path: String) -> Dictionary:
 	var elevation_base: int = parsed_logical["elevation_base"]
 	var cliff_threshold: int = parsed_logical["cliff_threshold"]
 	var tiles_dict: Dictionary = parsed_logical["tiles_dict"]
-	var overrides: Dictionary = parsed_logical["overrides"]
 
-	var edges_dict := _derive_edges(tiles_dict, cliff_threshold, overrides)
+	var edges_dict := _derive_edges(tiles_dict, cliff_threshold)
 	var world_map := WorldMapScript.new(
 		identity, elevation_step, elevation_base, cliff_threshold, tiles_dict, edges_dict
 	)
@@ -267,7 +257,10 @@ static func _parse_logical_map(logical_map: Dictionary, source: String) -> Dicti
 			}
 		tiles_dict[coord] = WorldMapScript.WorldTile.new(q, r, elevation)
 
-	var overrides: Dictionary = {}
+	# edge_overrides is reserved for possible future use. Override behavior is
+	# not implemented: in schema v1 the field must be an empty array (or
+	# absent), and every edge classification is derived from the canonical
+	# height grid plus the locked threshold rule.
 	if logical_map.has("edge_overrides"):
 		var raw_overrides = logical_map["edge_overrides"]
 		if raw_overrides == null:
@@ -280,10 +273,14 @@ static func _parse_logical_map(logical_map: Dictionary, source: String) -> Dicti
 				"ok": false,
 				"error": "logical_map.edge_overrides must be an array in %s" % source,
 			}
-		var override_result := _parse_edge_overrides(raw_overrides, source, tiles_dict)
-		if not override_result["ok"]:
-			return {"ok": false, "error": override_result["error"]}
-		overrides = override_result["overrides"]
+		if not raw_overrides.is_empty():
+			return {
+				"ok": false,
+				"error": (
+					"logical_map.edge_overrides is reserved and must be empty in "
+					+ "schema v1 (functional overrides are unsupported) in %s" % source
+				),
+			}
 
 	return {
 		"ok": true,
@@ -293,159 +290,13 @@ static func _parse_logical_map(logical_map: Dictionary, source: String) -> Dicti
 		"elevation_base": elevation_base,
 		"cliff_threshold": cliff_threshold,
 		"tiles_dict": tiles_dict,
-		"overrides": overrides,
 	}
 
 
-static func _parse_tile_coord(raw: Variant, field_path: String, source: String) -> Dictionary:
-	if raw is Dictionary:
-		if not raw.has("q"):
-			return {"ok": false, "error": "Missing %s.q in %s" % [field_path, source]}
-		if not raw.has("r"):
-			return {"ok": false, "error": "Missing %s.r in %s" % [field_path, source]}
-		var q_result := _require_json_int(raw["q"], "%s.q" % field_path)
-		if not q_result["ok"]:
-			return {"ok": false, "error": "%s in %s" % [q_result["error"], source]}
-		var r_result := _require_json_int(raw["r"], "%s.r" % field_path)
-		if not r_result["ok"]:
-			return {"ok": false, "error": "%s in %s" % [r_result["error"], source]}
-		return {"ok": true, "error": "", "coord": Vector2i(q_result["value"], r_result["value"])}
-	if raw is Array and raw.size() == 2:
-		var q_result := _require_json_int(raw[0], "%s[0]" % field_path)
-		if not q_result["ok"]:
-			return {"ok": false, "error": "%s in %s" % [q_result["error"], source]}
-		var r_result := _require_json_int(raw[1], "%s[1]" % field_path)
-		if not r_result["ok"]:
-			return {"ok": false, "error": "%s in %s" % [r_result["error"], source]}
-		return {"ok": true, "error": "", "coord": Vector2i(q_result["value"], r_result["value"])}
-	return {"ok": false, "error": "Invalid tile coordinate at %s in %s" % [field_path, source]}
-
-
-static func _are_adjacent(a: Vector2i, b: Vector2i) -> bool:
-	var dq := b.x - a.x
-	var dr := b.y - a.y
-	for offset: Vector2i in _CANONICAL_NEIGHBOR_DELTAS:
-		if offset.x == dq and offset.y == dr:
-			return true
-	return false
-
-
-static func _parse_edge_overrides(
-	raw: Variant,
-	source: String,
-	tiles_dict: Dictionary
-) -> Dictionary:
-	var overrides: Dictionary = {}
-	if raw is Array:
-		for entry_index in raw.size():
-			var entry = raw[entry_index]
-			var entry_path := "logical_map.edge_overrides[%d]" % entry_index
-			if not entry is Dictionary:
-				return {
-					"ok": false,
-					"error": "%s must be an object in %s" % [entry_path, source],
-					"overrides": {},
-				}
-			if not entry.has("edge") or not entry.has("transition"):
-				return {
-					"ok": false,
-					"error": "%s missing edge/transition in %s" % [entry_path, source],
-					"overrides": {},
-				}
-			var edge_raw = entry["edge"]
-			if not edge_raw is Array or edge_raw.size() != 2:
-				return {
-					"ok": false,
-					"error": "%s.edge must be a pair of coordinates in %s" % [entry_path, source],
-					"overrides": {},
-				}
-			var a_result := _parse_tile_coord(edge_raw[0], "%s.edge[0]" % entry_path, source)
-			if not a_result["ok"]:
-				return {"ok": false, "error": a_result["error"], "overrides": {}}
-			var b_result := _parse_tile_coord(edge_raw[1], "%s.edge[1]" % entry_path, source)
-			if not b_result["ok"]:
-				return {"ok": false, "error": b_result["error"], "overrides": {}}
-			var transition_result := _normalize_transition(
-				entry["transition"], "%s.transition" % entry_path, source
-			)
-			if not transition_result["ok"]:
-				return {"ok": false, "error": transition_result["error"], "overrides": {}}
-			var a: Vector2i = a_result["coord"]
-			var b: Vector2i = b_result["coord"]
-			var store_result := _store_override(
-				overrides,
-				a,
-				b,
-				transition_result["transition"],
-				entry_path,
-				source,
-				tiles_dict,
-			)
-			if not store_result["ok"]:
-				return {"ok": false, "error": store_result["error"], "overrides": {}}
-		return {"ok": true, "error": "", "overrides": overrides}
-	return {"ok": false, "error": "logical_map.edge_overrides must be an array in %s" % source, "overrides": {}}
-
-
-static func _store_override(
-	overrides: Dictionary,
-	a: Vector2i,
-	b: Vector2i,
-	transition: String,
-	field_path: String,
-	source: String,
-	tiles_dict: Dictionary
-) -> Dictionary:
-	if a == b:
-		return {
-			"ok": false,
-			"error": "%s endpoints must be distinct in %s" % [field_path, source],
-		}
-	if not tiles_dict.has(a):
-		return {
-			"ok": false,
-			"error": "%s references missing tile (%d,%d) in %s" % [field_path, a.x, a.y, source],
-		}
-	if not tiles_dict.has(b):
-		return {
-			"ok": false,
-			"error": "%s references missing tile (%d,%d) in %s" % [field_path, b.x, b.y, source],
-		}
-	if not _are_adjacent(a, b):
-		return {
-			"ok": false,
-			"error": "%s references non-adjacent tiles (%d,%d)-(%d,%d) in %s"
-			% [field_path, a.x, a.y, b.x, b.y, source],
-		}
-	var edge_key := WorldMapScript.normalized_edge_key(a, b)
-	if overrides.has(edge_key):
-		return {
-			"ok": false,
-			"error": "%s duplicates override for edge %s in %s" % [field_path, edge_key, source],
-		}
-	overrides[edge_key] = transition
-	return {"ok": true, "error": ""}
-
-
-static func _normalize_transition(raw: Variant, field_path: String, source: String) -> Dictionary:
-	var string_result := _require_json_string(raw, field_path)
-	if not string_result["ok"]:
-		return {"ok": false, "error": "%s in %s" % [string_result["error"], source], "transition": ""}
-	var value: String = string_result["value"]
-	if value != WorldMapScript.EDGE_SMOOTH and value != WorldMapScript.EDGE_CLIFF:
-		return {
-			"ok": false,
-			"error": "Unsupported edge transition %s at %s in %s" % [value, field_path, source],
-			"transition": "",
-		}
-	return {"ok": true, "error": "", "transition": value}
-
-
-static func _derive_edges(
-	tiles_dict: Dictionary,
-	cliff_threshold: int,
-	overrides: Dictionary
-) -> Dictionary:
+# Derives every edge classification deterministically from the canonical
+# height grid and the locked threshold rule. The stored transitions are
+# derived data for consumers, not independently authored terrain authority.
+static func _derive_edges(tiles_dict: Dictionary, cliff_threshold: int) -> Dictionary:
 	var edges: Dictionary = {}
 	for coord: Vector2i in tiles_dict.keys():
 		var tile = tiles_dict[coord]
@@ -459,9 +310,7 @@ static func _derive_edges(
 				continue
 			var neighbor_tile = tiles_dict[neighbor]
 			var transition := WorldMapScript.EDGE_SMOOTH
-			if overrides.has(edge_key):
-				transition = str(overrides[edge_key])
-			elif abs(tile.elevation - neighbor_tile.elevation) > cliff_threshold:
+			if abs(tile.elevation - neighbor_tile.elevation) > cliff_threshold:
 				transition = WorldMapScript.EDGE_CLIFF
 			var edge_tiles: Array = WorldMapScript.parse_edge_key(edge_key)
 			edges[edge_key] = WorldMapScript.WorldEdge.new(edge_tiles[0], edge_tiles[1], transition)

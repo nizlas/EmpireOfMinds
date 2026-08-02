@@ -72,7 +72,8 @@ Shared tile edges are classified **`smooth`** vs **`cliff`** deterministically f
 
 1. Compute `|Δelevation|` for each undirected neighbor pair.
 2. Apply the locked rule from envelope `edge_rule` (reference map: cliff when `|Δ| > cliff_threshold`, default threshold **1**).
-3. Apply explicit **`edge_overrides`** from the logical map when present.
+
+**`edge_overrides`** in the envelope is **reserved for possible future use**: override behavior is **not implemented**, and the field must be an **empty array (or absent)** in schema v1 — loaders reject a non-empty list as unsupported. All current classifications come from the height grid plus the locked threshold rule.
 
 **Authority boundaries:**
 
@@ -81,7 +82,7 @@ Shared tile edges are classified **`smooth`** vs **`cliff`** deterministically f
 - It is **not** a separate terrain authority layer; changing cliffs in presentation or mesh must not feed back into gameplay.
 - **Underdetermined hex interior height** (partial-hex boundary condition at cliff corners) belongs to the **N3b height solver contract**, not N3a topology construction.
 
-N3a (`Ts08CutLattice`) consumes **`WorldMap` edges** plus the TS-08 cut/merge rules to build Ω_cut topology only — no continuous height solve.
+N3a (`Ts08CutLattice`) consumes **`WorldMap` edges** plus the TS-08 cut/merge rules to build Ω_cut topology only — no continuous height solve. The lattice is held **in memory**; any future persisted lattice cache must be a compact, versioned **binary** format (packed arrays, source `WorldMap` hash, format version, integrity checksum) treated as regenerable derived data — see [MAP_CONTENT.md](MAP_CONTENT.md).
 
 See [MAP_CONTENT.md](MAP_CONTENT.md) for yield/knowledge boundaries and [DECISION_LOG.md](DECISION_LOG.md) for the approved direction.
 
