@@ -54,15 +54,17 @@ Stop and propose a steering update before coding if the task requires changing p
 
 For map/terrain/world tasks, apply the doc routing row above, then:
 
-- **Four states — do not conflate:**
-  - *Current legacy* — **`HexMap`** + 2D presentation (`game/presentation/`). **Frozen**; do not extend.
-  - *Implemented foundation (N1)* — **`WorldMap`**, projection, loader, packaging under `game/domain/world/`. Non-rendered; not wired to gameplay, server, or 3D presentation yet.
-  - *Blender reference/tooling* — `tools/blender/terrain/`; development-only, never runtime.
-  - *Legacy scheduled for removal (N8)* — categorical `HexMap`, 2D renderer, category yield tables, snapshot v2.
+- **Six roles — do not conflate:**
+  - *Authoritative 2D input* — canonical logical map + height-level grid in `content/maps/` → **`WorldMap`** (N1). **Sole terrain source input**; gameplay logical authority.
+  - *TS-08-equivalent production solver* — **target** runtime construction path: generate continuous terrain from the 2D input ([TERRAIN_SURFACE_TARGET.md](docs/TERRAIN_SURFACE_TARGET.md)). Does **not** ship as a pre-solved JSON load in target architecture.
+  - *N2 derived golden* — `content/terrain/reference/` pre-solved Stage-2 export. **Parity testing and audit only**; does **not** replace the solver or become the production terrain source.
+  - *Optional temporary checkpoint* — N3 may load the N2 pre-solved dataset for early **visual parity** only; explicitly **not** target architecture ([DECISION_LOG.md](docs/DECISION_LOG.md) 2026-08-02 N2 terrain-direction alignment).
+  - *Blender reference/tooling* — `tools/blender/terrain/`; development-only, never runtime; not a production terrain source.
+  - *Frozen legacy (N8 removal)* — **`HexMap`** + 2D presentation, category yield tables, snapshot v2. **Do not extend.**
 - New map work targets **`WorldMap`** only; no legacy adapters.
 - **`WorldMap`** is logical authority; terrain mesh is derived presentation. Never write gameplay into mesh or infer rules from geometry.
 - Domain/rendering boundary: construction math engine-agnostic; Godot consumes in presentation.
-- Parity: geometry/topology vs reference dataset; visual vs accepted Blender result; collision vs generated surface.
+- Parity: **solver output** vs N2 golden (geometry/topology); visual vs accepted Blender result; collision vs **solver-generated** surface.
 - Do not build on superseded HexPatch/TS-07/Stage 3b experiments. No procedural map generation unless explicitly scoped.
 
 ## Phase 1 guardrails
