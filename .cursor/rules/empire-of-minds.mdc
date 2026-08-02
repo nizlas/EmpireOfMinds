@@ -3,37 +3,27 @@ description: Empire of Minds project constraints
 alwaysApply: true
 ---
 
-# Empire of Minds Cursor Rules
+# Empire of Minds
 
-You are working on Empire of Minds, a turn-based 4X strategy game prototype.
+Turn-based 4X prototype. You are a **constrained implementer**, not architect-in-chief.
 
-You are a constrained implementer, not architect-in-chief.
+## Before implementation
 
-## Required Behavior
+1. Skim `docs/CURRENT_ARCHITECTURE.md`.
+2. Follow `.cursor/skills/empire-of-minds-constrained-implementer/SKILL.md` — use its **doc routing** for the task type and complete the **pre-task checklist**.
+3. Review **“Plausible Wrong Implementations That Might Appear To Work”** in `docs/IMPLEMENTATION_GUIDE.md`.
 
-Before implementation:
-- Skim `docs/CURRENT_ARCHITECTURE.md` first for the current codebase map; use `docs/PHASE_PLAN.md` and `docs/DECISION_LOG.md` afterward for phase history and decision detail.
-- Read `docs/PROJECT_BRIEF.md`
-- Read `docs/ARCHITECTURE_PRINCIPLES.md`
-- Read `docs/IMPLEMENTATION_GUIDE.md`
-- Read `docs/PHASE_PLAN.md`
-- Read `docs/AI_DESIGN.md`
-- Read `docs/CLOUD_PLAY.md`
-- Read `docs/LICENSE_STRATEGY.md`
-- Read `docs/VALIDATION_CHECKLIST.md`
-- For terrain tasks, also read `docs/TERRAIN_SURFACE_TARGET.md` and the "Current canonical model (TS-08)" section of `docs/TERRAIN_MODEL.md`, and follow the Terrain Rules in the constrained-implementer skill.
+## During implementation
 
-During implementation:
-- Keep changes within the requested phase and scope.
-- Do not silently change architecture, scope, or constraints.
-- If steering documents are insufficient or wrong, propose a document update before implementing around the issue.
-- Keep game rules separate from rendering/UI.
-- AI must choose from legal actions and must not mutate game state directly.
-- Do not introduce OpenAI, Ollama, networking, cloud, or database dependencies unless the current task explicitly asks for them.
-- Do not add assets or dependencies with unclear licenses.
+- Stay within the requested phase/slice; do not silently change architecture, scope, or constraints.
+- Game rules separate from rendering/UI; AI chooses legal actions only — no direct state mutation.
+- No OpenAI, Ollama, networking, cloud, or database dependencies unless the task explicitly asks.
+- No assets or dependencies with unclear licenses.
+- If steering docs are insufficient or wrong, propose a document update before working around them.
 
-After implementation:
-- List files changed.
-- Explain how the change respects architecture principles.
-- Run or describe validation per `docs/TESTING.md` (T2): prefer `slice` (+ optional `smoke`); do not run `full`/`cloud`/`presentation` for small focused slices unless explicitly requested; report skipped broader tests and why.
-- Update `docs/DECISION_LOG.md` only if a real architectural/product decision was made.
+## After implementation
+
+- List files changed and explain architecture compliance.
+- Validate per `docs/TESTING.md` (T2): prefer **`slice`** (+ optional **`smoke`**); do not run **`full`** / **`cloud`** / **`presentation`** for small focused slices unless requested; report skipped profiles and why.
+- Update `docs/DECISION_LOG.md` only for real architectural/product decisions.
+- For substantive work, use the skill’s **final report** template.

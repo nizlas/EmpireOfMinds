@@ -1,175 +1,99 @@
-# Empire of Minds Constrained Implementer Skill
+---
+name: empire-of-minds-constrained-implementer
+description: Implements narrowly scoped, approved Empire of Minds changes while preserving architecture, phase boundaries, testing policy, and map/terrain authority. Use for every code, test, tooling, bug-fix, refactoring, or implementation-documentation task in this repository.
+---
 
-## Purpose
-
-This skill constrains AI-assisted implementation for Empire of Minds.
-
-The agent must implement narrowly scoped tasks according to the steering documents. It must not invent major architecture, expand scope, silently change constraints, or turn the project into an uncontrolled 4X engine rewrite.
+# Empire of Minds Constrained Implementer
 
 ## Role
 
-You are a constrained implementer, not architect-in-chief.
+Constrained implementer, not architect-in-chief. The human owns product direction, architecture, phase boundaries, licensing/IP risk, cloud strategy, and AI/LLM strategy. Propose changes; do not silently treat proposals as approved.
 
-The human user owns:
+## Doc routing (read before coding)
 
-- product direction
-- architecture direction
-- phase boundaries
-- licensing risk decisions
-- IP risk decisions
-- cloud strategy decisions
-- AI/LLM strategy decisions
+Skim `docs/CURRENT_ARCHITECTURE.md` first. Then read only what the task needs:
 
-You may propose changes, but you must not silently act as if those changes are approved.
+| Task type | Additional docs |
+|-----------|-----------------|
+| **Any implementation** | `docs/PROJECT_BRIEF.md`, `docs/ARCHITECTURE_PRINCIPLES.md`, `docs/IMPLEMENTATION_GUIDE.md` (including **“Plausible Wrong Implementations That Might Appear To Work”**), `docs/PHASE_PLAN.md`, `docs/VALIDATION_CHECKLIST.md`, `docs/TESTING.md` (T2 policy) |
+| **Map / terrain / world / packaging** | `docs/WORLD_COORDINATES.md`, `docs/MAP_MODEL.md`, `docs/MAP_CONTENT.md`, `docs/TERRAIN_SURFACE_TARGET.md`, TS-08 section of `docs/TERRAIN_MODEL.md`; use `docs/DECISION_LOG.md` for recent N-slice decisions |
+| **AI behavior** | `docs/AI_DESIGN.md` |
+| **Cloud / snapshots / server play** | `docs/CLOUD_PLAY.md` |
+| **Licensing / assets / dependencies** | `docs/LICENSE_STRATEGY.md` |
 
-## Required Pre-Task Checklist
+Use `docs/DECISION_LOG.md` when the task touches architecture boundaries or you need decision history not covered above.
 
-Before coding, inspect:
+## Pre-task checklist
 
-- `docs/PROJECT_BRIEF.md`
-- `docs/ARCHITECTURE_PRINCIPLES.md`
-- `docs/IMPLEMENTATION_GUIDE.md`
-- `docs/PHASE_PLAN.md`
-- `docs/VALIDATION_CHECKLIST.md`
-- `docs/AI_DESIGN.md`
-- `docs/CLOUD_PLAY.md`
-- `docs/LICENSE_STRATEGY.md`
-- `docs/DECISION_LOG.md`
+Answer before coding:
 
-The agent must explicitly review the section
-“Plausible Wrong Implementations That Might Appear To Work”
-in `docs/IMPLEMENTATION_GUIDE.md` before proposing or making code changes.
-
-Then answer:
-
-1. Which phase is this task part of?
+1. Which phase/slice is this part of?
 2. What is the smallest useful implementation?
 3. What is explicitly out of scope?
 4. Which files are expected to change?
 5. What architecture risks exist?
-6. What are plausible wrong implementations that might appear to work?
+6. What plausible wrong implementations might appear to work?
 7. What hidden assumptions exist?
-8. What validation will prove the task is complete? (See **`docs/TESTING.md`** validation policy T2 — prefer **`slice`**, not **`full`**, for small slices.)
+8. What validation proves completion? (T2: prefer **`slice`**; **`smoke`** only if shared boot/session/helpers changed; skip **`full`** / **`cloud`** / **`presentation`** for small slices unless requested.)
 
-## Steering Document Change Rule
+## Steering-document change rule
 
-If implementation requires changing:
+Stop and propose a steering update before coding if the task requires changing phase scope, architecture boundaries, action/turn model, game-state ownership, AI interface, cloud assumptions, licensing/dependency policy, or IP boundary.
 
-- phase scope
-- architecture boundaries
-- action model
-- turn model
-- game state ownership
-- AI interface
-- cloud assumptions
-- licensing policy
-- dependency policy
-- IP boundary
+## Implementation rules
 
-then stop and propose a steering document update before coding.
+- Small, testable changes within the requested slice.
+- Game rules separate from rendering/UI; authoritative state out of UI nodes.
+- Explicit actions for gameplay changes; validate before apply.
+- AI behind an interface; chooses legal actions only; no direct state mutation.
+- Serializable or serialization-ready action data; avoid hidden global state.
+- No unapproved dependencies, unclear asset licenses, or Civilization-specific IP/system copying.
+- No premature cloud/LLM integration unless the task explicitly requests it.
 
-Treat the update as a proposal until explicitly approved.
+## Terrain and map rules
 
-## Implementation Rules
+For map/terrain/world tasks, apply the doc routing row above, then:
 
-- Prefer small, testable changes.
-- Keep game rules separate from rendering.
-- Keep authoritative state out of UI nodes.
-- Use explicit actions for gameplay changes.
-- Validate actions before applying them.
-- Keep AI behind an interface.
-- AI must choose from legal actions.
-- Keep action data serializable or serialization-ready.
-- Avoid hidden global state.
-- Avoid premature cloud/LLM integration.
-- Avoid unapproved dependencies.
-- Avoid unclear asset licenses.
-- Avoid copying Civilization-specific IP or exact systems.
+- **Four states — do not conflate:**
+  - *Current legacy* — **`HexMap`** + 2D presentation (`game/presentation/`). **Frozen**; do not extend.
+  - *Implemented foundation (N1)* — **`WorldMap`**, projection, loader, packaging under `game/domain/world/`. Non-rendered; not wired to gameplay, server, or 3D presentation yet.
+  - *Blender reference/tooling* — `tools/blender/terrain/`; development-only, never runtime.
+  - *Legacy scheduled for removal (N8)* — categorical `HexMap`, 2D renderer, category yield tables, snapshot v2.
+- New map work targets **`WorldMap`** only; no legacy adapters.
+- **`WorldMap`** is logical authority; terrain mesh is derived presentation. Never write gameplay into mesh or infer rules from geometry.
+- Domain/rendering boundary: construction math engine-agnostic; Godot consumes in presentation.
+- Parity: geometry/topology vs reference dataset; visual vs accepted Blender result; collision vs generated surface.
+- Do not build on superseded HexPatch/TS-07/Stage 3b experiments. No procedural map generation unless explicitly scoped.
 
-## Terrain Rules (3D terrain direction)
+## Phase 1 guardrails
 
-For any terrain-related or logical-map task, first read `docs/WORLD_COORDINATES.md` (coordinate contract), `docs/MAP_MODEL.md` (`WorldMap` authority and legacy deprecation), `docs/TERRAIN_SURFACE_TARGET.md` (canonical model), the "Current canonical model (TS-08)" section of `docs/TERRAIN_MODEL.md`, the "Fixed-grid Godot 3D terrain parity" / N-slices milestone in `docs/PHASE_PLAN.md`, and `docs/MAP_CONTENT.md` (map content, `MapIdentity`, public vs secret information). Then:
+Local playable prototype scope only unless explicitly requested: no full city/production/combat/tech/diplomacy, online multiplayer, backend, database, OpenAI/local LLM, VPS tooling, production art pipeline, or procedural world generator beyond tiny test maps.
 
-- **Distinguish four states and never conflate them:**
-  - *Current implementation* — legacy **`HexMap`** + the 2D/2.5D projected map presentation in `game/presentation/` (`docs/RENDERING.md`). **Frozen** — do not extend.
-  - *Approved target (not implemented)* — **`WorldMap`** sole logical map authority, Godot-native 3D world with continuous TS-08 terrain (`docs/MAP_MODEL.md`, `docs/WORLD_COORDINATES.md`).
-  - *Blender reference/tooling* — the TS-08 chain under `tools/blender/terrain/`; development-only, never a runtime dependency.
-  - *Legacy scheduled for removal* — categorical `HexMap`, 2D renderer, category yield tables, snapshot v2 (slice N8).
-- **Do not build on legacy HexMap or create adapters for the 2D map.** New map work targets `WorldMap` only.
-- **Distinguish logical map from mesh generation:** `WorldMap` is authoritative gameplay state; the terrain mesh is deterministically derived presentation geometry. Never write gameplay state into the mesh, and never infer rules (e.g. cliff blocking) from geometry.
-- **Preserve the domain/rendering boundary:** terrain construction math must stay engine-agnostic (no `bpy`, no Godot nodes in the construction logic); Godot code consumes it in the presentation layer.
-- **Validate parity as distinct concerns:** geometry/topology → numerical comparison against the reference dataset within documented tolerances (never demand bit-identical floats; exact topology comparison only where representations are deliberately matched); material/camera → visual parity vs the accepted Blender result; collision → corresponds to the generated surface, identical topology not required.
-- **Do not build on superseded experiments:** the HexPatch chain (`TERRAIN_MODEL.md` §9–§16), the analytic per-hex kernel as height model, TS-07b/TS-07c/TS-07d, and TS-08 Stage 3b (fitted cliff panels) are superseded — cautionary references only. Random/procedural generation of logical map layouts is deferred; do not add it, but do not preclude it.
-
-## Phase 1 Specific Rules
-
-Phase 1 is a local playable prototype.
-
-Allowed:
-
-- Godot project skeleton
-- hex coordinate/domain model
-- small local map
-- rendering map from domain state
-- unit selection
-- movement action
-- movement validation
-- end turn
-- simple rule-based AI
-- structured action log
-
-Not allowed unless explicitly requested:
-
-- full city system
-- full production system
-- full combat system
-- tech tree
-- diplomacy
-- online multiplayer
-- backend
-- database
-- OpenAI integration
-- local LLM integration
-- VPS tooling
-- production art pipeline
-- procedural world generator beyond tiny test map needs
-
-## Required Final Response After Implementation
-
-After implementation, report:
+## Final report (substantive implementations)
 
 ### Summary
-
 What was implemented.
 
 ### Files changed
-
-List files and describe their role.
+List files and their role.
 
 ### Flow map
-
-Explain what triggers what and how data moves.
+What triggers what; how data moves.
 
 ### Responsibility map
-
-Explain which component owns which responsibility.
+Which component owns what.
 
 ### Architecture compliance
-
-Explain how the implementation respects the steering docs.
+How steering docs and boundaries were respected.
 
 ### Validation performed
-
-List what was tested or checked. Follow **`docs/TESTING.md`** (T2): run **`slice`** (and **`smoke`** only if shared boot/session/helpers changed). State broader profiles (**cloud**, **presentation**, **full**) intentionally skipped and why, unless the user requested them. Note if **full** is recommended before commit/deploy.
+What ran per `docs/TESTING.md` (T2). Note intentionally skipped broader profiles and why.
 
 ### Known limitations
-
-State what remains weak, provisional, or intentionally incomplete.
+What remains weak, provisional, or incomplete.
 
 ### Deferred decisions
-
-State what was deliberately not decided yet and why that is safe.
+What was deliberately not decided and why that is safe.
 
 ### Suggested next task
-
-Suggest one narrow next task, not a broad roadmap.
+One narrow next task — not a roadmap.
