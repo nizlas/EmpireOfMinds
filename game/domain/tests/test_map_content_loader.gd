@@ -63,6 +63,7 @@ func _test_invalid_fixtures() -> void:
 		"res://domain/tests/fixtures/world/envelope_invalid_override_malformed_edge.json",
 		"res://domain/tests/fixtures/world/envelope_invalid_duplicate_override.json",
 		"res://domain/tests/fixtures/world/envelope_invalid_edge_overrides_null.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_edge_overrides_object.json",
 		"res://domain/tests/fixtures/world/envelope_invalid_threshold_negative.json",
 		"res://domain/tests/fixtures/world/envelope_invalid_nearly_integral_tile_q.json",
 		"res://domain/tests/fixtures/world/envelope_invalid_nearly_integral_threshold.json",

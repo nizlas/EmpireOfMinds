@@ -48,6 +48,7 @@ INVALID_FIXTURES = [
     "envelope_invalid_override_malformed_edge.json",
     "envelope_invalid_duplicate_override.json",
     "envelope_invalid_edge_overrides_null.json",
+    "envelope_invalid_edge_overrides_object.json",
     "envelope_invalid_threshold_negative.json",
     "envelope_invalid_nearly_integral_tile_q.json",
     "envelope_invalid_nearly_integral_threshold.json",
@@ -171,6 +172,14 @@ def test_edge_overrides_null_rejected_with_array_message() -> None:
     )
     with pytest.raises(MapContentValidationError, match="edge_overrides must be an array"):
         validate_envelope(envelope, Path("envelope_invalid_edge_overrides_null.json"))
+
+
+def test_edge_overrides_object_rejected_with_array_message() -> None:
+    envelope = json.loads(
+        (FIXTURES / "envelope_invalid_edge_overrides_object.json").read_text(encoding="utf-8")
+    )
+    with pytest.raises(MapContentValidationError, match="edge_overrides must be an array"):
+        validate_envelope(envelope, Path("envelope_invalid_edge_overrides_object.json"))
 
 
 def test_stale_copy_detected() -> None:
@@ -356,8 +365,27 @@ def test_unsupported_category_folder_rejected() -> None:
         source_path.write_bytes(VALID_MINIMAL.read_bytes())
         envelope = json.loads(source_path.read_text(encoding="utf-8"))
         validate_envelope(envelope, source_path)
-        with pytest.raises(MapContentValidationError, match="Unsupported source category folder"):
+        with pytest.raises(MapContentValidationError) as exc_info:
             validate_origin_folder(source_path, repo_root, envelope)
+        msg = str(exc_info.value)
+        assert "Unsupported source category folder" in msg
+        assert "unknown" in msg
+        assert "declared origin 'reference'" in msg
+
+
+def test_unsupported_category_folder_diagnostic_via_cli() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo_root = Path(tmp) / "mini_repo"
+        (repo_root / SOURCE_ROOT / "unknown").mkdir(parents=True)
+        source_path = repo_root / SOURCE_ROOT / "unknown" / "bad.json"
+        source_path.write_bytes(VALID_MINIMAL.read_bytes())
+        result = _run_sync_subprocess("sync", repo_root, repo_root=repo_root)
+        _assert_cli_validation_failure(
+            result,
+            "unknown",
+            "declared origin 'reference'",
+            "ERROR:",
+        )
 
 
 def test_origin_mismatch_leaves_derived_tree_unchanged() -> None:

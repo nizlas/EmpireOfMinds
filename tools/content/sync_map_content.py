@@ -53,21 +53,17 @@ def _load_envelope(raw: bytes, source: Path) -> dict[str, Any]:
     return parsed
 
 
-def _source_category(source_path: Path, repo_root: Path) -> str:
+def validate_origin_folder(source_path: Path, repo_root: Path, envelope: dict[str, Any]) -> None:
     rel = source_path.relative_to(repo_root / SOURCE_ROOT)
     if not rel.parts:
         raise MapContentValidationError(f"Invalid source map path: {source_path}")
     category = rel.parts[0]
+    origin = envelope.get("origin")
     if category not in VALID_ORIGINS:
         raise MapContentValidationError(
-            f"Unsupported source category folder {category!r} for {source_path}"
+            f"Unsupported source category folder {category!r} for {source_path} "
+            f"(declared origin {origin!r})"
         )
-    return category
-
-
-def validate_origin_folder(source_path: Path, repo_root: Path, envelope: dict[str, Any]) -> None:
-    category = _source_category(source_path, repo_root)
-    origin = envelope.get("origin")
     if origin != category:
         raise MapContentValidationError(
             f"Origin {origin!r} does not match source category folder {category!r} for {source_path}"
@@ -154,13 +150,6 @@ def _parse_tile_coord(raw: Any, field_path: str, source: Path) -> tuple[int, int
     raise MapContentValidationError(f"Invalid tile coordinate at {field_path} in {source}")
 
 
-def _parse_override_key_component(raw: str, field_path: str) -> int:
-    stripped = raw.strip()
-    if not stripped.lstrip("-").isdigit():
-        raise MapContentValidationError(f"{field_path} must be an integer, got non-numeric string")
-    return int(stripped)
-
-
 def _normalize_transition(raw: Any, field_path: str, source: Path) -> str:
     transition = _require_json_string(raw, field_path)
     if transition not in SUPPORTED_TRANSITIONS:
@@ -220,44 +209,24 @@ def _validate_tiles_strict(logical_map: dict[str, Any], source: Path) -> dict[tu
 
 
 def _validate_edge_overrides_strict(
-    raw: Any, tiles: dict[tuple[int, int], int], source: Path
+    raw: list[Any], tiles: dict[tuple[int, int], int], source: Path
 ) -> None:
     overrides: dict[tuple[tuple[int, int], tuple[int, int]], str] = {}
-    if isinstance(raw, dict):
-        for key, value in raw.items():
-            key_str = str(key)
-            parts = key_str.split(",")
-            if len(parts) != 4:
-                raise MapContentValidationError(f"Invalid edge override key {key_str!r} in {source}")
-            a = (
-                _parse_override_key_component(parts[0], f"edge_overrides[{key_str!r}].q1"),
-                _parse_override_key_component(parts[1], f"edge_overrides[{key_str!r}].r1"),
+    for index, entry in enumerate(raw):
+        field_path = f"logical_map.edge_overrides[{index}]"
+        if not isinstance(entry, dict):
+            raise MapContentValidationError(f"{field_path} must be an object in {source}")
+        if "edge" not in entry or "transition" not in entry:
+            raise MapContentValidationError(f"{field_path} missing edge/transition in {source}")
+        edge_raw = entry["edge"]
+        if not isinstance(edge_raw, list) or len(edge_raw) != 2:
+            raise MapContentValidationError(
+                f"{field_path}.edge must be a pair of coordinates in {source}"
             )
-            b = (
-                _parse_override_key_component(parts[2], f"edge_overrides[{key_str!r}].q2"),
-                _parse_override_key_component(parts[3], f"edge_overrides[{key_str!r}].r2"),
-            )
-            transition = _normalize_transition(value, f"edge_overrides[{key_str!r}]", source)
-            _store_override(overrides, a, b, transition, f"edge_overrides[{key_str!r}]", source, tiles)
-        return
-    if isinstance(raw, list):
-        for index, entry in enumerate(raw):
-            field_path = f"logical_map.edge_overrides[{index}]"
-            if not isinstance(entry, dict):
-                raise MapContentValidationError(f"{field_path} must be an object in {source}")
-            if "edge" not in entry or "transition" not in entry:
-                raise MapContentValidationError(f"{field_path} missing edge/transition in {source}")
-            edge_raw = entry["edge"]
-            if not isinstance(edge_raw, list) or len(edge_raw) != 2:
-                raise MapContentValidationError(
-                    f"{field_path}.edge must be a pair of coordinates in {source}"
-                )
-            a = _parse_tile_coord(edge_raw[0], f"{field_path}.edge[0]", source)
-            b = _parse_tile_coord(edge_raw[1], f"{field_path}.edge[1]", source)
-            transition = _normalize_transition(entry["transition"], f"{field_path}.transition", source)
-            _store_override(overrides, a, b, transition, field_path, source, tiles)
-        return
-    raise MapContentValidationError(f"Unsupported edge_overrides format in {source}")
+        a = _parse_tile_coord(edge_raw[0], f"{field_path}.edge[0]", source)
+        b = _parse_tile_coord(edge_raw[1], f"{field_path}.edge[1]", source)
+        transition = _normalize_transition(entry["transition"], f"{field_path}.transition", source)
+        _store_override(overrides, a, b, transition, field_path, source, tiles)
 
 
 def validate_envelope(envelope: dict[str, Any], source: Path) -> None:
@@ -333,9 +302,9 @@ def validate_envelope(envelope: dict[str, Any], source: Path) -> None:
             raise MapContentValidationError(
                 f"logical_map.edge_overrides must be an array, got null in {source}"
             )
-        if not isinstance(edge_overrides, (list, dict)):
+        if not isinstance(edge_overrides, list):
             raise MapContentValidationError(
-                f"logical_map.edge_overrides must be array or object in {source}"
+                f"logical_map.edge_overrides must be an array in {source}"
             )
         _validate_edge_overrides_strict(edge_overrides, tiles, source)
 

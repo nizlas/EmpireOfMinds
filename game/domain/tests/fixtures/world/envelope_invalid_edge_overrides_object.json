@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "origin": "reference",
+  "provenance": "Object edge_overrides must be rejected; only arrays are supported.",
+  "logical_map": {
+    "id": "fixture_overrides_object",
+    "orientation": "pointy_top_custom_axes",
+    "elevation_step": 0.4,
+    "edge_rule": { "default": "smooth", "cliff_if_abs_delta_greater_than": 1 },
+    "edge_overrides": {
+      "0,0,1,0": "smooth"
+    },
+    "tiles": [
+      { "q": 0, "r": 0, "elevation": 1 },
+      { "q": 1, "r": 0, "elevation": 3 }
+    ]
+  }
+}

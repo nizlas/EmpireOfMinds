@@ -275,10 +275,10 @@ static func _parse_logical_map(logical_map: Dictionary, source: String) -> Dicti
 				"ok": false,
 				"error": "logical_map.edge_overrides must be an array, got null in %s" % source,
 			}
-		if not (raw_overrides is Array or raw_overrides is Dictionary):
+		if not raw_overrides is Array:
 			return {
 				"ok": false,
-				"error": "logical_map.edge_overrides must be array or object in %s" % source,
+				"error": "logical_map.edge_overrides must be an array in %s" % source,
 			}
 		var override_result := _parse_edge_overrides(raw_overrides, source, tiles_dict)
 		if not override_result["ok"]:
@@ -336,41 +336,6 @@ static func _parse_edge_overrides(
 	tiles_dict: Dictionary
 ) -> Dictionary:
 	var overrides: Dictionary = {}
-	if raw is Dictionary:
-		for key in raw.keys():
-			var key_str := str(key)
-			var parts := key_str.split(",")
-			if parts.size() != 4:
-				return {
-					"ok": false,
-					"error": "Invalid edge override key %s in %s" % [key_str, source],
-					"overrides": {},
-				}
-			var q1_result := _parse_override_key_component(
-				parts[0], "edge_overrides[%s].q1" % key_str, source
-			)
-			if not q1_result["ok"]:
-				return {"ok": false, "error": q1_result["error"], "overrides": {}}
-			var r1_result := _parse_override_key_component(parts[1], "edge_overrides[%s].r1" % key_str, source)
-			if not r1_result["ok"]:
-				return {"ok": false, "error": r1_result["error"], "overrides": {}}
-			var q2_result := _parse_override_key_component(parts[2], "edge_overrides[%s].q2" % key_str, source)
-			if not q2_result["ok"]:
-				return {"ok": false, "error": q2_result["error"], "overrides": {}}
-			var r2_result := _parse_override_key_component(parts[3], "edge_overrides[%s].r2" % key_str, source)
-			if not r2_result["ok"]:
-				return {"ok": false, "error": r2_result["error"], "overrides": {}}
-			var a := Vector2i(q1_result["value"], r1_result["value"])
-			var b := Vector2i(q2_result["value"], r2_result["value"])
-			var transition_result := _normalize_transition(raw[key], "edge_overrides[%s]" % key_str, source)
-			if not transition_result["ok"]:
-				return {"ok": false, "error": transition_result["error"], "overrides": {}}
-			var store_result := _store_override(
-				overrides, a, b, transition_result["transition"], "edge_overrides[%s]" % key_str, source, tiles_dict
-			)
-			if not store_result["ok"]:
-				return {"ok": false, "error": store_result["error"], "overrides": {}}
-		return {"ok": true, "error": "", "overrides": overrides}
 	if raw is Array:
 		for entry_index in raw.size():
 			var entry = raw[entry_index]
@@ -419,20 +384,7 @@ static func _parse_edge_overrides(
 			if not store_result["ok"]:
 				return {"ok": false, "error": store_result["error"], "overrides": {}}
 		return {"ok": true, "error": "", "overrides": overrides}
-	return {"ok": false, "error": "Unsupported edge_overrides format in %s" % source, "overrides": {}}
-
-
-static func _parse_override_key_component(raw: String, field_path: String, source: String) -> Dictionary:
-	if not raw.is_valid_int():
-		return {
-			"ok": false,
-			"error": "%s must be an integer, got non-numeric string in %s" % [field_path, source],
-		}
-	var parsed := int(raw)
-	if str(parsed) != raw.strip_edges() and str(parsed) != raw:
-		# Reject leading-zero or non-canonical string forms only if raw isn't exact int text
-		pass
-	return {"ok": true, "error": "", "value": parsed}
+	return {"ok": false, "error": "logical_map.edge_overrides must be an array in %s" % source, "overrides": {}}
 
 
 static func _store_override(
