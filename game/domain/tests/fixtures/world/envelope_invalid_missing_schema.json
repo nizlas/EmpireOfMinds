@@ -1,0 +1,8 @@
+{
+  "origin": "reference",
+  "provenance": "Missing schema_version",
+  "logical_map": {
+    "id": "bad",
+    "tiles": [{ "q": 0, "r": 0, "elevation": 1 }]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "maps": [
+    {
+      "path": "reference/handdrawn_test_map_full_01.json",
+      "map_id": "handdrawn_test_map_full_01",
+      "schema_version": 1,
+      "content_hash": "16cc82c3392c66f1e47273e7da94cf8a804ae9885a051fc81c4b0a9a4261d8c6",
+      "source_path": "content/maps/reference/handdrawn_test_map_full_01.json"
+    }
+  ]
+}

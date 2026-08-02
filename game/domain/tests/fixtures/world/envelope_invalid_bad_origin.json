@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "origin": "not_a_valid_origin",
+  "provenance": "Invalid origin fixture",
+  "logical_map": {
+    "id": "bad",
+    "tiles": [{ "q": 0, "r": 0, "elevation": 1 }]
+  }
+}

@@ -2646,7 +2646,7 @@ Reproduce the accepted **TS-08** Blender reference terrain (see [TERRAIN_SURFACE
 | Slice | Status | Goal |
 |-------|--------|------|
 | **N0** | **Done (docs)** | Coordinate contract, `WorldMap` architecture, yield direction, legacy deprecation — [WORLD_COORDINATES.md](WORLD_COORDINATES.md), [MAP_MODEL.md](MAP_MODEL.md) |
-| **N1** | Planned | `WorldMap`, projection, loader, `MapIdentity`, packaging sync, headless tests — **no rendering** |
+| **N1** | **Done (2026-08)** | `WorldMap`, projection, loader, `MapIdentity`, packaging sync, headless tests — **no rendering** |
 | **N2** | Planned | Blender TS-08 reference-dataset export + audit |
 | **N3** | Planned | First visible 3D world: real TS-08 surface, orbit camera, tile/edge picking |
 | **N4** | Planned | World anchors + projected screen-space UI |

@@ -2,7 +2,7 @@
 
 This document is the **canonical detailed source** for how logical map data is owned, categorized, serialized, and consumed. Other steering documents link here rather than duplicating the full architecture.
 
-**Status:** envelope schema v1 and the TS-08 reference file are **implemented** (Slice B+C, 2026-08). The approved **`WorldMap`** authority, **`MapIdentity`**, packaging sync, and Godot/server loading are **planned** (slices N1, N7) — **not yet implemented**. See [MAP_MODEL.md](MAP_MODEL.md) and [WORLD_COORDINATES.md](WORLD_COORDINATES.md).
+**Status:** envelope schema v1, TS-08 reference file, Godot **`WorldMap`** foundation loader, and packaging sync are **implemented** (slices B+C and **N1**, 2026-08). Server loading and snapshot v3 remain **planned N7**.
 
 ---
 
@@ -170,32 +170,37 @@ Old content wording (“Hill Production Bonus”) is **design intent** for later
 
 | Authority | Status |
 |-----------|--------|
-| **`WorldMap`** (approved) | **Not implemented** — sole target logical map (N1+) |
+| **`WorldMap`** (approved, N1 implemented) | **Implemented** as foundation code — not yet wired to gameplay or server |
 | **`HexMap`** (legacy) | **Still exists**, frozen, scheduled for removal N8 — categorical tags, no elevation |
 
 There is **no adapter** between them. An explicit loading boundary converts envelope v1 → `WorldMap` at import ([WORLD_COORDINATES.md](WORLD_COORDINATES.md) import-boundary identity for the reference payload).
 
 ---
 
-## Packaging and synchronization (planned N1)
+## Packaging and synchronization (implemented N1)
 
 **Canonical source:** `content/maps/**`
 
-**Planned mechanism:** repository-owned Python script `tools/content/sync_map_content.py` (not yet implemented):
+**Mechanism:** repository-owned Python script `tools/content/sync_map_content.py`:
 
-- Validates envelopes (reusing `eom_map_content.py` conventions).
-- Copies to `game/content/maps/**` (committed derived artifact for Godot `res://`).
+- Validates envelopes via `eom_terrain_math_core.parse_terrain_map_ir`.
+- Copies byte-identically to `game/content/maps/**` (committed derived artifact for Godot `res://`).
 - Writes `game/content/maps/manifest.json` with per-file `{path, map_id, schema_version, content_hash, source_path}`.
-- Freshness: tests compare source ↔ copy ↔ manifest hashes.
+- Freshness: `python tools/content/sync_map_content.py check` and pytest under `tools/content/tests/`.
 
-**Per environment (planned):**
+**Commands:**
 
-- Local dev / Godot tests: `res://content/maps/**`
+```text
+python tools/content/sync_map_content.py sync
+python tools/content/sync_map_content.py check
+```
+
+**Per environment:**
+
+- Local dev / Godot tests: `res://content/maps/**` via **`MapContentLoader`**
 - Exports: include JSON + manifest
 - Server (N7): canonical repo path in dev; ship `content/` in deployment
 - Blender: continues reading canonical path via `eom_map_content.py`
-
-Do not treat packaging as implemented until slice N1 lands.
 
 ---
 
@@ -211,8 +216,8 @@ Promoting an ordinary runtime-generated map into `content/maps/generated/` is in
 |-------|-------|
 | **Schema** | Shared conceptually across environments; envelope v1 rules documented here and in [WORLD_COORDINATES.md](WORLD_COORDINATES.md) |
 | **Blender tooling loader** | `tools/blender/terrain/eom_map_content.py` — development/reference tooling only |
-| **Repository sync tooling (N1)** | Planned `tools/content/sync_map_content.py` — may reuse validation semantics aligned with the canonical schema; **not** a runtime dependency |
-| **Godot loader (N1)** | Planned `game/domain/world/map_content_loader.gd` |
+| **Repository sync tooling (N1)** | `tools/content/sync_map_content.py` — validates and copies canonical maps; **implemented** |
+| **Godot loader (N1)** | `game/domain/world/map_content_loader.gd` — **implemented** |
 | **Server loader (N7)** | Planned server-owned loader under `server/app/` — loads canonical content identified by `MapIdentity`, verifies raw-byte SHA-256 `content_hash`, rejects schema or identity mismatches explicitly; **must not import** from `tools/blender/` |
 | **Architectural owner of map truth** | `WorldMap` — not any loader module |
 

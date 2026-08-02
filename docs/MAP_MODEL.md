@@ -1,6 +1,6 @@
 # Empire of Minds — Domain map model
 
-**Status (2026-08):** the approved target is a single canonical logical map authority named **`WorldMap`** (not yet implemented — slice **N1** onward). The current runnable game still uses the legacy **`HexMap`** categorical model documented in [Legacy HexMap (frozen)](#legacy-hexmap-frozen) below.
+**Status (2026-08):** **`WorldMap`** foundation is **implemented** (slice **N1**) under `game/domain/world/` — loads packaged canonical content, derives edges, exposes projection math. **Not yet connected** to gameplay, server, or 3D rendering. The current runnable game still uses the legacy **`HexMap`** categorical model documented in [Legacy HexMap (frozen)](#legacy-hexmap-frozen) below.
 
 Coordinate contract: [WORLD_COORDINATES.md](WORLD_COORDINATES.md). Map content ownership: [MAP_CONTENT.md](MAP_CONTENT.md). Axial cell identity: [HEX_COORDINATES.md](HEX_COORDINATES.md).
 

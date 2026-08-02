@@ -43,6 +43,7 @@ Concise map of **what exists in code today**. For phased history and decisions u
 
 | Area | Responsibility (today) |
 |------|-------------------------|
+| **`game/domain/world/` (N1)** | **`WorldMap`**, **`MapIdentity`**, **`HexWorldProjection`**, **`MapContentLoader`** — canonical map foundation; not wired to gameplay or presentation yet |
 | **[GameState](../game/domain/game_state.gd)** | Session facade **`try_apply`**; authoritative **`scenario`**, **`turn_state`**, **`progress_state`**, **`visibility_state`** (**[`PlayerVisibilityState`](../game/domain/player_visibility_state.gd)**, **5.2.3**), **`ActionLog`** for local play |
 | **[HexCoord](../game/domain/hex_coord.gd)** | Axial cell identity / neighbors; **`axial_distance`** (**5.2.3** cube metric for sight radii) |
 | **[HexMap](../game/domain/hex_map.gd)** | Finite cell set; terrain tags; **`Landform`**; **`_woods` overlay**; prototype factories (**`make_tiny_test_map`**, **`make_prototype_play_map`**) |
@@ -91,9 +92,9 @@ Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative 
 Keep these four strictly apart; do not mix target components into the current inventory above.
 
 - **Current runnable architecture:** the 2D/2.5D projected map presentation described in the tables above ([RENDERING.md](RENDERING.md)). No 3D terrain exists in the running game (the opt-in 3D unit/city marker experiment blits SubViewport textures into the 2D pipeline).
-- **Approved target (not implemented):** **`WorldMap`** as the sole logical map authority ([MAP_MODEL.md](MAP_MODEL.md)), Godot-native 3D world with continuous TS-08 terrain, orbit camera, and world-anchored UI — see the "3D Map and World Integration" slices (N0–N8) in [PHASE_PLAN.md](PHASE_PLAN.md), [WORLD_COORDINATES.md](WORLD_COORDINATES.md), [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), and the canonical section of [TERRAIN_MODEL.md](TERRAIN_MODEL.md).
+- **Approved target (not implemented as gameplay):** **`WorldMap`** foundation implemented (slice **N1**, 2026-08) under `game/domain/world/` — loads packaged canonical map content, derives edges, and exposes projection math. **Not yet connected** to gameplay, server, or 3D rendering. Full 3D world integration continues with N2–N8 — see [PHASE_PLAN.md](PHASE_PLAN.md), [WORLD_COORDINATES.md](WORLD_COORDINATES.md), [MAP_MODEL.md](MAP_MODEL.md).
 - **Blender reference/tooling (development-only, outside the game):** the TS-08 chain under `tools/blender/terrain/` (see its `README.md` and `TERRAIN_PROTOTYPE_MANIFEST.md`). Never a runtime dependency; the Blender mesh is not the final source of the playable terrain.
-- **Map content (implemented):** repo-root `content/maps/` with `reference/`, `authored/`, and `generated/` subdirectories ([MAP_CONTENT.md](MAP_CONTENT.md)). The TS-08 reference map is **`content/maps/reference/handdrawn_test_map_full_01.json`** (JSON envelope schema v1). Blender tooling loads it via `tools/blender/terrain/eom_map_content.py`; `generate_terrain_terrainmap_handdrawn_full_01.py` exposes `TERRAIN_MAP_JSON` for existing attribute consumers. Godot loading, `MapIdentity`, and packaging sync are **planned N1** — not implemented.
+- **Map content (implemented):** repo-root `content/maps/` with `reference/`, `authored/`, and `generated/` subdirectories ([MAP_CONTENT.md](MAP_CONTENT.md)). The TS-08 reference map is **`content/maps/reference/handdrawn_test_map_full_01.json`** (JSON envelope schema v1). Blender tooling loads it via `tools/blender/terrain/eom_map_content.py`. Godot consumes a **byte-identical derived copy** under `game/content/maps/` maintained by `python tools/content/sync_map_content.py sync` (see manifest at `game/content/maps/manifest.json`). **`MapContentLoader`** (N1) reads the derived package into **`WorldMap`**.
 
 ---
 

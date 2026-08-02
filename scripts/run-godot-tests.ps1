@@ -77,6 +77,9 @@ $Script:SmokeTests = @(
 # Full regression order (unchanged from pre-profile runner).
 $Script:AllTests = @(
 	"res://domain/tests/test_hex_coord.gd",
+	"res://domain/tests/test_hex_world_projection.gd",
+	"res://domain/tests/test_world_map_foundation.gd",
+	"res://domain/tests/test_map_content_loader.gd",
 	"res://domain/tests/test_player_visibility_state.gd",
 	"res://domain/tests/test_player_visibility_reveal.gd",
 	"res://domain/tests/test_hex_map.gd",
