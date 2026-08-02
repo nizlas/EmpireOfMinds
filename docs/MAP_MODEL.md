@@ -1,86 +1,129 @@
-# Empire of Minds — Domain map model (Phase 1.2)
+# Empire of Minds — Domain map model
 
-Hex cell addressing uses axial coordinates; see [HEX_COORDINATES.md](HEX_COORDINATES.md) for `(q, r)` and neighbor directions. This document only describes the **map container** in Phase 1.2.
+**Status (2026-08):** the approved target is a single canonical logical map authority named **`WorldMap`** (not yet implemented — slice **N1** onward). The current runnable game still uses the legacy **`HexMap`** categorical model documented in [Legacy HexMap (frozen)](#legacy-hexmap-frozen) below.
 
-**Terrain layering note:** `HexMap` is the **logical/domain map** — layer 1 of the three terrain layers (logical map → terrain construction → presentation; see [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) and [TERRAIN_MODEL.md](TERRAIN_MODEL.md)). The presentation notes in this document describe the **current implemented 2D map presentation**; the approved target adds Godot 3D terrain construction that reads the same logical map (see the parity milestone in [PHASE_PLAN.md](PHASE_PLAN.md)) without changing `HexMap`'s role as gameplay truth. **Map content ownership and serialization** (reference/authored/generated categories, JSON envelope schema) are defined in [MAP_CONTENT.md](MAP_CONTENT.md).
+Coordinate contract: [WORLD_COORDINATES.md](WORLD_COORDINATES.md). Map content ownership: [MAP_CONTENT.md](MAP_CONTENT.md). Axial cell identity: [HEX_COORDINATES.md](HEX_COORDINATES.md).
 
-## Representation
+---
 
-- **`HexMap`** (domain, `class_name` in [game/domain/hex_map.gd](../game/domain/hex_map.gd)) holds a **finite** set of hexes that exist in play.
-- **API boundary:** queries use [HexCoord](HEX_COORDINATES.md) (`q`, `r`).
-- **Storage:** internal dictionary keys are `Vector2i(q, r)` (value-typed) → terrain enum value. This avoids identity-based lookup bugs with `RefCounted` keys.
-- **Landforms:** a parallel optional dictionary `_landforms` maps the same keys to `HexMap.Landform`. Omitted keys default to **`FLAT`**.
-- **Woods overlay (Phase 5.1.16c):** optional parallel dictionary **`_woods`** (same **`Vector2i`** keys → **`true`**). **`HexMap.has_woods(HexCoord)`** is **only** valid when **`has`** is true. The **prototype play map** copies keys from **`PrototypeTerrainFeatures.prototype_woods_set()`** — the same list **`plains_forest_decoration.gd`** re-exports for the forest **decoration** pass; **woods** affects **`CityYields`** (v0) but is **not** a **`Terrain`** enum variant.
+## Approved target — `WorldMap` (one canonical authority)
 
-## Terrain (tag-only in Phase 1.2)
+**Decision:** `WorldMap` is the **sole** logical map authority for the 3D world integration phase. There is **no** parallel `HexMap` authority, **no** adapter to keep the deprecated 2D map alive, and **no** deferred unification. Legacy `HexMap` (GDScript and Python) is **frozen** and scheduled for removal in slice **N8**.
 
-`HexMap.Terrain` is a minimal inline enum: `PLAINS`, `WATER`, **`GRASSLAND` (2)** — append-only so existing numeric values stay stable. Values are **tags** only in **`HexMap`** (no per-cell gameplay fields here). **Phase 3.2:** **[TerrainRuleDefinitions](../game/domain/content/terrain_rule_definitions.gd)** holds **passability** and **`movement_cost`** metadata keyed by stable ids **`plains`** / **`water`** / **`grassland`** mapped from this enum. **`movement_cost`** does **not** affect **`MoveUnit`** spend in **5.2.5** — legality stays one neighbor step per action, and each accepted move costs **1** MP regardless of terrain; see [MOVEMENT_RULES.md](MOVEMENT_RULES.md).
+Everything that refers to “the map” in gameplay, server state, terrain construction, and presentation must use the same tile and edge identities from `WorldMap`:
 
-## Landform (visual / data-only)
+- units, cities, improvements, ownership,
+- movement and combat legality,
+- yields and legal actions,
+- scenario setup,
+- terrain mesh/collision/overlays (as consumers, never as authority).
 
-`HexMap.Landform`: **`FLAT`**, **`HILLS`**. **Passability, movement cost, combat, vision, and yields** do **not** depend on landform in the current slice. **`HILLS`** is stored for presentation only: **[MapView](../game/presentation/map_view.gd)** draws a **local alpha overlay decal** per **PLAINS** / **GRASSLAND** hill hex on top of the normal base terrain texture. **`Landform`** is available for future rules.
+### Layered model
 
-## Presentation note (MapView base terrain, repo)
+| Layer | Owner | Authority | v1 subset | Deferred |
+|-------|-------|-----------|-----------|----------|
+| 1. Tile identity & coordinates | `WorldMap.tiles` keyed by `(q,r)` | Immutable per map revision | All tiles from source JSON | — |
+| 2. Physical tile properties | Tile records on `WorldMap` | Shared world truth | `elevation` (int) | soil, moisture, drainage, fertility, rock exposure, geology, vegetation, accessibility/buildability |
+| 3. Edge relations | `WorldMap.edges` | Shared world truth | `smooth` / `cliff` from `\|Δe\| > threshold` + overrides | ravine, river, road/crossing, directional passability |
+| 4. Derived terrain metrics | `TerrainMetrics` (planned module) | Deterministic derivation; rule-locked when consumed | — (extension point) | gradient, curvature, ruggedness, prominence |
+| 5. Derived classifications | Classifier (planned) | Derived labels for UI/rules/AI | — (extension point) | hill, ridge, valley, plain, rocky slope, wet lowland, fertile plain |
+| 6. Mutable match state | Match core (`Scenario` / `GameState` pattern, rewritten) | Authoritative per match | Units, cities, turn state, ownership, id counters, **`MapIdentity`** stamp | World-mutating terraforming rules |
+| 7. Capabilities & player knowledge | Progress/science + `KnowledgeState` | Player-scoped where noted | Explored-set pattern reused from `PlayerVisibilityState` | Prospecting, discovered geology |
+| 8. Improvements & exploitation | Match-state entities on tile/edge ids | Authoritative | — (extension point) | Full improvement catalog |
+| 9. Yields & legal actions | Pure functions over layers 1–8 | Derived, authoritative outputs | Flat base yields (N6); movement over edges (N5) | Capability-driven yield content, full balance |
+| 10. Presentation | 3D scene: mesh, materials, collision, overlays, UI | Derivative only | TS-08 reference surface (N3) | Final materials, full UI catalog |
 
-**Base** textured land is chosen by **`HexMap.Terrain`** only: **`plains_painterly`**, **`grassland_painterly`**, **`water_painterly`**. **`Landform.HILLS`** does **not** swap the base texture. Instead, **[MapView](../game/presentation/map_view.gd)** draws a second **`draw_colored_polygon`** pass with **hills overlay decals** — hex-centered, **scaled inside** the hex (**`hills_overlay_scale`**, default **1.0**, changes **on-screen polygon size**), **hex-local UVs** from the same center (**UV zoom does not cancel polygon scale**; a larger scale still draws a larger shape). Optional **`hills_overlay_uv_zoom`** (default **1.24**) recenters UVs toward **(0.5, 0.5)** in texture space — **> 1** zooms **into** the PNG (helps if the art has wide transparent margins). Tinting uses **`plains_hills_terrain_modulate`** / **`grassland_hills_terrain_modulate`** (RGB clamp ~0.75–1.25); alpha uses per-terrain **`plains_hills_overlay_opacity`** (default **0.45**) and **`grassland_hills_overlay_opacity`** (default **0.40**).
+**Stable identities:**
 
-**Overlay PNG variants (presentation):** **`MapView`** loads optional numbered files **`plains_hills_overlay_1.png`** through **`plains_hills_overlay_4.png`** and **`grassland_hills_overlay_1.png`** … **`_4.png`** from **`game/assets/prototype/terrain/`** when present. If **no** numbered file loads for a family, it falls back to the legacy single files **`plains_hills_overlay.png`** / **`grassland_hills_overlay.png`**. Each **HILLS** hex picks one loaded variant **deterministically** from **(q, r)** and **`HexMap.Terrain`** via a **fixed integer hash** (no RNG): the same cell always gets the **same** variant across redraws, pan/zoom, and restarts; neighbors usually differ. If **no** texture loads for that family, the overlay is skipped (**one-time editor warning**).
+- **Tile id:** canonical axial `(q, r)` (same as [HEX_COORDINATES.md](HEX_COORDINATES.md)).
+- **Edge id:** ordered-normalized pair of adjacent tile ids `(a, b)` with `a < b` under a documented ordering, plus implied direction when needed.
 
-Overlays should be **alpha relief** art (highlights/shadows); repo copies may be flattened placeholders until final art lands. **FLAT** land uses **world-anchored UVs** on the base quad (continuous ground). **No** shader, **no** subdivision, **no** seam-fix layer. Full **`plains_hills_painterly`** / **`grassland_hills_painterly`** files may remain in **`game/assets/prototype/terrain/`** as **deprecated / unused** prototype art.
+**Scenario setup** belongs beside the match core: a `ScenarioFactory` takes a `MapIdentity`-resolved `WorldMap` plus a scenario spec (starting units, cities, players). Map factories on the map class itself are **not** carried forward.
 
-Presentation-only: modulation and overlay draws are **not** stored in **`HexMap`** or **`TerrainRuleDefinitions`**. **`debug_hills_overlay_draws`** counts overlay draws per **`MapView._draw`** (prototype / headless diagnostics). **`debug_draw_hills_overlay_bounds`** (default off) outlines the **scaled overlay** vs **full hex** after each overlay draw for art/layout review.
+### Rendered geometry is never gameplay authority
 
-When **`debug_map_presentation_audit`** is on, **`MapView`** prints a single **`[EOM_MAP_PRESENTATION_AUDIT]`** line per frame (prototype instrumentation; default off) including **`hills_overlay_scale`**, **`plains_hills_overlay_opacity`**, **`grassland_hills_overlay_opacity`**, **`hills_overlay_uv_zoom`**, shared **`effective_scale`** / **`effective_uv_zoom`**, per-terrain **`effective_opacity_plains`** / **`effective_opacity_grassland`**, **`debug_force_hills_overlay_extreme`**, **`plains_hills_overlay_variants_loaded`**, **`grassland_hills_overlay_variants_loaded`**, **`hills_overlay_draws`**, and forest/back-layer counters. **`debug_mapview_forest_pipeline_log`** gates MapView **`[EOM_DEBUG_FOREST_PIPELINE]`** / **`[EOM_DEBUG_FOREST_GRID]`** console lines (default off) so the editor is not slowed by per-frame logging.
+The continuous terrain mesh, cliff-wall collision triangles, shader output, and sampled surface heights are **presentation derivatives**. Rules must never infer passability, cliff blocking, or tile identity from mesh topology or triangle hits alone.
 
-**Prototype play map only:** **[main.gd](../game/main.gd)** may pass a **`forest_decoration_override`** hex set into **[MapView](../game/presentation/map_view.gd)** and **[TerrainForegroundView](../game/presentation/terrain_foreground_view.gd)** so forest decoration appears in hand-placed clusters for visual review; keys match **domain** **`HexMap.has_woods`** on **`make_prototype_play_map()`** (see [**`prototype_terrain_features.gd`**](../game/domain/prototype_terrain_features.gd), [**`plains_forest_decoration.gd`**](../game/presentation/plains_forest_decoration.gd)). This overlay is **not** a production biome rule and does not change the forest symbol grid or lattice.
+- **Top-surface hits** resolve to a tile via the coordinate inverse ([WORLD_COORDINATES.md](WORLD_COORDINATES.md)).
+- **Cliff-face hits** resolve primarily to **`edge_id`** and both adjacent tile identities, with hit classification distinguishing cliff face from top surface.
+- There is **no** universal rule that cliff hits always select the lower tile. Operations that require a tile must define their own deterministic policy, ask the player to target a top surface, or explicitly choose between adjacent tiles.
+- Gameplay legality uses authoritative **edge data** on `WorldMap`, not visual geometry.
 
-## Fixed tiny test map
+### Yield direction (replacing category tables)
 
-`HexMap.make_tiny_test_map()` is the **canonical 7-hex** fixture: center cell `(0,0)` plus all six neighbors, as below.
+The new model **retires** fixed intrinsic yield tables keyed by categorical `terrain` / `landform` / `woods`. Old descriptions such as “production from hills” remain **design intent** to translate into physical/capability terms — not schema requirements.
 
-| (q, r) | Terrain |
-|--------|---------|
-| (0, 0) | PLAINS |
-| (1, 0) | PLAINS (E) |
-| (1, -1) | PLAINS (NE) |
-| (0, -1) | PLAINS (NW) |
-| (-1, 0) | WATER (W) |
-| (-1, 1) | PLAINS (SW) |
-| (0, 1) | PLAINS (SE) |
+- **Base yields (v1):** simple, potentially flat physical base yields computed deterministically from physical properties.
+- **Later divergence** through physical properties, adjacency/edges, civilization capabilities, player-scoped knowledge, discovered geology/resources, improvements, exploitation state, and other deterministic modifiers.
+- **`Hill` and similar** are normally **derived classifications**, not primitive terrain truth.
+- **Cliffs** are **edge relations**, not a boolean terrain type on one tile.
 
-Direction names in the table are **labels** for axial neighbors; see [HEX_COORDINATES.md](HEX_COORDINATES.md) for orientation neutrality.
+See [MAP_CONTENT.md](MAP_CONTENT.md) for yield/knowledge boundaries and [DECISION_LOG.md](DECISION_LOG.md) for the approved direction.
 
-## Query API (Phase 1.2)
+### Snapshot v3 (planned N7 — not implemented)
 
-- `has(HexCoord)` — whether the coordinate is on the map.
-- `terrain_at(HexCoord)` — terrain tag; **only valid** when `has` is true (asserts otherwise).
-- `landform_at(HexCoord)` — landform tag; **only valid** when `has` is true (asserts otherwise). Missing storage entry ⇒ **`FLAT`**.
-- `has_woods(HexCoord)` — **Phase 5.1.16c**; **only valid** when `has` is true. **Tiny test map:** always **false**.
-- `size()` — number of cells.
-- `coords()` — read-only list of all cells as `HexCoord` instances. Does not expose `Vector2i` keys. **Order is unspecified** in Phase 1.2; a future phase may document deterministic ordering if required (e.g. for replay or UI).
-- `make_tiny_test_map()` — static factory for the table above.
-- `make_prototype_play_map()` — **Phase 5.1.16g.2 (corrected + polish)** plus **Phase 5.2.4l** **domain** sea frame: extends the **5.1.16g.1** **hand-authored island** lineage (**not** procedural **worldgen**). **Land** = **g.1** axial-disk shell (**distance from `(0,0)` ≤ `6`**, with **light** corner thinning) **minus** **west strait / NW bay** keys **plus** a large **curated `Vector2i` extension list** (NE / E **ridge** & **tongue**, SE **shelf**, explicit coastal **bridges** so woods/cities never sit on accidental **WATER**); **BFS from `(0,0)`** on the **union** yields **one** **connected** **land** component. **Terrain** defaults **grass-forward**; **PLAINS** / **plains·hills** and **grassland·hills** are **spot-painted** in **small curated groups** (no sector-wide `q ≥ …` carpets), with **extra** one-off **plains / grassland·hills** dots to **break up** large **grass** fields, including **light** **W / NW** **woods** **groves** (still **multi-component**, **no** strait-water mistakes). **`(-1,0)`** stays canonical **WATER**. **5.2.4l:** after land painting, **`_proto_add_world_axis_rect_water_shell`** adds **WATER** for every coord **not** in **`prototype_play_land_key_set()`** whose hex **world AABB** intersects an **axis-aligned rectangle** = **land union AABB** expanded by **`_PROTO_VIS_WATER_SHELL_PAD_STEPS`** (~**3**) in **world X/Y** using the same spacing as **`HexLayout`** (**128.0** circumradius) — **no** presentation filler coords, **deterministic**, **no** repeated expansion. **`PrototypeTerrainFeatures`** **woods** are **PLAINS**-terrain cells only (**flat** or **hills**), authored as **multiple small components** (isolates, pairs, short ribbons, **no** single giant forest carpet). Typical **`HexMap.size()`** is **~220–750** (**land + sea shell**); **`make_tiny_test_map()`** unchanged (**7** hexes).
+Match snapshots will carry **`MapIdentity`** (`map_id`, `schema_version`, `content_hash`) plus **mutable match state**. Snapshots should **not** repeat every immutable tile and edge from the canonical map — clients and server load the canonical content matching the identity and verify the hash. Mismatch must **fail explicitly**. Details: [MAP_CONTENT.md](MAP_CONTENT.md).
 
-## Phase 1.5 note (terrain vs movement rules)
+### Planned module ownership (names provisional)
 
-**`HexMap`** holds **terrain** tags plus an optional parallel **landform**; **movement** still interprets **terrain** only, via **`TerrainRuleDefinitions`** (**`grassland`** is passable with the same cost as **`plains`** in the current slice). **`Landform`** does not affect **`MovementRules.legal_destinations`** yet. The first interpretation that **WATER is impassable** for unit movement lives in **[MOVEMENT_RULES.md](MOVEMENT_RULES.md)** (`MovementRules.legal_destinations`), not in ad hoc `HexMap` logic.
+| Module | Responsibility |
+|--------|----------------|
+| `game/domain/world/world_map.gd` | Sole logical map authority |
+| `game/domain/world/hex_world_projection.gd` | [WORLD_COORDINATES.md](WORLD_COORDINATES.md) math |
+| `game/domain/world/map_content_loader.gd` | Envelope v1 → `WorldMap` + `MapIdentity` |
+| `server/app/domain/world_map.py` | Python mirror (N7) |
 
-**`HexMap`** storage stays **enum-backed**: no string **`terrain_id`** in **`_cells`** and **no** save/load migration in **3.2**. **`TerrainRuleDefinitions.terrain_id_for_hex_map_value`** projects **`HexMap.Terrain`** values onto content ids. Unknown enum values map to an **empty** id and are treated as **impassable** in movement rules.
+Presentation modules under `game/presentation/world3d/` consume `WorldMap`; they do not own map truth.
 
-**Phase 3.2 (implemented):** Terrain **semantics** for **movement** are read through **`TerrainRuleDefinitions`** per [CONTENT_MODEL.md](CONTENT_MODEL.md); **`HexMap`** API and storage are **unchanged**.
+---
+
+## Legacy HexMap (frozen)
+
+The following **still exists in the repository today** but is **deprecated, frozen, and scheduled for removal** (slice N8). New work must **not** extend it or build adapters for it.
+
+### What is legacy
+
+| Component | Location | Current behavior |
+|-----------|----------|------------------|
+| **`HexMap`** | [game/domain/hex_map.gd](../game/domain/hex_map.gd), [server/app/domain/hex_map.py](../server/app/domain/hex_map.py) | Categorical `Terrain` (PLAINS, WATER, GRASSLAND), `Landform` (FLAT, HILLS), optional `_woods`; **no elevation** |
+| **Category yield tables** | [game/domain/city_yields.gd](../game/domain/city_yields.gd) | Fixed terrain × landform × woods production |
+| **Snapshot v2 cells** | [server/app/domain/snapshot.py](../server/app/domain/snapshot.py) | `{q, r, terrain, landform, woods}` |
+| **2D map renderer** | [game/presentation/map_view.gd](../game/presentation/map_view.gd), [HexLayout](../game/presentation/hex_layout.gd), overlays, fake-perspective camera | 2D projected map; polygon picking |
+| **Rules coupled to categories** | [MovementRules](../game/domain/movement_rules.gd), [FoundCity](../game/domain/actions/found_city.gd), [TerrainRuleDefinitions](../game/domain/content/terrain_rule_definitions.gd) | WATER impassable; hills are presentation-only tags |
+
+**Breakage during migration is acceptable.** The 2D map path may stop working as `WorldMap` lands; that is intentional.
+
+### Legacy representation (reference only)
+
+- Storage: `Vector2i(q, r)` → terrain enum; parallel `_landforms`, `_woods`.
+- Factories: `make_tiny_test_map()` (7 hexes), `make_prototype_play_map()` (~220–750 cells with curated land/water/woods).
+- Query API: `has`, `terrain_at`, `landform_at`, `has_woods`, `coords`, `size`.
+
+Full Phase 1.2–5.x presentation notes for the 2D map remain in git history and phase docs ([PHASE_PLAN.md](PHASE_PLAN.md), [RENDERING.md](RENDERING.md)); they describe **historical implemented behavior**, not the target architecture.
+
+### What may be reused from legacy code
+
+Reuse is justified by **suitability**, not backward compatibility:
+
+- **`HexCoord`** axial deltas and distance — orientation-neutral; gains geographic meaning under [WORLD_COORDINATES.md](WORLD_COORDINATES.md).
+- **Action-in / state-out pattern** (`GameState.try_apply`, action dicts) — preserved; validators rewritten against `WorldMap`.
+- **`PlayerVisibilityState`** explored-set pattern — extended toward player-scoped knowledge.
+- **Server transport** (POST action, GET snapshot) — preserved; snapshot shape replaced in N7.
+
+---
 
 ## Layer boundary
 
 Code under `game/domain/` must not depend on Godot scene nodes, rendering, UI, input, networking, or LLMs; see [game/domain/README.md](../game/domain/README.md).
 
-## Phase 5.2.3 — Explored memory / fog v0 (`PlayerVisibilityState`; presentation overlay)
+---
 
-**No longer fully deferred:** Per-player **explored** hex sets (**not** “line of sight” vs memory, **no** enemy hiding) live in domain **`[PlayerVisibilityState](../game/domain/player_visibility_state.gd)`** — immutable owner maps of **`Vector2i(q,r) → true`**, **`UNIT_SIGHT_RADIUS` / `CITY_SIGHT_RADIUS` = 2**, recomputed deterministically from **`Scenario`** on **`GameState.try_apply`** (**`move_unit`**, **`found_city`**, **`end_turn`** after production delivery). **[`HexCoord.axial_distance`](../game/domain/hex_coord.gd)** supports the disk queries. Presentation **[`MapVisibilityView`](../game/presentation/map_visibility_view.gd)** only **reads** **`GameState`** and draws a parchment mask over the **unexplored** complement for **`TurnState.current_player_id()`** (local hotseat). **`HexMap`** still does **not** store visibility flags — visibility remains **session** state on **`GameState`**.
+## Related documents
 
-## Explicitly deferred
-
-- A dedicated **cell** or **terrain** type with gameplay fields (owner, resources, move cost, etc.)
-- **Line-of-sight** / **current visibility** distinct from **explored memory**; **fog-of-war privacy** for multiplayer; hiding enemy units/cities
-- **Distance / range / line / path** queries on the map
-- **Pixel coordinates, viewport placement, projection, pan/zoom, and draw layering** belong to **presentation** (**`HexLayout`**, **`MapCamera`**, views under **`game/presentation/`**; see **[RENDERING.md](RENDERING.md)**). **`HexMap`** stays **presentation-free** hex addressing + terrain/landform/woods **tags**. It intentionally does **not** store screen offsets, texture UV policy, or `z_index`.
-- **Serialization** of maps and terrain for save / replay (with schema versioning, per architecture)
+| Topic | Document |
+|-------|----------|
+| World embedding & elevation | [WORLD_COORDINATES.md](WORLD_COORDINATES.md) |
+| Map content & `MapIdentity` | [MAP_CONTENT.md](MAP_CONTENT.md) |
+| Terrain construction (TS-08) | [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), [TERRAIN_MODEL.md](TERRAIN_MODEL.md) |
+| Legacy deprecation policy | [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) § Legacy map systems |
+| Implementation slices | [PHASE_PLAN.md](PHASE_PLAN.md) — 3D Map and World Integration (N0–N8) |

@@ -2634,17 +2634,31 @@ Validation:
 
 ## Milestone — Fixed-grid Godot 3D terrain parity (approved next terrain milestone)
 
-**Status:** approved direction; **not started**. This milestone is decoupled from the Phase 5.x gameplay numbering: it is presentation/terrain work and does not change gameplay rules.
+**Status:** approved direction; **N0 documentation complete (2026-08)**; runtime implementation **not started**. This milestone is decoupled from the Phase 5.x gameplay numbering: it is presentation/terrain work and does not change gameplay rules until the new match core lands (N5+).
 
 Goal:
 Reproduce the accepted **TS-08** Blender reference terrain (see [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md) and the canonical section of [TERRAIN_MODEL.md](TERRAIN_MODEL.md)) as **Godot-native runtime terrain construction** from the **fixed hand-authored logical hex grid** (`terrain_handdrawn_test_map_full_01`). Blender remains a development/reference implementation only — never a runtime dependency.
 
 **Reference contract.** Parity is validated against the reference contract as a whole: the canonical logical grid, the TS-08 algorithm and parameters, a deterministic reference dataset exported from the Blender chain, the audit chain, and the visually accepted Blender result. The committed Stage 3a `.blend` is one artifact within that contract, not the sole authority.
 
-Decomposable slices (indicative; each independently reviewable):
+**3D Map and World Integration slices (N0–N8):**
 
-1. **Canonical logical-map input.** **Done (Slice B+C).** The fixed hand-authored grid is extracted to `content/maps/reference/handdrawn_test_map_full_01.json` (JSON envelope v1; see [MAP_CONTENT.md](MAP_CONTENT.md)). Blender tooling consumes it via `eom_map_content.py`; Godot loading remains Slice D.
-2. **Deterministic reference dataset.** Export solved heights / cut-lattice data from the Blender TS-08 chain in a form the Godot side can compare against.
+| Slice | Status | Goal |
+|-------|--------|------|
+| **N0** | **Done (docs)** | Coordinate contract, `WorldMap` architecture, yield direction, legacy deprecation — [WORLD_COORDINATES.md](WORLD_COORDINATES.md), [MAP_MODEL.md](MAP_MODEL.md) |
+| **N1** | Planned | `WorldMap`, projection, loader, `MapIdentity`, packaging sync, headless tests — **no rendering** |
+| **N2** | Planned | Blender TS-08 reference-dataset export + audit |
+| **N3** | Planned | First visible 3D world: real TS-08 surface, orbit camera, tile/edge picking |
+| **N4** | Planned | World anchors + projected screen-space UI |
+| **N5** | Planned | New match core on `WorldMap`: units, movement, actions (debug harness) |
+| **N6** | Planned | Yields v2 + cities minimal |
+| **N7** | Planned | Server migration: Python `WorldMap`, snapshot v3, content loading |
+| **N8** | Planned | Legacy `HexMap` + 2D renderer removal |
+
+Decomposable parity slices (terrain construction track; cross-linked to N2–N4 above):
+
+1. **Canonical logical-map input.** **Done (Slice B+C).** The fixed hand-authored grid is extracted to `content/maps/reference/handdrawn_test_map_full_01.json` (JSON envelope v1; see [MAP_CONTENT.md](MAP_CONTENT.md)). Blender tooling consumes it via `eom_map_content.py`. Godot `WorldMap` loading is **N1**.
+2. **Deterministic reference dataset.** **N2.** Export solved heights / cut-lattice data from the Blender TS-08 chain in a form the Godot side can compare against.
 3. **Godot terrain construction.** Cut-lattice topology (cliff classification delta > 1, duplicated seam identity) and the cut-domain thin-plate CG solve, engine-native, deterministic.
 4. **Godot mesh + material + collision.** Mesh from the solved lattice; top-surface and stone cliff-wall materials; collision corresponding to the generated surface.
 5. **Parity audit + static scene.** Numerical and visual parity validation; a static Godot scene rendering the terrain.

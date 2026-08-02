@@ -1,6 +1,6 @@
 # Empire of Minds — Current architecture (orientation)
 
-Concise map of **what exists in code today**. For phased history and decisions use [PHASE_PLAN.md](PHASE_PLAN.md) and [DECISION_LOG.md](DECISION_LOG.md). For norms and boundaries use [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md), [CONTENT_MODEL.md](CONTENT_MODEL.md), [CORE_LOOP.md](CORE_LOOP.md), [MAP_MODEL.md](MAP_MODEL.md), and [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md).
+Concise map of **what exists in code today**. For phased history and decisions use [PHASE_PLAN.md](PHASE_PLAN.md) and [DECISION_LOG.md](DECISION_LOG.md). For norms and boundaries use [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md), [CONTENT_MODEL.md](CONTENT_MODEL.md), [CORE_LOOP.md](CORE_LOOP.md), [MAP_MODEL.md](MAP_MODEL.md), [WORLD_COORDINATES.md](WORLD_COORDINATES.md), and [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md).
 
 ## Authority pivot (in progress)
 
@@ -88,12 +88,29 @@ Presentation **reads domain** (**`scenario`**, **`game_state`**); authoritative 
 
 ## Terrain: current vs target vs reference tooling
 
-Keep these three strictly apart; do not mix target components into the current inventory above.
+Keep these four strictly apart; do not mix target components into the current inventory above.
 
 - **Current runnable architecture:** the 2D/2.5D projected map presentation described in the tables above ([RENDERING.md](RENDERING.md)). No 3D terrain exists in the running game (the opt-in 3D unit/city marker experiment blits SubViewport textures into the 2D pipeline).
-- **Approved target (not implemented):** Godot-native 3D terrain construction from the fixed logical hex grid, reproducing the TS-08 reference — see the "Fixed-grid Godot 3D terrain parity" milestone in [PHASE_PLAN.md](PHASE_PLAN.md), [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), and the canonical section of [TERRAIN_MODEL.md](TERRAIN_MODEL.md).
+- **Approved target (not implemented):** **`WorldMap`** as the sole logical map authority ([MAP_MODEL.md](MAP_MODEL.md)), Godot-native 3D world with continuous TS-08 terrain, orbit camera, and world-anchored UI — see the "3D Map and World Integration" slices (N0–N8) in [PHASE_PLAN.md](PHASE_PLAN.md), [WORLD_COORDINATES.md](WORLD_COORDINATES.md), [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), and the canonical section of [TERRAIN_MODEL.md](TERRAIN_MODEL.md).
 - **Blender reference/tooling (development-only, outside the game):** the TS-08 chain under `tools/blender/terrain/` (see its `README.md` and `TERRAIN_PROTOTYPE_MANIFEST.md`). Never a runtime dependency; the Blender mesh is not the final source of the playable terrain.
-- **Map content (implemented):** repo-root `content/maps/` with `reference/`, `authored/`, and `generated/` subdirectories ([MAP_CONTENT.md](MAP_CONTENT.md)). The TS-08 reference map is **`content/maps/reference/handdrawn_test_map_full_01.json`** (JSON envelope schema v1). Blender tooling loads it via `tools/blender/terrain/eom_map_content.py`; `generate_terrain_terrainmap_handdrawn_full_01.py` exposes `TERRAIN_MAP_JSON` for existing attribute consumers.
+- **Map content (implemented):** repo-root `content/maps/` with `reference/`, `authored/`, and `generated/` subdirectories ([MAP_CONTENT.md](MAP_CONTENT.md)). The TS-08 reference map is **`content/maps/reference/handdrawn_test_map_full_01.json`** (JSON envelope schema v1). Blender tooling loads it via `tools/blender/terrain/eom_map_content.py`; `generate_terrain_terrainmap_handdrawn_full_01.py` exposes `TERRAIN_MAP_JSON` for existing attribute consumers. Godot loading, `MapIdentity`, and packaging sync are **planned N1** — not implemented.
+
+---
+
+## Legacy map systems (frozen — removal planned N8)
+
+The following **still exist in code today** but are **deprecated, frozen, and scheduled for removal**. New work must target **`WorldMap`**, not these systems. Breakage during the 3D migration is acceptable.
+
+| Legacy component | Still exists? | Target disposition |
+|------------------|---------------|-------------------|
+| **`HexMap`** (GD + Python) | Yes | Remove N8; replaced by **`WorldMap`** (planned N1) |
+| Categorical `terrain` / `landform` / `woods` | Yes | Remove; physical properties + derived classifications |
+| Category-based **`CityYields`** tables | Yes | Replace with yields v2 (planned N6) |
+| Snapshot v2 cells `{terrain, landform, woods}` | Yes | Replace with snapshot v3 + `MapIdentity` (planned N7) |
+| 2D map renderer (`MapView`, `HexLayout`, overlays, fake-perspective camera) | Yes | Remove N8 |
+| SubViewport 3D marker composite | Yes (opt-in experiment) | Replace with unified 3D world scene |
+
+There is **no compatibility adapter** between legacy `HexMap` and the approved `WorldMap`. The existence of legacy code must not be mistaken for target architecture. Full policy: [MAP_MODEL.md](MAP_MODEL.md), [DECISION_LOG.md](DECISION_LOG.md) (2026-08-02 entries).
 
 ---
 
@@ -132,6 +149,8 @@ Keep these three strictly apart; do not mix target components into the current i
 | AI contract | [AI_LAYER.md](AI_LAYER.md), [AI_DESIGN.md](AI_DESIGN.md) |
 | Rendering detail | [RENDERING.md](RENDERING.md), [SELECTION.md](SELECTION.md) |
 | Map data model | [MAP_MODEL.md](MAP_MODEL.md) |
-| Content envelope | [CONTENT_MODEL.md](CONTENT_MODEL.md) |
+| World coordinates | [WORLD_COORDINATES.md](WORLD_COORDINATES.md) |
+| Map content & identity | [MAP_CONTENT.md](MAP_CONTENT.md) |
+| Content envelope (rules) | [CONTENT_MODEL.md](CONTENT_MODEL.md) |
 | Progression / science shape | [PROGRESSION_MODEL.md](PROGRESSION_MODEL.md) |
 | Playable loop narration | [CORE_LOOP.md](CORE_LOOP.md) |

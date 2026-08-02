@@ -2,16 +2,16 @@
 
 This document is the **canonical detailed source** for how logical map data is owned, categorized, serialized, and consumed. Other steering documents link here rather than duplicating the full architecture.
 
-**Status:** implemented (Slice B+C, 2026-08). The TS-08 reference grid is owned by [content/maps/reference/handdrawn_test_map_full_01.json](../content/maps/reference/handdrawn_test_map_full_01.json). Blender tooling loads it via [tools/blender/terrain/eom_map_content.py](../tools/blender/terrain/eom_map_content.py); `generate_terrain_terrainmap_handdrawn_full_01.py` exposes the payload as `TERRAIN_MAP_JSON` for existing consumers.
+**Status:** envelope schema v1 and the TS-08 reference file are **implemented** (Slice B+C, 2026-08). The approved **`WorldMap`** authority, **`MapIdentity`**, packaging sync, and Godot/server loading are **planned** (slices N1, N7) — **not yet implemented**. See [MAP_MODEL.md](MAP_MODEL.md) and [WORLD_COORDINATES.md](WORLD_COORDINATES.md).
 
 ---
 
 ## Map categories
 
-All maps must ultimately produce the **same authoritative logical map representation** regardless of origin. Folder placement indicates intent but is **not** the only semantic indicator — each map file carries sufficient metadata (see [JSON envelope schema v1](#json-envelope-schema-v1) below).
+All maps must ultimately produce the **same authoritative logical map representation** (`WorldMap`) regardless of origin. Folder placement indicates intent but is **not** the only semantic indicator — each map file carries sufficient metadata (see [JSON envelope schema v1](#json-envelope-schema-v1) below).
 
-| Category | Location (planned) | Purpose |
-|----------|-------------------|---------|
+| Category | Location | Purpose |
+|----------|----------|---------|
 | **Reference** | `content/maps/reference/` | Locked or deliberately versioned maps used for parity, regression tests, audits, and reproducible visual comparisons. The current TS-08 hand-authored test map belongs here. |
 | **Authored** | `content/maps/authored/` | Intentionally designed playable maps (e.g. a future Earth map). |
 | **Curated / promoted generated** | `content/maps/generated/` | Generator results **deliberately promoted** into version-controlled game content. Does **not** contain every runtime-generated map. |
@@ -25,7 +25,7 @@ Additional placement rules:
 
 ---
 
-## Planned directory structure
+## Directory structure
 
 Repo-root `content/maps/` is the approved source-content root (engine-neutral: readable by Blender tooling, future Godot client, and future authoritative server).
 
@@ -36,11 +36,11 @@ content/maps/
 └── generated/     # curated generator results promoted into version control
 ```
 
-The first planned reference file:
+The TS-08 reference file:
 
 `content/maps/reference/handdrawn_test_map_full_01.json`
 
-**Implemented** (Slice B+C). See [content/maps/reference/handdrawn_test_map_full_01.json](../content/maps/reference/handdrawn_test_map_full_01.json).
+Blender tooling loads it via [tools/blender/terrain/eom_map_content.py](../tools/blender/terrain/eom_map_content.py).
 
 ---
 
@@ -52,94 +52,176 @@ Initial serialization format: **JSON**. The problem being solved is **ownership 
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `schema_version` | integer | Schema migration gate. **v1 = `1`**. Matches the repo convention used elsewhere (server snapshots, action envelopes). |
+| `schema_version` | integer | Schema migration gate. **v1 = `1`**. |
 | `origin` | string | `"reference"` \| `"authored"` \| `"generated"`. Semantic category; must agree with folder placement but is authoritative in the file itself. |
-| `provenance` | string | Free-text description of why this map exists and how it was produced (e.g. hand-authored date, promotion note, regression lock reason). |
-| `logical_map` | object | The logical map payload — see below. **Unchanged** from the current TerrainMap IR. |
+| `provenance` | string | Free-text description of why this map exists and how it was produced. |
+| `logical_map` | object | The logical map payload — see below. |
 
 ### `logical_map` payload (TerrainMap IR)
 
-The existing TerrainMap intermediate representation, parsed today by `parse_terrain_map_ir` in [tools/blender/terrain/eom_terrain_math_core.py](../tools/blender/terrain/eom_terrain_math_core.py):
+Parsed today by `parse_terrain_map_ir` in [tools/blender/terrain/eom_terrain_math_core.py](../tools/blender/terrain/eom_terrain_math_core.py):
 
-- `id` — **canonical map identity** (e.g. `"handdrawn_test_map_full_01"`). Audits and tooling already key off this value (`MAP_JSON_ID` in the TS-08 chain).
-- `orientation` — axis convention for the stored `(q, r)` coordinates (the reference map uses `"pointy_top_custom_axes"`).
-- `elevation_step`, optional `elevation_base`
-- `edge_rule` / `cliff_threshold`, `edge_overrides`
-- `tiles` — array of `{q, r, elevation}` entries
+- `id` — canonical **`map_id`** (e.g. `"handdrawn_test_map_full_01"`).
+- `orientation` — **historical label** for the stored coordinate convention (`"pointy_top_custom_axes"` on the reference map). Orientation in the architectural sense is defined by embeddings ([WORLD_COORDINATES.md](WORLD_COORDINATES.md)), not by this string. Do **not** rename it to `axial_v1`; a future schema may add a properly named field such as `coordinate_convention`.
+- `elevation_step` — float world-units per elevation integer step (**0.4** on the reference map).
+- `elevation_base` — **optional**; **absent** on the current reference file. Effective base **1** comes from the parser default (`DEFAULT_ELEVATION_BASE = 1`). Adding explicit `"elevation_base": 1` is an approved **future hygiene change** (with TS-08 regression validation); not part of N0.
+- `edge_rule` / cliff threshold, `edge_overrides`
+- `tiles` — array of `{q, r, elevation}`
 
 **No rendering, mesh, material, camera, collision, or Blender object state** belongs in `logical_map`.
 
+### Elevation semantics
+
+```
+world_y = (elevation − elevation_base) · elevation_step
+```
+
+- **Source elevation:** integer per tile in the payload.
+- **`elevation_step`:** authoritative in the map file.
+- **`elevation_base`:** optional; defaults to **1** when omitted.
+- **`world_y`:** rules-level height ([WORLD_COORDINATES.md](WORLD_COORDINATES.md)).
+- **Sampled surface height:** continuous TS-08 terrain — presentation only.
+
 ### Deliberately absent from v1 (reserved)
 
-Do not add these until a concrete consumer exists:
-
-- Envelope-level **`map_id`** or **`display_name`** — would duplicate `logical_map.id`; the payload id remains canonical.
-- **`generator_id`**, **`seed`**, promotion status fields — required only when generated maps are promoted; the promotion workflow itself is **not** being designed now.
+- Envelope-level duplicate **`map_id`** or **`display_name`** — `logical_map.id` remains canonical.
+- **`generator_id`**, **`seed`**, promotion status — when generated maps are promoted.
 - Save-game or replay serialization — separate future concern.
+- Secret geology, undiscovered deposits, unrevealed resources — **server-owned**; see [Public vs secret map information](#public-vs-secret-map-information).
 
-### Example shape (illustrative; file not yet committed)
+---
 
-```json
-{
-  "schema_version": 1,
-  "origin": "reference",
-  "provenance": "Hand-authored 2026-06 for the terrain-surface prototype chain; locked as the TS-08 parity/regression reference map.",
-  "logical_map": {
-    "id": "handdrawn_test_map_full_01",
-    "orientation": "pointy_top_custom_axes",
-    "elevation_step": 0.4,
-    "edge_rule": { "default": "smooth", "cliff_if_abs_delta_greater_than": 1 },
-    "edge_overrides": [],
-    "tiles": [ "...168 entries..." ]
-  }
-}
-```
+## MapIdentity (approved — planned N1/N7)
+
+A **`map_id` alone is insufficient.** Canonical immutable map content is identified by:
+
+| Field | Source |
+|-------|--------|
+| `map_id` | `logical_map.id` |
+| `schema_version` | envelope `schema_version` |
+| `content_hash` | deterministic hash of the canonical file’s **raw bytes** (SHA-256) |
+
+**Usage (planned):**
+
+- **Godot loader (N1):** computes and exposes `MapIdentity` when loading packaged content.
+- **Local debug init (N3+):** stamps identity into match state.
+- **Server match init (N7):** stores identity in match metadata and snapshots.
+- **Packaging freshness (N1):** compares source hash vs derived copy vs manifest.
+- **Automated tests:** pin current hash as a golden; update deliberately when the map legitimately changes.
+
+Clients and server **independently load** the canonical content matching the identity and **verify the hash**. A mismatch must **fail explicitly** — never silently continue with stale or wrong content.
 
 ---
 
 ## Authoritative logical map vs derived outputs
 
 ```text
-logical_map (authoritative gameplay/domain input)
-    → terrain construction (deterministic derived geometry — TS-08 algorithm)
-        → presentation (Blender reference mesh / future Godot mesh, material, collision)
+logical_map (authoritative source input)
+    → WorldMap (canonical in-memory authority — planned N1)
+        → terrain construction (deterministic derived geometry — TS-08)
+            → presentation (mesh, material, collision, overlays, UI)
 ```
 
-- The **logical map** is authoritative gameplay/domain state input.
-- **Blender TS-08** outputs and **future Godot** terrain outputs are **deterministic derivatives** — never the source of truth for gameplay rules.
-- Reference authority for terrain parity is the **contract as a whole**: canonical logical grid, TS-08 algorithm/parameters, deterministic reference dataset, audit chain, accepted visual result ([DECISION_LOG.md](DECISION_LOG.md) 2026-08-01 entry).
+- The **logical map** in `content/maps/` is authoritative **source** data.
+- **`WorldMap`** is the authoritative **in-memory** representation for gameplay (planned).
+- **Blender TS-08** outputs and **Godot** terrain are **deterministic derivatives** — never gameplay authority.
+- Reference authority for terrain parity is the **contract as a whole**: canonical logical grid, TS-08 algorithm/parameters, deterministic reference dataset, audit chain, accepted visual result.
 
 ---
 
-## Relationship to runtime `HexMap`
+## Public vs secret map information
 
-The domain **`HexMap`** ([game/domain/hex_map.gd](../game/domain/hex_map.gd), [MAP_MODEL.md](MAP_MODEL.md)) is the authoritative in-memory logical map for the running game today. It stores terrain/landform/woods tags and **does not** store elevation.
+Distinguish four concepts:
 
-The TS-08 reference payload is **elevation-only** in **custom hand-drawn axes** (`handdrawn_to_baseline_axial(q,r) = (q+r, -r)` in the Blender math core), which differs from the domain axial convention in [HEX_COORDINATES.md](HEX_COORDINATES.md).
+| Concept | Authority | Client public package? |
+|---------|-----------|------------------------|
+| **Physical world truth** | Shared observable terrain (elevation, explicit cliffs, manifest geology visible on surface) | **Yes** — immutable public map content |
+| **Secret server truth** | Hidden geology, undiscovered deposits, unrevealed resources | **No** — server-owned only |
+| **Player-scoped knowledge** | What a civilization has discovered (prospecting, surveys) | **No** in the public map file — delivered per player via authoritative server state |
+| **Presentation** | Icons, overlays, UI communicating knowledge | Derived from permitted inputs only |
 
-**An explicit loading/translation boundary is required** when Godot (or server) consumes reference/authored/generated map files. That boundary — coordinate translation, elevation integration, packaging — is **explicitly deferred to Slice D** and must not be attempted during map extraction (Slice B+C).
+**Rules:**
+
+- The client’s canonical **public map package** contains shared observable physical terrain truth only.
+- **Undiscovered** player knowledge must **not** be rendered as shared physical 3D resource objects.
+- Prospecting clues that exist as **visible physical features** (e.g. exposed rock) may appear in shared world geometry; **knowledge markers** for hidden deposits appear only from that player’s `KnowledgeState`.
+
+---
+
+## Yield and capability direction (replacing category tables)
+
+The new model **retires** fixed intrinsic yield tables keyed by categorical `terrain` / `landform` / `woods` ([MAP_MODEL.md](MAP_MODEL.md)).
+
+| Mechanism | Role |
+|-----------|------|
+| **Base yields** | Deterministic function of physical tile properties; v1 may use simple flat constants |
+| **Capabilities** (science/tech) | Unlock interpretation of features and exploitation actions |
+| **Improvements** | Match-state modifiers on tile/edge ids |
+| **Player knowledge** | Gates actions and presentation; does not alter shared physical truth |
+| **Determinism** | Yields and legal actions are pure functions recomputed identically on server and clients |
+
+Old content wording (“Hill Production Bonus”) is **design intent** for later translation — not a schema requirement. **`Hill`** is normally a **derived classification**, not primitive terrain truth.
+
+**Implemented now:** nothing in the new yield model (legacy `CityYields.raw_terrain_yield` still runs on `HexMap`). **Planned:** N6 introduces yields v2 on `WorldMap`.
+
+---
+
+## Relationship to runtime map authorities
+
+| Authority | Status |
+|-----------|--------|
+| **`WorldMap`** (approved) | **Not implemented** — sole target logical map (N1+) |
+| **`HexMap`** (legacy) | **Still exists**, frozen, scheduled for removal N8 — categorical tags, no elevation |
+
+There is **no adapter** between them. An explicit loading boundary converts envelope v1 → `WorldMap` at import ([WORLD_COORDINATES.md](WORLD_COORDINATES.md) import-boundary identity for the reference payload).
+
+---
+
+## Packaging and synchronization (planned N1)
+
+**Canonical source:** `content/maps/**`
+
+**Planned mechanism:** repository-owned Python script `tools/content/sync_map_content.py` (not yet implemented):
+
+- Validates envelopes (reusing `eom_map_content.py` conventions).
+- Copies to `game/content/maps/**` (committed derived artifact for Godot `res://`).
+- Writes `game/content/maps/manifest.json` with per-file `{path, map_id, schema_version, content_hash, source_path}`.
+- Freshness: tests compare source ↔ copy ↔ manifest hashes.
+
+**Per environment (planned):**
+
+- Local dev / Godot tests: `res://content/maps/**`
+- Exports: include JSON + manifest
+- Server (N7): canonical repo path in dev; ship `content/` in deployment
+- Blender: continues reading canonical path via `eom_map_content.py`
+
+Do not treat packaging as implemented until slice N1 lands.
 
 ---
 
 ## Promotion boundary (recorded, not designed)
 
-Promoting an ordinary runtime-generated map into `content/maps/generated/` is initially a **developer/admin workflow**. No end-user publishing, Workshop, or marketplace system is being designed now. A future commercial release may require a different mechanism.
+Promoting an ordinary runtime-generated map into `content/maps/generated/` is initially a **developer/admin workflow**. No end-user publishing, Workshop, or marketplace system is being designed now.
 
 ---
 
-## Loader ownership (planned)
+## Loader ownership
 
-- **Schema:** shared across Blender tooling and future runtime.
-- **Loaders:** environment-specific (Python for Blender tooling now; GDScript for Godot later). No Python module under `tools/blender/` becomes the architectural owner merely because it currently contains the embedded map.
-- **Godot packaging:** files under repo-root `content/` are **not** automatically on `res://`; how they reach the Godot export is a **Slice D** decision.
+| Layer | Owner |
+|-------|-------|
+| **Schema** | Shared conceptually; validated in Python (`eom_map_content.py`) and planned GDScript loader |
+| **Python loader** | `eom_map_content.py` — Blender tooling and future server (N7) |
+| **GDScript loader** | Planned `map_content_loader.gd` (N1) |
+| **Architectural owner of map truth** | `WorldMap` — not any loader module |
 
 ---
 
 ## Related documents
 
-- [MAP_MODEL.md](MAP_MODEL.md) — runtime `HexMap` container and query API
+- [MAP_MODEL.md](MAP_MODEL.md) — `WorldMap` layers and legacy `HexMap` status
+- [WORLD_COORDINATES.md](WORLD_COORDINATES.md) — coordinate contract and elevation precision
 - [TERRAIN_MODEL.md](TERRAIN_MODEL.md) — terrain construction model (TS-08)
-- [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md) — mathematical target for terrain surface generation
-- [PHASE_PLAN.md](PHASE_PLAN.md) — Fixed-grid Godot 3D terrain parity milestone slices
-- [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) — logical map → construction → presentation layering
-- [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) — what is implemented vs approved target
+- [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md) — mathematical target
+- [PHASE_PLAN.md](PHASE_PLAN.md) — N0–N8 implementation slices
+- [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) — current vs target vs legacy
+- [DECISION_LOG.md](DECISION_LOG.md) — approved architectural decisions

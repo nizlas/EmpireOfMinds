@@ -21,7 +21,8 @@ Neighbor offsets are fixed in this order, matching `HexCoord.Direction` (E throu
 
 ## Orientation neutrality
 
-The names E / NE / … are **labels for the six directions** in axial space. Whether “east” lines up with screen +X for a pointy-top vs flat-top layout is a **rendering** decision (see Phase 1.3+). The domain layer does not encode pointy vs flat, pixel size, or world basis vectors.
+- Axial cell identity (orientation-neutral labels) — see [HEX_COORDINATES.md](HEX_COORDINATES.md).
+- World embedding, elevation, and geographic directions — see [WORLD_COORDINATES.md](WORLD_COORDINATES.md) (approved target; not yet implemented in runtime code).
 
 ## Layer boundary (`game/domain/`)
 
