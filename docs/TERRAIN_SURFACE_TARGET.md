@@ -6,7 +6,7 @@ This document defines the **canonical mathematical target** for Empire of Minds 
 
 It is a **design target**, not an implementation report. Nothing in this document is implemented by the document itself.
 
-**Implementation status (2026-08):** the validation stages below are implemented in Blender as the accepted **TS-08 reference chain** (`tools/blender/terrain/`, Stage 0 cut-lattice audit, Stage 1 no-cut CG, Stage 2 cut-domain CG, Stage 3a walls + stone material; see [TERRAIN_MODEL.md](TERRAIN_MODEL.md) "Current canonical model"). The approved next step is reproducing this target in Godot — see the "Fixed-grid Godot 3D terrain parity" milestone in [PHASE_PLAN.md](PHASE_PLAN.md). This document remains the target both implementations are judged against.
+**Implementation status (2026-08):** the validation stages below are implemented in Blender as the accepted **TS-08 reference chain** (`tools/blender/terrain/`, Stage 0 cut-lattice audit, Stage 1 no-cut CG, Stage 2 cut-domain CG, Stage 3a walls + stone material; see [TERRAIN_MODEL.md](TERRAIN_MODEL.md) "Current canonical model"). **Slice N2** exports a deterministic, engine-neutral Stage-2 reference dataset to `content/terrain/reference/handdrawn_test_map_full_01_ts08_stage2_reference_v1.json` (schema and audit contract in `content/terrain/reference/README.md`; exporter `tools/blender/terrain/export_ts08_reference_dataset.py`). The `.blend` is not the parity authority — the JSON dataset is. The approved next step is reproducing this target in Godot (N3+) — see the "Fixed-grid Godot 3D terrain parity" milestone in [PHASE_PLAN.md](PHASE_PLAN.md). This document remains the target both implementations are judged against.
 
 Where this formulation conflicts with any ad-hoc terrain solver experiment (past or future), **this document supersedes the experiment**. Experiments are judged against this target; the target is only revised by editing this document deliberately and reviewably.
 
@@ -226,6 +226,21 @@ Global asserts: `convention_applied_count == deficient_count`; convention never 
 15. Mesh top-island count equals the solver's cut-component count (expected small; never ~77).
 16. Deterministic reruns produce identical output; solver convergence is reported (residual below tolerance, monotone energy).
 17. No failed experimental solver becomes canonical without explicit visual approval.
+
+## Reference dataset (N2 parity artifact)
+
+Godot and headless parity checks compare against the committed Stage-2 export, not a `.blend` mesh:
+
+| Item | Value |
+|------|-------|
+| Path | `content/terrain/reference/handdrawn_test_map_full_01_ts08_stage2_reference_v1.json` |
+| Regenerate | `python tools/blender/terrain/export_ts08_reference_dataset.py export` |
+| Audit | `python tools/blender/terrain/export_ts08_reference_dataset.py check` |
+| Frame | Godot Y-up positions/heights; axis `(x_g, y_g, z_g) = (x_b, z_b, -y_b)` |
+| Contents | `MapIdentity`, cut-lattice node keys/sheet ids, seam duplication summary, Y-up top triangles, center-pin `(q,r)` mapping, cliff tile pairs |
+| Golden topology | 74129 nodes, 145152 triangles, 168 center pins, 78 cliff edges, 861 duplicated cliff-line nodes, 0 cross-cliff adjacency violations |
+
+Full schema v1 and audit contract: `content/terrain/reference/README.md`.
 
 ## Cautionary references
 

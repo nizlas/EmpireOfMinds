@@ -249,6 +249,21 @@ Reference logical map: `content/maps/reference/handdrawn_test_map_full_01.json` 
 
 Status: **Stages 0–3a are the current accepted reference chain** (each with matching `run_*`/`audit_*` scripts and JSON reports under `reports/`). **Stage 3b is a superseded experiment — do not revive**; external cliff props remain deferred future work.
 
+### N2 reference dataset (parity authority — not the `.blend`)
+
+| Field | Value |
+|-------|-------|
+| Slice | **N2 (done, 2026-08)** |
+| Dataset | `content/terrain/reference/handdrawn_test_map_full_01_ts08_stage2_reference_v1.json` |
+| Exporter / audit | `tools/blender/terrain/export_ts08_reference_dataset.py` (`export` \| `check`, bpy-free) |
+| Tests | `tools/blender/terrain/tests/test_export_ts08_reference_dataset.py` |
+| Schema / contract | `content/terrain/reference/README.md` |
+| Chain reused | Stage 0 topology audit + Stage 2 cut-domain thin-plate CG (solver/parameters unchanged) |
+| Coordinate frame | Godot Y-up: `(x_g, y_g, z_g) = (x_b, z_b, -y_b)` |
+| Golden counts | 74129 nodes, 145152 triangles, 168 center pins, 78 cliff edges, 861 duplicated cliff-line nodes |
+
+The committed `.blend` Stage-2/3a artifacts remain development/visual references; Godot parity (N3+) compares against this JSON dataset.
+
 ---
 
 ## Recovery branches

@@ -2647,7 +2647,7 @@ Reproduce the accepted **TS-08** Blender reference terrain (see [TERRAIN_SURFACE
 |-------|--------|------|
 | **N0** | **Done (docs)** | Coordinate contract, `WorldMap` architecture, yield direction, legacy deprecation — [WORLD_COORDINATES.md](WORLD_COORDINATES.md), [MAP_MODEL.md](MAP_MODEL.md) |
 | **N1** | **Done (2026-08)** | `WorldMap`, projection, loader, `MapIdentity`, packaging sync, headless tests — **no rendering** |
-| **N2** | Planned | Blender TS-08 reference-dataset export + audit |
+| **N2** | **Done (2026-08)** | Blender TS-08 reference-dataset export + audit — `content/terrain/reference/handdrawn_test_map_full_01_ts08_stage2_reference_v1.json`; exporter `tools/blender/terrain/export_ts08_reference_dataset.py` |
 | **N3** | Planned | First visible 3D world: real TS-08 surface, orbit camera, tile/edge picking |
 | **N4** | Planned | World anchors + projected screen-space UI |
 | **N5** | Planned | New match core on `WorldMap`: units, movement, actions (debug harness) |
@@ -2658,7 +2658,7 @@ Reproduce the accepted **TS-08** Blender reference terrain (see [TERRAIN_SURFACE
 Decomposable parity slices (terrain construction track; cross-linked to N2–N4 above):
 
 1. **Canonical logical-map input.** **Done (Slice B+C).** The fixed hand-authored grid is extracted to `content/maps/reference/handdrawn_test_map_full_01.json` (JSON envelope v1; see [MAP_CONTENT.md](MAP_CONTENT.md)). Blender tooling consumes it via `eom_map_content.py`. Godot `WorldMap` loading is **N1**.
-2. **Deterministic reference dataset.** **N2.** Export solved heights / cut-lattice data from the Blender TS-08 chain in a form the Godot side can compare against.
+2. **Deterministic reference dataset.** **Done (N2, 2026-08).** Exported solved heights / cut-lattice topology from the accepted TS-08 Stage-0/2 chain (bpy-free) to `content/terrain/reference/handdrawn_test_map_full_01_ts08_stage2_reference_v1.json` — schema v1, Godot Y-up positions, stable node identity, seam duplication, top-surface triangles, center-pin mapping. Regenerate/audit: `python tools/blender/terrain/export_ts08_reference_dataset.py export|check`; focused tests under `tools/blender/terrain/tests/`. See `content/terrain/reference/README.md`.
 3. **Godot terrain construction.** Cut-lattice topology (cliff classification delta > 1, duplicated seam identity) and the cut-domain thin-plate CG solve, engine-native, deterministic.
 4. **Godot mesh + material + collision.** Mesh from the solved lattice; top-surface and stone cliff-wall materials; collision corresponding to the generated surface.
 5. **Parity audit + static scene.** Numerical and visual parity validation; a static Godot scene rendering the terrain.
