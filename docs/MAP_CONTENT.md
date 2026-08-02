@@ -128,7 +128,13 @@ logical_map (authoritative source input — 2D grid + elevation levels)
 - **Production terrain** must be **generated** from the logical map by running a **TS-08-equivalent solver**. The solver is part of the construction pipeline, not replaced by a pre-solved export.
 - The **N2 Stage-2 reference dataset** (`content/terrain/reference/`) is a **derived reference golden** for parity testing and auditing the accepted TS-08 result. It is **not** the final production terrain source.
 - **Blender TS-08** tooling outputs and **Godot** terrain meshes are **deterministic derivatives** — never gameplay authority.
-- **Parity validation** compares solver output against the N2 golden, the TS-08 algorithm/parameters in [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), and the audit chain. An optional N3 checkpoint that loads the pre-solved N2 dataset for early visual parity is **temporary only** — not target architecture.
+- **Parity validation** compares solver output against the N2 golden, the TS-08 algorithm/parameters in [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), and the audit chain. Godot headless tests use a **compact parity manifest** (`game/domain/tests/fixtures/world/handdrawn_test_map_full_01_ts08_n3a_topology_parity_v1.json`) deterministically derived from N2 — not runtime content, not a weakened sample. Regenerate/check: `python tools/blender/terrain/generate_ts08_n3a_parity_manifest.py write|check`. An optional N3 checkpoint that loads the pre-solved N2 dataset for early visual parity is **temporary only** — not target architecture.
+
+### Edge classification vs terrain authority (locked)
+
+- **`edge_rule` + `edge_overrides`** in the logical map envelope define how shared edges become **`smooth`** or **`cliff`** from the height-level grid ([MAP_MODEL.md](MAP_MODEL.md)).
+- **`WorldMap`** may cache the resolved classification for consumers; that cache is **derived**, not a second authored terrain source.
+- Continuous height under partial-hex / cliff-corner boundary conditions is **N3b solver** scope — outside N3a topology parity.
 
 ---
 

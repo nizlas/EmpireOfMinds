@@ -66,6 +66,23 @@ The new model **retires** fixed intrinsic yield tables keyed by categorical `ter
 - **`Hill` and similar** are normally **derived classifications**, not primitive terrain truth.
 - **Cliffs** are **edge relations**, not a boolean terrain type on one tile.
 
+### Edge classification (locked — N3a)
+
+Shared tile edges are classified **`smooth`** vs **`cliff`** deterministically from the canonical height-level grid:
+
+1. Compute `|Δelevation|` for each undirected neighbor pair.
+2. Apply the locked rule from envelope `edge_rule` (reference map: cliff when `|Δ| > cliff_threshold`, default threshold **1**).
+3. Apply explicit **`edge_overrides`** from the logical map when present.
+
+**Authority boundaries:**
+
+- Edge classification is **derived** from the logical map — not independently authored terrain geometry.
+- The resolved classification may be **stored on `WorldMap`** (`WorldEdge.transition`) for consumers (construction, movement, UI).
+- It is **not** a separate terrain authority layer; changing cliffs in presentation or mesh must not feed back into gameplay.
+- **Underdetermined hex interior height** (partial-hex boundary condition at cliff corners) belongs to the **N3b height solver contract**, not N3a topology construction.
+
+N3a (`Ts08CutLattice`) consumes **`WorldMap` edges** plus the TS-08 cut/merge rules to build Ω_cut topology only — no continuous height solve.
+
 See [MAP_CONTENT.md](MAP_CONTENT.md) for yield/knowledge boundaries and [DECISION_LOG.md](DECISION_LOG.md) for the approved direction.
 
 ### Snapshot v3 (planned N7 — not implemented)
@@ -79,6 +96,8 @@ Match snapshots will carry **`MapIdentity`** (`map_id`, `schema_version`, `conte
 | `game/domain/world/world_map.gd` | Sole logical map authority |
 | `game/domain/world/hex_world_projection.gd` | [WORLD_COORDINATES.md](WORLD_COORDINATES.md) math |
 | `game/domain/world/map_content_loader.gd` | Envelope v1 → `WorldMap` + `MapIdentity` |
+| `game/domain/world/ts08_terrain_math.gd` | TS-08 construction math (scalar float64; Python-compatible `pos_key`) |
+| `game/domain/world/ts08_cut_lattice.gd` | TS-08 Stage-0 cut-lattice topology from `WorldMap` (N3a) |
 | `server/app/domain/world_map.py` | Python mirror (N7) |
 
 Presentation modules under `game/presentation/world3d/` consume `WorldMap`; they do not own map truth.

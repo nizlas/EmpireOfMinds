@@ -64,7 +64,9 @@ For map/terrain/world tasks, apply the doc routing row above, then:
 - New map work targets **`WorldMap`** only; no legacy adapters.
 - **`WorldMap`** is logical authority; terrain mesh is derived presentation. Never write gameplay into mesh or infer rules from geometry.
 - Domain/rendering boundary: construction math engine-agnostic; Godot consumes in presentation.
-- Parity: **solver output** vs N2 golden (geometry/topology); visual vs accepted Blender result; collision vs **solver-generated** surface.
+- Parity: **solver output** vs N2 golden (geometry/topology); visual vs accepted Blender result; collision vs **solver-generated** surface. **N3a:** topology-only parity via compact manifest derived from N2; Godot tests must not load the 26 MB N2 JSON at runtime.
+- **Edge classification:** derived from canonical height grid + locked `edge_rule` / overrides; may be stored on **`WorldMap`**; not independent terrain authority. Partial-hex / underdetermined-corner **height** BC = **N3b**, not N3a.
+- **N3a boundary:** `Ts08CutLattice` builds Stage-0 Ω_cut from **`WorldMap` only** — no height solve, no mesh nodes, no rendering, no N3b+.
 - Do not build on superseded HexPatch/TS-07/Stage 3b experiments. No procedural map generation unless explicitly scoped.
 
 ## Phase 1 guardrails
