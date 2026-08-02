@@ -66,7 +66,8 @@ For map/terrain/world tasks, apply the doc routing row above, then:
 - Domain/rendering boundary: construction math engine-agnostic; Godot consumes in presentation.
 - Parity: **solver output** vs N2 golden (geometry/topology); visual vs accepted Blender result; collision vs **solver-generated** surface. **N3a:** topology-only parity via compact **digest manifest** (counts + SHA-256 digests over complete canonical streams) derived from N2; Godot tests must not load the 26 MB N2 JSON at runtime. Reference-map golden counts live in tests/manifest, **not** in production lattice code.
 - **Edge classification:** derived from canonical height grid + locked `edge_rule`; `edge_overrides` is **reserved and must be empty in schema v1** (functional overrides unsupported); resolved classification may be stored on **`WorldMap`**; not independent terrain authority. Partial-hex / underdetermined-corner **height** BC = **N3b**, not N3a. Lattice is in-memory; any future cache = versioned binary derived data, never canonical content.
-- **N3a boundary:** `Ts08CutLattice` builds Stage-0 Ω_cut from **`WorldMap` only** — no height solve, no mesh nodes, no rendering, no N3b+.
+- **N3a boundary:** `Ts08CutLattice` builds Stage-0 Ω_cut from **`WorldMap` only** — no mesh nodes, no rendering.
+- **N3b boundary:** `Ts08HeightSolver` solves Stage-2 cut-domain thin-plate heights from **`WorldMap` + the N3a lattice only** (float64 CSR PCG; component/gauge routing per TERRAIN_SURFACE_TARGET.md). Production solver code never loads N2 or pre-solved terrain; height parity vs N2 lives in tests via the test-only **binary height golden** (`generate_ts08_n3b_height_golden.py`). No mesh generation, materials, collision, runtime-world integration, or N3c+. Dev preview `game/dev/terrain_preview/` is development-only.
 - Do not build on superseded HexPatch/TS-07/Stage 3b experiments. No procedural map generation unless explicitly scoped.
 
 ## Phase 1 guardrails

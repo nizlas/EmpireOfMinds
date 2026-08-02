@@ -4,7 +4,7 @@ Engine-neutral, deterministic reference output for the accepted TS-08 Stage-2 cu
 
 **Authority (locked):**
 
-- **Authoritative terrain input:** the canonical 2D logical map in `content/maps/` — axial hex grid, integer elevation levels, edge transitions/overrides. Loaded into **`WorldMap`** (N1). This is the sole source input for terrain construction.
+- **Authoritative terrain input:** the canonical 2D logical map in `content/maps/` — axial hex grid, integer elevation levels. Loaded into **`WorldMap`** (N1). This is the sole source input for terrain construction. Edge classifications (smooth/cliff) are **derived** from the height grid and the locked threshold rule, not independently authored; `edge_overrides` is reserved and must be an empty array (or absent) in schema v1.
 - **This JSON file:** a **derived reference golden** — pre-solved TS-08 Stage-2 output exported for parity testing and auditing the accepted Blender/Godot solver result. It is **not** the final production terrain source and **does not replace** running a TS-08-equivalent solver.
 - **Target production pipeline:** generate continuous terrain from the canonical 2D grid by running a TS-08-equivalent solver (see [PHASE_PLAN.md](../../../docs/PHASE_PLAN.md), [TERRAIN_SURFACE_TARGET.md](../../../docs/TERRAIN_SURFACE_TARGET.md)).
 - **N3 checkpoint (if used):** loading this pre-solved dataset for an early visible 3D world is permitted as a **temporary visual-parity checkpoint only** — not the target architecture.

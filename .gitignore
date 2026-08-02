@@ -16,6 +16,9 @@ export_credentials.cfg
 data_*/
 mono_crash.*.json
 
+# Development-only terrain preview renders (N3b visual verification)
+game/dev/terrain_preview/output/
+
 # Local authority server (Cloud 0.1)
 server/data/
 **/__pycache__/

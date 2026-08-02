@@ -84,6 +84,8 @@ Shared tile edges are classified **`smooth`** vs **`cliff`** deterministically f
 
 N3a (`Ts08CutLattice`) consumes **`WorldMap` edges** plus the TS-08 cut/merge rules to build Ω_cut topology only — no continuous height solve. The lattice is held **in memory**; any future persisted lattice cache must be a compact, versioned **binary** format (packed arrays, source `WorldMap` hash, format version, integrity checksum) treated as regenerable derived data — see [MAP_CONTENT.md](MAP_CONTENT.md).
 
+N3b (`Ts08HeightSolver`) consumes the **`WorldMap`** plus the N3a lattice to solve the Stage-2 cut-domain thin-plate heights ([TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md)), including the partial-hex/underdetermined-component gauge convention (analytic constant/plane, deflated CG + exact post-projection). Solved heights are **derived data in memory** — never gameplay authority, never persisted map content. Production solver code never loads N2 or pre-solved terrain; N2 parity lives in tests via a test-only binary height golden.
+
 See [MAP_CONTENT.md](MAP_CONTENT.md) for yield/knowledge boundaries and [DECISION_LOG.md](DECISION_LOG.md) for the approved direction.
 
 ### Snapshot v3 (planned N7 — not implemented)
@@ -99,6 +101,7 @@ Match snapshots will carry **`MapIdentity`** (`map_id`, `schema_version`, `conte
 | `game/domain/world/map_content_loader.gd` | Envelope v1 → `WorldMap` + `MapIdentity` |
 | `game/domain/world/ts08_terrain_math.gd` | TS-08 construction math (scalar float64; Python-compatible `pos_key`) |
 | `game/domain/world/ts08_cut_lattice.gd` | TS-08 Stage-0 cut-lattice topology from `WorldMap` (N3a) |
+| `game/domain/world/ts08_height_solver.gd` | TS-08 Stage-2 cut-domain thin-plate CG height solve (N3b) |
 | `server/app/domain/world_map.py` | Python mirror (N7) |
 
 Presentation modules under `game/presentation/world3d/` consume `WorldMap`; they do not own map truth.

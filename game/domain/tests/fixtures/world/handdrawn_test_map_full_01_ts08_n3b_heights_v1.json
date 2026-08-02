@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "golden_id": "handdrawn_test_map_full_01_ts08_n3b_heights_v1",
+  "purpose": "test-only numerical parity golden for the Godot-native N3b height solver; not a persisted lattice cache, not a runtime terrain source",
+  "source_n2_dataset_id": "handdrawn_test_map_full_01_ts08_stage2_reference_v1",
+  "source_n2_content_hash": "4420fe98088ffb8e538b87f5debb8408dc7a16b279da85dcd335a01f166467ce",
+  "encoding": "little-endian IEEE-754 float64 solved heights (Godot Y), one per cut-lattice node in N3a node-index order, from N2 nodes.positions_xyz[*][1]",
+  "node_count": 74129,
+  "binary_byte_size": 593032,
+  "binary_sha256": "f5ef9c53ef2d263271f12eb3515747a520a2433092d85cddd7fdc51ea1ca0b10",
+  "y_min": -0.0953001335506,
+  "y_max": 2.09155970068
+}

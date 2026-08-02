@@ -27,6 +27,9 @@ class BuildResult extends RefCounted:
 	var node_sheet_ids: Array[int] = []
 	var node_pos_keys: Array[Vector2] = []
 	var node_plane_xy: Array[Vector2] = []
+	# Full-precision plane coordinates (Vector2 is float32; solver math needs float64).
+	var node_plane_x: PackedFloat64Array = PackedFloat64Array()
+	var node_plane_y: PackedFloat64Array = PackedFloat64Array()
 	var node_godot_xz: Array[Vector2] = []
 	var pinned_world_y: Dictionary = {}
 	var pin_hex_by_node: Dictionary = {}
@@ -354,6 +357,8 @@ static func _build_cut_lattice_topology(
 	var node_sheet_ids: Array[int] = []
 	var node_pos_keys: Array[Vector2] = []
 	var node_plane_xy: Array[Vector2] = []
+	var node_plane_x := PackedFloat64Array()
+	var node_plane_y := PackedFloat64Array()
 	var adjacency_sets: Array = []
 	var pinned: Dictionary = {}
 	var pin_hex_by_node: Dictionary = {}
@@ -381,6 +386,8 @@ static func _build_cut_lattice_topology(
 		node_sheet_ids.append(sheet_id)
 		node_pos_keys.append(Vector2(float(pk_parts[0]), float(pk_parts[1])))
 		node_plane_xy.append(Vector2(wx, wy))
+		node_plane_x.append(wx)
+		node_plane_y.append(wy)
 		adjacency_sets.append({})
 		return index
 
@@ -465,6 +472,8 @@ static func _build_cut_lattice_topology(
 		node_sheet_ids.append(sheet_id)
 		node_pos_keys.append(Vector2(float(pk_parts[0]), float(pk_parts[1])))
 		node_plane_xy.append(Vector2(wx, wy))
+		node_plane_x.append(wx)
+		node_plane_y.append(wy)
 		adjacency_sets.append({})
 		if not merge_map.has(merge_key):
 			merge_map[merge_key] = index
@@ -550,6 +559,8 @@ static func _build_cut_lattice_topology(
 	result.node_sheet_ids = node_sheet_ids
 	result.node_pos_keys = node_pos_keys
 	result.node_plane_xy = node_plane_xy
+	result.node_plane_x = node_plane_x
+	result.node_plane_y = node_plane_y
 	result.node_godot_xz = godot_xz
 	result.pinned_world_y = pinned
 	result.pin_hex_by_node = pin_hex_by_node
