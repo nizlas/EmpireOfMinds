@@ -209,10 +209,14 @@ Promoting an ordinary runtime-generated map into `content/maps/generated/` is in
 
 | Layer | Owner |
 |-------|-------|
-| **Schema** | Shared conceptually; validated in Python (`eom_map_content.py`) and planned GDScript loader |
-| **Python loader** | `eom_map_content.py` — Blender tooling and future server (N7) |
-| **GDScript loader** | Planned `map_content_loader.gd` (N1) |
+| **Schema** | Shared conceptually across environments; envelope v1 rules documented here and in [WORLD_COORDINATES.md](WORLD_COORDINATES.md) |
+| **Blender tooling loader** | `tools/blender/terrain/eom_map_content.py` — development/reference tooling only |
+| **Repository sync tooling (N1)** | Planned `tools/content/sync_map_content.py` — may reuse validation semantics aligned with the canonical schema; **not** a runtime dependency |
+| **Godot loader (N1)** | Planned `game/domain/world/map_content_loader.gd` |
+| **Server loader (N7)** | Planned server-owned loader under `server/app/` — loads canonical content identified by `MapIdentity`, verifies raw-byte SHA-256 `content_hash`, rejects schema or identity mismatches explicitly; **must not import** from `tools/blender/` |
 | **Architectural owner of map truth** | `WorldMap` — not any loader module |
+
+The future authoritative **server runtime** must not depend on Blender tooling. N7 implements a server-owned map-content loader under `server/app/` following the same canonical schema and validation semantics as other loaders, without importing `eom_map_content.py` or any other module under `tools/blender/`.
 
 ---
 

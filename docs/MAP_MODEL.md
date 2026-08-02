@@ -36,7 +36,15 @@ Everything that refers to “the map” in gameplay, server state, terrain const
 **Stable identities:**
 
 - **Tile id:** canonical axial `(q, r)` (same as [HEX_COORDINATES.md](HEX_COORDINATES.md)).
-- **Edge id:** ordered-normalized pair of adjacent tile ids `(a, b)` with `a < b` under a documented ordering, plus implied direction when needed.
+- **Edge id (undirected):** a normalized pair of adjacent tile ids. Tile identities are ordered **lexicographically** by `q`, then by `r` when `q` is equal. An undirected edge identity is:
+
+  ```text
+  edge_id = (min_lex(tile_a, tile_b), max_lex(tile_a, tile_b))
+  ```
+
+  where each tile identity is its canonical axial `(q, r)` coordinate.
+
+  This identity is independent of iteration order, which tile is upper or lower in elevation, smooth/cliff classification, mesh vertices or triangle indices, and presentation or collision geometry. When a rule needs a **directed** edge (e.g. movement from A to B), use the ordered pair `(from_tile, to_tile)` explicitly — do not substitute a sequential edge index.
 
 **Scenario setup** belongs beside the match core: a `ScenarioFactory` takes a `MapIdentity`-resolved `WorldMap` plus a scenario spec (starting units, cities, players). Map factories on the map class itself are **not** carried forward.
 

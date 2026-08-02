@@ -2637,7 +2637,7 @@ Validation:
 **Status:** approved direction; **N0 documentation complete (2026-08)**; runtime implementation **not started**. This milestone is decoupled from the Phase 5.x gameplay numbering: it is presentation/terrain work and does not change gameplay rules until the new match core lands (N5+).
 
 Goal:
-Reproduce the accepted **TS-08** Blender reference terrain (see [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md) and the canonical section of [TERRAIN_MODEL.md](TERRAIN_MODEL.md)) as **Godot-native runtime terrain construction** from the **fixed hand-authored logical hex grid** (`terrain_handdrawn_test_map_full_01`). Blender remains a development/reference implementation only — never a runtime dependency.
+Reproduce the accepted **TS-08** Blender reference terrain (see [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md) and the canonical section of [TERRAIN_MODEL.md](TERRAIN_MODEL.md)) as **Godot-native runtime terrain construction** from the **fixed hand-authored logical hex grid** (`handdrawn_test_map_full_01`). Blender remains a development/reference implementation only — never a runtime dependency.
 
 **Reference contract.** Parity is validated against the reference contract as a whole: the canonical logical grid, the TS-08 algorithm and parameters, a deterministic reference dataset exported from the Blender chain, the audit chain, and the visually accepted Blender result. The committed Stage 3a `.blend` is one artifact within that contract, not the sole authority.
 
