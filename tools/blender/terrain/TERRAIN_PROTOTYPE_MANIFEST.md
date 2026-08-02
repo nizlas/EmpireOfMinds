@@ -249,12 +249,14 @@ Reference logical map: `content/maps/reference/handdrawn_test_map_full_01.json` 
 
 Status: **Stages 0–3a are the current accepted reference chain** (each with matching `run_*`/`audit_*` scripts and JSON reports under `reports/`). **Stage 3b is a superseded experiment — do not revive**; external cliff props remain deferred future work.
 
-### N2 reference dataset (parity authority — not the `.blend`)
+### N2 reference dataset (derived golden — not production source)
 
 | Field | Value |
 |-------|-------|
 | Slice | **N2 (done, 2026-08)** |
+| Role | **Derived reference golden** for parity testing/audit of accepted TS-08 Stage-2; **not** the production terrain source; **does not replace** the solver |
 | Dataset | `content/terrain/reference/handdrawn_test_map_full_01_ts08_stage2_reference_v1.json` |
+| Authoritative input | `content/maps/reference/handdrawn_test_map_full_01.json` → **`WorldMap`** |
 | Exporter / audit | `tools/blender/terrain/export_ts08_reference_dataset.py` (`export` \| `check`, bpy-free) |
 | Tests | `tools/blender/terrain/tests/test_export_ts08_reference_dataset.py` |
 | Schema / contract | `content/terrain/reference/README.md` |
@@ -262,7 +264,7 @@ Status: **Stages 0–3a are the current accepted reference chain** (each with ma
 | Coordinate frame | Godot Y-up: `(x_g, y_g, z_g) = (x_b, z_b, -y_b)` |
 | Golden counts | 74129 nodes, 145152 triangles, 168 center pins, 78 cliff edges, 861 duplicated cliff-line nodes |
 
-The committed `.blend` Stage-2/3a artifacts remain development/visual references; Godot parity (N3+) compares against this JSON dataset.
+The committed `.blend` Stage-2/3a artifacts remain development/visual references. **Target production path:** Godot generates terrain from the canonical 2D grid via a TS-08-equivalent solver and compares against this JSON golden. Optional N3 checkpoint loading of the pre-solved dataset is temporary visual parity only.
 
 ---
 

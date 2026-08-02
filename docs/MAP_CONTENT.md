@@ -116,16 +116,19 @@ Clients and server **independently load** the canonical content matching the ide
 ## Authoritative logical map vs derived outputs
 
 ```text
-logical_map (authoritative source input)
+logical_map (authoritative source input — 2D grid + elevation levels)
     → WorldMap (canonical in-memory authority — implemented N1 foundation)
-        → terrain construction (deterministic derived geometry — TS-08)
+        → terrain construction (TS-08-equivalent solver — target production path)
             → presentation (mesh, material, collision, overlays, UI)
+        → reference dataset (N2 — derived golden for parity/audit only; not production source)
 ```
 
-- The **logical map** in `content/maps/` is authoritative **source** data.
+- The **logical map** in `content/maps/` is authoritative **source** data: the canonical 2D hex grid and its height-level field (plus edge transitions/overrides).
 - **`WorldMap`** is the authoritative **in-memory** representation for gameplay — **implemented** as non-rendered foundation code (N1); not yet wired to gameplay, server, or 3D presentation.
-- **Blender TS-08** outputs and **Godot** terrain are **deterministic derivatives** — never gameplay authority.
-- Reference authority for terrain parity is the **contract as a whole**: canonical logical grid, TS-08 algorithm/parameters, deterministic reference dataset, audit chain, accepted visual result.
+- **Production terrain** must be **generated** from the logical map by running a **TS-08-equivalent solver**. The solver is part of the construction pipeline, not replaced by a pre-solved export.
+- The **N2 Stage-2 reference dataset** (`content/terrain/reference/`) is a **derived reference golden** for parity testing and auditing the accepted TS-08 result. It is **not** the final production terrain source.
+- **Blender TS-08** tooling outputs and **Godot** terrain meshes are **deterministic derivatives** — never gameplay authority.
+- **Parity validation** compares solver output against the N2 golden, the TS-08 algorithm/parameters in [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), and the audit chain. An optional N3 checkpoint that loads the pre-solved N2 dataset for early visual parity is **temporary only** — not target architecture.
 
 ---
 

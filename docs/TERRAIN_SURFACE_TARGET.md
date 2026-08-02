@@ -6,7 +6,7 @@ This document defines the **canonical mathematical target** for Empire of Minds 
 
 It is a **design target**, not an implementation report. Nothing in this document is implemented by the document itself.
 
-**Implementation status (2026-08):** the validation stages below are implemented in Blender as the accepted **TS-08 reference chain** (`tools/blender/terrain/`, Stage 0 cut-lattice audit, Stage 1 no-cut CG, Stage 2 cut-domain CG, Stage 3a walls + stone material; see [TERRAIN_MODEL.md](TERRAIN_MODEL.md) "Current canonical model"). **Slice N2** exports a deterministic, engine-neutral Stage-2 reference dataset to `content/terrain/reference/handdrawn_test_map_full_01_ts08_stage2_reference_v1.json` (schema and audit contract in `content/terrain/reference/README.md`; exporter `tools/blender/terrain/export_ts08_reference_dataset.py`). The `.blend` is not the parity authority — the JSON dataset is. The approved next step is reproducing this target in Godot (N3+) — see the "Fixed-grid Godot 3D terrain parity" milestone in [PHASE_PLAN.md](PHASE_PLAN.md). This document remains the target both implementations are judged against.
+**Implementation status (2026-08):** the validation stages below are implemented in Blender as the accepted **TS-08 reference chain** (`tools/blender/terrain/`, Stage 0 cut-lattice audit, Stage 1 no-cut CG, Stage 2 cut-domain CG, Stage 3a walls + stone material; see [TERRAIN_MODEL.md](TERRAIN_MODEL.md) "Current canonical model"). **Slice N2** exports a deterministic Stage-2 **derived reference golden** to `content/terrain/reference/handdrawn_test_map_full_01_ts08_stage2_reference_v1.json` for parity testing and audit (not the production terrain source; does not replace the solver). The authoritative terrain input remains the canonical 2D logical map + height-level grid. The approved production path is Godot-native terrain **generated** from that grid by a TS-08-equivalent solver (N3+); see the "Fixed-grid Godot 3D terrain parity" milestone in [PHASE_PLAN.md](PHASE_PLAN.md). This document remains the mathematical target both solver implementations are judged against.
 
 Where this formulation conflicts with any ad-hoc terrain solver experiment (past or future), **this document supersedes the experiment**. Experiments are judged against this target; the target is only revised by editing this document deliberately and reviewably.
 
@@ -227,9 +227,11 @@ Global asserts: `convention_applied_count == deficient_count`; convention never 
 16. Deterministic reruns produce identical output; solver convergence is reported (residual below tolerance, monotone energy).
 17. No failed experimental solver becomes canonical without explicit visual approval.
 
-## Reference dataset (N2 parity artifact)
+## Reference dataset (N2 derived golden — not production source)
 
-Godot and headless parity checks compare against the committed Stage-2 export, not a `.blend` mesh:
+The N2 export is a **pre-solved reference golden** for parity testing and auditing the accepted TS-08 Stage-2 result. It is **not** the final production terrain source and **does not replace** running a TS-08-equivalent solver on the canonical 2D grid.
+
+Parity checks compare **solver output** against this golden (and against the accepted visual Blender result where applicable), not against a `.blend` mesh:
 
 | Item | Value |
 |------|-------|
@@ -239,6 +241,8 @@ Godot and headless parity checks compare against the committed Stage-2 export, n
 | Frame | Godot Y-up positions/heights; axis `(x_g, y_g, z_g) = (x_b, z_b, -y_b)` |
 | Contents | `MapIdentity`, cut-lattice node keys/sheet ids, seam duplication summary, Y-up top triangles, center-pin `(q,r)` mapping, cliff tile pairs |
 | Golden topology | 74129 nodes, 145152 triangles, 168 center pins, 78 cliff edges, 861 duplicated cliff-line nodes, 0 cross-cliff adjacency violations |
+| Golden height range (Godot Y / Blender Z) | min `-0.0953001335506`, max `2.09155970068` (tol `1e-12`) |
+| Audit gate | Full file byte-for-byte match with deterministic regeneration (tamper + recomputed `content_hash` still fails) |
 
 Full schema v1 and audit contract: `content/terrain/reference/README.md`.
 

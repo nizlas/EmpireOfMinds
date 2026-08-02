@@ -55,9 +55,17 @@ DATASET_FILENAME = f"{DATASET_ID}.json"
 DEST_ROOT = Path("content") / "terrain" / "reference"
 
 REFERENCE_MAP_HASH = "16cc82c3392c66f1e47273e7da94cf8a804ae9885a051fc81c4b0a9a4261d8c6"
+COMMITTED_DATASET_CONTENT_HASH = (
+    "4420fe98088ffb8e538b87f5debb8408dc7a16b279da85dcd335a01f166467ce"
+)
 EXPECTED_DUPLICATED_CLIFF_LINE_NODES = 861
 CENTER_HEIGHT_TOL = 1e-6
 SMOOTH_EDGE_SPLIT_TOL = 1e-6
+# Accepted TS-08 Stage-2 solve height range (Blender Z == Godot Y); from
+# reports/ts08_stage2_cut_domain_thin_plate_cg_audit.json, matched to serialized dataset.
+ACCEPTED_STAGE2_Z_MIN = -0.0953001335506
+ACCEPTED_STAGE2_Z_MAX = 2.09155970068
+STAGE2_HEIGHT_RANGE_ABS_TOL = 1e-12
 
 
 class BaselineGeometryShim:
@@ -275,15 +283,25 @@ def finalize_dataset_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return finalized
 
 
+def finalized_dataset_file_bytes(payload: dict[str, Any]) -> bytes:
+    finalized = finalize_dataset_payload(payload)
+    return (
+        json.dumps(finalized, indent=2, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        + b"\n"
+    )
+
+
+def regenerate_finalized_file_bytes(repo_root: Path) -> bytes:
+    return finalized_dataset_file_bytes(build_reference_dataset(repo_root))
+
+
 def export_reference_dataset(repo_root: Path, dest_path: Path | None = None) -> tuple[Path, str]:
-    payload = finalize_dataset_payload(build_reference_dataset(repo_root))
+    file_bytes = regenerate_finalized_file_bytes(repo_root)
+    payload = json.loads(file_bytes.decode("utf-8"))
     if dest_path is None:
         dest_path = repo_root / DEST_ROOT / DATASET_FILENAME
     dest_path.parent.mkdir(parents=True, exist_ok=True)
-    dest_path.write_bytes(
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False).encode("utf-8")
-        + b"\n"
-    )
+    dest_path.write_bytes(file_bytes)
     return dest_path, payload["content_hash"]
 
 
@@ -293,6 +311,43 @@ class DatasetAuditReport:
     failures: list[str]
     warnings: list[str]
     content_hash: str
+
+
+def _audit_stage2_height_range(payload: dict[str, Any], failures: list[str]) -> None:
+    solver = payload.get("solver_summary") or {}
+    z_min = solver.get("z_min_blender")
+    z_max = solver.get("z_max_blender")
+    if z_min is None or z_max is None:
+        failures.append("solver_summary missing z_min_blender or z_max_blender")
+        return
+    if abs(float(z_min) - ACCEPTED_STAGE2_Z_MIN) > STAGE2_HEIGHT_RANGE_ABS_TOL:
+        failures.append(
+            f"z_min_blender {z_min} != accepted {ACCEPTED_STAGE2_Z_MIN} "
+            f"(tol {STAGE2_HEIGHT_RANGE_ABS_TOL})"
+        )
+    if abs(float(z_max) - ACCEPTED_STAGE2_Z_MAX) > STAGE2_HEIGHT_RANGE_ABS_TOL:
+        failures.append(
+            f"z_max_blender {z_max} != accepted {ACCEPTED_STAGE2_Z_MAX} "
+            f"(tol {STAGE2_HEIGHT_RANGE_ABS_TOL})"
+        )
+
+    positions = (payload.get("nodes") or {}).get("positions_xyz") or []
+    if not positions:
+        failures.append("nodes.positions_xyz missing for Godot Y height-range audit")
+        return
+    godot_y = [float(pos[1]) for pos in positions]
+    y_min = min(godot_y)
+    y_max = max(godot_y)
+    if abs(y_min - ACCEPTED_STAGE2_Z_MIN) > STAGE2_HEIGHT_RANGE_ABS_TOL:
+        failures.append(
+            f"godot_y_min {y_min} != accepted {ACCEPTED_STAGE2_Z_MIN} "
+            f"(tol {STAGE2_HEIGHT_RANGE_ABS_TOL})"
+        )
+    if abs(y_max - ACCEPTED_STAGE2_Z_MAX) > STAGE2_HEIGHT_RANGE_ABS_TOL:
+        failures.append(
+            f"godot_y_max {y_max} != accepted {ACCEPTED_STAGE2_Z_MAX} "
+            f"(tol {STAGE2_HEIGHT_RANGE_ABS_TOL})"
+        )
 
 
 def audit_reference_dataset(path: Path, *, repo_root: Path | None = None) -> DatasetAuditReport:
@@ -305,6 +360,13 @@ def audit_reference_dataset(path: Path, *, repo_root: Path | None = None) -> Dat
 
     failures: list[str] = []
     warnings: list[str] = []
+
+    expected_bytes = regenerate_finalized_file_bytes(repo_root)
+    if raw != expected_bytes:
+        failures.append(
+            "dataset file bytes differ from deterministic regeneration "
+            f"(file={len(raw)} bytes, expected={len(expected_bytes)} bytes)"
+        )
 
     stored_hash = payload.get("content_hash")
     body_hash = sha256_hex_lower(canonical_dataset_bytes(payload))
@@ -423,6 +485,8 @@ def audit_reference_dataset(path: Path, *, repo_root: Path | None = None) -> Dat
             f"cliff_edges list length {len(payload.get('cliff_edges') or [])} "
             f"!= {EXPECTED_CLIFF_EDGE_COUNT}"
         )
+
+    _audit_stage2_height_range(payload, failures)
 
     return DatasetAuditReport(
         passed=not failures,

@@ -31,7 +31,7 @@ Everything that refers to “the map” in gameplay, server state, terrain const
 | 7. Capabilities & player knowledge | Progress/science + `KnowledgeState` | Player-scoped where noted | Explored-set pattern reused from `PlayerVisibilityState` | Prospecting, discovered geology |
 | 8. Improvements & exploitation | Match-state entities on tile/edge ids | Authoritative | — (extension point) | Full improvement catalog |
 | 9. Yields & legal actions | Pure functions over layers 1–8 | Derived, authoritative outputs | Flat base yields (N6); movement over edges (N5) | Capability-driven yield content, full balance |
-| 10. Presentation | 3D scene: mesh, materials, collision, overlays, UI | Derivative only | TS-08 reference surface (N3) | Final materials, full UI catalog |
+| 10. Presentation | 3D scene: mesh, materials, collision, overlays, UI | Derivative only | TS-08 solver-generated surface (N3); N2 golden for parity | Final materials, full UI catalog |
 
 **Stable identities:**
 
@@ -82,6 +82,17 @@ Match snapshots will carry **`MapIdentity`** (`map_id`, `schema_version`, `conte
 | `server/app/domain/world_map.py` | Python mirror (N7) |
 
 Presentation modules under `game/presentation/world3d/` consume `WorldMap`; they do not own map truth.
+
+### Terrain input vs generated surface (locked)
+
+| Role | Authority | Notes |
+|------|-----------|-------|
+| Canonical 2D map + elevation levels | **Authoritative terrain input** | `content/maps/` → **`WorldMap`** |
+| TS-08-equivalent solver | **Production construction path** | Generates continuous surface from input |
+| N2 reference dataset | **Derived golden** | Parity testing/audit only; not production source |
+| Mesh / collision / sampled Y | **Presentation derivative** | Never gameplay authority |
+
+An optional N3 checkpoint that loads the N2 pre-solved dataset for early visual parity is **temporary only** — not target architecture. Details: [PHASE_PLAN.md](PHASE_PLAN.md), [MAP_CONTENT.md](MAP_CONTENT.md), `content/terrain/reference/README.md`.
 
 ---
 

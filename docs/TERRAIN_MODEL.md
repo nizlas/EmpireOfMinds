@@ -18,14 +18,14 @@ The canonical terrain model is the **cut-domain thin-plate model** defined in [T
 | Stage 2 | Cut-domain thin-plate CG solve | `eom_terrain_ts08_stage2_cut_thin_plate_cg.py`, `generate_ts08_stage2_cut_domain_thin_plate_cg.py` |
 | Stage 3a | Basic cliff walls + stone wall material | `eom_terrain_ts08_cliff_walls.py`, `eom_terrain_ts08_cliff_wall_stone_material.py`, `generate_ts08_stage3a_basic_cliff_walls.py` |
 
-Each stage has matching `run_*`/`audit_*` scripts and JSON reports under `tools/blender/terrain/reports/`. The **reference authority is the contract as a whole**: the canonical logical grid, the algorithm and parameters documented in [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), a deterministic reference dataset, the audit chain, and the visually accepted Blender result. The committed Stage 3a `.blend` is one reference artifact within that contract — not the architectural source of truth.
+Each stage has matching `run_*`/`audit_*` scripts and JSON reports under `tools/blender/terrain/reports/`. **Authoritative terrain input** is the canonical 2D logical map + height-level grid ([MAP_CONTENT.md](MAP_CONTENT.md)). The **N2 reference dataset** is a derived golden for parity/audit — not the production terrain source. The **reference contract** for validation comprises: that input, the algorithm and parameters in [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), the N2 golden, the audit chain, and the visually accepted Blender result. The committed Stage 3a `.blend` is one reference artifact within that contract — not the architectural source of truth.
 
-**Approved target (not implemented):** Godot-native runtime terrain construction that generates the continuous 3D terrain mesh directly from the fixed logical hex grid and reproduces the TS-08 reference numerically and visually. See the "Fixed-grid Godot 3D terrain parity" milestone in [PHASE_PLAN.md](PHASE_PLAN.md). Blender remains a development/reference implementation: never a runtime dependency, and the Blender mesh is not the final source of the playable terrain.
+**Approved target (not implemented):** Godot-native runtime terrain construction that **generates** the continuous 3D terrain mesh from the canonical logical hex grid by running a **TS-08-equivalent solver**, then compares against the N2 golden. See the "Fixed-grid Godot 3D terrain parity" milestone in [PHASE_PLAN.md](PHASE_PLAN.md). Blender remains a development/reference implementation: never a runtime dependency. An optional N3 checkpoint that loads the pre-solved N2 dataset for early visual parity is temporary only — not target architecture.
 
 **Three layers (must not blend):**
 
-1. **Logical/domain map** — authoritative axial hex grid: terrain/elevation/tags, transitions, gameplay rules. Gameplay truth.
-2. **Terrain construction** — deterministic continuous 3D surface derived from the logical map, including cut topology at cliffs.
+1. **Logical/domain map** — authoritative axial hex grid + integer elevation levels, transitions, gameplay rules. Gameplay truth. **This is the terrain input.**
+2. **Terrain construction** — deterministic continuous 3D surface **generated** from the logical map by a TS-08-equivalent solver, including cut topology at cliffs. Compared against the N2 derived golden for parity.
 3. **Presentation** — Godot mesh/material/collision, camera, visual units, height-following animation.
 
 The generated mesh is derived presentation geometry and must never become authoritative gameplay state. Cliff passages remain blocked by gameplay/domain rules, not by geometry.
