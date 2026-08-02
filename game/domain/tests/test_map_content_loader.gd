@@ -9,21 +9,43 @@ var _any_fail := false
 
 
 func _init() -> void:
-	_test_valid_minimal_fixture()
+	_test_valid_fixtures()
 	_test_invalid_fixtures()
 	_test_raw_hash_from_bytes()
 	_finish()
 
 
-func _test_valid_minimal_fixture() -> void:
-	var path := "res://domain/tests/fixtures/world/envelope_valid_minimal.json"
-	var result = MapContentLoader.try_load_world_map_from_res_path(path)
-	_check(result["ok"], "valid minimal fixture loads")
-	if not result["ok"]:
-		return
-	var world_map = result["world_map"]
-	_check(world_map.tile_count() == 2, "minimal tile count")
-	_check(world_map.cliff_edge_count() == 1, "minimal cliff edge from delta rule")
+func _test_valid_fixtures() -> void:
+	var cases := {
+		"res://domain/tests/fixtures/world/envelope_valid_minimal.json": {
+			"tiles": 2,
+			"cliffs": 1,
+		},
+		"res://domain/tests/fixtures/world/envelope_valid_absent_edge_overrides.json": {
+			"tiles": 2,
+			"cliffs": 1,
+		},
+		"res://domain/tests/fixtures/world/envelope_valid_empty_edge_overrides.json": {
+			"tiles": 2,
+			"cliffs": 1,
+		},
+		"res://domain/tests/fixtures/world/envelope_valid_threshold_zero.json": {
+			"tiles": 2,
+			"cliffs": 1,
+		},
+	}
+	for path in cases.keys():
+		var expected: Dictionary = cases[path]
+		var result = MapContentLoader.try_load_world_map_from_res_path(path)
+		_check(result["ok"], "valid fixture loads: %s" % path)
+		if not result["ok"]:
+			continue
+		var world_map = result["world_map"]
+		_check(world_map.tile_count() == expected["tiles"], "tile count for %s" % path)
+		_check(
+			world_map.cliff_edge_count() == expected["cliffs"],
+			"cliff count for %s" % path
+		)
 
 
 func _test_invalid_fixtures() -> void:
@@ -40,6 +62,14 @@ func _test_invalid_fixtures() -> void:
 		"res://domain/tests/fixtures/world/envelope_invalid_override_non_adjacent.json",
 		"res://domain/tests/fixtures/world/envelope_invalid_override_malformed_edge.json",
 		"res://domain/tests/fixtures/world/envelope_invalid_duplicate_override.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_edge_overrides_null.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_threshold_negative.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_nearly_integral_tile_q.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_nearly_integral_threshold.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_missing_logical_map_id.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_missing_orientation.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_missing_tile_q.json",
+		"res://domain/tests/fixtures/world/envelope_invalid_missing_tile_r.json",
 	]
 	for path in cases:
 		var result = MapContentLoader.try_load_world_map_from_res_path(path)

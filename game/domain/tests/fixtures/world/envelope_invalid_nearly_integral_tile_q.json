@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "origin": "reference",
+  "provenance": "Nearly integral q must be rejected by exact integer validation.",
+  "logical_map": {
+    "id": "fixture_nearly_integral_q",
+    "orientation": "pointy_top_custom_axes",
+    "elevation_step": 0.4,
+    "edge_rule": { "default": "smooth", "cliff_if_abs_delta_greater_than": 1 },
+    "edge_overrides": [],
+    "tiles": [
+      { "q": 1.0000001, "r": 0, "elevation": 1 }
+    ]
+  }
+}

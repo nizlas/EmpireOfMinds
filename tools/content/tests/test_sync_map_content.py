@@ -16,10 +16,12 @@ if str(REPO_ROOT) not in sys.path:
 from tools.content.sync_map_content import (  # noqa: E402
     DEST_ROOT,
     SOURCE_ROOT,
+    MapContentValidationError,
     check_maps,
     plan_sync,
     sync_maps,
     validate_envelope,
+    validate_origin_folder,
 )
 
 SYNC_SCRIPT = REPO_ROOT / "tools" / "content" / "sync_map_content.py"
@@ -45,6 +47,20 @@ INVALID_FIXTURES = [
     "envelope_invalid_override_non_adjacent.json",
     "envelope_invalid_override_malformed_edge.json",
     "envelope_invalid_duplicate_override.json",
+    "envelope_invalid_edge_overrides_null.json",
+    "envelope_invalid_threshold_negative.json",
+    "envelope_invalid_nearly_integral_tile_q.json",
+    "envelope_invalid_nearly_integral_threshold.json",
+    "envelope_invalid_missing_logical_map_id.json",
+    "envelope_invalid_missing_orientation.json",
+    "envelope_invalid_missing_tile_q.json",
+    "envelope_invalid_missing_tile_r.json",
+]
+
+VALID_PARITY_FIXTURES = [
+    "envelope_valid_absent_edge_overrides.json",
+    "envelope_valid_empty_edge_overrides.json",
+    "envelope_valid_threshold_zero.json",
 ]
 
 
@@ -52,9 +68,17 @@ def _sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def _run_sync_subprocess(command: str, cwd: Path) -> subprocess.CompletedProcess[str]:
+def _run_sync_subprocess(
+    command: str,
+    cwd: Path,
+    *,
+    repo_root: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    args = [sys.executable, str(SYNC_SCRIPT), command]
+    if repo_root is not None:
+        args.extend(["--repo-root", str(repo_root)])
     return subprocess.run(
-        [sys.executable, str(SYNC_SCRIPT), command],
+        args,
         cwd=str(cwd),
         capture_output=True,
         text=True,
@@ -74,6 +98,16 @@ def _capture_derived_tree(root: Path) -> dict[str, bytes]:
 def _write_temp_repo(repo_root: Path) -> None:
     (repo_root / SOURCE_ROOT / "reference").mkdir(parents=True, exist_ok=True)
     (repo_root / DEST_ROOT / "reference").mkdir(parents=True, exist_ok=True)
+
+
+def _assert_cli_validation_failure(result: subprocess.CompletedProcess[str], *needles: str) -> None:
+    assert result.returncode != 0
+    combined = f"{result.stdout}\n{result.stderr}"
+    assert "Traceback" not in combined
+    assert "KeyError" not in combined
+    assert "JSONDecodeError" not in combined
+    for needle in needles:
+        assert needle in combined
 
 
 def test_sync_is_clean_on_second_run() -> None:
@@ -121,8 +155,22 @@ def test_check_from_non_repo_cwd() -> None:
 @pytest.mark.parametrize("fixture_name", INVALID_FIXTURES)
 def test_invalid_fixture_rejected_by_validate_envelope(fixture_name: str) -> None:
     envelope = json.loads((FIXTURES / fixture_name).read_text(encoding="utf-8"))
-    with pytest.raises(RuntimeError):
+    with pytest.raises(MapContentValidationError):
         validate_envelope(envelope, Path(fixture_name))
+
+
+@pytest.mark.parametrize("fixture_name", VALID_PARITY_FIXTURES)
+def test_valid_parity_fixture_accepted_by_validate_envelope(fixture_name: str) -> None:
+    envelope = json.loads((FIXTURES / fixture_name).read_text(encoding="utf-8"))
+    validate_envelope(envelope, Path(fixture_name))
+
+
+def test_edge_overrides_null_rejected_with_array_message() -> None:
+    envelope = json.loads(
+        (FIXTURES / "envelope_invalid_edge_overrides_null.json").read_text(encoding="utf-8")
+    )
+    with pytest.raises(MapContentValidationError, match="edge_overrides must be an array"):
+        validate_envelope(envelope, Path("envelope_invalid_edge_overrides_null.json"))
 
 
 def test_stale_copy_detected() -> None:
@@ -193,7 +241,7 @@ def test_validate_all_before_write_leaves_derived_tree_unchanged() -> None:
             encoding="utf-8",
         )
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(MapContentValidationError):
             sync_maps(repo_root)
 
         after = _capture_derived_tree(derived_root)
@@ -216,7 +264,7 @@ def test_plan_sync_validates_all_sources_before_apply() -> None:
             encoding="utf-8",
         )
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(MapContentValidationError):
             plan_sync(repo_root)
 
         derived_root = repo_root / DEST_ROOT
@@ -235,3 +283,99 @@ def test_sync_maps_direct_api_matches_repo() -> None:
     entries = sync_maps(REPO_ROOT)
     assert len(entries) >= 1
     check_maps(REPO_ROOT)
+
+
+@pytest.mark.parametrize(
+    ("fixture_name", "needle"),
+    [
+        ("envelope_invalid_missing_logical_map_id.json", "logical_map.id"),
+        ("envelope_invalid_missing_orientation.json", "logical_map.orientation"),
+        ("envelope_invalid_missing_tile_q.json", ".q"),
+        ("envelope_invalid_missing_tile_r.json", ".r"),
+    ],
+)
+def test_missing_field_diagnostic_via_cli(fixture_name: str, needle: str) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo_root = Path(tmp) / "mini_repo"
+        _write_temp_repo(repo_root)
+        source_path = repo_root / SOURCE_ROOT / "reference" / "bad.json"
+        source_path.write_bytes((FIXTURES / fixture_name).read_bytes())
+        result = _run_sync_subprocess("sync", repo_root, repo_root=repo_root)
+        _assert_cli_validation_failure(result, needle, "ERROR:")
+
+
+def test_malformed_json_diagnostic_via_cli() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo_root = Path(tmp) / "mini_repo"
+        _write_temp_repo(repo_root)
+        derived_root = repo_root / DEST_ROOT
+        preexisting = derived_root / "reference" / "preexisting.json"
+        preexisting.parent.mkdir(parents=True, exist_ok=True)
+        preexisting.write_bytes(b"PREEXISTING_DERIVED_BYTES")
+        before = _capture_derived_tree(derived_root)
+
+        source_path = repo_root / SOURCE_ROOT / "reference" / "bad.json"
+        source_path.write_bytes(b"{not valid json")
+
+        result = _run_sync_subprocess("sync", repo_root, repo_root=repo_root)
+        _assert_cli_validation_failure(result, "Invalid JSON", "ERROR:")
+        assert _capture_derived_tree(derived_root) == before
+
+
+@pytest.mark.parametrize("category", ["reference", "authored", "generated"])
+def test_matching_origin_category_accepted(category: str) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo_root = Path(tmp) / "mini_repo"
+        (repo_root / SOURCE_ROOT / category).mkdir(parents=True)
+        source_path = repo_root / SOURCE_ROOT / category / "valid.json"
+        envelope = json.loads(VALID_MINIMAL.read_text(encoding="utf-8"))
+        envelope["origin"] = category
+        source_path.write_text(json.dumps(envelope), encoding="utf-8")
+        validate_envelope(envelope, source_path)
+        validate_origin_folder(source_path, repo_root, envelope)
+
+
+def test_origin_category_mismatch_rejected() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo_root = Path(tmp) / "mini_repo"
+        _write_temp_repo(repo_root)
+        source_path = repo_root / SOURCE_ROOT / "reference" / "bad_origin.json"
+        envelope = json.loads(VALID_MINIMAL.read_text(encoding="utf-8"))
+        envelope["origin"] = "generated"
+        source_path.write_text(json.dumps(envelope), encoding="utf-8")
+        validate_envelope(envelope, source_path)
+        with pytest.raises(MapContentValidationError, match="does not match source category folder"):
+            validate_origin_folder(source_path, repo_root, envelope)
+
+
+def test_unsupported_category_folder_rejected() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo_root = Path(tmp) / "mini_repo"
+        (repo_root / SOURCE_ROOT / "unknown").mkdir(parents=True)
+        source_path = repo_root / SOURCE_ROOT / "unknown" / "bad.json"
+        source_path.write_bytes(VALID_MINIMAL.read_bytes())
+        envelope = json.loads(source_path.read_text(encoding="utf-8"))
+        validate_envelope(envelope, source_path)
+        with pytest.raises(MapContentValidationError, match="Unsupported source category folder"):
+            validate_origin_folder(source_path, repo_root, envelope)
+
+
+def test_origin_mismatch_leaves_derived_tree_unchanged() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo_root = Path(tmp) / "mini_repo"
+        _write_temp_repo(repo_root)
+        derived_root = repo_root / DEST_ROOT
+        preexisting = derived_root / "reference" / "preexisting.json"
+        preexisting.parent.mkdir(parents=True, exist_ok=True)
+        preexisting.write_bytes(b"PREEXISTING_DERIVED_BYTES")
+        before = _capture_derived_tree(derived_root)
+
+        source_path = repo_root / SOURCE_ROOT / "reference" / "bad_origin.json"
+        envelope = json.loads(VALID_MINIMAL.read_text(encoding="utf-8"))
+        envelope["origin"] = "generated"
+        source_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+        with pytest.raises(MapContentValidationError):
+            sync_maps(repo_root)
+
+        assert _capture_derived_tree(derived_root) == before

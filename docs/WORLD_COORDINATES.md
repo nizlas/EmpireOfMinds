@@ -72,7 +72,7 @@ This corresponds to the standard axial pointy-top layout with `+r` toward geogra
 - Center-to-neighbor distance: **`√3 · S`**.
 - Row pitch (adjacent rows in the `+r` direction): **`1.5 · S`**.
 
-`S` is owned by one domain module (`HexWorldProjection`, planned slice N1). Map files supply **`elevation_step`** per map; see [Elevation](#elevation-source-precision-and-world-y).
+`S` is owned by one domain module (`HexWorldProjection`, implemented slice **N1**). Map files supply **`elevation_step`** per map; see [Elevation](#elevation-source-precision-and-world-y).
 
 ---
 
@@ -188,4 +188,4 @@ Blender tooling uses **Z-up** with top-view **+Y treated as north** during TS-08
 
 ## Verification status
 
-The worked examples and import-boundary identity claim are derived from repository code (`eom_terrain_math_core.py`, `HexCoord`, canonical JSON payload structure). **No runtime Godot verification has been performed** as of slice N0 — headless tests are planned for slice N1.
+The worked examples and import-boundary identity claim are derived from repository code (`eom_terrain_math_core.py`, `HexCoord`, canonical JSON payload structure). Focused headless Godot tests under `game/domain/tests/` verify projection math and **`WorldMap`** loading (slice **N1**, 2026-08). The logical/projection foundation remains **non-rendered** and is not yet connected to gameplay, presentation, server runtime, snapshots, or legacy **`HexMap`**. N2 (TS-08 dataset export) and N3 (visible 3D world) remain unimplemented.

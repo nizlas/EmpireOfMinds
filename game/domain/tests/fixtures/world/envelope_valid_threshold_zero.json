@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "origin": "reference",
+  "provenance": "Zero cliff threshold is a valid boundary value.",
+  "logical_map": {
+    "id": "fixture_threshold_zero",
+    "orientation": "pointy_top_custom_axes",
+    "elevation_step": 0.4,
+    "edge_rule": { "default": "smooth", "cliff_if_abs_delta_greater_than": 0 },
+    "edge_overrides": [],
+    "tiles": [
+      { "q": 0, "r": 0, "elevation": 1 },
+      { "q": 1, "r": 0, "elevation": 3 }
+    ]
+  }
+}

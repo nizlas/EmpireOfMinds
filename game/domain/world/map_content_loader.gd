@@ -90,8 +90,14 @@ static func _require_json_int(value: Variant, field_path: String) -> Dictionary:
 	if typeof(value) == TYPE_INT:
 		return {"ok": true, "error": "", "value": value}
 	if typeof(value) == TYPE_FLOAT:
+		if not is_finite(value):
+			return {
+				"ok": false,
+				"error": "%s must be an integer, got non-finite number" % field_path,
+				"value": 0,
+			}
 		var floored: float = floor(value)
-		if not is_equal_approx(value, floored):
+		if value != floored:
 			return {
 				"ok": false,
 				"error": "%s must be an integer, got fractional number" % field_path,
@@ -222,11 +228,11 @@ static func _parse_logical_map(logical_map: Dictionary, source: String) -> Dicti
 	if not threshold_result["ok"]:
 		return {"ok": false, "error": "%s in %s" % [threshold_result["error"], source]}
 	var cliff_threshold: int = threshold_result["value"]
-
-	if logical_map.has("edge_overrides") and not (
-		logical_map["edge_overrides"] is Array or logical_map["edge_overrides"] is Dictionary
-	):
-		return {"ok": false, "error": "logical_map.edge_overrides must be array or object in %s" % source}
+	if cliff_threshold < 0:
+		return {
+			"ok": false,
+			"error": "logical_map.edge_rule.cliff_if_abs_delta_greater_than must be >= 0 in %s" % source,
+		}
 
 	var tiles_dict: Dictionary = {}
 	var tiles_array: Array = logical_map["tiles"]
@@ -261,11 +267,23 @@ static func _parse_logical_map(logical_map: Dictionary, source: String) -> Dicti
 			}
 		tiles_dict[coord] = WorldMapScript.WorldTile.new(q, r, elevation)
 
-	var override_result := _parse_edge_overrides(
-		logical_map.get("edge_overrides", []), source, tiles_dict
-	)
-	if not override_result["ok"]:
-		return {"ok": false, "error": override_result["error"]}
+	var overrides: Dictionary = {}
+	if logical_map.has("edge_overrides"):
+		var raw_overrides = logical_map["edge_overrides"]
+		if raw_overrides == null:
+			return {
+				"ok": false,
+				"error": "logical_map.edge_overrides must be an array, got null in %s" % source,
+			}
+		if not (raw_overrides is Array or raw_overrides is Dictionary):
+			return {
+				"ok": false,
+				"error": "logical_map.edge_overrides must be array or object in %s" % source,
+			}
+		var override_result := _parse_edge_overrides(raw_overrides, source, tiles_dict)
+		if not override_result["ok"]:
+			return {"ok": false, "error": override_result["error"]}
+		overrides = override_result["overrides"]
 
 	return {
 		"ok": true,
@@ -275,14 +293,16 @@ static func _parse_logical_map(logical_map: Dictionary, source: String) -> Dicti
 		"elevation_base": elevation_base,
 		"cliff_threshold": cliff_threshold,
 		"tiles_dict": tiles_dict,
-		"overrides": override_result["overrides"],
+		"overrides": overrides,
 	}
 
 
 static func _parse_tile_coord(raw: Variant, field_path: String, source: String) -> Dictionary:
 	if raw is Dictionary:
-		if not raw.has("q") or not raw.has("r"):
-			return {"ok": false, "error": "Invalid tile coordinate object at %s in %s" % [field_path, source]}
+		if not raw.has("q"):
+			return {"ok": false, "error": "Missing %s.q in %s" % [field_path, source]}
+		if not raw.has("r"):
+			return {"ok": false, "error": "Missing %s.r in %s" % [field_path, source]}
 		var q_result := _require_json_int(raw["q"], "%s.q" % field_path)
 		if not q_result["ok"]:
 			return {"ok": false, "error": "%s in %s" % [q_result["error"], source]}
@@ -316,8 +336,6 @@ static func _parse_edge_overrides(
 	tiles_dict: Dictionary
 ) -> Dictionary:
 	var overrides: Dictionary = {}
-	if raw == null:
-		return {"ok": true, "error": "", "overrides": overrides}
 	if raw is Dictionary:
 		for key in raw.keys():
 			var key_str := str(key)
