@@ -9,12 +9,17 @@
 #
 # N3c.3a preview assembly: the top surface must use the three-layer PBR
 # splatting ShaderMaterial with world-anchored UVs and tangents baked into
-# the mesh; cliff walls keep the neutral StandardMaterial3D; the HUD shows
-# the active material stage.
+# the mesh; the HUD shows the active material stage.
+#
+# N3c.3b preview assembly: cliff walls must use the Stage-3a stone PBR
+# ShaderMaterial with wall-local UVs and per-triangle tangents baked into the
+# wall mesh, sharing the stone texture instances with the top material; the
+# M key keeps both materials synchronized on one debug stage.
 extends SceneTree
 
 const PREVIEW_SCENE_PATH := "res://dev/terrain_preview/terrain_preview.tscn"
 const TerrainSurfaceMaterial = preload("res://presentation/terrain_surface_material.gd")
+const TerrainCliffWallMaterial = preload("res://presentation/terrain_cliff_wall_material.gd")
 
 const EXPECTED_NODE_COUNT := 74129
 const EXPECTED_TOP_TRIANGLE_COUNT := 145152
@@ -64,13 +69,15 @@ func _run() -> void:
 		"wall face count"
 	)
 
+	var top_material: Material = null
+	var wall_material: Material = null
 	var top = preview.get_node_or_null("TopSurface")
 	_check(
 		top is MeshInstance3D and top.mesh != null and top.mesh.get_surface_count() == 1,
 		"top-surface ArrayMesh present"
 	)
 	if top is MeshInstance3D and top.mesh != null and top.mesh.get_surface_count() == 1:
-		var top_material: Material = top.mesh.surface_get_material(0)
+		top_material = top.mesh.surface_get_material(0)
 		_check(
 			top_material is ShaderMaterial
 			and top_material.shader != null
@@ -107,9 +114,67 @@ func _run() -> void:
 		"cliff-wall ArrayMesh present"
 	)
 	if walls is MeshInstance3D and walls.mesh != null and walls.mesh.get_surface_count() == 1:
+		wall_material = walls.mesh.surface_get_material(0)
 		_check(
-			walls.mesh.surface_get_material(0) is StandardMaterial3D,
-			"cliff walls keep the neutral StandardMaterial3D (wall PBR is N3c.3b)"
+			wall_material is ShaderMaterial
+			and wall_material.shader != null
+			and wall_material.shader.resource_path == TerrainCliffWallMaterial.SHADER_PATH,
+			"cliff walls use the N3c.3b stone PBR ShaderMaterial"
+		)
+		if wall_material is ShaderMaterial:
+			_check(
+				int(wall_material.get_shader_parameter("debug_stage")) == 0,
+				"wall debug_stage matches the final stage"
+			)
+			var wall_bound := true
+			for param: String in TerrainCliffWallMaterial.TEXTURE_PATHS.keys():
+				if not (wall_material.get_shader_parameter(param) is Texture2D):
+					wall_bound = false
+			_check(wall_bound, "all three wall stone textures bound")
+			if top_material is ShaderMaterial:
+				var shared := true
+				for param: String in TerrainCliffWallMaterial.TEXTURE_PATHS.keys():
+					if (
+						wall_material.get_shader_parameter(param)
+						!= top_material.get_shader_parameter(param)
+					):
+						shared = false
+				_check(shared, "wall stone textures shared in place with the top material")
+		var wall_arrays: Array = walls.mesh.surface_get_arrays(0)
+		var wall_vertices: PackedVector3Array = wall_arrays[Mesh.ARRAY_VERTEX]
+		var wall_uvs: PackedVector2Array = wall_arrays[Mesh.ARRAY_TEX_UV]
+		var wall_tangents: PackedFloat32Array = wall_arrays[Mesh.ARRAY_TANGENT]
+		_check(
+			wall_uvs.size() == wall_vertices.size(),
+			"wall-local UVs baked per wall vertex"
+		)
+		_check(
+			wall_tangents.size() == wall_vertices.size() * 4,
+			"wall tangents baked per wall vertex"
+		)
+		var v_rule_ok := wall_vertices.size() > 0
+		for i in mini(wall_vertices.size(), 500):
+			if (
+				absf(
+					wall_uvs[i].y
+					- wall_vertices[i].y * TerrainCliffWallMaterial.WALL_UV_V_SCALE
+				) > 1e-5
+			):
+				v_rule_ok = false
+				break
+		_check(v_rule_ok, "baked wall V follows world Y * 0.35")
+
+	# M cycles final -> ash_mask and must keep both shaders synchronized.
+	var key := InputEventKey.new()
+	key.keycode = KEY_M
+	key.pressed = true
+	preview._unhandled_key_input(key)
+	_check(preview.material_stage == "ash_mask", "M key cycles the material stage")
+	if top_material is ShaderMaterial and wall_material is ShaderMaterial:
+		_check(
+			int(top_material.get_shader_parameter("debug_stage")) == 1
+			and int(wall_material.get_shader_parameter("debug_stage")) == 1,
+			"top and wall materials stay synchronized on the stage"
 		)
 
 	var camera = preview.get_node_or_null("OrbitCamera")

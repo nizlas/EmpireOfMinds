@@ -6,7 +6,8 @@
 #   -> dev ArrayMesh
 # Never loads N2 heights. The top surface renders with the N3c.3a three-layer
 # PBR splatting material (game/presentation/terrain_surface_material.gd);
-# cliff walls keep the neutral diagnostic material (wall stone PBR is N3c.3b).
+# cliff walls render with the N3c.3b Stage-3a stone PBR material and
+# wall-local UVs (game/presentation/terrain_cliff_wall_material.gd).
 # Basic lighting unchanged. No collision, picking, or gameplay.
 #
 # Run from the Godot editor: open this scene and press F6 (no arguments
@@ -26,6 +27,8 @@
 #
 # Material debug stages (N3c.3a): final, ash_mask, stone_mask, albedo.
 # `--stage=<name>` selects the stage; the M key cycles stages at runtime.
+# Both the top-surface and cliff-wall shaders follow the same stage
+# (ash_mask: walls black; stone_mask: walls white; albedo: wall albedo only).
 #
 # Controls (also shown in the HUD):
 #   LMB / RMB drag        orbit (360° yaw, clamped pitch)
@@ -44,6 +47,7 @@ const Ts08HeightSolver = preload("res://domain/world/ts08_height_solver.gd")
 const Ts08SurfaceGeometry = preload("res://domain/world/ts08_surface_geometry.gd")
 const OrbitCameraScript = preload("res://dev/terrain_preview/orbit_camera.gd")
 const TerrainSurfaceMaterial = preload("res://presentation/terrain_surface_material.gd")
+const TerrainCliffWallMaterial = preload("res://presentation/terrain_cliff_wall_material.gd")
 
 const SCREENSHOT_PATHS := {
 	"strategic": "res://dev/terrain_preview/output/terrain_preview_strategic.png",
@@ -69,6 +73,7 @@ var _hud_camera_label: Label = null
 var _hud_material_label: Label = null
 var _hud_layer: CanvasLayer = null
 var _top_material: ShaderMaterial = null
+var _wall_material: ShaderMaterial = null
 
 
 # Preview-tool backend resolution (pure; unit-tested). Returns
@@ -299,44 +304,29 @@ func _build_top_mesh(geometry) -> ArrayMesh:
 # Wall faces are stored counter-clockwise around the outward normal that
 # points toward the lower tile (plane->Godot is a rotation, so the winding
 # carries over). Flat shading: fan-triangulate each polygon with duplicated
-# vertices and per-face normals; reversed index order for Godot front faces.
+# vertices and per-face normals (identical vertex output to N3c.1), now with
+# the N3c.3b wall-local UVs and per-triangle tangents baked for the Stage-3a
+# stone PBR material.
 func _build_wall_mesh(geometry) -> ArrayMesh:
 	if geometry.wall_faces.is_empty():
 		return null
-	var vertices := PackedVector3Array()
-	var normals := PackedVector3Array()
-	for record in geometry.wall_faces:
-		var face: PackedInt32Array = record.vertex_indices
-		var p0: Vector3 = geometry.top_positions[face[0]]
-		for i in range(1, face.size() - 1):
-			var p1: Vector3 = geometry.top_positions[face[i]]
-			var p2: Vector3 = geometry.top_positions[face[i + 1]]
-			var normal := (p1 - p0).cross(p2 - p0)
-			if normal.length_squared() > 0.0:
-				normal = normal.normalized()
-			else:
-				normal = Vector3.UP
-			# Reversed order (p0, p2, p1) for Godot's clockwise front faces.
-			vertices.append(p0)
-			vertices.append(p2)
-			vertices.append(p1)
-			for _n in 3:
-				normals.append(normal)
-
+	var wall_arrays: Dictionary = TerrainCliffWallMaterial.build_wall_mesh_arrays(
+		geometry.top_positions, geometry.wall_faces
+	)
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_VERTEX] = wall_arrays["vertices"]
+	arrays[Mesh.ARRAY_NORMAL] = wall_arrays["normals"]
+	arrays[Mesh.ARRAY_TEX_UV] = wall_arrays["uvs"]
+	arrays[Mesh.ARRAY_TANGENT] = wall_arrays["tangents"]
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 
-	# Simple darker neutral wall material (dev preview only).
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.34, 0.32, 0.30)
-	material.roughness = 1.0
-	material.metallic = 0.0
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mesh.surface_set_material(0, material)
+	_wall_material = TerrainCliffWallMaterial.create_material(material_stage)
+	if _wall_material == null:
+		push_error("terrain_preview: failed to create the cliff-wall material")
+		return mesh
+	mesh.surface_set_material(0, _wall_material)
 	return mesh
 
 
@@ -429,7 +419,8 @@ func _update_material_hud() -> void:
 		_hud_material_label.text = "material: %s" % material_stage
 
 
-# M cycles the material debug stage (final -> ash_mask -> stone_mask -> albedo).
+# M cycles the material debug stage (final -> ash_mask -> stone_mask -> albedo);
+# the top-surface and cliff-wall materials stay synchronized on one stage.
 func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
@@ -438,6 +429,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		var index := MATERIAL_STAGE_CYCLE.find(material_stage)
 		material_stage = MATERIAL_STAGE_CYCLE[(index + 1) % MATERIAL_STAGE_CYCLE.size()]
 		TerrainSurfaceMaterial.set_debug_stage(_top_material, material_stage)
+		if _wall_material != null:
+			TerrainCliffWallMaterial.set_debug_stage(_wall_material, material_stage)
 		_update_material_hud()
 
 
