@@ -15,11 +15,16 @@
 # ShaderMaterial with wall-local UVs and per-triangle tangents baked into the
 # wall mesh, sharing the stone texture instances with the top material; the
 # M key keeps both materials synchronized on one debug stage.
+#
+# N3c.4 preview assembly: one TerrainCollision StaticBody3D with separate
+# named top/wall ConcavePolygonShape3D shapes whose faces equal the rendered
+# geometry exactly; collision timing recorded.
 extends SceneTree
 
 const PREVIEW_SCENE_PATH := "res://dev/terrain_preview/terrain_preview.tscn"
 const TerrainSurfaceMaterial = preload("res://presentation/terrain_surface_material.gd")
 const TerrainCliffWallMaterial = preload("res://presentation/terrain_cliff_wall_material.gd")
+const TerrainCollision = preload("res://presentation/terrain_collision.gd")
 
 const EXPECTED_NODE_COUNT := 74129
 const EXPECTED_TOP_TRIANGLE_COUNT := 145152
@@ -53,7 +58,7 @@ func _run() -> void:
 	_check(preview.backend_used != "", "a backend was selected and reported")
 	print("smoke: backend_used=%s" % preview.backend_used)
 	print("smoke: timings=%s" % str(preview.timings))
-	for key in ["lattice_msec", "solve_msec", "geometry_msec", "mesh_msec"]:
+	for key in ["lattice_msec", "solve_msec", "geometry_msec", "mesh_msec", "collision_msec"]:
 		_check(
 			preview.timings.has(key) and int(preview.timings[key]) >= 0,
 			"timing recorded: %s" % key
@@ -163,6 +168,52 @@ func _run() -> void:
 				v_rule_ok = false
 				break
 		_check(v_rule_ok, "baked wall V follows world Y * 0.35")
+
+	# N3c.4: one clearly named static terrain body; the collision faces must
+	# equal the rendered geometry exactly (derived data, no divergence).
+	var collision = preview.get_node_or_null("TerrainCollision")
+	_check(collision is StaticBody3D, "TerrainCollision StaticBody3D present")
+	if collision is StaticBody3D:
+		var top_shape_node = collision.get_node_or_null("TopSurfaceCollision")
+		var wall_shape_node = collision.get_node_or_null("CliffWallCollision")
+		_check(
+			top_shape_node is CollisionShape3D
+			and top_shape_node.shape is ConcavePolygonShape3D
+			and wall_shape_node is CollisionShape3D
+			and wall_shape_node.shape is ConcavePolygonShape3D,
+			"separate named top and wall concave collision shapes"
+		)
+		if (
+			top_shape_node is CollisionShape3D
+			and top_shape_node.shape is ConcavePolygonShape3D
+			and top is MeshInstance3D and top.mesh != null
+		):
+			var top_faces: PackedVector3Array = top_shape_node.shape.get_faces()
+			_check(
+				top_faces.size() / 3 == EXPECTED_TOP_TRIANGLE_COUNT,
+				"top collision triangle count matches the rendered mesh"
+			)
+			var top_mesh_arrays: Array = top.mesh.surface_get_arrays(0)
+			var mesh_positions: PackedVector3Array = top_mesh_arrays[Mesh.ARRAY_VERTEX]
+			var mesh_indices: PackedInt32Array = top_mesh_arrays[Mesh.ARRAY_INDEX]
+			var top_match := top_faces.size() == mesh_indices.size()
+			if top_match:
+				for i in mesh_indices.size():
+					if top_faces[i] != mesh_positions[mesh_indices[i]]:
+						top_match = false
+						break
+			_check(top_match, "top collision faces equal the rendered mesh triangles")
+		if (
+			wall_shape_node is CollisionShape3D
+			and wall_shape_node.shape is ConcavePolygonShape3D
+			and walls is MeshInstance3D and walls.mesh != null
+		):
+			var wall_faces: PackedVector3Array = wall_shape_node.shape.get_faces()
+			var wall_mesh_arrays: Array = walls.mesh.surface_get_arrays(0)
+			_check(
+				wall_faces == wall_mesh_arrays[Mesh.ARRAY_VERTEX],
+				"wall collision faces equal the rendered wall vertices (bit-identical)"
+			)
 
 	# M cycles final -> ash_mask and must keep both shaders synchronized.
 	var key := InputEventKey.new()

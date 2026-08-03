@@ -8,7 +8,10 @@
 # PBR splatting material (game/presentation/terrain_surface_material.gd);
 # cliff walls render with the N3c.3b Stage-3a stone PBR material and
 # wall-local UVs (game/presentation/terrain_cliff_wall_material.gd).
-# Basic lighting unchanged. No collision, picking, or gameplay.
+# Deterministic static terrain collision (N3c.4) is derived from the same
+# geometry (game/presentation/terrain_collision.gd): one TerrainCollision
+# StaticBody3D with separate top/wall concave shapes; derived data only.
+# Basic lighting unchanged. No picking or gameplay.
 #
 # Run from the Godot editor: open this scene and press F6 (no arguments
 # needed; backend selector defaults to Auto). Or from the command line:
@@ -48,6 +51,7 @@ const Ts08SurfaceGeometry = preload("res://domain/world/ts08_surface_geometry.gd
 const OrbitCameraScript = preload("res://dev/terrain_preview/orbit_camera.gd")
 const TerrainSurfaceMaterial = preload("res://presentation/terrain_surface_material.gd")
 const TerrainCliffWallMaterial = preload("res://presentation/terrain_cliff_wall_material.gd")
+const TerrainCollision = preload("res://presentation/terrain_collision.gd")
 
 const SCREENSHOT_PATHS := {
 	"strategic": "res://dev/terrain_preview/output/terrain_preview_strategic.png",
@@ -185,6 +189,27 @@ func _ready() -> void:
 		wall_instance.mesh = wall_mesh
 		add_child(wall_instance)
 	timings["mesh_msec"] = Time.get_ticks_msec() - t_mesh
+
+	var t_collision := Time.get_ticks_msec()
+	var collision_body := TerrainCollision.build_static_body(geometry)
+	add_child(collision_body)
+	timings["collision_msec"] = Time.get_ticks_msec() - t_collision
+	var top_shape: ConcavePolygonShape3D = collision_body.get_node(
+		TerrainCollision.TOP_SHAPE_NAME
+	).shape
+	var wall_shape_node := collision_body.get_node_or_null(TerrainCollision.WALL_SHAPE_NAME)
+	counts["collision_top_triangles"] = top_shape.get_faces().size() / 3
+	counts["collision_wall_triangles"] = (
+		wall_shape_node.shape.get_faces().size() / 3 if wall_shape_node != null else 0
+	)
+	print(
+		"terrain_preview: collision %d ms (%d top + %d wall triangles)"
+		% [
+			timings["collision_msec"],
+			counts["collision_top_triangles"],
+			counts["collision_wall_triangles"],
+		]
+	)
 
 	_add_lighting()
 	var aabb := top_mesh.get_aabb()
@@ -375,12 +400,13 @@ func _build_hud() -> void:
 		"backend: %s (selector: %s)" % [backend_used, mode_names[backend_mode]]
 	))
 	rows.add_child(_hud_label(
-		"timings: lattice %d ms · solve %d ms · geometry %d ms · mesh %d ms"
+		"timings: lattice %d ms · solve %d ms · geometry %d ms · mesh %d ms · collision %d ms"
 		% [
 			timings.get("lattice_msec", -1),
 			timings.get("solve_msec", -1),
 			timings.get("geometry_msec", -1),
 			timings.get("mesh_msec", -1),
+			timings.get("collision_msec", -1),
 		]
 	))
 	rows.add_child(_hud_label(
