@@ -1,38 +1,104 @@
-# Development-only N3b/N3c terrain preview. NOT runtime-world integration.
+# Development-only interactive terrain-inspection preview (N3b/N3c). NOT
+# runtime-world integration.
 #
-# Consumes the domain-only Ts08SurfaceGeometry builder (N3c.1): top surface
-# from the N3a cut lattice plus N3b solver heights, and Stage-3a cliff-wall
-# faces along authoritative WorldMap cliff edges (darker neutral material).
-# Solver output only, never N2 heights. Neutral materials, simple lighting,
-# fixed oblique camera framing the map. No production materials, no
-# collision, no gameplay.
+# Real runtime chain, always:
+#   WorldMap -> Ts08CutLattice -> Ts08HeightSolver -> Ts08SurfaceGeometry
+#   -> dev ArrayMesh
+# Never loads N2 heights. Neutral diagnostic materials, basic lighting.
+# No production textures, collision, picking, or gameplay.
 #
-# Open interactively (GDScript solver, about a minute):
+# Run from the Godot editor: open this scene and press F6 (no arguments
+# needed; backend selector defaults to Auto). Or from the command line:
 #   godot --path game res://dev/terrain_preview/terrain_preview.tscn
-# Fast generation with the built native extension (fails clearly if absent):
 #   godot --path game res://dev/terrain_preview/terrain_preview.tscn -- --native
-# Render a PNG and quit (written to game/dev/terrain_preview/output/, ignored):
 #   godot --path game res://dev/terrain_preview/terrain_preview.tscn -- --screenshot [--native]
+#   godot --path game res://dev/terrain_preview/terrain_preview.tscn -- --screenshot=low --native
+#
+# Backend selector (dev preview tool behavior only — NOT automatic
+# production backend selection):
+#   Auto (default) - native when the built extension is available, else GDScript
+#   Native         - fails clearly when the extension is unavailable
+#   GDScript       - always available (clean-checkout verification)
+# `--native` on the command line forces Native.
+#
+# Controls (also shown in the HUD):
+#   LMB / RMB drag        orbit (360° yaw, clamped pitch)
+#   MMB / Shift+LMB drag  pan the orbit target on the ground plane
+#   mouse wheel           zoom (map-relative limits)
+#   R / Home              reset to the strategic view
+#   1 / 2                 strategic / low-angle camera preset
 extends Node3D
+
+enum BackendMode { AUTO, NATIVE, GDSCRIPT }
 
 const MapContentLoader = preload("res://domain/world/map_content_loader.gd")
 const Ts08CutLattice = preload("res://domain/world/ts08_cut_lattice.gd")
 const Ts08HeightSolver = preload("res://domain/world/ts08_height_solver.gd")
 const Ts08SurfaceGeometry = preload("res://domain/world/ts08_surface_geometry.gd")
+const OrbitCameraScript = preload("res://dev/terrain_preview/orbit_camera.gd")
 
-const SCREENSHOT_PATH := "res://dev/terrain_preview/output/terrain_preview.png"
+const SCREENSHOT_PATHS := {
+	"strategic": "res://dev/terrain_preview/output/terrain_preview_strategic.png",
+	"low": "res://dev/terrain_preview/output/terrain_preview_low.png",
+}
 const NATIVE_DESCRIPTOR_PATH := "res://bin/eom_native.gdextension"
+
+## Dev-only backend selector, editable in the inspector. Auto uses the
+## native extension when available and falls back to GDScript otherwise.
+@export var backend_mode: BackendMode = BackendMode.AUTO
+
+# Populated by _ready for the HUD, tests, and reporting.
+var backend_used := ""
+var timings: Dictionary = {}
+var counts: Dictionary = {}
+
+var _camera: Camera3D = null
+var _hud_camera_label: Label = null
+var _hud_layer: CanvasLayer = null
+
+
+# Preview-tool backend resolution (pure; unit-tested). Returns
+# {"ok": bool, "backend": String, "error": String}.
+static func resolve_backend(mode: BackendMode, native_available: bool) -> Dictionary:
+	match mode:
+		BackendMode.NATIVE:
+			if native_available:
+				return {"ok": true, "backend": Ts08HeightSolver.BACKEND_NATIVE, "error": ""}
+			return {
+				"ok": false,
+				"backend": "",
+				"error": (
+					"Native backend requested but the GDExtension is unavailable; "
+					+ "build it first (.\\scripts\\build-native.ps1). No silent fallback."
+				),
+			}
+		BackendMode.GDSCRIPT:
+			return {"ok": true, "backend": Ts08HeightSolver.BACKEND_GDSCRIPT, "error": ""}
+		_:
+			return {
+				"ok": true,
+				"backend": (
+					Ts08HeightSolver.BACKEND_NATIVE
+					if native_available
+					else Ts08HeightSolver.BACKEND_GDSCRIPT
+				),
+				"error": "",
+			}
 
 
 func _ready() -> void:
-	var use_native := "--native" in OS.get_cmdline_user_args()
-	if use_native and not _load_native_extension():
-		push_error(
-			"terrain_preview: --native requested but the GDExtension is unavailable; "
-			+ "build it first (.\\scripts\\build-native.ps1)"
-		)
+	var args := OS.get_cmdline_user_args()
+	var mode := backend_mode
+	if "--native" in args:
+		mode = BackendMode.NATIVE
+
+	var native_available := _load_native_extension()
+	var resolved := resolve_backend(mode, native_available)
+	if not resolved["ok"]:
+		push_error("terrain_preview: %s" % resolved["error"])
 		get_tree().quit(1)
 		return
+	backend_used = resolved["backend"]
 
 	print("terrain_preview: loading WorldMap...")
 	var world_map = MapContentLoader.load_reference_world_map()
@@ -40,23 +106,24 @@ func _ready() -> void:
 		push_error("terrain_preview: reference WorldMap failed to load")
 		get_tree().quit(1)
 		return
+
 	print("terrain_preview: building cut lattice...")
 	var t0 := Time.get_ticks_msec()
 	var build = Ts08CutLattice.build_from_world_map(world_map)
-	print("terrain_preview: lattice %d ms (%d nodes)" % [Time.get_ticks_msec() - t0, build.node_count])
+	timings["lattice_msec"] = Time.get_ticks_msec() - t0
+	print("terrain_preview: lattice %d ms (%d nodes)" % [timings["lattice_msec"], build.node_count])
 
-	var backend: String = (
-		Ts08HeightSolver.BACKEND_NATIVE if use_native else Ts08HeightSolver.BACKEND_GDSCRIPT
-	)
-	if use_native:
+	if backend_used == Ts08HeightSolver.BACKEND_NATIVE:
 		print("terrain_preview: solving heights (native backend)...")
 	else:
 		print("terrain_preview: solving heights (GDScript backend, about a minute)...")
-	var solve = Ts08HeightSolver.solve(world_map, build, not use_native, backend)
+	var verbose := backend_used == Ts08HeightSolver.BACKEND_GDSCRIPT
+	var solve = Ts08HeightSolver.solve(world_map, build, verbose, backend_used)
 	if solve == null:
-		push_error("terrain_preview: height solve failed (backend %s)" % backend)
+		push_error("terrain_preview: height solve failed (backend %s)" % backend_used)
 		get_tree().quit(1)
 		return
+	timings["solve_msec"] = solve.solve_msec
 	print("terrain_preview: solve %d ms, converged=%s" % [solve.solve_msec, solve.converged])
 
 	print("terrain_preview: building surface geometry...")
@@ -65,6 +132,15 @@ func _ready() -> void:
 		push_error("terrain_preview: surface geometry build failed")
 		get_tree().quit(1)
 		return
+	timings["geometry_msec"] = geometry.build_msec
+
+	counts = {
+		"nodes": build.node_count,
+		"top_triangles": geometry.top_triangles.size() / 3,
+		"wall_faces": geometry.wall_faces.size(),
+		"wall_quads": geometry.wall_quad_count,
+		"wall_triangles": geometry.wall_triangle_count,
+	}
 	print(
 		"terrain_preview: geometry %d ms (%d wall faces: %d quads, %d crack-tip triangles)"
 		% [
@@ -75,24 +151,52 @@ func _ready() -> void:
 		]
 	)
 
+	var t_mesh := Time.get_ticks_msec()
 	var top_mesh := _build_top_mesh(geometry)
 	var top_instance := MeshInstance3D.new()
+	top_instance.name = "TopSurface"
 	top_instance.mesh = top_mesh
 	add_child(top_instance)
 
 	var wall_mesh := _build_wall_mesh(geometry)
 	if wall_mesh != null:
 		var wall_instance := MeshInstance3D.new()
+		wall_instance.name = "CliffWalls"
 		wall_instance.mesh = wall_mesh
 		add_child(wall_instance)
+	timings["mesh_msec"] = Time.get_ticks_msec() - t_mesh
 
 	_add_lighting()
 	var aabb := top_mesh.get_aabb()
 	print("terrain_preview: mesh AABB=%s" % aabb)
-	_add_camera(aabb)
+	_camera = OrbitCameraScript.new()
+	_camera.name = "OrbitCamera"
+	add_child(_camera)
+	_camera.configure_from_aabb(aabb)
+	_camera.current = true
 
-	if "--screenshot" in OS.get_cmdline_user_args():
-		_save_screenshot()
+	_build_hud()
+
+	var screenshot_preset := _screenshot_preset_from_args(args)
+	if screenshot_preset != "":
+		_save_screenshot(screenshot_preset)
+
+
+func _process(_delta: float) -> void:
+	if _camera == null or _hud_camera_label == null:
+		return
+	var state: Dictionary = _camera.camera_state()
+	_hud_camera_label.text = (
+		"camera: yaw %.1f°  pitch %.1f°  dist %.2f  target (%.2f, %.2f, %.2f)"
+		% [
+			state["yaw_deg"],
+			state["pitch_deg"],
+			state["distance"],
+			state["target"].x,
+			state["target"].y,
+			state["target"].z,
+		]
+	)
 
 
 func _load_native_extension() -> bool:
@@ -102,6 +206,21 @@ func _load_native_extension() -> bool:
 		if GDExtensionManager.load_extension(NATIVE_DESCRIPTOR_PATH) != GDExtensionManager.LOAD_STATUS_OK:
 			return false
 	return ClassDB.can_instantiate(&"EomTerrainNative")
+
+
+# "--screenshot" -> strategic; "--screenshot=low" / "--screenshot=strategic"
+# select a deterministic camera preset. Returns "" when not requested.
+static func _screenshot_preset_from_args(args: PackedStringArray) -> String:
+	for arg in args:
+		if arg == "--screenshot":
+			return "strategic"
+		if arg.begins_with("--screenshot="):
+			var preset := arg.get_slice("=", 1)
+			if SCREENSHOT_PATHS.has(preset):
+				return preset
+			push_error("terrain_preview: unknown screenshot preset '%s'" % preset)
+			return "strategic"
+	return ""
 
 
 # Top surface from the builder's Y-up oriented triangles and smooth normals.
@@ -196,29 +315,86 @@ func _add_lighting() -> void:
 	add_child(world_environment)
 
 
-func _add_camera(aabb: AABB) -> void:
-	var center := aabb.get_center()
-	var extent := maxf(aabb.size.x, aabb.size.z)
-	var camera := Camera3D.new()
-	# Fixed oblique view framing the whole map.
-	var direction := Vector3(0.62, 0.78, 0.70).normalized()
-	camera.position = center + direction * (1.1 * extent)
-	add_child(camera)
-	camera.look_at(center, Vector3.UP)
-	camera.far = 4.0 * extent + 100.0
-	camera.current = true
+func _build_hud() -> void:
+	_hud_layer = CanvasLayer.new()
+	_hud_layer.name = "Hud"
+	add_child(_hud_layer)
+
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.0, 0.0, 0.0, 0.55)
+	style.content_margin_left = 10.0
+	style.content_margin_right = 10.0
+	style.content_margin_top = 8.0
+	style.content_margin_bottom = 8.0
+	panel.add_theme_stylebox_override("panel", style)
+	panel.position = Vector2(12, 12)
+	_hud_layer.add_child(panel)
+
+	var rows := VBoxContainer.new()
+	panel.add_child(rows)
+
+	var mode_names := {
+		BackendMode.AUTO: "Auto",
+		BackendMode.NATIVE: "Native",
+		BackendMode.GDSCRIPT: "GDScript",
+	}
+	rows.add_child(_hud_label(
+		"backend: %s (selector: %s)" % [backend_used, mode_names[backend_mode]]
+	))
+	rows.add_child(_hud_label(
+		"timings: lattice %d ms · solve %d ms · geometry %d ms · mesh %d ms"
+		% [
+			timings.get("lattice_msec", -1),
+			timings.get("solve_msec", -1),
+			timings.get("geometry_msec", -1),
+			timings.get("mesh_msec", -1),
+		]
+	))
+	rows.add_child(_hud_label(
+		"topology: %d nodes · %d top tris · %d wall faces (%d quads + %d crack tips)"
+		% [
+			counts.get("nodes", 0),
+			counts.get("top_triangles", 0),
+			counts.get("wall_faces", 0),
+			counts.get("wall_quads", 0),
+			counts.get("wall_triangles", 0),
+		]
+	))
+	_hud_camera_label = _hud_label("camera: —")
+	rows.add_child(_hud_camera_label)
+	rows.add_child(_hud_label(""))
+	rows.add_child(_hud_label(
+		"LMB/RMB drag orbit · MMB or Shift+LMB drag pan · wheel zoom"
+	))
+	rows.add_child(_hud_label(
+		"R/Home reset · 1 strategic preset · 2 low-angle preset"
+	))
 
 
-func _save_screenshot() -> void:
+func _hud_label(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 13)
+	return label
+
+
+func _save_screenshot(preset: String) -> void:
+	if preset == "low":
+		_camera.preset_low_angle()
+	else:
+		_camera.preset_strategic()
+	# Hide the HUD so review images show terrain only.
+	_hud_layer.visible = false
 	await RenderingServer.frame_post_draw
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var image := get_viewport().get_texture().get_image()
-	var global_path := ProjectSettings.globalize_path(SCREENSHOT_PATH)
+	var global_path := ProjectSettings.globalize_path(String(SCREENSHOT_PATHS[preset]))
 	DirAccess.make_dir_recursive_absolute(global_path.get_base_dir())
 	var error := image.save_png(global_path)
 	if error == OK:
-		print("terrain_preview: screenshot saved to %s" % global_path)
+		print("terrain_preview: screenshot (%s) saved to %s" % [preset, global_path])
 	else:
 		push_error("terrain_preview: failed to save screenshot (%d)" % error)
 	get_tree().quit(0 if error == OK else 1)
