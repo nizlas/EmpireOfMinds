@@ -126,7 +126,7 @@ Blend order: ground ↔ ash (existing ash weight) → result ↔ stone (existing
 
 **Known limits:** no chunk tiling, no cliff UV, no Godot import, no height-based blending. Height-based layer blending remains future work.
 
-**Next step:** Godot port of material and lighting logic from this Blender baseline.
+**Godot port status (N3c.3a, 2026-08):** the top-surface material logic of this baseline is ported to Godot (`game/presentation/terrain_top_surface.gdshader` + `game/presentation/terrain_surface_material.gd`, shown in the dev terrain-inspection preview). Blender's Noise Texture hash is not exactly reproducible in Godot shading language; the port keeps the same fractal chain, scales, remaps, and one fixed seed with a deterministic hash-based Perlin fBm. Lighting and wall-local stone PBR are not ported yet (wall PBR is N3c.3b). This Blender source stays the locked reference — do not retune it.
 
 ## Purpose
 

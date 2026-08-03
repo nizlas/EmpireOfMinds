@@ -4,8 +4,10 @@
 # Real runtime chain, always:
 #   WorldMap -> Ts08CutLattice -> Ts08HeightSolver -> Ts08SurfaceGeometry
 #   -> dev ArrayMesh
-# Never loads N2 heights. Neutral diagnostic materials, basic lighting.
-# No production textures, collision, picking, or gameplay.
+# Never loads N2 heights. The top surface renders with the N3c.3a three-layer
+# PBR splatting material (game/presentation/terrain_surface_material.gd);
+# cliff walls keep the neutral diagnostic material (wall stone PBR is N3c.3b).
+# Basic lighting unchanged. No collision, picking, or gameplay.
 #
 # Run from the Godot editor: open this scene and press F6 (no arguments
 # needed; backend selector defaults to Auto). Or from the command line:
@@ -13,6 +15,7 @@
 #   godot --path game res://dev/terrain_preview/terrain_preview.tscn -- --native
 #   godot --path game res://dev/terrain_preview/terrain_preview.tscn -- --screenshot [--native]
 #   godot --path game res://dev/terrain_preview/terrain_preview.tscn -- --screenshot=low --native
+#   godot --path game res://dev/terrain_preview/terrain_preview.tscn -- --screenshot --stage=ash_mask
 #
 # Backend selector (dev preview tool behavior only — NOT automatic
 # production backend selection):
@@ -21,12 +24,16 @@
 #   GDScript       - always available (clean-checkout verification)
 # `--native` on the command line forces Native.
 #
+# Material debug stages (N3c.3a): final, ash_mask, stone_mask, albedo.
+# `--stage=<name>` selects the stage; the M key cycles stages at runtime.
+#
 # Controls (also shown in the HUD):
 #   LMB / RMB drag        orbit (360° yaw, clamped pitch)
 #   MMB / Shift+LMB drag  pan the orbit target on the ground plane
 #   mouse wheel           zoom (map-relative limits)
 #   R / Home              reset to the strategic view
 #   1 / 2                 strategic / low-angle camera preset
+#   M                     cycle material debug stage
 extends Node3D
 
 enum BackendMode { AUTO, NATIVE, GDSCRIPT }
@@ -36,12 +43,16 @@ const Ts08CutLattice = preload("res://domain/world/ts08_cut_lattice.gd")
 const Ts08HeightSolver = preload("res://domain/world/ts08_height_solver.gd")
 const Ts08SurfaceGeometry = preload("res://domain/world/ts08_surface_geometry.gd")
 const OrbitCameraScript = preload("res://dev/terrain_preview/orbit_camera.gd")
+const TerrainSurfaceMaterial = preload("res://presentation/terrain_surface_material.gd")
 
 const SCREENSHOT_PATHS := {
 	"strategic": "res://dev/terrain_preview/output/terrain_preview_strategic.png",
 	"low": "res://dev/terrain_preview/output/terrain_preview_low.png",
 }
+# Non-final material stages save under the stage name instead of the preset.
+const SCREENSHOT_STAGE_PATH_TEMPLATE := "res://dev/terrain_preview/output/terrain_preview_%s.png"
 const NATIVE_DESCRIPTOR_PATH := "res://bin/eom_native.gdextension"
+const MATERIAL_STAGE_CYCLE := ["final", "ash_mask", "stone_mask", "albedo"]
 
 ## Dev-only backend selector, editable in the inspector. Auto uses the
 ## native extension when available and falls back to GDScript otherwise.
@@ -51,10 +62,13 @@ const NATIVE_DESCRIPTOR_PATH := "res://bin/eom_native.gdextension"
 var backend_used := ""
 var timings: Dictionary = {}
 var counts: Dictionary = {}
+var material_stage := "final"
 
 var _camera: Camera3D = null
 var _hud_camera_label: Label = null
+var _hud_material_label: Label = null
 var _hud_layer: CanvasLayer = null
+var _top_material: ShaderMaterial = null
 
 
 # Preview-tool backend resolution (pure; unit-tested). Returns
@@ -91,6 +105,7 @@ func _ready() -> void:
 	var mode := backend_mode
 	if "--native" in args:
 		mode = BackendMode.NATIVE
+	material_stage = _material_stage_from_args(args)
 
 	var native_available := _load_native_extension()
 	var resolved := resolve_backend(mode, native_available)
@@ -223,9 +238,33 @@ static func _screenshot_preset_from_args(args: PackedStringArray) -> String:
 	return ""
 
 
-# Top surface from the builder's Y-up oriented triangles and smooth normals.
-# Godot front faces are clockwise, so the index buffer emits each triangle
-# in reversed order.
+# "--stage=<name>" selects a material debug stage (default "final").
+static func _material_stage_from_args(args: PackedStringArray) -> String:
+	for arg in args:
+		if arg.begins_with("--stage="):
+			var stage := arg.get_slice("=", 1)
+			if TerrainSurfaceMaterial.DEBUG_STAGES.has(stage):
+				return stage
+			push_error(
+				"terrain_preview: unknown material stage '%s' (valid: %s)"
+				% [stage, ", ".join(TerrainSurfaceMaterial.DEBUG_STAGES.keys())]
+			)
+			return "final"
+	return "final"
+
+
+# Deterministic screenshot path: final stage keeps the camera-preset names;
+# mask/albedo stages save under the stage name.
+static func _screenshot_path(preset: String, stage: String) -> String:
+	if stage == "final":
+		return SCREENSHOT_PATHS[preset]
+	return SCREENSHOT_STAGE_PATH_TEMPLATE % stage
+
+
+# Top surface from the builder's Y-up oriented triangles and smooth normals,
+# with the N3c.3a world-anchored UVs and planar tangents for the splatting
+# material. Godot front faces are clockwise, so the index buffer emits each
+# triangle in reversed order.
 func _build_top_mesh(geometry) -> ArrayMesh:
 	var tri_count: int = geometry.top_triangles.size() / 3
 	var indices := PackedInt32Array()
@@ -241,16 +280,19 @@ func _build_top_mesh(geometry) -> ArrayMesh:
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = geometry.top_positions
 	arrays[Mesh.ARRAY_NORMAL] = geometry.top_normals
+	arrays[Mesh.ARRAY_TEX_UV] = TerrainSurfaceMaterial.build_world_uv_array(geometry.top_positions)
+	arrays[Mesh.ARRAY_TANGENT] = TerrainSurfaceMaterial.build_top_surface_tangents(
+		geometry.top_normals
+	)
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.58, 0.58, 0.56)
-	material.roughness = 1.0
-	material.metallic = 0.0
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mesh.surface_set_material(0, material)
+	_top_material = TerrainSurfaceMaterial.create_material(material_stage)
+	if _top_material == null:
+		push_error("terrain_preview: failed to create the terrain surface material")
+		return mesh
+	mesh.surface_set_material(0, _top_material)
 	return mesh
 
 
@@ -361,6 +403,9 @@ func _build_hud() -> void:
 			counts.get("wall_triangles", 0),
 		]
 	))
+	_hud_material_label = _hud_label("")
+	_update_material_hud()
+	rows.add_child(_hud_material_label)
 	_hud_camera_label = _hud_label("camera: —")
 	rows.add_child(_hud_camera_label)
 	rows.add_child(_hud_label(""))
@@ -368,7 +413,7 @@ func _build_hud() -> void:
 		"LMB/RMB drag orbit · MMB or Shift+LMB drag pan · wheel zoom"
 	))
 	rows.add_child(_hud_label(
-		"R/Home reset · 1 strategic preset · 2 low-angle preset"
+		"R/Home reset · 1 strategic preset · 2 low-angle preset · M material stage"
 	))
 
 
@@ -377,6 +422,23 @@ func _hud_label(text: String) -> Label:
 	label.text = text
 	label.add_theme_font_size_override("font_size", 13)
 	return label
+
+
+func _update_material_hud() -> void:
+	if _hud_material_label != null:
+		_hud_material_label.text = "material: %s" % material_stage
+
+
+# M cycles the material debug stage (final -> ash_mask -> stone_mask -> albedo).
+func _unhandled_key_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo:
+		return
+	if key.keycode == KEY_M and _top_material != null:
+		var index := MATERIAL_STAGE_CYCLE.find(material_stage)
+		material_stage = MATERIAL_STAGE_CYCLE[(index + 1) % MATERIAL_STAGE_CYCLE.size()]
+		TerrainSurfaceMaterial.set_debug_stage(_top_material, material_stage)
+		_update_material_hud()
 
 
 func _save_screenshot(preset: String) -> void:
@@ -390,11 +452,14 @@ func _save_screenshot(preset: String) -> void:
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var image := get_viewport().get_texture().get_image()
-	var global_path := ProjectSettings.globalize_path(String(SCREENSHOT_PATHS[preset]))
+	var global_path := ProjectSettings.globalize_path(_screenshot_path(preset, material_stage))
 	DirAccess.make_dir_recursive_absolute(global_path.get_base_dir())
 	var error := image.save_png(global_path)
 	if error == OK:
-		print("terrain_preview: screenshot (%s) saved to %s" % [preset, global_path])
+		print(
+			"terrain_preview: screenshot (%s, stage %s) saved to %s"
+			% [preset, material_stage, global_path]
+		)
 	else:
 		push_error("terrain_preview: failed to save screenshot (%d)" % error)
 	get_tree().quit(0 if error == OK else 1)
