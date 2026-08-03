@@ -1,0 +1,4 @@
+# Godot must not scan this directory: it holds Blender-only regenerated
+# prototype outputs (.blend/.blend1 and importer-unpacked textures/) that the
+# game never loads at res:// paths. Runtime terrain textures live in
+# ../source/materials/, which stays scanned and imported.
