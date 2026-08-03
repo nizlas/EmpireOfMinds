@@ -84,7 +84,14 @@ Shared tile edges are classified **`smooth`** vs **`cliff`** deterministically f
 
 N3a (`Ts08CutLattice`) consumes **`WorldMap` edges** plus the TS-08 cut/merge rules to build Ω_cut topology only — no continuous height solve. The lattice is held **in memory**; any future persisted lattice cache must be a compact, versioned **binary** format (packed arrays, source `WorldMap` hash, format version, integrity checksum) treated as regenerable derived data — see [MAP_CONTENT.md](MAP_CONTENT.md).
 
-N3b (`Ts08HeightSolver`) consumes the **`WorldMap`** plus the N3a lattice to solve the Stage-2 cut-domain thin-plate heights ([TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md)), including the partial-hex/underdetermined-component gauge convention (analytic constant/plane, deflated CG + exact post-projection). Solved heights are **derived data in memory** — never gameplay authority, never persisted map content. Production solver code never loads N2 or pre-solved terrain; N2 parity lives in tests via a test-only binary height golden.
+N3b (`Ts08HeightSolver`) consumes the **`WorldMap`** plus the N3a lattice to solve the Stage-2 cut-domain thin-plate heights ([TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md)), including the partial-hex/underdetermined-component gauge convention (analytic constant/plane, deflated CG + exact post-projection). Solved heights are **derived data in memory** — never gameplay authority, never persisted map content. Production solver code never loads N2 or pre-solved terrain; N2 parity lives in tests via a test-only binary height golden. The GDScript solver is the verified reference and default; an **explicit opt-in** native `cg_plain` backend (`EomTerrainNative` GDExtension, N3b.1b) accelerates only the global plain-PCG path with bit-identical results, and fails loudly when the locally built extension is unavailable.
+
+**Derived terrain cache (approved contract — format not designed or implemented yet):**
+
+- **Fixed (authored/reference) maps** may ship with prebuilt derived caches (lattice/heights) so players do not pay solve cost for content that never changes.
+- **Future procedural maps** generate terrain at runtime on cache miss; an **exactly identical previously generated map** may reuse its cache.
+- **Cache identity** includes the actual `WorldMap` content (content hash), plus generator version, generation parameters, and cache format version — never map name alone.
+- **`WorldMap` remains authoritative**: a cache is regenerable derived data (compact, versioned binary with integrity checksum, per the lattice-cache direction above), never canonical content, and never a terrain authority. On identity mismatch the cache is discarded and terrain is re-solved.
 
 See [MAP_CONTENT.md](MAP_CONTENT.md) for yield/knowledge boundaries and [DECISION_LOG.md](DECISION_LOG.md) for the approved direction.
 

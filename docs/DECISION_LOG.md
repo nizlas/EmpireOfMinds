@@ -1,3 +1,10 @@
+## 2026-08-02 — Terrain — N3b visual approval, native cg_plain backend (N3b.1b), derived-cache contract
+
+- **N3b visually approved:** the solver-generated reference-map surface rendered by `game/dev/terrain_preview/` is accepted; N3b status is Done without qualifiers.
+- **Native backend ownership (N3b.1b):** `Ts08HeightSolver` (GDScript) remains the verified reference implementation and clean-checkout default. The `EomTerrainNative` GDExtension ports **only** the rank-3/plain-PCG hot path with unchanged mathematics (normalized umbrella `L`, `B = LᵀL`, hard-pin elimination, Jacobi diagonal, planar warm start, rel tol `1e-8`, max 40000 iterations, deterministic accumulation order; one GDScript/C++ crossing per solve). Component census/routing and the analytic/deflated routes stay GDScript on every backend. The native path is **explicit opt-in** and fails loudly when the locally built DLL is absent — no silent fallback, no committed binaries. Measured on the reference map: bit-identical heights, same 1526 iterations, 653 ms vs 56.1 s GDScript (85.8×). Automatic production backend selection is deliberately deferred.
+- **Derived terrain cache contract (approved, recorded in [MAP_MODEL.md](MAP_MODEL.md); format not designed):** fixed maps may ship prebuilt derived caches; future procedural maps generate on cache miss; an exactly identical previously generated map may reuse its cache; cache identity = actual `WorldMap` content hash + generator/parameter/format versions; `WorldMap` stays authoritative and caches remain regenerable derived data.
+- **Scope:** N3b.1b implementation + documentation. No cache implementation, no N3c/mesh, no GPU/SIMD/multithreading, no preconditioner changes.
+
 ## 2026-08-02 — 3D world integration — terrain production path vs N2 derived golden (N2 docs alignment)
 
 - **Decision:** Lock the terrain **authority hierarchy** for the fixed-grid Godot 3D parity milestone:

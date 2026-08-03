@@ -35,6 +35,16 @@ const GAUGE_ANALYTIC_CONSTANT := "analytic_constant"
 const GAUGE_ANALYTIC_PLANE := "analytic_plane"
 const GAUGE_CG_DEFLATED := "cg_deflated"
 
+# Backend selection (N3b.1b). The GDScript path stays the verified reference
+# and default; the native path is explicit opt-in and only accelerates the
+# global cg_plain PCG. Census/routing, analytic constant/plane, and deflated
+# CG always run in GDScript on every backend. When the native backend is
+# requested but the GDExtension is unavailable, solve() fails loudly
+# (push_error + null) — it never silently falls back.
+const BACKEND_GDSCRIPT := "gdscript"
+const BACKEND_NATIVE := "native"
+const NATIVE_CLASS_NAME := &"EomTerrainNative"
+
 
 class SolveResult extends RefCounted:
 	var heights := PackedFloat64Array()
@@ -59,13 +69,34 @@ class SolveResult extends RefCounted:
 	var deflation_instantiated_count: int = 0
 	var solver_bytes_estimate: int = 0
 	var solve_msec: int = 0
+	# N3b.1b backend diagnostics.
+	var backend := "gdscript"
+	# Incremented only when the native kernel actually ran; must stay zero
+	# for analytic and deflated routes even when the native backend is
+	# requested (they always run in GDScript).
+	var native_cg_plain_invocations: int = 0
+	var prep_msec: int = 0
+	var cg_msec: int = 0
+	var native_internal_msec: int = 0
+	var native_buffer_bytes: int = 0
 
 
-static func solve(world_map, build, verbose: bool = false) -> SolveResult:
+static func solve(
+	world_map, build, verbose: bool = false, backend: String = BACKEND_GDSCRIPT
+) -> SolveResult:
 	var started_msec := Time.get_ticks_msec()
+	var native_backend: Object = null
+	if backend == BACKEND_NATIVE:
+		native_backend = _instantiate_native_backend()
+		if native_backend == null:
+			return null
+	elif backend != BACKEND_GDSCRIPT:
+		push_error("Ts08HeightSolver: unknown backend '%s'" % backend)
+		return null
 	var n: int = build.node_count
 	var result := SolveResult.new()
 	result.node_count = n
+	result.backend = backend
 
 	# --- pins (sorted, values in Godot Y / world-height units) ---
 	var pinned_idx: Array = build.pinned_world_y.keys()
@@ -100,6 +131,7 @@ static func solve(world_map, build, verbose: bool = false) -> SolveResult:
 			cursor += 1
 		degrees[i] = maxf(float(neighbors.size()), 1.0)
 	neighbor_ptr[n] = cursor
+	result.prep_msec = Time.get_ticks_msec() - started_msec
 
 	# --- component census and routing ---
 	var component_reports := _build_component_reports(world_map, build)
@@ -156,17 +188,39 @@ static func solve(world_map, build, verbose: bool = false) -> SolveResult:
 	# --- global plain CG over all free nodes (mirrors Python Stage 2) ---
 	var all_converged := true
 	if cg_plain_present:
-		var cg := _solve_cg_plain_global(
-			build,
-			n,
-			pinned_idx,
-			z_pin,
-			is_pinned,
-			neighbor_idx,
-			neighbor_ptr,
-			degrees,
-			verbose
-		)
+		var cg_started_msec := Time.get_ticks_msec()
+		var cg: Dictionary
+		if native_backend != null:
+			cg = _solve_cg_plain_global_native(
+				native_backend,
+				build,
+				n,
+				pinned_idx,
+				z_pin,
+				neighbor_idx,
+				neighbor_ptr,
+				degrees,
+				verbose
+			)
+			if cg.is_empty():
+				push_error("Ts08HeightSolver: native cg_plain kernel rejected its input")
+				return null
+			result.native_cg_plain_invocations += 1
+			result.native_internal_msec = int(cg.get("native_msec", 0))
+			result.native_buffer_bytes = int(cg.get("buffer_bytes", 0))
+		else:
+			cg = _solve_cg_plain_global(
+				build,
+				n,
+				pinned_idx,
+				z_pin,
+				is_pinned,
+				neighbor_idx,
+				neighbor_ptr,
+				degrees,
+				verbose
+			)
+		result.cg_msec = Time.get_ticks_msec() - cg_started_msec
 		result.cg_iterations = cg["iterations"]
 		result.cg_final_abs_residual = cg["abs_residual"]
 		result.cg_final_rel_residual = cg["rel_residual"]
@@ -494,6 +548,63 @@ static func _jacobi_diagonal(
 		diag[i] = acc
 		ptr0 = ptr1
 	return diag
+
+
+# ---------------------------------------------------------------------------
+# Native backend (N3b.1b): explicit opt-in acceleration of the global plain
+# PCG only. Fails loudly when the GDExtension is not available or stale.
+# ---------------------------------------------------------------------------
+
+
+static func _instantiate_native_backend() -> Object:
+	if not ClassDB.can_instantiate(NATIVE_CLASS_NAME):
+		push_error(
+			"Ts08HeightSolver: native backend requested but EomTerrainNative is not "
+			+ "available. Build the GDExtension (scripts/build-native.ps1) so "
+			+ "game/bin/eom_native.gdextension exists and is loaded, or use the "
+			+ "GDScript backend."
+		)
+		return null
+	var instance: Object = ClassDB.instantiate(NATIVE_CLASS_NAME)
+	if instance == null or not instance.has_method("solve_cg_plain_global"):
+		push_error(
+			"Ts08HeightSolver: EomTerrainNative is stale (missing solve_cg_plain_global); "
+			+ "rebuild the GDExtension via scripts/build-native.ps1."
+		)
+		return null
+	return instance
+
+
+# One GDScript/C++ crossing per solve: packed CSR/pin/warm-start arrays in,
+# heights plus convergence diagnostics out. The warm start stays the exact
+# deterministic GDScript _planar_warm_start.
+static func _solve_cg_plain_global_native(
+	native_backend: Object,
+	build,
+	n: int,
+	pinned_idx: Array,
+	z_pin: PackedFloat64Array,
+	neighbor_idx: PackedInt32Array,
+	neighbor_ptr: PackedInt32Array,
+	degrees: PackedFloat64Array,
+	verbose: bool
+) -> Dictionary:
+	var pinned_idx_packed := PackedInt32Array()
+	pinned_idx_packed.resize(pinned_idx.size())
+	for i in pinned_idx.size():
+		pinned_idx_packed[i] = pinned_idx[i]
+	var z_warm := _planar_warm_start(build, pinned_idx, z_pin, n)
+	return native_backend.solve_cg_plain_global(
+		neighbor_ptr,
+		neighbor_idx,
+		degrees,
+		pinned_idx_packed,
+		z_pin,
+		z_warm,
+		CG_REL_TOL,
+		CG_MAX_ITERATIONS,
+		verbose
+	)
 
 
 # ---------------------------------------------------------------------------

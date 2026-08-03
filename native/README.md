@@ -1,10 +1,18 @@
 # Native GDExtension (`eom_native`)
 
-Native C++ GDExtension for Empire of Minds (slice **N3b.1a**: build-and-load
-path only). Registers `EomTerrainNative` — the intended future terrain
-backend — currently carrying only float64/`PackedFloat64Array` boundary
-probes. No terrain solver logic is native yet; the accepted N3b height
-solver remains `game/domain/world/ts08_height_solver.gd`.
+Native C++ GDExtension for Empire of Minds. Registers `EomTerrainNative`:
+
+- float64/`PackedFloat64Array` boundary probes (N3b.1a);
+- `solve_cg_plain_global` (N3b.1b) — an exact port of the rank-3/plain-PCG
+  hot path of `Ts08HeightSolver` (one GDScript/C++ crossing per solve, all
+  PCG iterations native, bit-identical results, ~86× faster on the
+  reference map).
+
+`game/domain/world/ts08_height_solver.gd` (GDScript) remains the verified
+reference implementation and the default backend; the native path is
+explicit opt-in (`Ts08HeightSolver.BACKEND_NATIVE`) and fails loudly when
+this extension is not built. Component census/routing and the analytic /
+deflated gauge routes always run in GDScript.
 
 ## Toolchain
 
@@ -35,9 +43,17 @@ From the repo root in plain PowerShell (no VS developer shell needed):
 # Headless smoke test (load, registration, exact float64 probe results)
 & "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe" `
     --headless --path game -s res://domain/tests/test_native_extension_smoke.gd
+
+# N3b.1b native solver tests (require the built extension; fail loudly otherwise):
+#   focused synthetic kernel + route-proof tests
+#     -s res://domain/tests/test_native_cg_kernel.gd
+#   full reference-map parity, determinism, and benchmark (includes one
+#   ~56 s GDScript reference solve)
+#     -s res://domain/tests/test_ts08_height_solver_n3b_native.gd
 ```
 
 `.\scripts\build-native.ps1 windows-ninja-debug` selects the Debug preset.
+Benchmark numbers in the docs come from the Release preset.
 
 ## Outputs (all gitignored)
 
