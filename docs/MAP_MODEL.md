@@ -86,6 +86,8 @@ N3a (`Ts08CutLattice`) consumes **`WorldMap` edges** plus the TS-08 cut/merge ru
 
 N3b (`Ts08HeightSolver`) consumes the **`WorldMap`** plus the N3a lattice to solve the Stage-2 cut-domain thin-plate heights ([TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md)), including the partial-hex/underdetermined-component gauge convention (analytic constant/plane, deflated CG + exact post-projection). Solved heights are **derived data in memory** — never gameplay authority, never persisted map content. Production solver code never loads N2 or pre-solved terrain; N2 parity lives in tests via a test-only binary height golden. The GDScript solver is the verified reference and default; an **explicit opt-in** native `cg_plain` backend (`EomTerrainNative` GDExtension, N3b.1b) accelerates only the global plain-PCG path with bit-identical results, and fails loudly when the locally built extension is unavailable.
 
+N3c.1 (`Ts08SurfaceGeometry`) consumes the `WorldMap`, the N3a lattice, and the N3b solved heights to emit **packed surface geometry**: the accepted top surface (Y-up triangles, smooth normals) plus Stage-3a cliff-wall polygons ported from the accepted Python helper. Walls exist **only along authoritative `WorldMap` cliff edges** and stay separately identifiable face records (cliff pair, segment, oriented node indices, height delta) so future wall materials and collision never infer cliffs from slope. All of it is **derived data in memory** — presentation derivatives, never gameplay authority.
+
 **Derived terrain cache (approved contract — format not designed or implemented yet):**
 
 - **Fixed (authored/reference) maps** may ship with prebuilt derived caches (lattice/heights) so players do not pay solve cost for content that never changes.
@@ -109,6 +111,7 @@ Match snapshots will carry **`MapIdentity`** (`map_id`, `schema_version`, `conte
 | `game/domain/world/ts08_terrain_math.gd` | TS-08 construction math (scalar float64; Python-compatible `pos_key`) |
 | `game/domain/world/ts08_cut_lattice.gd` | TS-08 Stage-0 cut-lattice topology from `WorldMap` (N3a) |
 | `game/domain/world/ts08_height_solver.gd` | TS-08 Stage-2 cut-domain thin-plate CG height solve (N3b) |
+| `game/domain/world/ts08_surface_geometry.gd` | TS-08 surface geometry: top surface + Stage-3a cliff-wall faces as packed data (N3c.1) |
 | `server/app/domain/world_map.py` | Python mirror (N7) |
 
 Presentation modules under `game/presentation/world3d/` consume `WorldMap`; they do not own map truth.

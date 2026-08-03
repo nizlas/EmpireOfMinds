@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "manifest_id": "handdrawn_test_map_full_01_ts08_n3c_wall_parity_v1",
+  "source_map_content_hash": "16cc82c3392c66f1e47273e7da94cf8a804ae9885a051fc81c4b0a9a4261d8c6",
+  "source_n2_dataset_id": "handdrawn_test_map_full_01_ts08_stage2_reference_v1",
+  "source_n2_content_hash": "4420fe98088ffb8e538b87f5debb8408dc7a16b279da85dcd335a01f166467ce",
+  "canonical_encoding": {
+    "text": "UTF-8 lines terminated by '\\n'; integer fields joined by ';'",
+    "digest": "sha256 lowercase hex over concatenated line bytes; all wall faces hashed",
+    "wall_faces": "per emitted wall face, deterministic emit order (cliff pairs sorted by (min_tile, max_tile) lexicographic (q, r), segments in chain order, deduped faces omitted): QA;RA;QB;RB;SEG;V0;V1;V2[;V3] with oriented N3a node indices",
+    "wall_height_stats": "informational floats (12 significant digits); Godot compares with 1e-6 tolerance against its own solver heights"
+  },
+  "counts": {
+    "top_vertex_count": 74129,
+    "top_triangle_count": 145152,
+    "wall_face_count": 936,
+    "wall_segment_count": 936,
+    "wall_skipped_segment_count": 0,
+    "wall_quad_count": 916,
+    "wall_triangle_count": 20
+  },
+  "wall_height_stats": {
+    "min": 0.182350539939,
+    "mean": 1.09790217332,
+    "max": 2.1156605977
+  },
+  "digests": {
+    "wall_faces_sha256": "dee6a47ab4360d4de150a77fc24c54d3aa13303bc1de6ed83e11f1e6bdfa2c10"
+  }
+}
