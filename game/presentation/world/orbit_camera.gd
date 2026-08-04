@@ -1,5 +1,7 @@
-# Development-only orbit camera for the terrain preview (N3c.2).
-# NOT a production camera; no gameplay integration.
+# Orbit camera for the shared runtime terrain world (N3c.2; moved out of
+# game/dev/ in N3c.6 so the runtime world does not depend on dev code).
+# Same accepted N3c.2 behavior; production camera polish is a later slice.
+# No gameplay integration.
 #
 # Orbit state is (target, yaw, pitch, distance) around a ground-plane target:
 # - unrestricted 360° yaw (wrapped);

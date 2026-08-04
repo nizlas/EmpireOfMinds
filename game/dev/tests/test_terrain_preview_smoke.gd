@@ -23,6 +23,12 @@
 # N3c.5 preview assembly: deterministic tile/cliff-edge picking wired to
 # left-clicks — the wall triangle lookup is built, the pick HUD line exists,
 # and a center-screen pick resolves to a canonical WorldMap identity.
+#
+# N3c.6: the preview is a thin dev shell around the shared runtime terrain
+# world component (game/presentation/world/terrain_world.gd) — the terrain
+# nodes live under the TerrainWorld child, picking propagates through the
+# terrain_picked signal into the dev HUD, and there is no second terrain
+# implementation in the preview.
 extends SceneTree
 
 const PREVIEW_SCENE_PATH := "res://dev/terrain_preview/terrain_preview.tscn"
@@ -78,9 +84,20 @@ func _run() -> void:
 		"wall face count"
 	)
 
+	# N3c.6: the terrain is assembled by the shared runtime world component.
+	var world = preview.get_node_or_null("TerrainWorld")
+	_check(world is Node3D, "shared TerrainWorld component present")
+	if world == null:
+		_finish()
+		return
+	_check(
+		world.get_script() == load("res://presentation/world/terrain_world.gd"),
+		"terrain assembled by the shared runtime component (no second implementation)"
+	)
+
 	var top_material: Material = null
 	var wall_material: Material = null
-	var top = preview.get_node_or_null("TopSurface")
+	var top = world.get_node_or_null("TopSurface")
 	_check(
 		top is MeshInstance3D and top.mesh != null and top.mesh.get_surface_count() == 1,
 		"top-surface ArrayMesh present"
@@ -117,7 +134,7 @@ func _run() -> void:
 		var tangents: PackedFloat32Array = arrays[Mesh.ARRAY_TANGENT]
 		_check(tangents.size() == vertices.size() * 4, "tangents baked per vertex")
 		_check_reference_map_tangents(arrays, tangents)
-	var walls = preview.get_node_or_null("CliffWalls")
+	var walls = world.get_node_or_null("CliffWalls")
 	_check(
 		walls is MeshInstance3D and walls.mesh != null and walls.mesh.get_surface_count() == 1,
 		"cliff-wall ArrayMesh present"
@@ -175,7 +192,7 @@ func _run() -> void:
 
 	# N3c.4: one clearly named static terrain body; the collision faces must
 	# equal the rendered geometry exactly (derived data, no divergence).
-	var collision = preview.get_node_or_null("TerrainCollision")
+	var collision = world.get_node_or_null("TerrainCollision")
 	_check(collision is StaticBody3D, "TerrainCollision StaticBody3D present")
 	if collision is StaticBody3D:
 		var top_shape_node = collision.get_node_or_null("TopSurfaceCollision")
@@ -232,7 +249,7 @@ func _run() -> void:
 			"top and wall materials stay synchronized on the stage"
 		)
 
-	var camera = preview.get_node_or_null("OrbitCamera")
+	var camera = world.get_node_or_null("OrbitCamera")
 	_check(camera is Camera3D, "orbit camera present")
 	if camera is Camera3D:
 		_check(camera.current, "orbit camera is current")
@@ -263,26 +280,27 @@ func _run() -> void:
 				pick_line_shown = true
 		_check(pick_line_shown, "HUD shows the pick line")
 
-	# N3c.5: the picker lookup aligns with the wall collision triangles and a
-	# center-screen left-click pick resolves against the terrain collision.
+	# N3c.5/N3c.6: the picker lookup aligns with the wall collision triangles
+	# and a center-screen pick on the runtime world resolves and propagates
+	# through the terrain_picked signal into the dev HUD.
 	_check(
-		preview._wall_triangle_map.size() == int(preview.counts.get("collision_wall_triangles", -1)),
+		world._wall_triangle_map.size() == int(preview.counts.get("collision_wall_triangles", -1)),
 		"wall triangle lookup aligned with the wall collision triangles"
 	)
 	await physics_frame
 	await physics_frame
 	var center: Vector2 = preview.get_viewport().get_visible_rect().size / 2.0
-	var pick: Dictionary = preview._perform_pick(center)
+	var pick: Dictionary = world.pick_at_screen_position(center)
 	_check(
 		pick.get("kind", "") in ["tile", "cliff"],
 		"center-screen pick resolves to a canonical tile or cliff edge"
 	)
 	print("smoke: center pick = %s" % str(pick))
-	preview._show_pick_result(pick)
+	_check(world.last_pick == pick, "runtime world exposes the latest pick")
 	var pick_text: String = preview._hud_pick_label.text
 	_check(
 		pick_text.begins_with("pick: Tile: (") or pick_text.begins_with("pick: Cliff: ("),
-		"pick HUD shows the resolved identity"
+		"pick propagated through terrain_picked into the dev HUD"
 	)
 
 	_finish()

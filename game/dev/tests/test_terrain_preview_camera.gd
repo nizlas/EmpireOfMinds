@@ -10,7 +10,7 @@
 #   fallback for explicit Native).
 extends SceneTree
 
-const OrbitCameraScript = preload("res://dev/terrain_preview/orbit_camera.gd")
+const OrbitCameraScript = preload("res://presentation/world/orbit_camera.gd")
 const TerrainPreviewScript = preload("res://dev/terrain_preview/terrain_preview.gd")
 const Ts08HeightSolver = preload("res://domain/world/ts08_height_solver.gd")
 

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://dev/terrain_runtime_harness/terrain_runtime_harness.gd" id="1_terrain_runtime_harness"]
+
+[node name="TerrainRuntimeHarness" type="Node3D"]
+script = ExtResource("1_terrain_runtime_harness")

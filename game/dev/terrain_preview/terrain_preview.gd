@@ -1,21 +1,13 @@
 # Development-only interactive terrain-inspection preview (N3b/N3c). NOT
-# runtime-world integration.
-#
-# Real runtime chain, always:
+# runtime-world integration itself — since N3c.6 it is a thin dev shell
+# around the shared runtime terrain world component
+# (game/presentation/world/terrain_world.gd), which owns the one real chain:
 #   WorldMap -> Ts08CutLattice -> Ts08HeightSolver -> Ts08SurfaceGeometry
-#   -> dev ArrayMesh
-# Never loads N2 heights. The top surface renders with the N3c.3a three-layer
-# PBR splatting material (game/presentation/terrain_surface_material.gd);
-# cliff walls render with the N3c.3b Stage-3a stone PBR material and
-# wall-local UVs (game/presentation/terrain_cliff_wall_material.gd).
-# Deterministic static terrain collision (N3c.4) is derived from the same
-# geometry (game/presentation/terrain_collision.gd): one TerrainCollision
-# StaticBody3D with separate top/wall concave shapes; derived data only.
-# Deterministic tile/cliff-edge picking (N3c.5) raycasts left-clicks against
-# that collision (game/presentation/terrain_picker.gd) and shows the
-# canonical WorldMap identity in the HUD — inspection feedback only, no
-# selection state, overlays, or gameplay.
-# Basic lighting unchanged.
+#   -> ArrayMesh + N3c.3a/3b materials -> N3c.4 collision -> orbit camera
+#   -> N3c.5 tile/cliff picking
+# Never loads N2 heights. There is no second terrain implementation here:
+# the preview only adds dev-only concerns — HUD, screenshot mode, material
+# stage cycling, and the backend selector.
 #
 # Run from the Godot editor: open this scene and press F6 (no arguments
 # needed; backend selector defaults to Auto). Or from the command line:
@@ -26,7 +18,8 @@
 #   godot --path game res://dev/terrain_preview/terrain_preview.tscn -- --screenshot --stage=ash_mask
 #
 # Backend selector (dev preview tool behavior only — NOT automatic
-# production backend selection):
+# production backend selection; the runtime world keeps the backend
+# caller-supplied):
 #   Auto (default) - native when the built extension is available, else GDScript
 #   Native         - fails clearly when the extension is unavailable
 #   GDScript       - always available (clean-checkout verification)
@@ -50,14 +43,9 @@ extends Node3D
 enum BackendMode { AUTO, NATIVE, GDSCRIPT }
 
 const MapContentLoader = preload("res://domain/world/map_content_loader.gd")
-const Ts08CutLattice = preload("res://domain/world/ts08_cut_lattice.gd")
 const Ts08HeightSolver = preload("res://domain/world/ts08_height_solver.gd")
-const Ts08SurfaceGeometry = preload("res://domain/world/ts08_surface_geometry.gd")
-const OrbitCameraScript = preload("res://dev/terrain_preview/orbit_camera.gd")
+const TerrainWorldScript = preload("res://presentation/world/terrain_world.gd")
 const TerrainSurfaceMaterial = preload("res://presentation/terrain_surface_material.gd")
-const TerrainCliffWallMaterial = preload("res://presentation/terrain_cliff_wall_material.gd")
-const TerrainCollision = preload("res://presentation/terrain_collision.gd")
-const TerrainPicker = preload("res://presentation/terrain_picker.gd")
 
 const SCREENSHOT_PATHS := {
 	"strategic": "res://dev/terrain_preview/output/terrain_preview_strategic.png",
@@ -72,26 +60,19 @@ const MATERIAL_STAGE_CYCLE := ["final", "ash_mask", "stone_mask", "albedo"]
 ## native extension when available and falls back to GDScript otherwise.
 @export var backend_mode: BackendMode = BackendMode.AUTO
 
-# Populated by _ready for the HUD, tests, and reporting.
+# Mirrored from the runtime world by _ready for the HUD, tests, and
+# reporting.
 var backend_used := ""
 var timings: Dictionary = {}
 var counts: Dictionary = {}
 var material_stage := "final"
 
+var _world = null
 var _camera: Camera3D = null
 var _hud_camera_label: Label = null
 var _hud_material_label: Label = null
 var _hud_pick_label: Label = null
 var _hud_layer: CanvasLayer = null
-var _top_material: ShaderMaterial = null
-var _wall_material: ShaderMaterial = null
-
-# N3c.5 picking state (read-only references; the picker never mutates them).
-var _world_map = null
-var _geometry = null
-var _wall_triangle_map := PackedInt32Array()
-var _pending_pick_screen_pos := Vector2.ZERO
-var _pick_requested := false
 
 
 # Preview-tool backend resolution (pure; unit-tested). Returns
@@ -119,7 +100,7 @@ static func resolve_backend(mode: BackendMode, native_available: bool) -> Dictio
 					if native_available
 					else Ts08HeightSolver.BACKEND_GDSCRIPT
 				),
-				"error": "",
+			"error": "",
 			}
 
 
@@ -136,7 +117,6 @@ func _ready() -> void:
 		push_error("terrain_preview: %s" % resolved["error"])
 		get_tree().quit(1)
 		return
-	backend_used = resolved["backend"]
 
 	print("terrain_preview: loading WorldMap...")
 	var world_map = MapContentLoader.load_reference_world_map()
@@ -145,98 +125,26 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 
-	print("terrain_preview: building cut lattice...")
-	var t0 := Time.get_ticks_msec()
-	var build = Ts08CutLattice.build_from_world_map(world_map)
-	timings["lattice_msec"] = Time.get_ticks_msec() - t0
-	print("terrain_preview: lattice %d ms (%d nodes)" % [timings["lattice_msec"], build.node_count])
-
-	if backend_used == Ts08HeightSolver.BACKEND_NATIVE:
-		print("terrain_preview: solving heights (native backend)...")
-	else:
+	var verbose: bool = resolved["backend"] == Ts08HeightSolver.BACKEND_GDSCRIPT
+	if verbose:
 		print("terrain_preview: solving heights (GDScript backend, about a minute)...")
-	var verbose := backend_used == Ts08HeightSolver.BACKEND_GDSCRIPT
-	var solve = Ts08HeightSolver.solve(world_map, build, verbose, backend_used)
-	if solve == null:
-		push_error("terrain_preview: height solve failed (backend %s)" % backend_used)
+	_world = TerrainWorldScript.new()
+	_world.name = "TerrainWorld"
+	add_child(_world)
+	if not _world.build(world_map, resolved["backend"], material_stage, verbose):
+		push_error("terrain_preview: terrain world build failed")
 		get_tree().quit(1)
 		return
-	timings["solve_msec"] = solve.solve_msec
-	print("terrain_preview: solve %d ms, converged=%s" % [solve.solve_msec, solve.converged])
 
-	print("terrain_preview: building surface geometry...")
-	var geometry = Ts08SurfaceGeometry.build(world_map, build, solve.heights)
-	if geometry == null:
-		push_error("terrain_preview: surface geometry build failed")
-		get_tree().quit(1)
-		return
-	timings["geometry_msec"] = geometry.build_msec
-
-	counts = {
-		"nodes": build.node_count,
-		"top_triangles": geometry.top_triangles.size() / 3,
-		"wall_faces": geometry.wall_faces.size(),
-		"wall_quads": geometry.wall_quad_count,
-		"wall_triangles": geometry.wall_triangle_count,
-	}
+	backend_used = _world.backend_used
+	timings = _world.timings
+	counts = _world.counts
+	_camera = _world.camera
+	_world.terrain_picked.connect(_show_pick_result)
 	print(
-		"terrain_preview: geometry %d ms (%d wall faces: %d quads, %d crack-tip triangles)"
-		% [
-			geometry.build_msec,
-			geometry.wall_faces.size(),
-			geometry.wall_quad_count,
-			geometry.wall_triangle_count,
-		]
+		"terrain_preview: mesh AABB=%s"
+		% _world.get_node("TopSurface").mesh.get_aabb()
 	)
-
-	var t_mesh := Time.get_ticks_msec()
-	var top_mesh := _build_top_mesh(geometry)
-	var top_instance := MeshInstance3D.new()
-	top_instance.name = "TopSurface"
-	top_instance.mesh = top_mesh
-	add_child(top_instance)
-
-	var wall_mesh := _build_wall_mesh(geometry)
-	if wall_mesh != null:
-		var wall_instance := MeshInstance3D.new()
-		wall_instance.name = "CliffWalls"
-		wall_instance.mesh = wall_mesh
-		add_child(wall_instance)
-	timings["mesh_msec"] = Time.get_ticks_msec() - t_mesh
-
-	_world_map = world_map
-	_geometry = geometry
-
-	var t_collision := Time.get_ticks_msec()
-	var collision_body := TerrainCollision.build_static_body(geometry)
-	add_child(collision_body)
-	_wall_triangle_map = TerrainPicker.build_wall_triangle_map(geometry)
-	timings["collision_msec"] = Time.get_ticks_msec() - t_collision
-	var top_shape: ConcavePolygonShape3D = collision_body.get_node(
-		TerrainCollision.TOP_SHAPE_NAME
-	).shape
-	var wall_shape_node := collision_body.get_node_or_null(TerrainCollision.WALL_SHAPE_NAME)
-	counts["collision_top_triangles"] = top_shape.get_faces().size() / 3
-	counts["collision_wall_triangles"] = (
-		wall_shape_node.shape.get_faces().size() / 3 if wall_shape_node != null else 0
-	)
-	print(
-		"terrain_preview: collision %d ms (%d top + %d wall triangles)"
-		% [
-			timings["collision_msec"],
-			counts["collision_top_triangles"],
-			counts["collision_wall_triangles"],
-		]
-	)
-
-	_add_lighting()
-	var aabb := top_mesh.get_aabb()
-	print("terrain_preview: mesh AABB=%s" % aabb)
-	_camera = OrbitCameraScript.new()
-	_camera.name = "OrbitCamera"
-	add_child(_camera)
-	_camera.configure_from_aabb(aabb)
-	_camera.current = true
 
 	_build_hud()
 
@@ -307,87 +215,6 @@ static func _screenshot_path(preset: String, stage: String) -> String:
 	if stage == "final":
 		return SCREENSHOT_PATHS[preset]
 	return SCREENSHOT_STAGE_PATH_TEMPLATE % stage
-
-
-# Top surface from the builder's Y-up oriented triangles and smooth normals,
-# with the N3c.3a world-anchored UVs and planar tangents for the splatting
-# material. Godot front faces are clockwise, so the index buffer emits each
-# triangle in reversed order.
-func _build_top_mesh(geometry) -> ArrayMesh:
-	var tri_count: int = geometry.top_triangles.size() / 3
-	var indices := PackedInt32Array()
-	indices.resize(geometry.top_triangles.size())
-	var cursor := 0
-	for t in tri_count:
-		indices[cursor] = geometry.top_triangles[3 * t]
-		indices[cursor + 1] = geometry.top_triangles[3 * t + 2]
-		indices[cursor + 2] = geometry.top_triangles[3 * t + 1]
-		cursor += 3
-
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = geometry.top_positions
-	arrays[Mesh.ARRAY_NORMAL] = geometry.top_normals
-	arrays[Mesh.ARRAY_TEX_UV] = TerrainSurfaceMaterial.build_world_uv_array(geometry.top_positions)
-	arrays[Mesh.ARRAY_TANGENT] = TerrainSurfaceMaterial.build_top_surface_tangents(
-		geometry.top_normals
-	)
-	arrays[Mesh.ARRAY_INDEX] = indices
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-
-	_top_material = TerrainSurfaceMaterial.create_material(material_stage)
-	if _top_material == null:
-		push_error("terrain_preview: failed to create the terrain surface material")
-		return mesh
-	mesh.surface_set_material(0, _top_material)
-	return mesh
-
-
-# Wall faces are stored counter-clockwise around the outward normal that
-# points toward the lower tile (plane->Godot is a rotation, so the winding
-# carries over). Flat shading: fan-triangulate each polygon with duplicated
-# vertices and per-face normals (identical vertex output to N3c.1), now with
-# the N3c.3b wall-local UVs and per-triangle tangents baked for the Stage-3a
-# stone PBR material.
-func _build_wall_mesh(geometry) -> ArrayMesh:
-	if geometry.wall_faces.is_empty():
-		return null
-	var wall_arrays: Dictionary = TerrainCliffWallMaterial.build_wall_mesh_arrays(
-		geometry.top_positions, geometry.wall_faces
-	)
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = wall_arrays["vertices"]
-	arrays[Mesh.ARRAY_NORMAL] = wall_arrays["normals"]
-	arrays[Mesh.ARRAY_TEX_UV] = wall_arrays["uvs"]
-	arrays[Mesh.ARRAY_TANGENT] = wall_arrays["tangents"]
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-
-	_wall_material = TerrainCliffWallMaterial.create_material(material_stage)
-	if _wall_material == null:
-		push_error("terrain_preview: failed to create the cliff-wall material")
-		return mesh
-	mesh.surface_set_material(0, _wall_material)
-	return mesh
-
-
-func _add_lighting() -> void:
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-42.0, -30.0, 0.0)
-	light.light_energy = 1.0
-	add_child(light)
-
-	var world_environment := WorldEnvironment.new()
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.13, 0.15, 0.18)
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.8, 0.82, 0.85)
-	environment.ambient_light_energy = 0.35
-	world_environment.environment = environment
-	add_child(world_environment)
 
 
 func _build_hud() -> void:
@@ -465,46 +292,15 @@ func _update_material_hud() -> void:
 		_hud_material_label.text = "material: %s" % material_stage
 
 
-# N3c.5: a plain left-click requests a pick raycast (Shift+LMB stays pan;
-# the orbit camera keeps seeing the same events). The raycast itself runs in
-# _physics_process, where the physics space is safe to query.
-func _unhandled_input(event: InputEvent) -> void:
-	var button := event as InputEventMouseButton
-	if button == null or button.button_index != MOUSE_BUTTON_LEFT:
-		return
-	if not button.pressed or button.shift_pressed:
-		return
-	_pending_pick_screen_pos = button.position
-	_pick_requested = true
-
-
-func _physics_process(_delta: float) -> void:
-	if not _pick_requested:
-		return
-	_pick_requested = false
-	_show_pick_result(_perform_pick(_pending_pick_screen_pos))
-
-
-# Raycasts one screen position through the preview camera against the
-# terrain collision and resolves the canonical identity via TerrainPicker.
-func _perform_pick(screen_pos: Vector2) -> Dictionary:
-	if _camera == null or _world_map == null or _geometry == null:
-		return {}
-	var origin := _camera.project_ray_origin(screen_pos)
-	var direction := _camera.project_ray_normal(screen_pos)
-	var params := PhysicsRayQueryParameters3D.create(origin, origin + direction * _camera.far)
-	var hit := get_world_3d().direct_space_state.intersect_ray(params)
-	return TerrainPicker.resolve_pick(hit, _world_map, _geometry, _wall_triangle_map)
-
-
-# Inspection feedback only: show the latest pick result in the HUD.
+# Inspection feedback only: show the latest pick from the runtime world
+# (terrain_picked signal) in the HUD.
 func _show_pick_result(pick: Dictionary) -> void:
 	if _hud_pick_label == null:
 		return
 	match pick.get("kind", ""):
-		TerrainPicker.KIND_TILE:
+		"tile":
 			_hud_pick_label.text = "pick: Tile: (%d,%d)" % [pick["tile"].x, pick["tile"].y]
-		TerrainPicker.KIND_CLIFF:
+		"cliff":
 			_hud_pick_label.text = (
 				"pick: Cliff: (%d,%d)–(%d,%d)"
 				% [pick["tile_a"].x, pick["tile_a"].y, pick["tile_b"].x, pick["tile_b"].y]
@@ -514,17 +310,15 @@ func _show_pick_result(pick: Dictionary) -> void:
 
 
 # M cycles the material debug stage (final -> ash_mask -> stone_mask -> albedo);
-# the top-surface and cliff-wall materials stay synchronized on one stage.
+# the runtime world keeps both terrain shaders synchronized on one stage.
 func _unhandled_key_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
-	if key.keycode == KEY_M and _top_material != null:
+	if key.keycode == KEY_M and _world != null:
 		var index := MATERIAL_STAGE_CYCLE.find(material_stage)
 		material_stage = MATERIAL_STAGE_CYCLE[(index + 1) % MATERIAL_STAGE_CYCLE.size()]
-		TerrainSurfaceMaterial.set_debug_stage(_top_material, material_stage)
-		if _wall_material != null:
-			TerrainCliffWallMaterial.set_debug_stage(_wall_material, material_stage)
+		_world.set_material_stage(material_stage)
 		_update_material_hud()
 
 
