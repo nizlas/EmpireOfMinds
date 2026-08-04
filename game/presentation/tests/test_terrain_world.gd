@@ -9,7 +9,9 @@
 #   reference-map counts, same materials, and collision equal to the
 #   rendered geometry;
 # - picking propagates as presentation output (terrain_picked signal +
-#   last_pick), suitable for later N4 selection/overlays;
+#   last_pick), suitable for N4 selection/overlays;
+# - N4 world anchors are exposed as derived presentation data (one per
+#   canonical tile, deterministic, canonical identity preserved);
 # - safe teardown/rebuild: freeing the world and building a new one in the
 #   same tree keeps physics picking working;
 # - the input WorldMap is never mutated.
@@ -128,6 +130,26 @@ func _run() -> void:
 		"picker lookup equals the accepted N3c.5 metadata"
 	)
 
+	# --- N4 world anchors exposed as derived presentation data ---
+	_check(
+		world_a.tile_anchors.size() == tile_count
+		and int(world_a.counts.get("tile_anchors", 0)) == tile_count,
+		"one anchor per canonical tile exposed (tile_anchors + counts)"
+	)
+	var anchors_canonical := true
+	for coord in sample_elevations:
+		var anchor: Vector3 = world_a.tile_anchors.get(coord, Vector3.INF)
+		if HexWorldProjection.world_xz_to_axial(anchor.x, anchor.z) != coord:
+			anchors_canonical = false
+		var expected_y := HexWorldProjection.elevation_to_world_y(
+			world_map.tile_elevation(coord.x, coord.y),
+			world_map.elevation_step,
+			world_map.elevation_base
+		)
+		if absf(anchor.y - expected_y) > 1e-5:
+			anchors_canonical = false
+	_check(anchors_canonical, "sample anchors keep canonical tile identity and rules height")
+
 	# --- deterministic construction (independent build, off tree) ---
 	var world_b = TerrainWorldScript.new()
 	var ok_b: bool = world_b.build(world_map, Ts08HeightSolver.BACKEND_NATIVE)
@@ -156,6 +178,10 @@ func _run() -> void:
 			world_b._wall_triangle_map == world_a._wall_triangle_map
 			and world_b.counts == world_a.counts,
 			"picker lookup and counts deterministic"
+		)
+		_check(
+			world_b.tile_anchors == world_a.tile_anchors,
+			"tile anchors deterministic across independent builds"
 		)
 		world_b.free()
 

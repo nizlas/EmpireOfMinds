@@ -8,6 +8,12 @@
 # remote multiplayer — N7). No units, player switching, gameplay state, or
 # legacy HexMap here, and the cloud front door stays the project main scene.
 #
+# N4: the harness owns exactly one instance of the shared projected
+# screen-space anchor UI (game/presentation/world/world_anchor_ui.gd)
+# attached to the runtime world — picks drive the presentation-only tile
+# focus, the marker sits at the projected world anchor, and no legacy
+# HexMap / Unit3DWorldView / City3DWorldView anchor path is involved.
+#
 # Requires the built GDExtension (from repo root): .\scripts\build-native.ps1
 extends SceneTree
 
@@ -50,9 +56,15 @@ func _run() -> void:
 		world.get_script() == load("res://presentation/world/terrain_world.gd"),
 		"the exact shared runtime-world component is used (no second implementation)"
 	)
+	var anchor_ui = harness.anchor_ui
 	_check(
-		harness.get_child_count() == 1,
-		"harness adds nothing beyond the runtime world (no gameplay state)"
+		anchor_ui != null and anchor_ui == harness.get_node_or_null("WorldAnchorUi")
+		and anchor_ui.get_script() == load("res://presentation/world/world_anchor_ui.gd"),
+		"harness owns one shared projected anchor UI (no second implementation)"
+	)
+	_check(
+		harness.get_child_count() == 2,
+		"harness adds nothing beyond the runtime world + anchor UI (no gameplay state)"
 	)
 	# N3c.7: lighting is owned by the shared runtime world — the dev harness
 	# must not carry a competing rig.
@@ -81,7 +93,14 @@ func _run() -> void:
 		"runtime world built the full reference terrain"
 	)
 
-	# Picking works end to end in the harness.
+	# N4: world anchors exposed as derived presentation data.
+	_check(
+		world.tile_anchors.size() == world.world_map.tile_count()
+		and int(world.counts.get("tile_anchors", 0)) == world.world_map.tile_count(),
+		"runtime world exposes one anchor per canonical tile"
+	)
+
+	# Picking works end to end in the harness and drives the anchor UI.
 	await physics_frame
 	await physics_frame
 	var pick: Dictionary = world.pick_at_screen_position(root.get_visible_rect().size / 2.0)
@@ -90,6 +109,34 @@ func _run() -> void:
 		"center-screen pick resolves in the harness"
 	)
 	print("harness center pick = %s" % str(pick))
+	var marker: Control = anchor_ui.get_node("AnchorOverlay/TileMarker")
+	if pick.get("kind", "") == "tile":
+		_check(
+			anchor_ui.focused_tile == pick["tile"],
+			"tile pick focuses the picked tile in the anchor UI"
+		)
+		anchor_ui.refresh()
+		_check(
+			marker.visible
+			and marker.position == world.camera.unproject_position(
+				world.tile_anchors[pick["tile"]]
+			),
+			"marker sits at the projected world anchor of the picked tile"
+		)
+	else:
+		_check(
+			anchor_ui.focused_tile == null,
+			"cliff pick never silently selects a neighboring tile"
+		)
+	# A miss through the same pick path clears the focus.
+	var miss: Dictionary = world.pick_at_screen_position(Vector2(1.0, 1.0))
+	if miss.is_empty():
+		_check(
+			anchor_ui.focused_tile == null and not marker.visible,
+			"a missed pick clears the anchor-UI focus"
+		)
+	else:
+		print("corner pick unexpectedly hit terrain (%s); miss-clear covered by the UI suite" % str(miss))
 
 	_finish()
 

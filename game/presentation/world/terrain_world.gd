@@ -21,10 +21,16 @@
 #   policies.
 #
 # Picking is exposed as presentation output only: `terrain_picked(pick)` is
-# emitted for every resolved left-click (tile / cliff / no pick as defined
+# emitted for every classified left-CLICK (tile / cliff / no pick as defined
 # by TerrainPicker) and `last_pick` mirrors the latest result — suitable
-# input for later N4 selection/overlays. No selection state, overlays,
-# rings, or gameplay here.
+# input for N4 selection/overlays. Camera gestures (orbit/pan drags) are
+# never picks: see the N4 click-vs-drag classification at _unhandled_input.
+# No selection state, overlays, rings, or gameplay here.
+#
+# N4 world anchors: `tile_anchors` maps every WorldMap tile to its
+# center-pin position on the solver-generated terrain (terrain_anchors.gd).
+# Derived presentation data for projected screen-space UI — never gameplay
+# authority (WorldMap stays the sole logical authority).
 #
 # Lighting: the N3c.7 production rig (terrain_lighting.gd) is built here so
 # every entry (dev harness, dev preview, future server-fed gameplay) shares
@@ -40,6 +46,7 @@ const TerrainSurfaceMaterial = preload("res://presentation/terrain_surface_mater
 const TerrainCliffWallMaterial = preload("res://presentation/terrain_cliff_wall_material.gd")
 const TerrainCollision = preload("res://presentation/terrain_collision.gd")
 const TerrainPicker = preload("res://presentation/terrain_picker.gd")
+const TerrainAnchors = preload("res://presentation/world/terrain_anchors.gd")
 const TerrainLighting = preload("res://presentation/world/terrain_lighting.gd")
 const OrbitCameraScript = preload("res://presentation/world/orbit_camera.gd")
 
@@ -51,14 +58,24 @@ var material_stage := "final"
 var timings: Dictionary = {}
 var counts: Dictionary = {}
 var last_pick: Dictionary = {}
+# N4: { Vector2i(q, r) -> Vector3 } — one anchor per tile from its
+# center-pin node on the solved terrain. Derived presentation data only.
+var tile_anchors: Dictionary = {}
 
 var camera: Camera3D = null
+
+# N4 input contract: pointer movement beyond this screen distance (small
+# natural click jitter allowed) reclassifies the LMB interaction as a camera
+# gesture and cancels the click candidate for the whole press-move-release.
+const CLICK_MAX_DRAG_PX := 6.0
 
 var _top_material: ShaderMaterial = null
 var _wall_material: ShaderMaterial = null
 var _wall_triangle_map := PackedInt32Array()
 var _pending_pick_screen_pos := Vector2.ZERO
 var _pick_requested := false
+var _click_candidate := false
+var _click_start_pos := Vector2.ZERO
 
 
 # Builds the full terrain world from an already constructed authoritative
@@ -110,6 +127,12 @@ func build(
 		"wall_quads": geometry.wall_quad_count,
 		"wall_triangles": geometry.wall_triangle_count,
 	}
+
+	tile_anchors = TerrainAnchors.build_tile_anchors(world_map, lattice, solve.heights)
+	if tile_anchors.is_empty():
+		push_error("terrain_world: tile anchor derivation failed")
+		return false
+	counts["tile_anchors"] = tile_anchors.size()
 
 	var t_mesh := Time.get_ticks_msec()
 	var top_mesh := _build_top_mesh()
@@ -178,15 +201,35 @@ func pick_at_screen_position(screen_pos: Vector2) -> Dictionary:
 	return pick
 
 
-# N3c.5: a plain left-click requests a pick raycast (Shift+LMB stays pan;
-# the orbit camera keeps seeing the same events). The raycast itself runs in
-# _physics_process, where the physics space is safe to query.
+# N4 click ownership (this component is the single pick-input boundary; the
+# orbit camera keeps seeing the same events and owns only camera movement):
+# terrain selection is deferred until the complete press-move-release LMB
+# interaction is classified.
+# - LMB press starts a click candidate (Shift+LMB is the pan gesture and is
+#   never a candidate; MMB pan and wheel zoom involve no candidate at all);
+# - pointer movement beyond CLICK_MAX_DRAG_PX from the press position
+#   cancels the candidate for the ENTIRE interaction (orbit/pan drags never
+#   select, clear, or otherwise change the focus — regardless of where they
+#   start or end: terrain, sky, outside the map, or outside the viewport);
+# - only a still-valid candidate's release requests the pick raycast (at the
+#   release position); the raycast itself runs in _physics_process, where
+#   the physics space is safe to query.
 func _unhandled_input(event: InputEvent) -> void:
+	var motion := event as InputEventMouseMotion
+	if motion != null:
+		if _click_candidate and motion.position.distance_to(_click_start_pos) > CLICK_MAX_DRAG_PX:
+			_click_candidate = false
+		return
 	var button := event as InputEventMouseButton
 	if button == null or button.button_index != MOUSE_BUTTON_LEFT:
 		return
-	if not button.pressed or button.shift_pressed:
+	if button.pressed:
+		_click_candidate = not button.shift_pressed
+		_click_start_pos = button.position
 		return
+	if not _click_candidate:
+		return
+	_click_candidate = false
 	_pending_pick_screen_pos = button.position
 	_pick_requested = true
 

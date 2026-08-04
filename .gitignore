@@ -19,6 +19,9 @@ mono_crash.*.json
 # Development-only terrain preview renders (N3b visual verification)
 game/dev/terrain_preview/output/
 
+# Development-only terrain runtime harness renders (N4 visual verification)
+game/dev/terrain_runtime_harness/output/
+
 # Blender-only terrain prototype noise (N3c.3a VCS cleanup, 2026-08).
 # generated/ is .gdignore'd (Godot never scans it); these narrow rules keep
 # stray importer output invisible to git. source/ cannot be .gdignore'd because
