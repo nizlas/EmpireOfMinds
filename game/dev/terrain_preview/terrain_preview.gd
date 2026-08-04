@@ -11,7 +11,11 @@
 # Deterministic static terrain collision (N3c.4) is derived from the same
 # geometry (game/presentation/terrain_collision.gd): one TerrainCollision
 # StaticBody3D with separate top/wall concave shapes; derived data only.
-# Basic lighting unchanged. No picking or gameplay.
+# Deterministic tile/cliff-edge picking (N3c.5) raycasts left-clicks against
+# that collision (game/presentation/terrain_picker.gd) and shows the
+# canonical WorldMap identity in the HUD — inspection feedback only, no
+# selection state, overlays, or gameplay.
+# Basic lighting unchanged.
 #
 # Run from the Godot editor: open this scene and press F6 (no arguments
 # needed; backend selector defaults to Auto). Or from the command line:
@@ -37,6 +41,7 @@
 #   LMB / RMB drag        orbit (360° yaw, clamped pitch)
 #   MMB / Shift+LMB drag  pan the orbit target on the ground plane
 #   mouse wheel           zoom (map-relative limits)
+#   LMB click             pick tile / cliff edge (result in the HUD)
 #   R / Home              reset to the strategic view
 #   1 / 2                 strategic / low-angle camera preset
 #   M                     cycle material debug stage
@@ -52,6 +57,7 @@ const OrbitCameraScript = preload("res://dev/terrain_preview/orbit_camera.gd")
 const TerrainSurfaceMaterial = preload("res://presentation/terrain_surface_material.gd")
 const TerrainCliffWallMaterial = preload("res://presentation/terrain_cliff_wall_material.gd")
 const TerrainCollision = preload("res://presentation/terrain_collision.gd")
+const TerrainPicker = preload("res://presentation/terrain_picker.gd")
 
 const SCREENSHOT_PATHS := {
 	"strategic": "res://dev/terrain_preview/output/terrain_preview_strategic.png",
@@ -75,9 +81,17 @@ var material_stage := "final"
 var _camera: Camera3D = null
 var _hud_camera_label: Label = null
 var _hud_material_label: Label = null
+var _hud_pick_label: Label = null
 var _hud_layer: CanvasLayer = null
 var _top_material: ShaderMaterial = null
 var _wall_material: ShaderMaterial = null
+
+# N3c.5 picking state (read-only references; the picker never mutates them).
+var _world_map = null
+var _geometry = null
+var _wall_triangle_map := PackedInt32Array()
+var _pending_pick_screen_pos := Vector2.ZERO
+var _pick_requested := false
 
 
 # Preview-tool backend resolution (pure; unit-tested). Returns
@@ -190,9 +204,13 @@ func _ready() -> void:
 		add_child(wall_instance)
 	timings["mesh_msec"] = Time.get_ticks_msec() - t_mesh
 
+	_world_map = world_map
+	_geometry = geometry
+
 	var t_collision := Time.get_ticks_msec()
 	var collision_body := TerrainCollision.build_static_body(geometry)
 	add_child(collision_body)
+	_wall_triangle_map = TerrainPicker.build_wall_triangle_map(geometry)
 	timings["collision_msec"] = Time.get_ticks_msec() - t_collision
 	var top_shape: ConcavePolygonShape3D = collision_body.get_node(
 		TerrainCollision.TOP_SHAPE_NAME
@@ -424,9 +442,11 @@ func _build_hud() -> void:
 	rows.add_child(_hud_material_label)
 	_hud_camera_label = _hud_label("camera: —")
 	rows.add_child(_hud_camera_label)
+	_hud_pick_label = _hud_label("pick: — (left-click terrain)")
+	rows.add_child(_hud_pick_label)
 	rows.add_child(_hud_label(""))
 	rows.add_child(_hud_label(
-		"LMB/RMB drag orbit · MMB or Shift+LMB drag pan · wheel zoom"
+		"LMB click pick · LMB/RMB drag orbit · MMB or Shift+LMB drag pan · wheel zoom"
 	))
 	rows.add_child(_hud_label(
 		"R/Home reset · 1 strategic preset · 2 low-angle preset · M material stage"
@@ -443,6 +463,54 @@ func _hud_label(text: String) -> Label:
 func _update_material_hud() -> void:
 	if _hud_material_label != null:
 		_hud_material_label.text = "material: %s" % material_stage
+
+
+# N3c.5: a plain left-click requests a pick raycast (Shift+LMB stays pan;
+# the orbit camera keeps seeing the same events). The raycast itself runs in
+# _physics_process, where the physics space is safe to query.
+func _unhandled_input(event: InputEvent) -> void:
+	var button := event as InputEventMouseButton
+	if button == null or button.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if not button.pressed or button.shift_pressed:
+		return
+	_pending_pick_screen_pos = button.position
+	_pick_requested = true
+
+
+func _physics_process(_delta: float) -> void:
+	if not _pick_requested:
+		return
+	_pick_requested = false
+	_show_pick_result(_perform_pick(_pending_pick_screen_pos))
+
+
+# Raycasts one screen position through the preview camera against the
+# terrain collision and resolves the canonical identity via TerrainPicker.
+func _perform_pick(screen_pos: Vector2) -> Dictionary:
+	if _camera == null or _world_map == null or _geometry == null:
+		return {}
+	var origin := _camera.project_ray_origin(screen_pos)
+	var direction := _camera.project_ray_normal(screen_pos)
+	var params := PhysicsRayQueryParameters3D.create(origin, origin + direction * _camera.far)
+	var hit := get_world_3d().direct_space_state.intersect_ray(params)
+	return TerrainPicker.resolve_pick(hit, _world_map, _geometry, _wall_triangle_map)
+
+
+# Inspection feedback only: show the latest pick result in the HUD.
+func _show_pick_result(pick: Dictionary) -> void:
+	if _hud_pick_label == null:
+		return
+	match pick.get("kind", ""):
+		TerrainPicker.KIND_TILE:
+			_hud_pick_label.text = "pick: Tile: (%d,%d)" % [pick["tile"].x, pick["tile"].y]
+		TerrainPicker.KIND_CLIFF:
+			_hud_pick_label.text = (
+				"pick: Cliff: (%d,%d)–(%d,%d)"
+				% [pick["tile_a"].x, pick["tile_a"].y, pick["tile_b"].x, pick["tile_b"].y]
+			)
+		_:
+			_hud_pick_label.text = "pick: No terrain hit"
 
 
 # M cycles the material debug stage (final -> ash_mask -> stone_mask -> albedo);

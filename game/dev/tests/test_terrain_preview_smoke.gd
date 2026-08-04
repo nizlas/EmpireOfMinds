@@ -19,6 +19,10 @@
 # N3c.4 preview assembly: one TerrainCollision StaticBody3D with separate
 # named top/wall ConcavePolygonShape3D shapes whose faces equal the rendered
 # geometry exactly; collision timing recorded.
+#
+# N3c.5 preview assembly: deterministic tile/cliff-edge picking wired to
+# left-clicks — the wall triangle lookup is built, the pick HUD line exists,
+# and a center-screen pick resolves to a canonical WorldMap identity.
 extends SceneTree
 
 const PREVIEW_SCENE_PATH := "res://dev/terrain_preview/terrain_preview.tscn"
@@ -253,6 +257,33 @@ func _run() -> void:
 		_check(backend_shown, "HUD shows the backend actually used")
 		_check(controls_shown, "HUD shows the desktop controls")
 		_check(stage_shown, "HUD shows the active material stage")
+		var pick_line_shown := false
+		for text in labels:
+			if text.begins_with("pick:"):
+				pick_line_shown = true
+		_check(pick_line_shown, "HUD shows the pick line")
+
+	# N3c.5: the picker lookup aligns with the wall collision triangles and a
+	# center-screen left-click pick resolves against the terrain collision.
+	_check(
+		preview._wall_triangle_map.size() == int(preview.counts.get("collision_wall_triangles", -1)),
+		"wall triangle lookup aligned with the wall collision triangles"
+	)
+	await physics_frame
+	await physics_frame
+	var center: Vector2 = preview.get_viewport().get_visible_rect().size / 2.0
+	var pick: Dictionary = preview._perform_pick(center)
+	_check(
+		pick.get("kind", "") in ["tile", "cliff"],
+		"center-screen pick resolves to a canonical tile or cliff edge"
+	)
+	print("smoke: center pick = %s" % str(pick))
+	preview._show_pick_result(pick)
+	var pick_text: String = preview._hud_pick_label.text
+	_check(
+		pick_text.begins_with("pick: Tile: (") or pick_text.begins_with("pick: Cliff: ("),
+		"pick HUD shows the resolved identity"
+	)
 
 	_finish()
 
