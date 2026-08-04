@@ -77,6 +77,8 @@ HTTP contract for the **local authority** prototype under `server/`. This is a *
 
 Initial snapshots use **`schema_version`: `2`**. Top-level fields include the Cloud 0.1 envelope plus world model data for the **current playable loop** (map, starting units, default progress unlocks). **`action_log` is not embedded**; use **`GET /v1/matches/{id}/events`** for the append-only accepted-action log.
 
+**Planned (N6): snapshot schema v3** for the `WorldMap` match kind — **`MapIdentity`** (`map_id`, `schema_version`, `content_hash`) plus mutable match state, with **no embedded map cells**; clients load the canonical content matching the identity and verify the hash (mismatch fails explicitly). v2 remains the current shape for the legacy loop until its retirement in **N9**. See [MAP_MODEL.md](MAP_MODEL.md) and [MAP_CONTENT.md](MAP_CONTENT.md).
+
 **Hex / coordinates in JSON**
 
 - Unit/city **positions** and similar fields use **`[q, r]`** integer arrays (axial), not objects with string keys.

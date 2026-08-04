@@ -2,7 +2,7 @@
 
 This document is the **canonical detailed source** for how logical map data is owned, categorized, serialized, and consumed. Other steering documents link here rather than duplicating the full architecture.
 
-**Status:** envelope schema v1, TS-08 reference file, Godot **`WorldMap`** foundation loader, and packaging sync are **implemented** (slices B+C and **N1**, 2026-08). Server loading and snapshot v3 remain **planned N7**.
+**Status:** envelope schema v1, TS-08 reference file, Godot **`WorldMap`** foundation loader, and packaging sync are **implemented** (slices B+C and **N1**, 2026-08). Server loading and server content packaging are **planned N5**; snapshot v3 and server match-identity usage are **planned N6**.
 
 ---
 
@@ -92,7 +92,7 @@ world_y = (elevation − elevation_base) · elevation_step
 
 ---
 
-## MapIdentity (approved — implemented N1; server usage planned N7)
+## MapIdentity (approved — implemented N1; server loading planned N5, server match usage planned N6)
 
 A **`map_id` alone is insufficient.** Canonical immutable map content is identified by:
 
@@ -105,8 +105,9 @@ A **`map_id` alone is insufficient.** Canonical immutable map content is identif
 **Usage:**
 
 - **Godot loader (N1):** computes and exposes `MapIdentity` when loading packaged content — **implemented**.
-- **Local debug init (N3+):** stamps identity into match state — **planned**.
-- **Server match init (N7):** stores identity in match metadata and snapshots — **planned**.
+- **Server content loading (N5):** the server-owned loader computes and exposes `MapIdentity` from the packaged canonical content — **planned**.
+- **Server match init (N6):** stores identity in match metadata and snapshot v3 — **planned**. Match state is server-owned under the locked dual-entry direction; the future one-PC debug mode gets its identity from a locally running authoritative server through the same path (no client-side match-state stamping).
+- **Client bootstrap verification (N6):** the client loads local canonical content by `map_id` and verifies `content_hash` against the server identity; mismatch fails explicitly — **planned** (verified primarily in the Godot bootstrap tests).
 - **Packaging freshness (N1):** compares source hash vs derived copy vs manifest — **implemented**.
 - **Automated tests:** pin current hash as a golden; update deliberately when the map legitimately changes — **implemented**.
 
@@ -176,7 +177,7 @@ The new model **retires** fixed intrinsic yield tables keyed by categorical `ter
 
 Old content wording (“Hill Production Bonus”) is **design intent** for later translation — not a schema requirement. **`Hill`** is normally a **derived classification**, not primitive terrain truth.
 
-**Implemented now:** nothing in the new yield model (legacy `CityYields.raw_terrain_yield` still runs on `HexMap`). **Planned:** N6 introduces yields v2 on `WorldMap`.
+**Implemented now:** nothing in the new yield model (legacy `CityYields.raw_terrain_yield` still runs on `HexMap`). **Planned:** N8 introduces yields v2 on `WorldMap` using flat base yields on the existing canonical schema v1 — no content-schema expansion is pre-approved; water, terrain categories, and passability require a separately justified schema change in N8 or later.
 
 ---
 
@@ -185,7 +186,7 @@ Old content wording (“Hill Production Bonus”) is **design intent** for later
 | Authority | Status |
 |-----------|--------|
 | **`WorldMap`** (approved, N1 implemented) | **Implemented** as foundation code — not yet wired to gameplay or server |
-| **`HexMap`** (legacy) | **Still exists**, frozen, scheduled for removal N8 — categorical tags, no elevation |
+| **`HexMap`** (legacy) | **Still exists**, frozen, scheduled for removal N9 — categorical tags, no elevation |
 
 There is **no adapter** between them. An explicit loading boundary converts envelope v1 → `WorldMap` at import ([WORLD_COORDINATES.md](WORLD_COORDINATES.md) import-boundary identity for the reference payload).
 
@@ -213,7 +214,7 @@ python tools/content/sync_map_content.py check
 
 - Local dev / Godot tests: `res://content/maps/**` via **`MapContentLoader`**
 - Exports: include JSON + manifest
-- Server (N7): canonical repo path in dev; ship `content/` in deployment
+- Server (N5): a **stable canonical content path** in both local and container execution; canonical content **included in the server image/distribution**, byte-identical and **LF-safe** so the raw-byte `content_hash` stays stable across checkout, sync, and deployment; verified from a server-like or built-container environment
 - Blender: continues reading canonical path via `eom_map_content.py`
 
 ---
@@ -232,10 +233,10 @@ Promoting an ordinary runtime-generated map into `content/maps/generated/` is in
 | **Blender tooling loader** | `tools/blender/terrain/eom_map_content.py` — development/reference tooling only |
 | **Repository sync tooling (N1)** | `tools/content/sync_map_content.py` — validates and copies canonical maps; **implemented** |
 | **Godot loader (N1)** | `game/domain/world/map_content_loader.gd` — **implemented** |
-| **Server loader (N7)** | Planned server-owned loader under `server/app/` — loads canonical content identified by `MapIdentity`, verifies raw-byte SHA-256 `content_hash`, rejects schema or identity mismatches explicitly; **must not import** from `tools/blender/` |
+| **Server loader (N5)** | Planned server-owned loader under `server/app/` — loads canonical content identified by `MapIdentity`, verifies raw-byte SHA-256 `content_hash`, rejects schema or identity mismatches explicitly; **must not import** from `tools/blender/` |
 | **Architectural owner of map truth** | `WorldMap` — not any loader module |
 
-The future authoritative **server runtime** must not depend on Blender tooling. N7 implements a server-owned map-content loader under `server/app/` following the same canonical schema and validation semantics as other loaders, without importing `eom_map_content.py` or any other module under `tools/blender/`.
+The future authoritative **server runtime** must not depend on Blender tooling. N5 implements a server-owned map-content loader under `server/app/` following the same canonical schema and validation semantics as other loaders, without importing `eom_map_content.py` or any other module under `tools/blender/`.
 
 ---
 
@@ -245,6 +246,6 @@ The future authoritative **server runtime** must not depend on Blender tooling. 
 - [WORLD_COORDINATES.md](WORLD_COORDINATES.md) — coordinate contract and elevation precision
 - [TERRAIN_MODEL.md](TERRAIN_MODEL.md) — terrain construction model (TS-08)
 - [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md) — mathematical target
-- [PHASE_PLAN.md](PHASE_PLAN.md) — N0–N8 implementation slices
+- [PHASE_PLAN.md](PHASE_PLAN.md) — N0–N9 implementation slices
 - [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) — current vs target vs legacy
 - [DECISION_LOG.md](DECISION_LOG.md) — approved architectural decisions

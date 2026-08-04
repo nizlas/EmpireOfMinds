@@ -8,7 +8,7 @@ Coordinate contract: [WORLD_COORDINATES.md](WORLD_COORDINATES.md). Map content o
 
 ## Approved target — `WorldMap` (one canonical authority)
 
-**Decision:** `WorldMap` is the **sole** logical map authority for the 3D world integration phase. There is **no** parallel `HexMap` authority, **no** adapter to keep the deprecated 2D map alive, and **no** deferred unification. Legacy `HexMap` (GDScript and Python) is **frozen** and scheduled for removal in slice **N8**.
+**Decision:** `WorldMap` is the **sole** logical map authority for the 3D world integration phase. There is **no** parallel `HexMap` authority, **no** adapter to keep the deprecated 2D map alive, and **no** deferred unification. Legacy `HexMap` (GDScript and Python) is **frozen** and scheduled for removal in slice **N9**.
 
 Everything that refers to “the map” in gameplay, server state, terrain construction, and presentation must use the same tile and edge identities from `WorldMap`:
 
@@ -30,7 +30,7 @@ Everything that refers to “the map” in gameplay, server state, terrain const
 | 6. Mutable match state | Match core (`Scenario` / `GameState` pattern, rewritten) | Authoritative per match | Units, cities, turn state, ownership, id counters, **`MapIdentity`** stamp | World-mutating terraforming rules |
 | 7. Capabilities & player knowledge | Progress/science + `KnowledgeState` | Player-scoped where noted | Explored-set pattern reused from `PlayerVisibilityState` | Prospecting, discovered geology |
 | 8. Improvements & exploitation | Match-state entities on tile/edge ids | Authoritative | — (extension point) | Full improvement catalog |
-| 9. Yields & legal actions | Pure functions over layers 1–8 | Derived, authoritative outputs | Flat base yields (N6); movement over edges (N5) | Capability-driven yield content, full balance |
+| 9. Yields & legal actions | Pure functions over layers 1–8 | Derived, authoritative outputs | Flat base yields (N8); movement over edges (N7) | Capability-driven yield content, full balance |
 | 10. Presentation | 3D scene: mesh, materials, collision, overlays, UI | Derivative only | TS-08 solver-generated surface (N3); N2 golden for parity | Final materials, full UI catalog |
 
 **Stable identities:**
@@ -97,7 +97,7 @@ N3c.1 (`Ts08SurfaceGeometry`) consumes the `WorldMap`, the N3a lattice, and the 
 
 See [MAP_CONTENT.md](MAP_CONTENT.md) for yield/knowledge boundaries and [DECISION_LOG.md](DECISION_LOG.md) for the approved direction.
 
-### Snapshot v3 (planned N7 — not implemented)
+### Snapshot v3 (planned N6 — not implemented)
 
 Match snapshots will carry **`MapIdentity`** (`map_id`, `schema_version`, `content_hash`) plus **mutable match state**. Snapshots should **not** repeat every immutable tile and edge from the canonical map — clients and server load the canonical content matching the identity and verify the hash. Mismatch must **fail explicitly**. Details: [MAP_CONTENT.md](MAP_CONTENT.md).
 
@@ -112,7 +112,7 @@ Match snapshots will carry **`MapIdentity`** (`map_id`, `schema_version`, `conte
 | `game/domain/world/ts08_cut_lattice.gd` | TS-08 Stage-0 cut-lattice topology from `WorldMap` (N3a) |
 | `game/domain/world/ts08_height_solver.gd` | TS-08 Stage-2 cut-domain thin-plate CG height solve (N3b) |
 | `game/domain/world/ts08_surface_geometry.gd` | TS-08 surface geometry: top surface + Stage-3a cliff-wall faces as packed data (N3c.1) |
-| `server/app/domain/world_map.py` | Python mirror (N7) |
+| `server/app/domain/world_map.py` | Python mirror (N5) |
 
 Presentation modules under `game/presentation/world3d/` consume `WorldMap`; they do not own map truth.
 
@@ -131,7 +131,7 @@ An optional N3 checkpoint that loads the N2 pre-solved dataset for early visual 
 
 ## Legacy HexMap (frozen)
 
-The following **still exists in the repository today** but is **deprecated, frozen, and scheduled for removal** (slice N8). New work must **not** extend it or build adapters for it.
+The following **still exists in the repository today** but is **deprecated, frozen, and scheduled for removal** (slice N9). New work must **not** extend it or build adapters for it.
 
 ### What is legacy
 
@@ -160,7 +160,7 @@ Reuse is justified by **suitability**, not backward compatibility:
 - **`HexCoord`** axial deltas and distance — orientation-neutral; gains geographic meaning under [WORLD_COORDINATES.md](WORLD_COORDINATES.md).
 - **Action-in / state-out pattern** (`GameState.try_apply`, action dicts) — preserved; validators rewritten against `WorldMap`.
 - **`PlayerVisibilityState`** explored-set pattern — extended toward player-scoped knowledge.
-- **Server transport** (POST action, GET snapshot) — preserved; snapshot shape replaced in N7.
+- **Server transport** (POST action, GET snapshot) — preserved; snapshot shape replaced in N6 (snapshot v3); legacy v2 retired in N9.
 
 ---
 
@@ -178,4 +178,4 @@ Code under `game/domain/` must not depend on Godot scene nodes, rendering, UI, i
 | Map content & `MapIdentity` | [MAP_CONTENT.md](MAP_CONTENT.md) |
 | Terrain construction (TS-08) | [TERRAIN_SURFACE_TARGET.md](TERRAIN_SURFACE_TARGET.md), [TERRAIN_MODEL.md](TERRAIN_MODEL.md) |
 | Legacy deprecation policy | [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) § Legacy map systems |
-| Implementation slices | [PHASE_PLAN.md](PHASE_PLAN.md) — 3D Map and World Integration (N0–N8) |
+| Implementation slices | [PHASE_PLAN.md](PHASE_PLAN.md) — 3D Map and World Integration (N0–N9) |

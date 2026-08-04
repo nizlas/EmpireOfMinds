@@ -71,6 +71,12 @@ Server-side **fog** / **redacted snapshots** (if not already done earlier), **`l
 
 ---
 
+## Relationship to the N track (3D world integration)
+
+The **`WorldMap` match core** built by the N track ([PHASE_PLAN.md](PHASE_PLAN.md), slices N5–N9) is **born server-authoritative**: server-side `WorldMap` + content loading (N5), snapshot v3 + server-fed client bootstrap (N6), and units/movement/actions (N7) are implemented on the server from the start and never pass through a client-owned authority phase. The porting slices above (B–G) apply to the **legacy `HexMap` loop only**; they and the legacy path they migrate are retired at **N9** (full cutover + legacy removal). The two charters share the server surface (`/v1` endpoints, actions, snapshots, `state_hash`) but must not share map models — there is no adapter between `HexMap` and `WorldMap`.
+
+---
+
 ## Wire and persistence
 
 - **Evolution of [CLOUD_API_V0.md](CLOUD_API_V0.md):** the current **`/v1`** match + snapshot + revision + `state_hash` + events model remains the spine; **action types** and **snapshot fields** grow in slices B–D. Rejected actions stay **unlogged**; **`accepted: false`** with HTTP 200 mirrors **`GameState.try_apply`**.
