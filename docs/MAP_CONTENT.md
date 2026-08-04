@@ -233,7 +233,7 @@ Promoting an ordinary runtime-generated map into `content/maps/generated/` is in
 | **Blender tooling loader** | `tools/blender/terrain/eom_map_content.py` — development/reference tooling only |
 | **Repository sync tooling (N1)** | `tools/content/sync_map_content.py` — validates and copies canonical maps; **implemented** |
 | **Godot loader (N1)** | `game/domain/world/map_content_loader.gd` — **implemented** |
-| **Server loader (N5)** | Planned server-owned loader under `server/app/` — loads canonical content identified by `MapIdentity`, verifies raw-byte SHA-256 `content_hash`, rejects schema or identity mismatches explicitly; **must not import** from `tools/blender/` |
+| **Server loader (N5)** | Planned server-owned loader under `server/app/` — loads canonical content by `map_id`, validates it (envelope schema v1, empty `edge_overrides`), and computes the raw-byte SHA-256 `content_hash` and `MapIdentity`; identity comparison against an expected identity and explicit mismatch failure belong to the **N6 Godot bootstrap**, not N5; **must not import** from `tools/blender/` |
 | **Architectural owner of map truth** | `WorldMap` — not any loader module |
 
 The future authoritative **server runtime** must not depend on Blender tooling. N5 implements a server-owned map-content loader under `server/app/` following the same canonical schema and validation semantics as other loaders, without importing `eom_map_content.py` or any other module under `tools/blender/`.

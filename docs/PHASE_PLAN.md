@@ -2646,7 +2646,7 @@ Reproduce the accepted **TS-08** Blender reference terrain (see [TERRAIN_SURFACE
 | Role | What | Notes |
 |------|------|-------|
 | **Authoritative input** | Canonical 2D logical map + height-level grid (`content/maps/`) → **`WorldMap`** | Sole source for terrain construction |
-| **Production path** | TS-08-equivalent solver run on that input | Target Godot (and future server) terrain pipeline |
+| **Production path** | TS-08-equivalent solver run on that input | Godot-only terrain pipeline: solving and geometry generation happen exclusively in Godot; the server owns only the logical map (tiles, elevation, derived edges) and never solves terrain or generates geometry |
 | **N2 reference dataset** | Pre-solved Stage-2 export (`content/terrain/reference/`) | Derived golden for parity testing/audit; **does not replace the solver** |
 | **N3 checkpoint (optional)** | Load N2 pre-solved dataset for early visible 3D world | Temporary visual-parity checkpoint only — **not target architecture** |
 | **Never authoritative** | Mesh, collision, sampled heights, N2 JSON, `.blend` | Presentation derivatives only |
