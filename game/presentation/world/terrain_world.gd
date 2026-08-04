@@ -26,8 +26,9 @@
 # input for later N4 selection/overlays. No selection state, overlays,
 # rings, or gameplay here.
 #
-# Lighting is the accepted neutral dev baseline carried over unchanged from
-# the N3c preview; production lighting is a later slice.
+# Lighting: the N3c.7 production rig (terrain_lighting.gd) is built here so
+# every entry (dev harness, dev preview, future server-fed gameplay) shares
+# the exact same deterministic lighting/environment.
 extends Node3D
 
 signal terrain_picked(pick: Dictionary)
@@ -39,6 +40,7 @@ const TerrainSurfaceMaterial = preload("res://presentation/terrain_surface_mater
 const TerrainCliffWallMaterial = preload("res://presentation/terrain_cliff_wall_material.gd")
 const TerrainCollision = preload("res://presentation/terrain_collision.gd")
 const TerrainPicker = preload("res://presentation/terrain_picker.gd")
+const TerrainLighting = preload("res://presentation/world/terrain_lighting.gd")
 const OrbitCameraScript = preload("res://presentation/world/orbit_camera.gd")
 
 # Read-only after build() (references, never copies; never mutated here).
@@ -147,7 +149,7 @@ func build(
 		]
 	)
 
-	_add_lighting()
+	add_child(TerrainLighting.build_rig(top_mesh.get_aabb()))
 	camera = OrbitCameraScript.new()
 	camera.name = "OrbitCamera"
 	add_child(camera)
@@ -266,22 +268,3 @@ func _build_wall_mesh() -> ArrayMesh:
 		return mesh
 	mesh.surface_set_material(0, _wall_material)
 	return mesh
-
-
-# Accepted neutral dev-baseline lighting (unchanged from the N3c preview);
-# production lighting is a later slice.
-func _add_lighting() -> void:
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-42.0, -30.0, 0.0)
-	light.light_energy = 1.0
-	add_child(light)
-
-	var world_environment := WorldEnvironment.new()
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.13, 0.15, 0.18)
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.8, 0.82, 0.85)
-	environment.ambient_light_energy = 0.35
-	world_environment.environment = environment
-	add_child(world_environment)

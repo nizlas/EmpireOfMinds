@@ -54,6 +54,16 @@ func _run() -> void:
 		harness.get_child_count() == 1,
 		"harness adds nothing beyond the runtime world (no gameplay state)"
 	)
+	# N3c.7: lighting is owned by the shared runtime world — the dev harness
+	# must not carry a competing rig.
+	var rig = world.get_node_or_null("TerrainLighting")
+	var lighting_nodes: Array = []
+	_collect_lighting_nodes(harness, lighting_nodes)
+	var lighting_shared := rig != null and lighting_nodes.size() == 3
+	for node in lighting_nodes:
+		if node.get_parent() != rig:
+			lighting_shared = false
+	_check(lighting_shared, "all lighting lives in the shared TerrainLighting rig")
 	_check(
 		world.world_map != null and world.world_map.identity.map_id == EXPECTED_MAP_ID,
 		"canonical handdrawn_test_map_full_01 WorldMap loaded directly (dev harness only)"
@@ -82,6 +92,13 @@ func _run() -> void:
 	print("harness center pick = %s" % str(pick))
 
 	_finish()
+
+
+static func _collect_lighting_nodes(node: Node, out: Array) -> void:
+	if node is Light3D or node is WorldEnvironment:
+		out.append(node)
+	for child in node.get_children():
+		_collect_lighting_nodes(child, out)
 
 
 func _check(condition: bool, label: String) -> void:

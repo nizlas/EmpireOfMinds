@@ -150,7 +150,11 @@ func _ready() -> void:
 
 	var screenshot_preset := _screenshot_preset_from_args(args)
 	if screenshot_preset != "":
-		_save_screenshot(screenshot_preset)
+		_save_screenshot(
+			screenshot_preset,
+			_screenshot_yaw_from_args(args),
+			_screenshot_pitch_from_args(args)
+		)
 
 
 func _process(_delta: float) -> void:
@@ -192,6 +196,25 @@ static func _screenshot_preset_from_args(args: PackedStringArray) -> String:
 			push_error("terrain_preview: unknown screenshot preset '%s'" % preset)
 			return "strategic"
 	return ""
+
+
+# "--shot-yaw=<degrees>" / "--shot-pitch=<degrees>" (dev diagnostics)
+# override the preset camera angles for one screenshot, e.g. to verify sky
+# content at another azimuth or an intermediate pitch. Return NAN when not
+# requested.
+static func _screenshot_yaw_from_args(args: PackedStringArray) -> float:
+	return _screenshot_angle_from_args(args, "--shot-yaw=")
+
+
+static func _screenshot_pitch_from_args(args: PackedStringArray) -> float:
+	return _screenshot_angle_from_args(args, "--shot-pitch=")
+
+
+static func _screenshot_angle_from_args(args: PackedStringArray, prefix: String) -> float:
+	for arg in args:
+		if arg.begins_with(prefix):
+			return float(arg.get_slice("=", 1))
+	return NAN
 
 
 # "--stage=<name>" selects a material debug stage (default "final").
@@ -322,18 +345,27 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		_update_material_hud()
 
 
-func _save_screenshot(preset: String) -> void:
+func _save_screenshot(preset: String, yaw_override := NAN, pitch_override := NAN) -> void:
 	if preset == "low":
 		_camera.preset_low_angle()
 	else:
 		_camera.preset_strategic()
+	var path := _screenshot_path(preset, material_stage)
+	if not is_nan(yaw_override):
+		_camera.yaw_deg = yaw_override
+		path = path.get_basename() + ("_yaw%d.png" % int(roundf(yaw_override)))
+	if not is_nan(pitch_override):
+		_camera.pitch_deg = pitch_override
+		path = path.get_basename() + ("_pitch%d.png" % int(roundf(pitch_override)))
+	if not (is_nan(yaw_override) and is_nan(pitch_override)):
+		_camera.orbit(0.0, 0.0)
 	# Hide the HUD so review images show terrain only.
 	_hud_layer.visible = false
 	await RenderingServer.frame_post_draw
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var image := get_viewport().get_texture().get_image()
-	var global_path := ProjectSettings.globalize_path(_screenshot_path(preset, material_stage))
+	var global_path := ProjectSettings.globalize_path(path)
 	DirAccess.make_dir_recursive_absolute(global_path.get_base_dir())
 	var error := image.save_png(global_path)
 	if error == OK:

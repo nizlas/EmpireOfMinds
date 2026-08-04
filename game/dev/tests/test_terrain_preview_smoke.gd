@@ -95,6 +95,17 @@ func _run() -> void:
 		"terrain assembled by the shared runtime component (no second implementation)"
 	)
 
+	# N3c.7: lighting is owned by the shared runtime world — the dev preview
+	# must not carry a competing rig.
+	var lighting_rig = world.get_node_or_null("TerrainLighting")
+	var lighting_nodes: Array = []
+	_collect_lighting_nodes(preview, lighting_nodes)
+	var lighting_shared := lighting_rig != null and lighting_nodes.size() == 3
+	for node in lighting_nodes:
+		if node.get_parent() != lighting_rig:
+			lighting_shared = false
+	_check(lighting_shared, "all lighting lives in the shared TerrainLighting rig")
+
 	var top_material: Material = null
 	var wall_material: Material = null
 	var top = world.get_node_or_null("TopSurface")
@@ -366,6 +377,13 @@ func _check_reference_map_tangents(arrays: Array, mesh_tangents: PackedFloat32Ar
 	)
 	var rebuilt := TerrainSurfaceMaterial.build_top_surface_tangents(normals)
 	_check(rebuilt == exact, "tangents deterministic across two independent builds")
+
+
+static func _collect_lighting_nodes(node: Node, out: Array) -> void:
+	if node is Light3D or node is WorldEnvironment:
+		out.append(node)
+	for child in node.get_children():
+		_collect_lighting_nodes(child, out)
 
 
 func _collect_labels(node: Node, out: Array[String]) -> void:
