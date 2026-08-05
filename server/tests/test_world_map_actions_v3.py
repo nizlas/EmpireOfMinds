@@ -315,6 +315,35 @@ def test_world_post_missing_meta_fails_closed(client: TestClient) -> None:
     assert file_store.read_events(match_id) == events_before
 
 
+def test_world_post_meta_race_single_read(client: TestClient, monkeypatch) -> None:
+    """Regression for the credential double-read race: metadata valid on the
+    initial read but unavailable on any subsequent read must still reject an
+    invalid token with invalid_seat_token. The old implementation prechecked
+    existence and then delegated to the shared legacy gate, whose second
+    read returned None and permitted the request as legacy (fail-open)."""
+    match_id, _, _ = _start_world_match(client)
+    snap_before = file_store.read_snapshot(match_id)
+    events_before = file_store.read_events(match_id)
+    hash_before = state_hash(snap_before)
+
+    real_read_meta = file_store.read_meta
+    calls = {"n": 0}
+
+    def read_meta_once_then_gone(mid: str):
+        calls["n"] += 1
+        return real_read_meta(mid) if calls["n"] == 1 else None
+
+    monkeypatch.setattr(file_store, "read_meta", read_meta_once_then_gone)
+    r = _post(client, match_id, _move(0, 2, (2, 1), (3, 1)), "st_arbitrary_invalid")
+    monkeypatch.setattr(file_store, "read_meta", real_read_meta)
+
+    _assert_reject(r, "invalid_seat_token")
+    snap_after = file_store.read_snapshot(match_id)
+    assert snap_after == snap_before
+    assert state_hash(snap_after) == hash_before
+    assert file_store.read_events(match_id) == events_before
+
+
 def test_world_unknown_action_type(client: TestClient) -> None:
     match_id, tokens, _ = _start_world_match(client)
     r = _post(

@@ -269,14 +269,24 @@ def _post_world_action(
     is missing: a blank token rejects missing_seat_token, a supplied token
     without verifiable metadata rejects invalid_seat_token, and processing
     stops at the credential gate (no map resolution, status/dispatch, or
-    state change). Legacy no-meta snapshots stay permissive as before."""
+    state change). Credential verification uses ONE authoritative metadata
+    read and validates the token against that same object — never an
+    existence precheck followed by the shared fail-open legacy gate, which
+    would re-read meta.json and permit the request as legacy if a non-atomic
+    metadata write raced between the reads. Legacy no-meta snapshots stay
+    permissive as before."""
     if not seat_token or not str(seat_token).strip():
         return _reject("missing_seat_token")
-    if file_store.read_meta(match_id) is None:
+    meta = file_store.read_meta(match_id)
+    if meta is None:
         return _reject("invalid_seat_token")
-    cred_reject = _credential_gate(match_id, action, seat_token)
-    if cred_reject is not None:
-        return cred_reject
+    allowed = seats.allowed_actor_ids(meta, str(seat_token).strip())
+    if allowed is None:
+        return _reject("invalid_seat_token")
+    if "actor_id" not in action or not isinstance(action["actor_id"], int):
+        return _reject("malformed_action")
+    if int(action["actor_id"]) not in allowed:
+        return _reject("seat_not_allowed")
 
     status_reject = _match_status_gate(match_id)
     if status_reject is not None:
