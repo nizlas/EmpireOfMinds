@@ -114,7 +114,7 @@ Unknown slice ids print supported ids and exit non-zero.
 From the **repository root** (requires Godot console build; see script header for `GODOT_EXE` / PATH).
 
 ```powershell
-.\scripts\run-godot-tests.ps1              # full (146 tests, same order as before T1 + C14a/C14c)
+.\scripts\run-godot-tests.ps1              # full (147 tests, same order as before T1 + C14a/C14c)
 .\scripts\run-godot-tests.ps1 full
 .\scripts\run-godot-tests.ps1 smoke
 .\scripts\run-godot-tests.ps1 cloud
@@ -125,6 +125,7 @@ From the **repository root** (requires Godot console build; see script header fo
 .\scripts\run-godot-tests.ps1 slice c14d
 .\scripts\run-godot-tests.ps1 slice c14d-dev
 .\scripts\run-godot-tests.ps1 slice n6
+.\scripts\run-godot-tests.ps1 slice n7
 ```
 
 ### What each profile runs
@@ -139,12 +140,15 @@ From the **repository root** (requires Godot console build; see script header fo
 - **slice c14d** (Godot) — `test_cloud_staging_c14d.gd`, `test_cloud_staging_faction_ui.gd`, `test_cloud_staging_background_c14d.gd`, `test_cloud_staging_civ_terminology_c14d4e.gd`, `test_cloud_turn_panel_c14d4f.gd`, `test_cloud_player_identity_c14d4g.gd`, `test_cloud_reconnect_parity_c14d.gd`, `test_cloud_lobby_poll_c14d4a.gd`, `test_cloud_turn_ownership_c14d4b.gd`, `test_cloud_turn_ownership_c14d4c.gd`, `test_cloud_turn_banner.gd`, `test_cloud_credential_store.gd`, `test_cloud_front_door_boot_intent.gd`, `test_cloud_lobby_parsers.gd`.
 - **slice c14d-dev** (Godot) — `test_cloud_credential_profile.gd` (**`EOM_CLOUD_PROFILE`** credential store paths; dev/test only).
 - **slice n6** (Godot) — `test_map_content_loader_by_id.gd`, `test_world_snapshot_bootstrap.gd`, `test_cloud_match_kind_routing.gd`, `test_cloud_world_play_smoke.gd`, `test_cloud_client_payloads.gd`, `test_cloud_front_door_boot_intent.gd` (manifest lookup by `map_id`, snapshot v3 parse + identity verification with explicit mismatch failure, `match_kind` preservation across all five client transitions, `cloud_world_play` smoke, legacy create-body/boot-intent regressions).
+- **slice n7** (Godot) — `test_world_units_view.gd`, `test_cloud_world_play_smoke.gd` (N7c unit projection: stable per-unit-id roots placed exactly at the supplied tile anchors, exact instance count/ids, `ModelRoot` scale 0.5 with the audited idle clips, no duplicates on reapplied snapshots, both snapshot/anchor arrival orders, no origin fallback for missing anchors; the locked matte unit-render profile — per-instance duplicated materials with metallic 0.0 / roughness 0.85 / specular 0.3, preserved albedo textures, linear+mipmap filtering, untouched imported materials, `mipmaps/generate=true` albedo imports; plus the production `cloud_world_play` integration — live-snapshot units at `TerrainWorld.tile_anchors`, idempotent re-render, and the MSAA 2×/FXAA world-viewport AA profile).
 
 ## Known noisy output (not hidden)
 
 Some Godot cloud negative tests use `::not-a-url::` so HTTP fails immediately; tests **pass** but Godot logs red `ERROR: Error parsing URL` lines. That is intentional test harness noise, not a profile failure.
 
 Image-load `WARNING` lines (e.g. combat burst, territory stump) may appear in presentation tests; they are not suppressed.
+
+Headless runs of tests that free nodes carrying duplicated `StandardMaterial3D` overrides (e.g. `test_world_units_view.gd`) may log engine-internal `ERROR: Parameter "material" is null.` lines from the dummy rendering server; the tests pass and the errors do not occur in real (non-headless) rendering.
 
 ## Extending profiles
 
