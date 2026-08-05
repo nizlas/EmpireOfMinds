@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Deterministic sync of repo-root content/maps into game/content/maps for Godot."""
+"""Deterministic sync of repo-root content/maps into the committed derived copies.
+
+Destinations (both byte-identical to the canonical source, each with its own
+manifest.json): game/content/maps for Godot and server/content/maps for the
+server Docker build context (N5 packaging; docs/MAP_CONTENT.md).
+"""
 
 from __future__ import annotations
 
@@ -18,24 +23,16 @@ if str(REPO_ROOT) not in sys.path:
 
 from tools.blender.terrain.eom_terrain_math_core import (  # noqa: E402
     parse_terrain_map_ir,
-    sorted_edge_key,
 )
 
 SCHEMA_VERSION_V1 = 1
 VALID_ORIGINS = {"reference", "authored", "generated"}
 SUPPORTED_ORIENTATION = "pointy_top_custom_axes"
 EDGE_RULE_DEFAULT = "smooth"
-SUPPORTED_TRANSITIONS = {"smooth", "cliff"}
-CANONICAL_NEIGHBOR_DELTAS = {
-    (1, 0),
-    (1, -1),
-    (0, -1),
-    (-1, 0),
-    (-1, 1),
-    (0, 1),
-}
 SOURCE_ROOT = Path("content") / "maps"
 DEST_ROOT = Path("game") / "content" / "maps"
+SERVER_DEST_ROOT = Path("server") / "content" / "maps"
+DEST_ROOTS = (DEST_ROOT, SERVER_DEST_ROOT)
 MANIFEST_NAME = "manifest.json"
 
 
@@ -73,8 +70,10 @@ def validate_origin_folder(source_path: Path, repo_root: Path, envelope: dict[st
 @dataclass(frozen=True)
 class SyncPlan:
     entries: list[dict[str, Any]]
+    # (source_path, path relative to a destination root, raw source bytes)
     copies: list[tuple[Path, Path, bytes]]
-    expected_dest_files: set[Path]
+    # absolute destination root -> full set of files owned by the sync there
+    expected_dest_files: dict[Path, set[Path]]
     manifest_bytes: bytes
 
 
@@ -128,64 +127,6 @@ def _require_json_finite_number(value: Any, field_path: str) -> float:
     raise MapContentValidationError(f"{field_path} must be a number")
 
 
-def _are_adjacent(a: tuple[int, int], b: tuple[int, int]) -> bool:
-    dq = b[0] - a[0]
-    dr = b[1] - a[1]
-    return (dq, dr) in CANONICAL_NEIGHBOR_DELTAS
-
-
-def _parse_tile_coord(raw: Any, field_path: str, source: Path) -> tuple[int, int]:
-    if isinstance(raw, dict):
-        if "q" not in raw:
-            raise MapContentValidationError(f"Missing {field_path}.q in {source}")
-        if "r" not in raw:
-            raise MapContentValidationError(f"Missing {field_path}.r in {source}")
-        q = _require_json_int(raw["q"], f"{field_path}.q")
-        r = _require_json_int(raw["r"], f"{field_path}.r")
-        return (q, r)
-    if isinstance(raw, list) and len(raw) == 2:
-        q = _require_json_int(raw[0], f"{field_path}[0]")
-        r = _require_json_int(raw[1], f"{field_path}[1]")
-        return (q, r)
-    raise MapContentValidationError(f"Invalid tile coordinate at {field_path} in {source}")
-
-
-def _normalize_transition(raw: Any, field_path: str, source: Path) -> str:
-    transition = _require_json_string(raw, field_path)
-    if transition not in SUPPORTED_TRANSITIONS:
-        raise MapContentValidationError(
-            f"Unsupported edge transition {transition!r} at {field_path} in {source}"
-        )
-    return transition
-
-
-def _store_override(
-    overrides: dict[tuple[tuple[int, int], tuple[int, int]], str],
-    a: tuple[int, int],
-    b: tuple[int, int],
-    transition: str,
-    field_path: str,
-    source: Path,
-    tiles: dict[tuple[int, int], int],
-) -> None:
-    if a == b:
-        raise MapContentValidationError(f"{field_path} endpoints must be distinct in {source}")
-    if a not in tiles:
-        raise MapContentValidationError(f"{field_path} references missing tile {a} in {source}")
-    if b not in tiles:
-        raise MapContentValidationError(f"{field_path} references missing tile {b} in {source}")
-    if not _are_adjacent(a, b):
-        raise MapContentValidationError(
-            f"{field_path} references non-adjacent tiles {a}-{b} in {source}"
-        )
-    edge_key = sorted_edge_key(a, b)
-    if edge_key in overrides:
-        raise MapContentValidationError(
-            f"{field_path} duplicates override for edge {edge_key} in {source}"
-        )
-    overrides[edge_key] = transition
-
-
 def _validate_tiles_strict(logical_map: dict[str, Any], source: Path) -> dict[tuple[int, int], int]:
     tiles_raw = logical_map.get("tiles")
     if not isinstance(tiles_raw, list) or not tiles_raw:
@@ -206,27 +147,6 @@ def _validate_tiles_strict(logical_map: dict[str, Any], source: Path) -> dict[tu
             raise MapContentValidationError(f"Duplicate tile {coord} in {source}")
         tiles[coord] = elevation
     return tiles
-
-
-def _validate_edge_overrides_strict(
-    raw: list[Any], tiles: dict[tuple[int, int], int], source: Path
-) -> None:
-    overrides: dict[tuple[tuple[int, int], tuple[int, int]], str] = {}
-    for index, entry in enumerate(raw):
-        field_path = f"logical_map.edge_overrides[{index}]"
-        if not isinstance(entry, dict):
-            raise MapContentValidationError(f"{field_path} must be an object in {source}")
-        if "edge" not in entry or "transition" not in entry:
-            raise MapContentValidationError(f"{field_path} missing edge/transition in {source}")
-        edge_raw = entry["edge"]
-        if not isinstance(edge_raw, list) or len(edge_raw) != 2:
-            raise MapContentValidationError(
-                f"{field_path}.edge must be a pair of coordinates in {source}"
-            )
-        a = _parse_tile_coord(edge_raw[0], f"{field_path}.edge[0]", source)
-        b = _parse_tile_coord(edge_raw[1], f"{field_path}.edge[1]", source)
-        transition = _normalize_transition(entry["transition"], f"{field_path}.transition", source)
-        _store_override(overrides, a, b, transition, field_path, source, tiles)
 
 
 def validate_envelope(envelope: dict[str, Any], source: Path) -> None:
@@ -295,7 +215,9 @@ def validate_envelope(envelope: dict[str, Any], source: Path) -> None:
             f"logical_map.edge_rule.cliff_if_abs_delta_greater_than must be >= 0 in {source}"
         )
 
-    tiles = _validate_tiles_strict(logical_map, source)
+    _validate_tiles_strict(logical_map, source)
+    # edge_overrides is reserved: schema v1 requires it to be absent or an
+    # empty array (same rule as the Godot and server loaders).
     if "edge_overrides" in logical_map:
         edge_overrides = logical_map["edge_overrides"]
         if edge_overrides is None:
@@ -306,7 +228,11 @@ def validate_envelope(envelope: dict[str, Any], source: Path) -> None:
             raise MapContentValidationError(
                 f"logical_map.edge_overrides must be an array in {source}"
             )
-        _validate_edge_overrides_strict(edge_overrides, tiles, source)
+        if edge_overrides:
+            raise MapContentValidationError(
+                "logical_map.edge_overrides is reserved and must be empty in "
+                f"schema v1 (functional overrides are unsupported) in {source}"
+            )
 
     try:
         parse_terrain_map_ir(logical_map)
@@ -340,10 +266,9 @@ def plan_sync(repo_root: Path) -> SyncPlan:
     if not source_maps:
         raise MapContentValidationError(f"No map JSON files found under {repo_root / SOURCE_ROOT}")
 
-    dest_root = repo_root / DEST_ROOT
     entries: list[dict[str, Any]] = []
     copies: list[tuple[Path, Path, bytes]] = []
-    expected_dest_files: set[Path] = {dest_root / MANIFEST_NAME}
+    rel_paths: list[Path] = []
 
     for source_path in source_maps:
         raw = source_path.read_bytes()
@@ -351,10 +276,16 @@ def plan_sync(repo_root: Path) -> SyncPlan:
         validate_envelope(envelope, source_path)
         validate_origin_folder(source_path, repo_root, envelope)
         rel = source_path.relative_to(repo_root / SOURCE_ROOT)
-        dest_path = dest_root / rel
-        copies.append((source_path, dest_path, raw))
-        expected_dest_files.add(dest_path)
+        copies.append((source_path, rel, raw))
+        rel_paths.append(rel)
         entries.append(build_manifest_entry(source_path, repo_root, raw, envelope))
+
+    expected_dest_files: dict[Path, set[Path]] = {}
+    for dest_root_rel in DEST_ROOTS:
+        dest_root = repo_root / dest_root_rel
+        expected = {dest_root / MANIFEST_NAME}
+        expected.update(dest_root / rel for rel in rel_paths)
+        expected_dest_files[dest_root] = expected
 
     entries.sort(key=lambda e: e["path"])
     manifest_bytes = manifest_bytes_for_entries(entries)
@@ -367,24 +298,27 @@ def plan_sync(repo_root: Path) -> SyncPlan:
 
 
 def apply_sync_plan(repo_root: Path, plan: SyncPlan) -> None:
-    """Phase B: write validated copies, manifest, and reconcile owned extras."""
-    dest_root = repo_root / DEST_ROOT
-    dest_root.mkdir(parents=True, exist_ok=True)
+    """Phase B: write validated copies, manifests, and reconcile owned extras."""
+    for dest_root_rel in DEST_ROOTS:
+        dest_root = repo_root / dest_root_rel
+        dest_root.mkdir(parents=True, exist_ok=True)
 
-    for _source_path, dest_path, raw in plan.copies:
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        dest_path.write_bytes(raw)
+        for _source_path, rel, raw in plan.copies:
+            dest_path = dest_root / rel
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.write_bytes(raw)
 
-    manifest_path = dest_root / MANIFEST_NAME
-    manifest_path.write_bytes(plan.manifest_bytes)
+        manifest_path = dest_root / MANIFEST_NAME
+        manifest_path.write_bytes(plan.manifest_bytes)
 
-    for existing in sorted(dest_root.rglob("*")):
-        if existing.is_file() and existing not in plan.expected_dest_files:
-            existing.unlink()
+        expected = plan.expected_dest_files[dest_root]
+        for existing in sorted(dest_root.rglob("*")):
+            if existing.is_file() and existing not in expected:
+                existing.unlink()
 
-    for existing_dir in sorted(dest_root.rglob("*"), reverse=True):
-        if existing_dir.is_dir() and not any(existing_dir.iterdir()):
-            existing_dir.rmdir()
+        for existing_dir in sorted(dest_root.rglob("*"), reverse=True):
+            if existing_dir.is_dir() and not any(existing_dir.iterdir()):
+                existing_dir.rmdir()
 
 
 def sync_maps(repo_root: Path) -> list[dict[str, Any]]:
@@ -396,27 +330,35 @@ def sync_maps(repo_root: Path) -> list[dict[str, Any]]:
 def check_maps(repo_root: Path) -> None:
     plan = plan_sync(repo_root)
 
-    manifest_path = repo_root / DEST_ROOT / MANIFEST_NAME
-    if not manifest_path.is_file():
-        raise MapContentValidationError(f"Missing manifest: {manifest_path}")
+    for dest_root_rel in DEST_ROOTS:
+        dest_root = repo_root / dest_root_rel
 
-    existing_manifest = manifest_path.read_bytes()
-    if existing_manifest != plan.manifest_bytes:
-        raise MapContentValidationError("Manifest is stale or does not match canonical source maps")
+        manifest_path = dest_root / MANIFEST_NAME
+        if not manifest_path.is_file():
+            raise MapContentValidationError(f"Missing manifest: {manifest_path}")
 
-    dest_root = repo_root / DEST_ROOT
-    for _source_path, dest_path, raw in plan.copies:
-        if not dest_path.is_file():
-            raise MapContentValidationError(f"Missing derived map copy: {dest_path}")
-        dest_raw = dest_path.read_bytes()
-        if dest_raw != raw:
-            raise MapContentValidationError(f"Derived map bytes differ from source: {dest_path}")
-        if sha256_hex_lower(dest_raw) != sha256_hex_lower(raw):
-            raise MapContentValidationError(f"Derived map hash mismatch: {dest_path}")
+        existing_manifest = manifest_path.read_bytes()
+        if existing_manifest != plan.manifest_bytes:
+            raise MapContentValidationError(
+                f"Manifest is stale or does not match canonical source maps: {manifest_path}"
+            )
 
-    for existing in dest_root.rglob("*"):
-        if existing.is_file() and existing not in plan.expected_dest_files:
-            raise MapContentValidationError(f"Unexpected extra derived file: {existing}")
+        for _source_path, rel, raw in plan.copies:
+            dest_path = dest_root / rel
+            if not dest_path.is_file():
+                raise MapContentValidationError(f"Missing derived map copy: {dest_path}")
+            dest_raw = dest_path.read_bytes()
+            if dest_raw != raw:
+                raise MapContentValidationError(
+                    f"Derived map bytes differ from source: {dest_path}"
+                )
+            if sha256_hex_lower(dest_raw) != sha256_hex_lower(raw):
+                raise MapContentValidationError(f"Derived map hash mismatch: {dest_path}")
+
+        expected = plan.expected_dest_files[dest_root]
+        for existing in dest_root.rglob("*"):
+            if existing.is_file() and existing not in expected:
+                raise MapContentValidationError(f"Unexpected extra derived file: {existing}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -436,15 +378,16 @@ def main(argv: list[str] | None = None) -> int:
 
     repo_root = args.repo_root.resolve() if args.repo_root else REPO_ROOT
     try:
+        dest_labels = ", ".join(f"{root.as_posix()}/" for root in DEST_ROOTS)
         if args.command == "sync":
             entries = sync_maps(repo_root)
-            print(f"Synced {len(entries)} map(s) to {DEST_ROOT.as_posix()}/")
+            print(f"Synced {len(entries)} map(s) to {dest_labels}")
             for entry in entries:
                 print(f"  {entry['path']}  {entry['content_hash']}")
             return 0
 
         check_maps(repo_root)
-        print(f"OK: derived package under {DEST_ROOT.as_posix()}/ matches canonical source")
+        print(f"OK: derived packages under {dest_labels} match canonical source")
         return 0
     except MapContentValidationError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

@@ -1,0 +1,7 @@
+# Hash-sensitive canonical map content and its committed derived copies.
+# content_hash (MapIdentity) is SHA-256 over raw file bytes, so git must
+# never rewrite line endings for these files on checkout or commit.
+# Spec: docs/MAP_CONTENT.md.
+content/maps/**/*.json -text
+game/content/maps/**/*.json -text
+server/content/maps/**/*.json -text

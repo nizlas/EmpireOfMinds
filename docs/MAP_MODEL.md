@@ -112,7 +112,7 @@ Match snapshots will carry **`MapIdentity`** (`map_id`, `schema_version`, `conte
 | `game/domain/world/ts08_cut_lattice.gd` | TS-08 Stage-0 cut-lattice topology from `WorldMap` (N3a) |
 | `game/domain/world/ts08_height_solver.gd` | TS-08 Stage-2 cut-domain thin-plate CG height solve (N3b) |
 | `game/domain/world/ts08_surface_geometry.gd` | TS-08 surface geometry: top surface + Stage-3a cliff-wall faces as packed data (N3c.1) |
-| `server/app/domain/world_map.py` | Python mirror (N5) |
+| `server/app/domain/world_map.py` | Python mirror (N5) — **implemented**; loaded via `server/app/domain/map_content_loader.py`; separate from frozen legacy `HexMap`, not yet wired into matches (N6) |
 
 Presentation modules under `game/presentation/world3d/` consume `WorldMap`; they do not own map truth.
 

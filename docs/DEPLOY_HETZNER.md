@@ -177,3 +177,26 @@ docker compose -f deploy/hetzner/docker-compose.yml config
 ```
 
 Local dev without Docker remains: `cd server` then `python -m uvicorn app.main:app --reload --port 8000`.
+
+## Post-build content check (N5 canonical map packaging)
+
+The image ships the canonical map content at `/app/content/maps` (committed derived copy `server/content/maps/**`; see [MAP_CONTENT.md](MAP_CONTENT.md)). After any image build, verify from the built container:
+
+1. Repo-side attribute proof (before/independent of the build; every line must report `text: unset`):
+
+   ```powershell
+   git check-attr text -- content/maps/reference/handdrawn_test_map_full_01.json game/content/maps/reference/handdrawn_test_map_full_01.json game/content/maps/manifest.json server/content/maps/reference/handdrawn_test_map_full_01.json server/content/maps/manifest.json
+   ```
+
+2. Positive probe — must print the golden hash `16cc82c3392c66f1e47273e7da94cf8a804ae9885a051fc81c4b0a9a4261d8c6` and `168 452 78` (the container has no git; this raw-byte hash probe is its byte-stability check):
+
+   ```powershell
+   docker build -t empire-server ./server
+   docker run --rm empire-server python -c "from app.domain.map_content_loader import load_world_map; wm = load_world_map('handdrawn_test_map_full_01'); print(wm.identity.content_hash, wm.tile_count(), wm.edge_count(), wm.cliff_edge_count())"
+   ```
+
+3. Negative probe — must fail loudly with `UnknownMapIdError`:
+
+   ```powershell
+   docker run --rm empire-server python -c "from app.domain.map_content_loader import load_world_map; load_world_map('no_such_map')"
+   ```

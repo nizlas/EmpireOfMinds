@@ -85,6 +85,7 @@ From the **repository root** (requires `pytest` on PATH; install deps under `ser
 .\scripts\run-server-tests.ps1 slice c13a
 .\scripts\run-server-tests.ps1 slice c14b
 .\scripts\run-server-tests.ps1 slice c14d
+.\scripts\run-server-tests.ps1 slice n5
 .\scripts\run-server-tests.ps1 presentation   # prints Godot-only notice, exit 0
 ```
 
@@ -100,6 +101,7 @@ Equivalent manual full run: `cd server` then `pytest -q`.
 - **slice c14d** (server) — `test_faction_display_names_c14d4e.py`, `test_player_factions_c14d4g.py`, `test_faction_select.py`, `test_seat_ready.py`, `test_auto_start.py`, `test_action_status_gate.py`, `test_seat_claim.py`, `test_seats.py`, `test_lobby_list.py`.
 - **slice c14d** (Godot) — `test_cloud_staging_c14d.gd`, `test_cloud_staging_faction_ui.gd`, `test_cloud_staging_background_c14d.gd`, `test_cloud_staging_civ_terminology_c14d4e.gd`, `test_cloud_turn_panel_c14d4f.gd`, `test_cloud_player_identity_c14d4g.gd`, `test_cloud_reconnect_parity_c14d.gd`, `test_cloud_lobby_poll_c14d4a.gd`, `test_cloud_turn_ownership_c14d4b.gd`, `test_cloud_turn_ownership_c14d4c.gd`, `test_cloud_turn_banner.gd`, `test_cloud_credential_store.gd`, `test_cloud_front_door_boot_intent.gd`, `test_cloud_lobby_parsers.gd`.
 - **slice c14d-dev** (Godot) — `test_cloud_credential_profile.gd` (**`EOM_CLOUD_PROFILE`** credential store paths; dev/test only).
+- **slice n5** (server) — `test_world_map_loader.py`, `test_map_content_packaging.py` (server `WorldMap` foundation + canonical content packaging; related non-server checks: `python -m pytest tools/content/tests -q`, `python tools/content/sync_map_content.py check`, and the Godot parity test `test_world_map_foundation.gd`).
 
 Unknown slice ids print supported ids and exit non-zero.
 

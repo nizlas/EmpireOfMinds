@@ -14,6 +14,9 @@ _DIRECTIONS: tuple[tuple[int, int], ...] = (
     (0, 1),
 )
 
+# Public canonical neighbor deltas (used by the WorldMap edge derivation).
+DIRECTIONS: tuple[tuple[int, int], ...] = _DIRECTIONS
+
 
 @dataclass(frozen=True, slots=True)
 class HexCoord:

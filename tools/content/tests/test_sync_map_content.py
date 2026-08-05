@@ -15,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from tools.content.sync_map_content import (  # noqa: E402
     DEST_ROOT,
+    SERVER_DEST_ROOT,
     SOURCE_ROOT,
     MapContentValidationError,
     check_maps,
@@ -29,6 +30,9 @@ SOURCE_MAP = REPO_ROOT / "content/maps/reference/handdrawn_test_map_full_01.json
 DEST_ROOT_PATH = REPO_ROOT / DEST_ROOT
 DEST_MAP = DEST_ROOT_PATH / "reference/handdrawn_test_map_full_01.json"
 MANIFEST = DEST_ROOT_PATH / "manifest.json"
+SERVER_DEST_ROOT_PATH = REPO_ROOT / SERVER_DEST_ROOT
+SERVER_DEST_MAP = SERVER_DEST_ROOT_PATH / "reference/handdrawn_test_map_full_01.json"
+SERVER_MANIFEST = SERVER_DEST_ROOT_PATH / "manifest.json"
 FIXTURES = REPO_ROOT / "game/domain/tests/fixtures/world"
 VALID_MINIMAL = FIXTURES / "envelope_valid_minimal.json"
 
@@ -113,11 +117,13 @@ def _assert_cli_validation_failure(result: subprocess.CompletedProcess[str], *ne
 
 def test_sync_is_clean_on_second_run() -> None:
     assert _run_sync_subprocess("sync", REPO_ROOT).returncode == 0
-    first = _capture_derived_tree(DEST_ROOT_PATH)
-    assert first, "expected derived package after first sync"
+    first_game = _capture_derived_tree(DEST_ROOT_PATH)
+    first_server = _capture_derived_tree(SERVER_DEST_ROOT_PATH)
+    assert first_game, "expected Godot derived package after first sync"
+    assert first_server, "expected server derived package after first sync"
     assert _run_sync_subprocess("sync", REPO_ROOT).returncode == 0
-    second = _capture_derived_tree(DEST_ROOT_PATH)
-    assert first == second
+    assert _capture_derived_tree(DEST_ROOT_PATH) == first_game
+    assert _capture_derived_tree(SERVER_DEST_ROOT_PATH) == first_server
 
 
 def test_source_and_dest_bytes_match() -> None:
@@ -137,6 +143,14 @@ def test_manifest_hash_agreement() -> None:
     assert entry["map_id"] == "handdrawn_test_map_full_01"
     assert entry["schema_version"] == 1
     assert entry["source_path"] == "content/maps/reference/handdrawn_test_map_full_01.json"
+
+
+def test_server_dest_bytes_and_manifest_match() -> None:
+    assert _run_sync_subprocess("sync", REPO_ROOT).returncode == 0
+    source_raw = SOURCE_MAP.read_bytes()
+    assert SERVER_DEST_MAP.read_bytes() == source_raw
+    assert _sha256(source_raw) == REFERENCE_HASH
+    assert SERVER_MANIFEST.read_bytes() == MANIFEST.read_bytes()
 
 
 def test_check_passes() -> None:
@@ -182,6 +196,18 @@ def test_edge_overrides_object_rejected_with_array_message() -> None:
         validate_envelope(envelope, Path("envelope_invalid_edge_overrides_object.json"))
 
 
+def test_nonempty_edge_overrides_rejected_as_reserved() -> None:
+    # Regression: schema v1 requires empty-only edge_overrides everywhere; a
+    # structurally well-formed override entry must still be rejected (matches
+    # the Godot and server loaders).
+    envelope = json.loads(VALID_MINIMAL.read_text(encoding="utf-8"))
+    envelope["logical_map"]["edge_overrides"] = [
+        {"edge": [{"q": 0, "r": 0}, {"q": 1, "r": 0}], "transition": "cliff"}
+    ]
+    with pytest.raises(MapContentValidationError, match="reserved and must be empty"):
+        validate_envelope(envelope, Path("nonempty_overrides.json"))
+
+
 def test_stale_copy_detected() -> None:
     assert _run_sync_subprocess("sync", REPO_ROOT).returncode == 0
     dest_raw = DEST_MAP.read_bytes()
@@ -191,6 +217,39 @@ def test_stale_copy_detected() -> None:
         assert result.returncode != 0
     finally:
         DEST_MAP.write_bytes(dest_raw)
+
+
+def test_stale_server_copy_detected() -> None:
+    assert _run_sync_subprocess("sync", REPO_ROOT).returncode == 0
+    dest_raw = SERVER_DEST_MAP.read_bytes()
+    SERVER_DEST_MAP.write_bytes(dest_raw + b"\n")
+    try:
+        result = _run_sync_subprocess("check", REPO_ROOT)
+        assert result.returncode != 0
+    finally:
+        SERVER_DEST_MAP.write_bytes(dest_raw)
+
+
+def test_missing_server_manifest_detected() -> None:
+    assert _run_sync_subprocess("sync", REPO_ROOT).returncode == 0
+    manifest_raw = SERVER_MANIFEST.read_bytes()
+    SERVER_MANIFEST.unlink()
+    try:
+        result = _run_sync_subprocess("check", REPO_ROOT)
+        assert result.returncode != 0
+    finally:
+        SERVER_MANIFEST.write_bytes(manifest_raw)
+
+
+def test_extra_server_derived_file_detected() -> None:
+    assert _run_sync_subprocess("sync", REPO_ROOT).returncode == 0
+    extra = SERVER_DEST_ROOT_PATH / "extra_owned_file.txt"
+    extra.write_bytes(b"unexpected")
+    try:
+        result = _run_sync_subprocess("check", REPO_ROOT)
+        assert result.returncode != 0
+    finally:
+        extra.unlink()
 
 
 def test_missing_derived_map_detected() -> None:

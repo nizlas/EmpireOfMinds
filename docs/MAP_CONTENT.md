@@ -2,7 +2,7 @@
 
 This document is the **canonical detailed source** for how logical map data is owned, categorized, serialized, and consumed. Other steering documents link here rather than duplicating the full architecture.
 
-**Status:** envelope schema v1, TS-08 reference file, Godot **`WorldMap`** foundation loader, and packaging sync are **implemented** (slices B+C and **N1**, 2026-08). Server loading and server content packaging are **planned N5**; snapshot v3 and server match-identity usage are **planned N6**.
+**Status:** envelope schema v1, TS-08 reference file, Godot **`WorldMap`** foundation loader, and packaging sync are **implemented** (slices B+C and **N1**, 2026-08). Server loading and server content packaging are **implemented N5** (2026-08): `server/app/domain/map_content_loader.py` + committed derived copy `server/content/maps/**` packaged into the server image. Snapshot v3 and server match-identity usage are **planned N6**.
 
 ---
 
@@ -92,7 +92,7 @@ world_y = (elevation − elevation_base) · elevation_step
 
 ---
 
-## MapIdentity (approved — implemented N1; server loading planned N5, server match usage planned N6)
+## MapIdentity (approved — implemented N1 + N5; server match usage planned N6)
 
 A **`map_id` alone is insufficient.** Canonical immutable map content is identified by:
 
@@ -105,7 +105,7 @@ A **`map_id` alone is insufficient.** Canonical immutable map content is identif
 **Usage:**
 
 - **Godot loader (N1):** computes and exposes `MapIdentity` when loading packaged content — **implemented**.
-- **Server content loading (N5):** the server-owned loader computes and exposes `MapIdentity` from the packaged canonical content — **planned**.
+- **Server content loading (N5):** the server-owned loader (`server/app/domain/map_content_loader.py`) computes and exposes `MapIdentity` from the packaged canonical content — **implemented**. It never compares against an expected identity (that is the N6 Godot bootstrap).
 - **Server match init (N6):** stores identity in match metadata and snapshot v3 — **planned**. Match state is server-owned under the locked dual-entry direction; the future one-PC debug mode gets its identity from a locally running authoritative server through the same path (no client-side match-state stamping).
 - **Client bootstrap verification (N6):** the client loads local canonical content by `map_id` and verifies `content_hash` against the server identity; mismatch fails explicitly — **planned** (verified primarily in the Godot bootstrap tests).
 - **Packaging freshness (N1):** compares source hash vs derived copy vs manifest — **implemented**.
@@ -198,10 +198,11 @@ There is **no adapter** between them. An explicit loading boundary converts enve
 
 **Mechanism:** repository-owned Python script `tools/content/sync_map_content.py`:
 
-- Validates envelopes via `eom_terrain_math_core.parse_terrain_map_ir`.
-- Copies byte-identically to `game/content/maps/**` (committed derived artifact for Godot `res://`).
-- Writes `game/content/maps/manifest.json` with per-file `{path, map_id, schema_version, content_hash, source_path}`.
-- Freshness: `python tools/content/sync_map_content.py check` and pytest under `tools/content/tests/`.
+- Validates envelopes strictly (schema v1 incl. **empty-only `edge_overrides`**, matching the Godot and server loaders) plus `eom_terrain_math_core.parse_terrain_map_ir`.
+- Copies byte-identically to **two committed derived destinations**: `game/content/maps/**` (for Godot `res://`) and `server/content/maps/**` (N5; inside the `server/` Docker build context).
+- Writes a `manifest.json` in each destination with per-file `{path, map_id, schema_version, content_hash, source_path}`.
+- Freshness: `python tools/content/sync_map_content.py check` (both destinations) and pytest under `tools/content/tests/`.
+- **Byte/hash stability:** repo-root `.gitattributes` marks canonical and derived map JSON + manifests `-text` (`git check-attr text` reports `text: unset`), so git never rewrites line endings and the raw-byte `content_hash` is stable across checkout, sync, and image build; asserted by `server/tests/test_map_content_packaging.py`.
 
 **Commands:**
 
@@ -214,7 +215,7 @@ python tools/content/sync_map_content.py check
 
 - Local dev / Godot tests: `res://content/maps/**` via **`MapContentLoader`**
 - Exports: include JSON + manifest
-- Server (N5): a **stable canonical content path** in both local and container execution; canonical content **included in the server image/distribution**, byte-identical and **LF-safe** so the raw-byte `content_hash` stays stable across checkout, sync, and deployment; verified from a server-like or built-container environment
+- Server (N5, **implemented**): stable canonical content path in both local and container execution — `server/content/maps` in a checkout, `/app/content/maps` in the image (`server/Dockerfile` `COPY content/`); root resolution order: `EMPIRE_MAP_CONTENT_DIR` (**authoritative when set** — an invalid override fails explicitly, no fallback), then `<server_root>/content/maps`, then repo-root `content/maps`; byte-identical and LF-safe (see `.gitattributes` above); verified by the packaging pytest and the built-container probe in [DEPLOY_HETZNER.md](DEPLOY_HETZNER.md)
 - Blender: continues reading canonical path via `eom_map_content.py`
 
 ---
@@ -233,10 +234,10 @@ Promoting an ordinary runtime-generated map into `content/maps/generated/` is in
 | **Blender tooling loader** | `tools/blender/terrain/eom_map_content.py` — development/reference tooling only |
 | **Repository sync tooling (N1)** | `tools/content/sync_map_content.py` — validates and copies canonical maps; **implemented** |
 | **Godot loader (N1)** | `game/domain/world/map_content_loader.gd` — **implemented** |
-| **Server loader (N5)** | Planned server-owned loader under `server/app/` — loads canonical content by `map_id`, validates it (envelope schema v1, empty `edge_overrides`), and computes the raw-byte SHA-256 `content_hash` and `MapIdentity`; identity comparison against an expected identity and explicit mismatch failure belong to the **N6 Godot bootstrap**, not N5; **must not import** from `tools/blender/` |
+| **Server loader (N5)** | `server/app/domain/map_content_loader.py` — **implemented**. Loads canonical content by `map_id`, validates it (envelope schema v1, empty `edge_overrides`), and computes the raw-byte SHA-256 `content_hash` and `MapIdentity`; discovery rejects duplicate `logical_map.id` (`DuplicateMapIdError`) and origin/folder mismatch; invalid UTF-8 raises `InvalidMapContentError`; identity comparison against an expected identity and explicit mismatch failure belong to the **N6 Godot bootstrap**, not N5; does **not import** from `tools/blender/` |
 | **Architectural owner of map truth** | `WorldMap` — not any loader module |
 
-The future authoritative **server runtime** must not depend on Blender tooling. N5 implements a server-owned map-content loader under `server/app/` following the same canonical schema and validation semantics as other loaders, without importing `eom_map_content.py` or any other module under `tools/blender/`.
+The authoritative **server runtime** must not depend on Blender tooling. The N5 server-owned map-content loader under `server/app/domain/` follows the same canonical schema and validation semantics as the Godot loader without importing `eom_map_content.py` or any other module under `tools/blender/`. Cross-language parity (content hash, tile/edge counts, and the shared canonical **edge-stream digest**) is pinned in both `server/tests/test_world_map_loader.py` and `game/domain/tests/test_world_map_foundation.gd`.
 
 ---
 

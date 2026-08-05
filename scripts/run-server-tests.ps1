@@ -13,12 +13,16 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $ServerDir = Join-Path $RepoRoot "server"
 
-$Script:SupportedSlices = @("c13a", "c14b", "c14d")
+$Script:SupportedSlices = @("c13a", "c14b", "c14d", "n5")
 
 $Script:SliceTests = @{
 	"c13a" = @(
 		"tests/test_seats.py"
 		"tests/test_seat_token_flow.py"
+	)
+	"n5" = @(
+		"tests/test_world_map_loader.py"
+		"tests/test_map_content_packaging.py"
 	)
 	"c14b" = @(
 		"tests/test_lobby_list.py"

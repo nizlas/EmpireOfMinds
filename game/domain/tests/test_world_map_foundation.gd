@@ -13,6 +13,10 @@ const REFERENCE_HASH := "16cc82c3392c66f1e47273e7da94cf8a804ae9885a051fc81c4b0a9
 const CLIFF_EDGE_GOLDEN := 78
 const SMOOTH_EDGE_GOLDEN := 374
 const TOTAL_EDGE_GOLDEN := 452
+# Shared canonical edge-stream digest (N5 cross-language parity). The same
+# constant is pinned in server/tests/test_world_map_loader.py; any edge-rule
+# change must update both loaders and both pinned constants together.
+const EDGE_STREAM_DIGEST := "b3f613b49ef518cd4ee229ac7e89c12560e145cb235916dbc7d301e6d040cb7f"
 const SQRT3 := 1.7320508075688772
 const EPS := 0.0001
 
@@ -29,6 +33,7 @@ func _init() -> void:
 	_test_bounds(world_map)
 	_test_import_boundary_pins()
 	_test_edge_normalization(world_map)
+	_test_edge_stream_digest(world_map)
 	_test_manifest_freshness()
 	_finish()
 
@@ -90,6 +95,18 @@ func _test_edge_normalization(world_map) -> void:
 			edge.transition == WorldMap.EDGE_SMOOTH or edge.transition == WorldMap.EDGE_CLIFF,
 			"edge transition valid"
 		)
+
+
+func _test_edge_stream_digest(world_map) -> void:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	for edge in world_map.all_edges():
+		var line := "%d;%d;%d;%d;%s\n" % [
+			edge.tile_a.x, edge.tile_a.y, edge.tile_b.x, edge.tile_b.y, edge.transition
+		]
+		ctx.update(line.to_utf8_buffer())
+	var digest := ctx.finish().hex_encode()
+	_check(digest == EDGE_STREAM_DIGEST, "edge stream digest matches Python parity golden")
 
 
 func _test_manifest_freshness() -> void:
