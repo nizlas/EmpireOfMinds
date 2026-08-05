@@ -106,7 +106,7 @@ Initial snapshots use **`schema_version`: `2`**. Top-level fields include the Cl
 
 **`units` (N7a):** deterministic, sorted ascending by **`id`**; each row is exactly `{"id", "owner_id", "position": [q, r], "type_id"}` with `type_id` ∈ `settler` | `warrior`. There is **no** `next_unit_id`, HP, movement points, or moved flag on the world path — world movement v1 has no movement budget ([MOVEMENT_RULES.md](MOVEMENT_RULES.md)).
 
-**Gameplay endpoints (N7a):** `POST /v1/matches/{id}/actions` dispatches to the world action path (below). `GET /v1/matches/{id}/legal-actions` still returns **409** `unsupported for match_kind world_map (gameplay lands in N7)` until N7b. See [MAP_MODEL.md](MAP_MODEL.md) and [MAP_CONTENT.md](MAP_CONTENT.md).
+**Gameplay endpoints (N7a/N7b):** `POST /v1/matches/{id}/actions` dispatches to the world action path and `GET /v1/matches/{id}/legal-actions` to the world legal-actions path (both below) — no 409 guards remain. See [MAP_MODEL.md](MAP_MODEL.md) and [MAP_CONTENT.md](MAP_CONTENT.md).
 
 ### World actions (N7a — `world_map` matches)
 
@@ -118,6 +118,16 @@ Only **`move_unit`** and **`end_turn`** exist on the world path (wire shapes ide
 - **`end_turn`** validation order: `wrong_action_type → unsupported_schema_version → malformed_action → not_current_player`. It advances `turn_state` only — **no** production/food/science ticks, delivery, or movement refresh. The accepted event carries `turn_number_before` and `next_player_id` as in v2.
 
 **Map-identity verification (fail closed):** before mutating anything, every supported world action reloads the canonical content by `map_id` (no caching; raw-byte hash recomputed) and requires exact equality with the snapshot's `MapIdentity` — for `move_unit` after unit/from validation and before destination validation, for `end_turn` after `not_current_player` and before the turn change. Missing or drifted content is **HTTP 500** `world map content unavailable or mismatched for map_id <id>` with **no** snapshot, event, or other state change (`world_match.resolve_world_map_for_snapshot`).
+
+### World legal-actions (N7b — `world_map` matches)
+
+`GET /v1/matches/{id}/legal-actions` serves world matches with the **same wire envelope** as the legacy endpoint (`server/app/domain/world_legal_actions.py`). Locked order: **404 → world-kind branch → world credential gate → resolve and verify `WorldMap` identity → compute response**. The endpoint is strictly **read-only** — no snapshot, revision, hash, or event changes.
+
+- **Credentials (world only; HTTP 403):** the request must carry `X-Empire-Seat-Token`. The **host token** may query any `actor_id`; a **seat token** only its own actor. Failures: `missing_seat_token`, `invalid_seat_token`, `seat_not_allowed`. The **legacy** path stays token-free and unchanged. There is **no status gate** and **no current-player rejection**: an authenticated out-of-turn actor gets HTTP 200 with `is_current_player: false` and empty `actions` (summaries absent, as in the legacy envelope).
+- **Map identity:** resolution reuses the N7a semantics exactly — missing or drifted canonical content is **HTTP 500** `world map content unavailable or mismatched for map_id <id>`.
+- **Summary mode** (no selection): `actions` is exactly the submit-ready `end_turn`; `unit_summaries` lists the actor's units sorted by `unit_id` with `legal_action_count` equal to that unit's number of legal moves; `city_summaries` is `[]` (no world cities in N7).
+- **Selected owned unit:** `actions` contains only submit-ready **`move_unit`** rows in the exact N7a POST shape, constructed in canonical `DIRECTIONS` order (E, NE, NW, W, SW, SE) and filtered through the **N7a world validators** against the resolved authoritative `WorldMap` — cliffs, occupied tiles, missing edges, non-adjacent and off-map destinations are excluded by the same code that judges submitted moves. Every advertised action is submit-ready by construction.
+- **Selection errors** (mirroring legacy precedence): `unknown_unit`, `selection_not_owned`, `unknown_city`. City selections have **no** world behavior beyond `unknown_city`.
 
 **Hex / coordinates in JSON**
 

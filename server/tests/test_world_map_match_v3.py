@@ -1,14 +1,18 @@
-"""N6: opt-in world_map match kind + minimal snapshot v3 + gameplay guards.
+"""N6: opt-in world_map match kind + minimal snapshot v3 + endpoint gating.
 
 Covers: MapIdentity.to_dict parity, snapshot v3 shape (identity plus minimal
 mutable state — no embedded tiles/edges/terrain), create-match kind
 branching, world-only meta and lobby fields (absent — not null — for legacy),
-staging/auto-start reuse, and the remaining 409 guard.
+and staging/auto-start reuse.
 
 Deliberate N7a updates: snapshot v3 gained a top-level "units" key
 (test_world_map_actions_v3.py owns its contract), world creation now requires
-exactly two player_ids, and POST actions dispatches to the world path instead
-of the 409 guard — the guard remains on GET legal-actions only until N7b.
+exactly two distinct player_ids, and POST actions dispatches to the world
+path instead of the 409 guard.
+
+Deliberate N7b update: the final GET legal-actions 409 guard is gone — world
+legal-actions is served behind a 403 credential gate
+(test_world_legal_actions_v3.py owns its contract).
 """
 
 from __future__ import annotations
@@ -23,7 +27,6 @@ from match_helpers import SEAT_TOKEN_HEADER, _auto_start_via_staging_api
 
 REFERENCE_MAP_ID = "handdrawn_test_map_full_01"
 REFERENCE_HASH = "16cc82c3392c66f1e47273e7da94cf8a804ae9885a051fc81c4b0a9a4261d8c6"
-WORLD_GUARD_DETAIL = "unsupported for match_kind world_map (gameplay lands in N7)"
 
 SNAPSHOT_V3_KEYS = {
     "match_id",
@@ -244,11 +247,21 @@ def test_world_end_turn_accepted_after_auto_start(client: TestClient) -> None:
     assert r.json()["accepted"] is True
 
 
-def test_legal_actions_on_world_match_409(client: TestClient) -> None:
+def test_legal_actions_final_409_removed(client: TestClient) -> None:
+    """N7b removed the last 409: an unauthenticated request now hits the
+    world credential gate (403), and an authenticated one gets a real 200
+    payload (full contract in test_world_legal_actions_v3.py)."""
     data = _create_world_match(client)
     r = client.get(f"/v1/matches/{data['match_id']}/legal-actions", params={"actor_id": 0})
-    assert r.status_code == 409
-    assert r.json()["detail"] == WORLD_GUARD_DETAIL
+    assert r.status_code == 403
+    assert r.json()["detail"] == "missing_seat_token"
+    r2 = client.get(
+        f"/v1/matches/{data['match_id']}/legal-actions",
+        params={"actor_id": 0},
+        headers={SEAT_TOKEN_HEADER: data["host_token"]},
+    )
+    assert r2.status_code == 200
+    assert r2.json()["schema_version"] == 1
 
 
 def test_unknown_match_still_404_before_guard(client: TestClient) -> None:

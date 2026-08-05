@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Header, HTTPException, Query
 
-from app.domain import legal_actions, match_lifecycle, match_state, player_visibility, seats, snapshot, world_actions, world_match, world_scenario
+from app.domain import legal_actions, match_lifecycle, match_state, player_visibility, seats, snapshot, world_actions, world_legal_actions, world_match, world_scenario
 from app.domain.actions import attack_unit, end_turn, found_city, move_unit, set_city_production
 from app.domain.map_content_loader import MapContentError
 from app.domain.combat_rules import resolve_attack
@@ -141,15 +141,26 @@ def _actor_gate(snap: dict[str, Any], action: dict[str, Any]) -> str | None:
     return None
 
 
-def _reject_world_map_gameplay(snap: dict[str, Any]) -> None:
-    """Remaining N6 guard: legal-actions has no world path until N7b. POST
-    actions gained its world path in N7a; this guard runs immediately after
-    snapshot load (and the 404 check) on GET legal-actions only."""
-    if world_match.is_world_map_snapshot(snap):
-        raise HTTPException(
-            status_code=409,
-            detail="unsupported for match_kind world_map (gameplay lands in N7)",
-        )
+def _world_legal_actions_credential_gate(
+    match_id: str,
+    actor_id: int,
+    seat_token: str | None,
+) -> None:
+    """N7b: world legal-actions requires authentication (HTTP 403) — host
+    token may query any actor; a seat token only its own actor_id. There is
+    deliberately NO status gate and NO current-player rejection here: an
+    authenticated out-of-turn actor gets HTTP 200 with is_current_player
+    false and empty actions. Legacy legal-actions stays token-free."""
+    meta = file_store.read_meta(match_id)
+    if meta is None:
+        return
+    if not seat_token or not str(seat_token).strip():
+        raise HTTPException(status_code=403, detail="missing_seat_token")
+    allowed = seats.allowed_actor_ids(meta, str(seat_token).strip())
+    if allowed is None:
+        raise HTTPException(status_code=403, detail="invalid_seat_token")
+    if int(actor_id) not in allowed:
+        raise HTTPException(status_code=403, detail="seat_not_allowed")
 
 
 def _resolve_world_map_or_500(snap: dict[str, Any]):
@@ -881,12 +892,26 @@ def get_legal_actions(
     actor_id: int = Query(..., description="Player requesting legality (mirrors action actor_id)."),
     selected_unit_id: int | None = Query(default=None),
     selected_city_id: int | None = Query(default=None),
+    x_empire_seat_token: str | None = Header(default=None, alias=SEAT_TOKEN_HEADER),
 ) -> dict[str, Any]:
-    """Read-only: submit-ready legal actions for C7 (no snapshot or revision change)."""
+    """Read-only: submit-ready legal actions (no snapshot or revision change).
+
+    Legacy (C7) path is token-free and unchanged. World (N7b) locked order:
+    404 -> world-kind branch -> world credential gate (403) -> resolve and
+    verify WorldMap identity (500 on drift) -> compute response."""
     snap = file_store.read_snapshot(match_id)
     if snap is None:
         raise HTTPException(status_code=404, detail="match not found")
-    _reject_world_map_gameplay(snap)
+    if world_match.is_world_map_snapshot(snap):
+        _world_legal_actions_credential_gate(match_id, actor_id, x_empire_seat_token)
+        world_map = _resolve_world_map_or_500(snap)
+        return world_legal_actions.compute_world_legal_actions_payload(
+            snap,
+            world_map,
+            actor_id,
+            selected_unit_id,
+            selected_city_id,
+        )
     return legal_actions.compute_legal_actions_payload(
         snap,
         actor_id,
