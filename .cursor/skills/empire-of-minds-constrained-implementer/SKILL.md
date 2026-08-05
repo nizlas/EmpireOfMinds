@@ -80,11 +80,25 @@ For map/terrain/world tasks, apply the doc routing row above, then:
 - **N6 boundary (implemented 2026-08):** the `world_map` match kind is **opt-in** (`match_kind: "world_map"` on create; absent = legacy, byte-for-byte — `match_kind`/`map_id` must stay **absent, not null**, in legacy create bodies, snapshots, meta, and lobby rows; default entry unchanged until N9). Snapshot v3 (`server/app/domain/world_match.py`) carries ONLY `MapIdentity.to_dict()` + `revision` + `turn_state` (+ `player_factions` after auto-start) — never embed tiles, edges, terrain, or geometry; `MapIdentity.to_dict()` keeps exact key/value parity with `game/domain/world/map_identity.gd`. Client bootstrap is strict: `game/cloud/world_snapshot_bootstrap.gd` loads canonical content by `map_id` (manifest lookup `MapContentLoader.load_world_map_by_id`) and verifies schema version + raw-byte `content_hash` — missing content or mismatch fails visibly, **never a fallback**. `game/cloud/world_play/cloud_world_play.tscn` is the production world scene (shared `TerrainWorld` + N4 anchor UI); `BootIntent.match_kind`/`play_scene_for_match_kind` route gameplay entry and must be preserved through all five transitions (env-create, create→staging, lobby join, saved resume, staging→gameplay). Gameplay endpoints (`actions`, `legal-actions`) return an explicit 409 for `world_map` matches immediately after snapshot load — keep that guard until N7 replaces it; no units, movement, client-side legality, yields, or cities on world matches before N7/N8. Test slices: `.\scripts\run-server-tests.ps1 slice n6`, `.\scripts\run-godot-tests.ps1 slice n6`.
 - Do not build on superseded HexPatch/TS-07/Stage 3b experiments. No procedural map generation unless explicitly scoped.
 
+## Execution and delivery modes
+
+**Default mode:** do not commit, push, or create a PR. Leave changes in the worktree for review unless the task prompt explicitly authorizes another delivery mode.
+
+**Isolated cloud mode** — active only when the prompt explicitly states `Delivery mode: isolated Cursor Cloud task` and supplies an isolated branch name. Then:
+
+- Start from an up-to-date `origin/main` and record its baseline SHA; require a clean worktree before editing.
+- Create and work only on the named isolated branch; commit and push only that branch.
+- Open a draft PR targeting `main`; stop with it ready for human review — never merge it.
+- Never write directly to, merge into, or force-push `main`; never modify or reuse another task branch.
+- Report unavailable verification honestly (exact environmental blocker, marked pending) — never claim a check passed that did not run.
+
 ## Phase 1 guardrails
 
 Local playable prototype scope only unless explicitly requested: no full city/production/combat/tech/diplomacy, online multiplayer, backend, database, OpenAI/local LLM, VPS tooling, production art pipeline, or procedural world generator beyond tiny test maps.
 
 ## Final report (substantive implementations)
+
+Isolated cloud tasks additionally report: baseline SHA, branch name, commit SHA, draft-PR link, and exact verification status.
 
 ### Summary
 What was implemented.
