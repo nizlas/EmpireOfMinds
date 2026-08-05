@@ -75,11 +75,13 @@ HTTP contract for the **local authority** prototype under `server/`. This is a *
 
 **Match kind (N6, implemented):** `POST /v1/matches` accepts an optional **`match_kind`** body field. **Absent** = the unchanged legacy path (snapshot v2, `scenario_id` validated as before). **`"world_map"`** creates a `WorldMap` match: optional **`map_id`** selects the canonical map (default `handdrawn_test_map_full_01`); an unknown/invalid `map_id` or any other `match_kind` value is **400**. The world create body carries no `scenario_id`. The response shape is identical (`match_id`, `display_name`, `snapshot`, `revision`, `state_hash`, `seats`, `host_token`); the kind rides inside the snapshot.
 
+**World player count (N7a):** world creation requires **exactly two `player_ids`** (arbitrary integers; default `[0, 1]`); any other count is **400** `world_map supports exactly 2 players in N7`. The first `player_ids` entry owns starting units 1–2, the second owns units 3–4 (`server/app/domain/world_scenario.py`). If the server-side spawn table diverges from the canonical map content (missing tile, duplicate position, non-smooth spawn-group edge, or a unit without an unoccupied adjacent smooth destination), creation fails **500** before anything is written — never a partial match. Legacy creation keeps arbitrary player counts.
+
 ### Snapshot schema v2 (Authority pivot Slice B — current legacy loop)
 
 Initial snapshots use **`schema_version`: `2`**. Top-level fields include the Cloud 0.1 envelope plus world model data for the **current playable loop** (map, starting units, default progress unlocks). **`action_log` is not embedded**; use **`GET /v1/matches/{id}/events`** for the append-only accepted-action log. Legacy snapshots never contain `match_kind` or `map_id` (keys absent, not null). v2 remains the shape for the legacy loop until its retirement in **N9**.
 
-### Snapshot schema v3 (N6 — `world_map` match kind, implemented)
+### Snapshot schema v3 (N6/N7a — `world_map` match kind, implemented)
 
 `world_map` matches use **`schema_version`: `3`** — a minimal envelope with **no embedded tiles, edges, terrain, or geometry**:
 
@@ -90,11 +92,32 @@ Initial snapshots use **`schema_version`: `2`**. Top-level fields include the Cl
   "match_kind": "world_map",
   "map": { "map_id": "handdrawn_test_map_full_01", "schema_version": 1, "content_hash": "16cc82c3…" },
   "revision": 0,
-  "turn_state": { "players": [0, 1], "current_index": 0, "turn_number": 1 }
+  "turn_state": { "players": [0, 1], "current_index": 0, "turn_number": 1 },
+  "units": [
+    { "id": 1, "owner_id": 0, "position": [1, 1], "type_id": "settler" },
+    { "id": 2, "owner_id": 0, "position": [2, 1], "type_id": "warrior" },
+    { "id": 3, "owner_id": 1, "position": [2, 14], "type_id": "settler" },
+    { "id": 4, "owner_id": 1, "position": [2, 13], "type_id": "warrior" }
+  ]
 }
 ```
 
-**`map`** is the canonical **`MapIdentity`** (exact `MapIdentity.to_dict()` parity between `server/app/domain/world_map.py` and `game/domain/world/map_identity.gd`). Clients load the canonical content by `map_id` and verify the schema version and raw-byte `content_hash`; any mismatch or missing content fails explicitly with **no fallback** (`game/cloud/world_snapshot_bootstrap.gd`). Auto-start adds `player_factions` as with v2. Staging endpoints (claim/faction/ready/rename/lobby) work unchanged for both kinds; lobby summaries and meta of `world_map` matches additionally carry **`match_kind`** and **`map_id`** (absent for legacy rows). **Gameplay endpoints are guarded until N7**: `POST /v1/matches/{id}/actions` and `GET /v1/matches/{id}/legal-actions` return **409** `unsupported for match_kind world_map (gameplay lands in N7)` immediately after snapshot load (after the 404 check, before credential/status/action processing). See [MAP_MODEL.md](MAP_MODEL.md) and [MAP_CONTENT.md](MAP_CONTENT.md).
+**`map`** is the canonical **`MapIdentity`** (exact `MapIdentity.to_dict()` parity between `server/app/domain/world_map.py` and `game/domain/world/map_identity.gd`). Clients load the canonical content by `map_id` and verify the schema version and raw-byte `content_hash`; any mismatch or missing content fails explicitly with **no fallback** (`game/cloud/world_snapshot_bootstrap.gd`). Auto-start adds `player_factions` as with v2. Staging endpoints (claim/faction/ready/rename/lobby) work unchanged for both kinds; lobby summaries and meta of `world_map` matches additionally carry **`match_kind`** and **`map_id`** (absent for legacy rows).
+
+**`units` (N7a):** deterministic, sorted ascending by **`id`**; each row is exactly `{"id", "owner_id", "position": [q, r], "type_id"}` with `type_id` ∈ `settler` | `warrior`. There is **no** `next_unit_id`, HP, movement points, or moved flag on the world path — world movement v1 has no movement budget ([MOVEMENT_RULES.md](MOVEMENT_RULES.md)).
+
+**Gameplay endpoints (N7a):** `POST /v1/matches/{id}/actions` dispatches to the world action path (below). `GET /v1/matches/{id}/legal-actions` still returns **409** `unsupported for match_kind world_map (gameplay lands in N7)` until N7b. See [MAP_MODEL.md](MAP_MODEL.md) and [MAP_CONTENT.md](MAP_CONTENT.md).
+
+### World actions (N7a — `world_map` matches)
+
+Gate order for world `POST /v1/matches/{id}/actions` is locked: **404 → world-kind branch → credential gate → status gate → dispatch → world validation → apply/persist/event**. Credential and status failures use the legacy HTTP-200 rejection envelope and reasons (`missing_seat_token`, `invalid_seat_token`, `seat_not_allowed`, `malformed_action`, `match_not_ongoing`). Rejected requests write nothing.
+
+Only **`move_unit`** and **`end_turn`** exist on the world path (wire shapes identical to the legacy actions below, both `schema_version` `1`). Known legacy action types **`found_city`**, **`set_city_production`**, and **`attack_unit`** reject with **`unsupported_action_for_match_kind`**; unrecognized types reject with **`unknown_action_type`**.
+
+- **`move_unit`** first-failure validation order (all literal reasons): `wrong_action_type → unsupported_schema_version → malformed_action → not_current_player → unknown_unit → unit_not_owned_by_player → from_does_not_match_unit_position → destination_not_on_map → destination_not_adjacent → destination_edge_missing → destination_cliff_blocked → destination_occupied`. Legality comes exclusively from the authoritative `WorldMap` (see [MOVEMENT_RULES.md](MOVEMENT_RULES.md)); there is **no** `movement_exhausted` or `destination_not_passable` on the world path. Accepted moves bump `revision`, persist the snapshot, and append an event carrying `unit_id`, `from`, and `to` (no `remaining_movement`).
+- **`end_turn`** validation order: `wrong_action_type → unsupported_schema_version → malformed_action → not_current_player`. It advances `turn_state` only — **no** production/food/science ticks, delivery, or movement refresh. The accepted event carries `turn_number_before` and `next_player_id` as in v2.
+
+**Map-identity verification (fail closed):** before mutating anything, every supported world action reloads the canonical content by `map_id` (no caching; raw-byte hash recomputed) and requires exact equality with the snapshot's `MapIdentity` — for `move_unit` after unit/from validation and before destination validation, for `end_turn` after `not_current_player` and before the turn change. Missing or drifted content is **HTTP 500** `world map content unavailable or mismatched for map_id <id>` with **no** snapshot, event, or other state change (`world_match.resolve_world_map_for_snapshot`).
 
 **Hex / coordinates in JSON**
 
@@ -263,7 +286,7 @@ Matches [ACTIONS.md](ACTIONS.md) **AttackUnit** dictionary: **`attacker_id`** an
 
 Rejected responses omit **`event`**, **`snapshot`**, and **`state_hash`**.
 
-**Rejected** (HTTP **200**; **`index`** is **`-1`**; **no** snapshot or event updates):
+**Rejected** (HTTP **200**; **`index`** is **`-1`**; **no** snapshot or event updates). The reasons below are the **legacy (v2) path**; world (`world_map`) rejection reasons are listed in the *World actions (N7a)* section above.
 
 - Common / routing: **`not_current_player`**, **`unknown_action_type`**, **`malformed_action`**, **`unsupported_schema_version`**.
 - **`move_unit`**: **`unknown_unit`**, **`unit_not_owned_by_player`**, **`from_does_not_match_unit_position`**, **`movement_exhausted`**, **`destination_not_on_map`**, **`destination_not_adjacent`**, **`destination_not_passable`**, **`destination_occupied`**.

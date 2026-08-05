@@ -87,6 +87,7 @@ From the **repository root** (requires `pytest` on PATH; install deps under `ser
 .\scripts\run-server-tests.ps1 slice c14d
 .\scripts\run-server-tests.ps1 slice n5
 .\scripts\run-server-tests.ps1 slice n6
+.\scripts\run-server-tests.ps1 slice n7
 .\scripts\run-server-tests.ps1 presentation   # prints Godot-only notice, exit 0
 ```
 
@@ -103,7 +104,8 @@ Equivalent manual full run: `cd server` then `pytest -q`.
 - **slice c14d** (Godot) — `test_cloud_staging_c14d.gd`, `test_cloud_staging_faction_ui.gd`, `test_cloud_staging_background_c14d.gd`, `test_cloud_staging_civ_terminology_c14d4e.gd`, `test_cloud_turn_panel_c14d4f.gd`, `test_cloud_player_identity_c14d4g.gd`, `test_cloud_reconnect_parity_c14d.gd`, `test_cloud_lobby_poll_c14d4a.gd`, `test_cloud_turn_ownership_c14d4b.gd`, `test_cloud_turn_ownership_c14d4c.gd`, `test_cloud_turn_banner.gd`, `test_cloud_credential_store.gd`, `test_cloud_front_door_boot_intent.gd`, `test_cloud_lobby_parsers.gd`.
 - **slice c14d-dev** (Godot) — `test_cloud_credential_profile.gd` (**`EOM_CLOUD_PROFILE`** credential store paths; dev/test only).
 - **slice n5** (server) — `test_world_map_loader.py`, `test_map_content_packaging.py` (server `WorldMap` foundation + canonical content packaging; related non-server checks: `python -m pytest tools/content/tests -q`, `python tools/content/sync_map_content.py check`, and the Godot parity test `test_world_map_foundation.gd`).
-- **slice n6** (server) — `test_world_map_match_v3.py`, `test_world_map_loader.py`, `test_lobby_list.py`, `test_action_status_gate.py` (snapshot v3 `world_map` match kind: identity parity, create branching, world-only meta/lobby fields, staging reuse, 409 gameplay guards, legacy-untouched regressions).
+- **slice n6** (server) — `test_world_map_match_v3.py`, `test_world_map_loader.py`, `test_lobby_list.py`, `test_action_status_gate.py` (snapshot v3 `world_map` match kind: identity parity, create branching, world-only meta/lobby fields, staging reuse, remaining legal-actions 409 guard, legacy-untouched regressions).
+- **slice n7** (server) — `test_world_map_actions_v3.py`, `test_world_map_match_v3.py` (N7a world units + actions: pinned spawn table and content cross-check, two-player creation contract, snapshot-v3 `units`, locked world POST gate order, every literal move/end-turn rejection incl. real cliff edge and occupancy, multi-step movement, end-turn handoff, fail-closed map-identity 500 with no mutation, legacy-untouched regressions).
 
 Unknown slice ids print supported ids and exit non-zero.
 

@@ -97,9 +97,9 @@ N3c.1 (`Ts08SurfaceGeometry`) consumes the `WorldMap`, the N3a lattice, and the 
 
 See [MAP_CONTENT.md](MAP_CONTENT.md) for yield/knowledge boundaries and [DECISION_LOG.md](DECISION_LOG.md) for the approved direction.
 
-### Snapshot v3 (implemented N6)
+### Snapshot v3 (implemented N6; units added in N7a)
 
-Snapshots of the opt-in **`world_map`** match kind carry **`MapIdentity`** (`map_id`, `schema_version`, `content_hash`) plus **mutable match state** (`revision`, `turn_state`; `player_factions` after auto-start). Snapshots do **not** repeat any immutable tile or edge from the canonical map — the client loads the canonical content matching the identity and verifies the raw-byte hash; mismatch or missing content **fails explicitly** with no fallback (`game/cloud/world_snapshot_bootstrap.gd`). Legacy matches keep snapshot v2 unchanged until N9. Gameplay endpoints reject `world_map` matches (409) until N7. Details: [MAP_CONTENT.md](MAP_CONTENT.md), [CLOUD_API_V0.md](CLOUD_API_V0.md).
+Snapshots of the opt-in **`world_map`** match kind carry **`MapIdentity`** (`map_id`, `schema_version`, `content_hash`) plus **mutable match state** (`revision`, `turn_state`, **`units`** since N7a — deterministic rows sorted by id, `{"id", "owner_id", "position": [q, r], "type_id"}`; `player_factions` after auto-start). Snapshots do **not** repeat any immutable tile or edge from the canonical map — the client loads the canonical content matching the identity and verifies the raw-byte hash; mismatch or missing content **fails explicitly** with no fallback (`game/cloud/world_snapshot_bootstrap.gd`). The server applies the same fail-closed identity verification before mutating any world match: every supported world action reloads the canonical content and requires exact `MapIdentity` equality, else HTTP 500 with no state change (`world_match.resolve_world_map_for_snapshot`). Legacy matches keep snapshot v2 unchanged until N9. `POST /actions` gained its world path in N7a (`move_unit`, `end_turn` — see [MOVEMENT_RULES.md](MOVEMENT_RULES.md)); `legal-actions` still rejects `world_map` matches (409) until N7b. Details: [MAP_CONTENT.md](MAP_CONTENT.md), [CLOUD_API_V0.md](CLOUD_API_V0.md).
 
 ### Planned module ownership (names provisional)
 
@@ -112,7 +112,7 @@ Snapshots of the opt-in **`world_map`** match kind carry **`MapIdentity`** (`map
 | `game/domain/world/ts08_cut_lattice.gd` | TS-08 Stage-0 cut-lattice topology from `WorldMap` (N3a) |
 | `game/domain/world/ts08_height_solver.gd` | TS-08 Stage-2 cut-domain thin-plate CG height solve (N3b) |
 | `game/domain/world/ts08_surface_geometry.gd` | TS-08 surface geometry: top surface + Stage-3a cliff-wall faces as packed data (N3c.1) |
-| `server/app/domain/world_map.py` | Python mirror (N5) — **implemented**; loaded via `server/app/domain/map_content_loader.py`; separate from frozen legacy `HexMap`; wired into opt-in `world_map` matches via `server/app/domain/world_match.py` (N6, snapshot v3 — identity only) |
+| `server/app/domain/world_map.py` | Python mirror (N5) — **implemented**; loaded via `server/app/domain/map_content_loader.py`; separate from frozen legacy `HexMap`; wired into opt-in `world_map` matches via `server/app/domain/world_match.py` (N6, snapshot v3); movement legality authority for world actions (N7a, `server/app/domain/world_actions.py`; starting units in `server/app/domain/world_scenario.py`) |
 
 Presentation modules under `game/presentation/world3d/` consume `WorldMap`; they do not own map truth.
 

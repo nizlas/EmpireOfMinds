@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Header, HTTPException, Query
 
-from app.domain import legal_actions, match_lifecycle, match_state, player_visibility, seats, snapshot, world_match
+from app.domain import legal_actions, match_lifecycle, match_state, player_visibility, seats, snapshot, world_actions, world_match, world_scenario
 from app.domain.actions import attack_unit, end_turn, found_city, move_unit, set_city_production
 from app.domain.map_content_loader import MapContentError
 from app.domain.combat_rules import resolve_attack
@@ -142,14 +142,136 @@ def _actor_gate(snap: dict[str, Any], action: dict[str, Any]) -> str | None:
 
 
 def _reject_world_map_gameplay(snap: dict[str, Any]) -> None:
-    """N6 guard: world_map matches have no gameplay until N7. Runs immediately
-    after snapshot load (and the 404 check), before any credential, status, or
-    action processing, so v3 matches never leak older-path errors."""
+    """Remaining N6 guard: legal-actions has no world path until N7b. POST
+    actions gained its world path in N7a; this guard runs immediately after
+    snapshot load (and the 404 check) on GET legal-actions only."""
     if world_match.is_world_map_snapshot(snap):
         raise HTTPException(
             status_code=409,
             detail="unsupported for match_kind world_map (gameplay lands in N7)",
         )
+
+
+def _resolve_world_map_or_500(snap: dict[str, Any]):
+    """N7 fail-closed map resolution: canonical content must load and match
+    the snapshot MapIdentity exactly before any world action mutates state."""
+    try:
+        return world_match.resolve_world_map_for_snapshot(snap)
+    except world_match.WorldMapResolutionError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+def _handle_world_move_unit(match_id: str, snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:
+    vr = world_actions.validate_move_unit_pre_map(snap, action)
+    if not vr["ok"]:
+        return _reject(str(vr["reason"]))
+
+    world_map = _resolve_world_map_or_500(snap)
+
+    vr = world_actions.validate_move_unit_destination(world_map, snap, action)
+    if not vr["ok"]:
+        return _reject(str(vr["reason"]))
+
+    new_snap = world_actions.apply_move_unit(snap, action)
+    new_revision = int(new_snap["revision"])
+    log_index = len(file_store.read_events(match_id))
+    accepted_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    event = {
+        "index": log_index,
+        "revision": new_revision,
+        "schema_version": int(action["schema_version"]),
+        "action_type": world_actions.MOVE_UNIT_ACTION_TYPE,
+        "actor_id": int(action["actor_id"]),
+        "unit_id": int(action["unit_id"]),
+        "from": [int(action["from"][0]), int(action["from"][1])],
+        "to": [int(action["to"][0]), int(action["to"][1])],
+        "result": "accepted",
+        "accepted_at": accepted_at,
+    }
+    file_store.write_snapshot(match_id, new_snap)
+    file_store.append_event(match_id, event)
+    return {
+        "accepted": True,
+        "reason": "",
+        "index": log_index,
+        "revision": new_revision,
+        "snapshot": new_snap,
+        "state_hash": state_hash(new_snap),
+        "event": event,
+    }
+
+
+def _handle_world_end_turn(match_id: str, snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:
+    vr = world_actions.validate_end_turn(snap, action)
+    if not vr["ok"]:
+        return _reject(str(vr["reason"]))
+
+    _resolve_world_map_or_500(snap)
+
+    prev_turn_number = int(snap["turn_state"]["turn_number"])
+    new_snap = world_actions.apply_end_turn(snap)
+    new_revision = int(new_snap["revision"])
+    next_player = int(
+        new_snap["turn_state"]["players"][int(new_snap["turn_state"]["current_index"])]
+    )
+    log_index = len(file_store.read_events(match_id))
+    accepted_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    event = {
+        "index": log_index,
+        "revision": new_revision,
+        "schema_version": int(action["schema_version"]),
+        "action_type": world_actions.END_TURN_ACTION_TYPE,
+        "actor_id": int(action["actor_id"]),
+        "turn_number_before": prev_turn_number,
+        "next_player_id": next_player,
+        "result": "accepted",
+        "accepted_at": accepted_at,
+    }
+    file_store.write_snapshot(match_id, new_snap)
+    file_store.append_event(match_id, event)
+    return {
+        "accepted": True,
+        "reason": "",
+        "index": log_index,
+        "revision": new_revision,
+        "snapshot": new_snap,
+        "state_hash": state_hash(new_snap),
+        "event": event,
+    }
+
+
+def _post_world_action(
+    match_id: str,
+    snap: dict[str, Any],
+    action: dict[str, Any],
+    seat_token: str | None,
+) -> dict[str, Any]:
+    """N7a world POST-actions path. Locked gate order (docs/CLOUD_API_V0.md):
+    404 (caller) -> world-kind branch -> credential gate -> status gate ->
+    dispatch -> world validation -> apply/persist/event. Rejections reuse the
+    legacy HTTP-200 {accepted: false} envelope; nothing is written on
+    rejection. Only move_unit and end_turn exist on the world path in N7."""
+    cred_reject = _credential_gate(match_id, action, seat_token)
+    if cred_reject is not None:
+        return cred_reject
+
+    status_reject = _match_status_gate(match_id)
+    if status_reject is not None:
+        return status_reject
+
+    if action is None or not isinstance(action, dict):
+        return _reject("unknown_action_type")
+    if "action_type" not in action or not isinstance(action["action_type"], str):
+        return _reject("unknown_action_type")
+
+    at = action["action_type"]
+    if at == world_actions.MOVE_UNIT_ACTION_TYPE:
+        return _handle_world_move_unit(match_id, snap, action)
+    if at == world_actions.END_TURN_ACTION_TYPE:
+        return _handle_world_end_turn(match_id, snap, action)
+    if at in world_actions.LEGACY_ONLY_ACTION_TYPES:
+        return _reject("unsupported_action_for_match_kind")
+    return _reject("unknown_action_type")
 
 
 @router.get("/healthz")
@@ -180,6 +302,13 @@ def create_match(
         raise HTTPException(status_code=400, detail="unknown match_kind")
 
     if match_kind == world_match.MATCH_KIND_WORLD_MAP:
+        # N7: the world spawn table supports exactly two players (explicit,
+        # documented narrowing of the N6 create contract; legacy unchanged).
+        if len(player_ids) != world_scenario.SUPPORTED_PLAYER_COUNT:
+            raise HTTPException(
+                status_code=400,
+                detail="world_map supports exactly 2 players in N7",
+            )
         map_id = body.get("map_id", world_match.DEFAULT_WORLD_MAP_ID)
         if not isinstance(map_id, str) or not map_id.strip():
             raise HTTPException(status_code=400, detail="invalid map_id")
@@ -188,6 +317,10 @@ def create_match(
             snap = world_match.build_initial_world_snapshot(mid, player_ids, map_id)
         except MapContentError as exc:
             raise HTTPException(status_code=400, detail=f"invalid map_id: {exc}") from exc
+        except world_scenario.WorldScenarioError as exc:
+            # Spawn/content divergence is a server failure; nothing has been
+            # written yet, so no partial match can exist.
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
         file_store.write_snapshot(mid, snap)
         meta = seats.build_meta(
             mid,
@@ -705,7 +838,8 @@ def post_action(
     if snap is None:
         raise HTTPException(status_code=404, detail="match not found")
 
-    _reject_world_map_gameplay(snap)
+    if world_match.is_world_map_snapshot(snap):
+        return _post_world_action(match_id, snap, action, x_empire_seat_token)
 
     cred_reject = _credential_gate(match_id, action, x_empire_seat_token)
     if cred_reject is not None:

@@ -1,4 +1,17 @@
-# Empire of Minds — Movement rules (Phase 1.5 + **5.2.5** MP v0)
+# Empire of Minds — Movement rules (Phase 1.5 + **5.2.5** MP v0; **N7 world movement v1**)
+
+## World movement v1 (N7a — `world_map` matches, server-authoritative)
+
+World movement is implemented server-side in `server/app/domain/world_actions.py` and is **entirely separate** from the legacy `MovementRules` below (no `HexMap`, no `Scenario`, no adapter). Legality comes **exclusively** from the authoritative Python `WorldMap` loaded from canonical content ([MAP_MODEL.md](MAP_MODEL.md), [MAP_CONTENT.md](MAP_CONTENT.md)):
+
+1. The destination tile must **exist** on the `WorldMap`.
+2. The destination must be **adjacent** via the canonical axial neighbor deltas (`DIRECTIONS` in `server/app/domain/hex_coord.py`, parity with `hex_coord.gd`).
+3. The derived edge between the tiles decides traversal: a **smooth** edge permits movement; a **cliff** edge blocks it (`destination_cliff_blocked`). A **missing edge record** between existing adjacent tiles rejects **fail-closed** (`destination_edge_missing`) — it is never treated as passable.
+4. The destination must be **unoccupied** by any unit (`destination_occupied`).
+
+There are **no movement points**, moved flags, water/terrain-category passability, pathfinding, or multi-step moves per action on the world path — a unit may take any number of single-step moves per turn in N7. **No mesh, collision, sampled height, or presentation anchor ever decides legality.** The full first-failure rejection order and wire contract live in [CLOUD_API_V0.md](CLOUD_API_V0.md); the action inventory lives in [ACTIONS.md](ACTIONS.md). Clients never compute world legality (N7b serves it via `legal-actions`).
+
+Everything below this section is the **frozen legacy path** (retired in N9).
 
 ## Where rules live
 

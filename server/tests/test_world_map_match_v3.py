@@ -1,10 +1,14 @@
 """N6: opt-in world_map match kind + minimal snapshot v3 + gameplay guards.
 
-Covers: MapIdentity.to_dict parity, snapshot v3 shape (identity only — no
-embedded tiles/edges/terrain), create-match kind branching, world-only meta
-and lobby fields (absent — not null — for legacy), staging/auto-start reuse,
-and the explicit 409 guards on both gameplay endpoints placed immediately
-after snapshot load, before credential/status/action processing.
+Covers: MapIdentity.to_dict parity, snapshot v3 shape (identity plus minimal
+mutable state — no embedded tiles/edges/terrain), create-match kind
+branching, world-only meta and lobby fields (absent — not null — for legacy),
+staging/auto-start reuse, and the remaining 409 guard.
+
+Deliberate N7a updates: snapshot v3 gained a top-level "units" key
+(test_world_map_actions_v3.py owns its contract), world creation now requires
+exactly two player_ids, and POST actions dispatches to the world path instead
+of the 409 guard — the guard remains on GET legal-actions only until N7b.
 """
 
 from __future__ import annotations
@@ -21,7 +25,15 @@ REFERENCE_MAP_ID = "handdrawn_test_map_full_01"
 REFERENCE_HASH = "16cc82c3392c66f1e47273e7da94cf8a804ae9885a051fc81c4b0a9a4261d8c6"
 WORLD_GUARD_DETAIL = "unsupported for match_kind world_map (gameplay lands in N7)"
 
-SNAPSHOT_V3_KEYS = {"match_id", "schema_version", "match_kind", "map", "revision", "turn_state"}
+SNAPSHOT_V3_KEYS = {
+    "match_id",
+    "schema_version",
+    "match_kind",
+    "map",
+    "revision",
+    "turn_state",
+    "units",  # N7a: deterministic starting units (sorted by id)
+}
 
 
 def _create_world_match(client: TestClient, body: dict | None = None) -> dict:
@@ -94,10 +106,11 @@ def test_create_world_match_default_map(client: TestClient) -> None:
 
 
 def test_create_world_match_explicit_map_id(client: TestClient) -> None:
-    data = _create_world_match(client, {"map_id": REFERENCE_MAP_ID, "player_ids": [0, 1, 2]})
+    # N7a: world creation supports exactly two players (arbitrary ids).
+    data = _create_world_match(client, {"map_id": REFERENCE_MAP_ID, "player_ids": [4, 9]})
     snap = data["snapshot"]
     assert snap["map"]["map_id"] == REFERENCE_MAP_ID
-    assert snap["turn_state"]["players"] == [0, 1, 2]
+    assert snap["turn_state"]["players"] == [4, 9]
 
 
 def test_create_world_match_unknown_map_id_400(client: TestClient) -> None:
@@ -189,38 +202,46 @@ def test_world_match_resume_returns_v3(client: TestClient) -> None:
     assert r.json()["snapshot"] == data["snapshot"]
 
 
-# ------------------------------------------------------------ 409 guards
+# ---------------------------------------- gameplay endpoints (post-N7a)
 
 
-def test_actions_on_world_match_409(client: TestClient) -> None:
+def test_actions_on_world_match_reach_world_gates(client: TestClient) -> None:
+    """N7a removed the POST-actions 409: a staging world match now rejects
+    through the normal gate chain (credential passed via host token, status
+    gate rejects) with the legacy HTTP-200 envelope."""
     data = _create_world_match(client)
     r = client.post(
         f"/v1/matches/{data['match_id']}/actions",
         json={"schema_version": 1, "action_type": "end_turn", "actor_id": 0},
         headers={SEAT_TOKEN_HEADER: data["host_token"]},
     )
-    assert r.status_code == 409
-    assert r.json()["detail"] == WORLD_GUARD_DETAIL
+    assert r.status_code == 200
+    assert r.json() == {"accepted": False, "reason": "match_not_ongoing", "index": -1}
 
 
-def test_actions_guard_precedes_credential_and_status_gates(client: TestClient) -> None:
-    """Missing token + staging status + malformed action would each trigger an
-    earlier-path rejection; a world_map match must still 409 first."""
+def test_actions_credential_gate_first_on_world_match(client: TestClient) -> None:
+    """Missing token + staging + malformed body: the credential gate fires
+    first on the world path (locked N7a gate order)."""
     data = _create_world_match(client)
     r = client.post(f"/v1/matches/{data['match_id']}/actions", json={"nonsense": True})
-    assert r.status_code == 409
-    assert r.json()["detail"] == WORLD_GUARD_DETAIL
+    assert r.status_code == 200
+    assert r.json()["reason"] == "missing_seat_token"
 
 
-def test_actions_guard_active_after_auto_start(client: TestClient) -> None:
+def test_world_end_turn_accepted_after_auto_start(client: TestClient) -> None:
+    """Guard removal smoke: a started world match accepts end_turn (full
+    action matrix lives in test_world_map_actions_v3.py)."""
     data = _create_world_match(client)
     _auto_start_via_staging_api(client, data["match_id"], [0, 1])
+    snap = client.get(f"/v1/matches/{data['match_id']}").json()["snapshot"]
+    current = snap["turn_state"]["players"][snap["turn_state"]["current_index"]]
     r = client.post(
         f"/v1/matches/{data['match_id']}/actions",
-        json={"schema_version": 1, "action_type": "end_turn", "actor_id": 0},
+        json={"schema_version": 1, "action_type": "end_turn", "actor_id": current},
         headers={SEAT_TOKEN_HEADER: data["host_token"]},
     )
-    assert r.status_code == 409
+    assert r.status_code == 200
+    assert r.json()["accepted"] is True
 
 
 def test_legal_actions_on_world_match_409(client: TestClient) -> None:
