@@ -302,9 +302,16 @@ def create_match(
         raise HTTPException(status_code=400, detail="unknown match_kind")
 
     if match_kind == world_match.MATCH_KIND_WORLD_MAP:
-        # N7: the world spawn table supports exactly two players (explicit,
-        # documented narrowing of the N6 create contract; legacy unchanged).
-        if len(player_ids) != world_scenario.SUPPORTED_PLAYER_COUNT:
+        # N7: the world spawn table supports exactly two distinct players
+        # (explicit, documented narrowing of the N6 create contract; legacy
+        # creation behavior is unchanged). Exact JSON integers only: booleans
+        # pass Python's isinstance(int) and must be rejected explicitly.
+        if any(isinstance(pid, bool) for pid in player_ids):
+            raise HTTPException(status_code=400, detail="player_ids must be integers")
+        if (
+            len(player_ids) != world_scenario.SUPPORTED_PLAYER_COUNT
+            or len(set(player_ids)) != world_scenario.SUPPORTED_PLAYER_COUNT
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="world_map supports exactly 2 players in N7",

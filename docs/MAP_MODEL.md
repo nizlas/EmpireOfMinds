@@ -1,6 +1,6 @@
 # Empire of Minds — Domain map model
 
-**Status (2026-08):** **`WorldMap`** foundation is **implemented** (slice **N1**) under `game/domain/world/` — loads packaged canonical content, derives edges, exposes projection math. **Not yet connected** to gameplay, server, or 3D rendering. The current runnable game still uses the legacy **`HexMap`** categorical model documented in [Legacy HexMap (frozen)](#legacy-hexmap-frozen) below.
+**Status (2026-08):** **`WorldMap`** is implemented on both sides — Godot (`game/domain/world/`, slice **N1**) and Python (`server/app/domain/world_map.py`, slice **N5**) — loading packaged canonical content, deriving edges, and exposing projection math. It drives the 3D terrain rendering path (**N3**, `TerrainWorld`), tile anchors and projected UI (**N4**), opt-in **`world_map`** cloud matches with snapshot v3 (**N6**), and server-authoritative world units/movement legality (**N7a**). The **default** entry and runnable legacy loop still use the frozen **`HexMap`** categorical model documented in [Legacy HexMap (frozen)](#legacy-hexmap-frozen) below, until the N9 cutover.
 
 Coordinate contract: [WORLD_COORDINATES.md](WORLD_COORDINATES.md). Map content ownership: [MAP_CONTENT.md](MAP_CONTENT.md). Axial cell identity: [HEX_COORDINATES.md](HEX_COORDINATES.md).
 

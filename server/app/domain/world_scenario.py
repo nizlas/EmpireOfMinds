@@ -54,6 +54,13 @@ def build_starting_units(world_map: WorldMap, player_ids: list[int]) -> list[dic
             "world scenario requires exactly %d player_ids, got %d"
             % (SUPPORTED_PLAYER_COUNT, len(player_ids))
         )
+    # Defensive mirror of the API creation contract: exact JSON integers
+    # (booleans are ints in Python and must be rejected) and distinct ids.
+    for pid in player_ids:
+        if isinstance(pid, bool) or not isinstance(pid, int):
+            raise WorldScenarioError("world scenario player_ids must be exact integers")
+    if len(set(player_ids)) != SUPPORTED_PLAYER_COUNT:
+        raise WorldScenarioError("world scenario player_ids must be distinct")
     map_id = world_map.identity.map_id
     table = _SPAWN_TABLES.get(map_id)
     if table is None:

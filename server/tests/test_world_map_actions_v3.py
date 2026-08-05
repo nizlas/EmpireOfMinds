@@ -12,10 +12,13 @@ mutation) for both supported actions, and unchanged legacy behavior.
 
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.domain import world_actions, world_match, world_scenario
-from app.domain.map_content_loader import load_world_map
+from app.domain.map_content_loader import _index_map_files, load_world_map, resolve_content_root
 from app.domain.state_hash import state_hash
 from app.domain.world_map import EDGE_CLIFF, EDGE_SMOOTH
 from app.storage import file_store
@@ -154,6 +157,26 @@ def test_create_world_match_three_players_400(client: TestClient) -> None:
     assert client.get("/v1/matches").json()["matches"] == []
 
 
+def test_create_world_match_duplicate_player_ids_400(client: TestClient) -> None:
+    r = client.post(
+        "/v1/matches", json={"match_kind": "world_map", "player_ids": [5, 5]}
+    )
+    assert r.status_code == 400
+    assert r.json()["detail"] == PLAYER_COUNT_DETAIL
+    assert client.get("/v1/matches").json()["matches"] == []
+
+
+def test_create_world_match_boolean_player_ids_400(client: TestClient) -> None:
+    """Booleans are ints in Python; the world path rejects them explicitly."""
+    for pids in ([True, 1], [0, False], [True, False]):
+        r = client.post(
+            "/v1/matches", json={"match_kind": "world_map", "player_ids": pids}
+        )
+        assert r.status_code == 400, pids
+        assert r.json()["detail"] == "player_ids must be integers"
+    assert client.get("/v1/matches").json()["matches"] == []
+
+
 def test_legacy_create_keeps_arbitrary_player_counts(client: TestClient) -> None:
     r = client.post("/v1/matches", json={"player_ids": [0, 1, 2]})
     assert r.status_code == 200
@@ -202,6 +225,21 @@ def test_world_scenario_rejects_wrong_player_count() -> None:
         raise AssertionError("expected WorldScenarioError")
     except world_scenario.WorldScenarioError as exc:
         assert "exactly 2" in str(exc)
+
+
+def test_world_scenario_rejects_boolean_and_duplicate_player_ids() -> None:
+    """Defensive mirror of the API creation contract in the domain module."""
+    wm = load_world_map(REFERENCE_MAP_ID)
+    try:
+        world_scenario.build_starting_units(wm, [True, 1])  # type: ignore[list-item]
+        raise AssertionError("expected WorldScenarioError")
+    except world_scenario.WorldScenarioError as exc:
+        assert "exact integers" in str(exc)
+    try:
+        world_scenario.build_starting_units(wm, [5, 5])
+        raise AssertionError("expected WorldScenarioError")
+    except world_scenario.WorldScenarioError as exc:
+        assert "distinct" in str(exc)
 
 
 def test_world_scenario_rejects_unknown_map() -> None:
@@ -278,6 +316,46 @@ def test_move_unsupported_schema_version(client: TestClient) -> None:
     match_id, tokens, _ = _start_world_match(client)
     r = _post(client, match_id, _move(0, 2, (2, 1), (3, 1), schema=2), tokens[0])
     _assert_reject(r, "unsupported_schema_version")
+
+
+def test_move_schema_version_must_be_exact_int(client: TestClient) -> None:
+    """Boolean True and float 1.0 both equal 1 in Python; exact JSON integer
+    semantics reject them as unsupported_schema_version."""
+    match_id, tokens, _ = _start_world_match(client)
+    for schema in (True, 1.0):
+        action = _move(0, 2, (2, 1), (3, 1))
+        action["schema_version"] = schema
+        _assert_reject(_post(client, match_id, action, tokens[0]), "unsupported_schema_version")
+
+
+def test_move_boolean_ids_malformed(client: TestClient) -> None:
+    """actor_id/unit_id must be exact (non-boolean) integers."""
+    match_id, tokens, _ = _start_world_match(client)
+    bad_unit = _move(0, 2, (2, 1), (3, 1))
+    bad_unit["unit_id"] = True
+    _assert_reject(_post(client, match_id, bad_unit, tokens[0]), "malformed_action")
+    # actor_id True passes the credential gate as int 1, so post with the
+    # actor-1 token; the world validator still rejects the boolean itself.
+    bad_actor = _move(1, 3, (2, 14), (3, 14))
+    bad_actor["actor_id"] = True
+    _assert_reject(_post(client, match_id, bad_actor, tokens[1]), "malformed_action")
+
+
+def test_domain_wrong_action_type_both_validators() -> None:
+    """Domain-level: each validator rejects the other action type first."""
+    snap = {"turn_state": {"players": [0, 1], "current_index": 0, "turn_number": 1}, "units": []}
+    vr = world_actions.validate_move_unit_pre_map(snap, _end_turn(0))
+    assert vr == {"ok": False, "reason": "wrong_action_type"}
+    vr = world_actions.validate_end_turn(snap, _move(0, 2, (2, 1), (3, 1)))
+    assert vr == {"ok": False, "reason": "wrong_action_type"}
+
+
+def test_end_turn_schema_version_must_be_exact_int(client: TestClient) -> None:
+    match_id, tokens, _ = _start_world_match(client)
+    for schema in (True, 1.0):
+        action = _end_turn(0)
+        action["schema_version"] = schema
+        _assert_reject(_post(client, match_id, action, tokens[0]), "unsupported_schema_version")
 
 
 def test_move_malformed_action(client: TestClient) -> None:
@@ -502,6 +580,49 @@ def test_end_turn_map_mismatch_500_no_mutation(client: TestClient) -> None:
     assert r.status_code == 500
     assert r.json()["detail"] == MISMATCH_DETAIL
     assert file_store.read_snapshot(match_id) == tampered
+    assert file_store.read_events(match_id) == events_before
+
+
+def _make_drifted_content_root(tmp_path: Path) -> Path:
+    """Copy the canonical content root and change the reference map's raw
+    bytes (trailing newline: JSON-valid, schema-valid, different SHA-256)."""
+    canonical_root = resolve_content_root()
+    drift_root = tmp_path / "drifted_maps"
+    shutil.copytree(canonical_root, drift_root)
+    map_file = _index_map_files(drift_root)[REFERENCE_MAP_ID]
+    map_file.write_bytes(map_file.read_bytes() + b"\n")
+    return drift_root
+
+
+def test_move_real_content_drift_500_no_mutation(
+    client: TestClient, tmp_path, monkeypatch
+) -> None:
+    """Real drift: a byte-different canonical file behind EMPIRE_MAP_CONTENT_DIR
+    fails the raw-byte hash comparison with HTTP 500 and no mutation."""
+    match_id, tokens, _ = _start_world_match(client)
+    snap_before = file_store.read_snapshot(match_id)
+    events_before = file_store.read_events(match_id)
+    drift_root = _make_drifted_content_root(tmp_path)
+    monkeypatch.setenv("EMPIRE_MAP_CONTENT_DIR", str(drift_root))
+    r = _post(client, match_id, _move(0, 2, (2, 1), (3, 1)), tokens[0])
+    assert r.status_code == 500
+    assert r.json()["detail"] == MISMATCH_DETAIL
+    assert file_store.read_snapshot(match_id) == snap_before
+    assert file_store.read_events(match_id) == events_before
+
+
+def test_end_turn_real_content_drift_500_no_mutation(
+    client: TestClient, tmp_path, monkeypatch
+) -> None:
+    match_id, tokens, _ = _start_world_match(client)
+    snap_before = file_store.read_snapshot(match_id)
+    events_before = file_store.read_events(match_id)
+    drift_root = _make_drifted_content_root(tmp_path)
+    monkeypatch.setenv("EMPIRE_MAP_CONTENT_DIR", str(drift_root))
+    r = _post(client, match_id, _end_turn(0), tokens[0])
+    assert r.status_code == 500
+    assert r.json()["detail"] == MISMATCH_DETAIL
+    assert file_store.read_snapshot(match_id) == snap_before
     assert file_store.read_events(match_id) == events_before
 
 

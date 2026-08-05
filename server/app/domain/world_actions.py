@@ -41,6 +41,11 @@ END_TURN_ACTION_TYPE = "end_turn"
 LEGACY_ONLY_ACTION_TYPES = ("found_city", "set_city_production", "attack_unit")
 
 
+def _is_exact_int(value: Any) -> bool:
+    """Exact JSON integer: booleans are ints in Python and must not pass."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _ok() -> dict[str, Any]:
     return {"ok": True, "reason": ""}
 
@@ -72,7 +77,7 @@ def _is_coord_pair(value: Any) -> bool:
     return (
         isinstance(value, list)
         and len(value) == 2
-        and all(isinstance(x, int) and not isinstance(x, bool) for x in value)
+        and all(_is_exact_int(x) for x in value)
     )
 
 
@@ -80,7 +85,8 @@ def validate_move_unit_pre_map(snap: dict[str, Any], action: dict[str, Any]) -> 
     """Envelope, current-player, unit, and from checks (no WorldMap needed)."""
     if action.get("action_type") != MOVE_UNIT_ACTION_TYPE:
         return _fail("wrong_action_type")
-    if action.get("schema_version") != SCHEMA_VERSION:
+    schema = action.get("schema_version")
+    if not _is_exact_int(schema) or schema != SCHEMA_VERSION:
         return _fail("unsupported_schema_version")
     if (
         "actor_id" not in action
@@ -89,7 +95,7 @@ def validate_move_unit_pre_map(snap: dict[str, Any], action: dict[str, Any]) -> 
         or "to" not in action
     ):
         return _fail("malformed_action")
-    if not isinstance(action["actor_id"], int) or not isinstance(action["unit_id"], int):
+    if not _is_exact_int(action["actor_id"]) or not _is_exact_int(action["unit_id"]):
         return _fail("malformed_action")
     if not _is_coord_pair(action["from"]) or not _is_coord_pair(action["to"]):
         return _fail("malformed_action")
@@ -162,9 +168,10 @@ def apply_move_unit(snap: dict[str, Any], action: dict[str, Any]) -> dict[str, A
 def validate_end_turn(snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:
     if action.get("action_type") != END_TURN_ACTION_TYPE:
         return _fail("wrong_action_type")
-    if action.get("schema_version") != SCHEMA_VERSION:
+    schema = action.get("schema_version")
+    if not _is_exact_int(schema) or schema != SCHEMA_VERSION:
         return _fail("unsupported_schema_version")
-    if "actor_id" not in action or not isinstance(action["actor_id"], int):
+    if "actor_id" not in action or not _is_exact_int(action["actor_id"]):
         return _fail("malformed_action")
     if int(action["actor_id"]) != _current_player_id(snap):
         return _fail("not_current_player")
