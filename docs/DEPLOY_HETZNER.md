@@ -188,14 +188,26 @@ The image ships the canonical map content at `/app/content/maps` (committed deri
    git check-attr text -- content/maps/reference/handdrawn_test_map_full_01.json game/content/maps/reference/handdrawn_test_map_full_01.json game/content/maps/manifest.json server/content/maps/reference/handdrawn_test_map_full_01.json server/content/maps/manifest.json
    ```
 
-2. Positive probe — must print the golden hash `16cc82c3392c66f1e47273e7da94cf8a804ae9885a051fc81c4b0a9a4261d8c6` and `168 452 78` (the container has no git; this raw-byte hash probe is its byte-stability check):
+2. Automated image check (recommended) — builds `server/Dockerfile` and runs both probes below in disposable containers (`docker run --rm`); exits non-zero with a diagnostic on any mismatch or Docker failure:
+
+   ```powershell
+   python tools/content/check_server_image_map_content.py
+   ```
+
+   Expected: `OK: image 'empire-server' serves 'handdrawn_test_map_full_01' with content_hash 16cc82c3392c66f1e47273e7da94cf8a804ae9885a051fc81c4b0a9a4261d8c6, 168 tiles, 452 edges, 78 cliff edges; unknown map id fails with UnknownMapIdError.`
+
+### Troubleshooting fallback — raw Docker probes
+
+If the automated check fails (or Docker needs manual inspection), run the underlying probes directly:
+
+1. Positive probe — must print the golden hash `16cc82c3392c66f1e47273e7da94cf8a804ae9885a051fc81c4b0a9a4261d8c6` and `168 452 78` (the container has no git; this raw-byte hash probe is its byte-stability check):
 
    ```powershell
    docker build -t empire-server ./server
    docker run --rm empire-server python -c "from app.domain.map_content_loader import load_world_map; wm = load_world_map('handdrawn_test_map_full_01'); print(wm.identity.content_hash, wm.tile_count(), wm.edge_count(), wm.cliff_edge_count())"
    ```
 
-3. Negative probe — must fail loudly with `UnknownMapIdError`:
+2. Negative probe — must fail loudly with `UnknownMapIdError`:
 
    ```powershell
    docker run --rm empire-server python -c "from app.domain.map_content_loader import load_world_map; load_world_map('no_such_map')"
