@@ -10,7 +10,6 @@ const SlotStateScript = preload("res://cloud/cloud_staging_slot_state.gd")
 const CloudLobbyPollScript = preload("res://cloud/cloud_lobby_poll.gd")
 
 const FRONT_DOOR_SCENE: String = "res://cloud/cloud_front_door.tscn"
-const MAIN_SCENE: String = "res://main.tscn"
 const STAGING_POLL_INTERVAL_SEC: float = 1.0
 ## C14d-visual: full-viewport staging backdrop (aspect-preserving cover).
 const STAGING_BACKGROUND_TEXTURE_PATH: String = (
@@ -33,6 +32,8 @@ var _poll_stopped: bool = true
 var _poll_timer: Timer = null
 var _is_rendering_slots: bool = false
 var _match_status: String = ""
+## N6: "" = legacy; "world_map" routes gameplay entry to cloud_world_play.
+var _match_kind: String = ""
 
 var _title_label: Label
 var _status_label: Label
@@ -52,6 +53,7 @@ func _ready() -> void:
 	_seat_token = str(boot.get("seat_token", "")).strip_edges()
 	_local_actor_id = int(boot.get("actor_id", -1))
 	_display_name = str(boot.get("display_name", "")).strip_edges()
+	_match_kind = str(boot.get("match_kind", "")).strip_edges()
 	_hydrate_from_store()
 	_build_ui()
 	CloudCredentialStoreScript.log_resolved_store_if_debug("staging")
@@ -478,6 +480,11 @@ func _render_empty_slots() -> void:
 func _apply_staging_view(view: Dictionary, lobby_row: Dictionary) -> void:
 	if _title_label != null:
 		_title_label.text = _title_text(lobby_row)
+	# N6: the authoritative kind rides on the server lobby row (absent for
+	# legacy matches); keep it current so gameplay entry routes correctly.
+	var row_kind: String = CloudClientScript.match_kind_from_lobby_row(lobby_row)
+	if not row_kind.is_empty():
+		_match_kind = row_kind
 	_match_status = str(view.get("status", "")).strip_edges()
 	var status: String = _match_status
 	if CloudLobbyPollScript.staging_stop_poll_on_status(status):
@@ -875,5 +882,9 @@ func _enter_gameplay() -> void:
 		_match_id,
 		_seat_token,
 		_local_actor_id,
+		"prototype_play",
+		_match_kind,
 	)
-	get_tree().change_scene_to_file(MAIN_SCENE)
+	# N6: staging poll routes world_map matches into the production world
+	# scene; legacy matches keep the untouched main.tscn entry.
+	get_tree().change_scene_to_file(BootIntentScript.play_scene_for_match_kind(_match_kind))

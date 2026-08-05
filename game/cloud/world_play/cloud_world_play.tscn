@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://cloud/world_play/cloud_world_play.gd" id="1_worldplay"]
+
+[node name="CloudWorldPlay" type="Node3D"]
+script = ExtResource("1_worldplay")

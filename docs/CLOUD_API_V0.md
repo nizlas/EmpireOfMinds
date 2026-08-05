@@ -73,11 +73,28 @@ HTTP contract for the **local authority** prototype under `server/`. This is a *
 
 **Response** includes `match_id`, `snapshot`, `revision`, `state_hash`.
 
-### Snapshot schema v2 (Authority pivot Slice B — current)
+**Match kind (N6, implemented):** `POST /v1/matches` accepts an optional **`match_kind`** body field. **Absent** = the unchanged legacy path (snapshot v2, `scenario_id` validated as before). **`"world_map"`** creates a `WorldMap` match: optional **`map_id`** selects the canonical map (default `handdrawn_test_map_full_01`); an unknown/invalid `map_id` or any other `match_kind` value is **400**. The world create body carries no `scenario_id`. The response shape is identical (`match_id`, `display_name`, `snapshot`, `revision`, `state_hash`, `seats`, `host_token`); the kind rides inside the snapshot.
 
-Initial snapshots use **`schema_version`: `2`**. Top-level fields include the Cloud 0.1 envelope plus world model data for the **current playable loop** (map, starting units, default progress unlocks). **`action_log` is not embedded**; use **`GET /v1/matches/{id}/events`** for the append-only accepted-action log.
+### Snapshot schema v2 (Authority pivot Slice B — current legacy loop)
 
-**Planned (N6): snapshot schema v3** for the `WorldMap` match kind — **`MapIdentity`** (`map_id`, `schema_version`, `content_hash`) plus mutable match state, with **no embedded map cells**; clients load the canonical content matching the identity and verify the hash (mismatch fails explicitly). v2 remains the current shape for the legacy loop until its retirement in **N9**. See [MAP_MODEL.md](MAP_MODEL.md) and [MAP_CONTENT.md](MAP_CONTENT.md).
+Initial snapshots use **`schema_version`: `2`**. Top-level fields include the Cloud 0.1 envelope plus world model data for the **current playable loop** (map, starting units, default progress unlocks). **`action_log` is not embedded**; use **`GET /v1/matches/{id}/events`** for the append-only accepted-action log. Legacy snapshots never contain `match_kind` or `map_id` (keys absent, not null). v2 remains the shape for the legacy loop until its retirement in **N9**.
+
+### Snapshot schema v3 (N6 — `world_map` match kind, implemented)
+
+`world_map` matches use **`schema_version`: `3`** — a minimal envelope with **no embedded tiles, edges, terrain, or geometry**:
+
+```json
+{
+  "match_id": "m_…",
+  "schema_version": 3,
+  "match_kind": "world_map",
+  "map": { "map_id": "handdrawn_test_map_full_01", "schema_version": 1, "content_hash": "16cc82c3…" },
+  "revision": 0,
+  "turn_state": { "players": [0, 1], "current_index": 0, "turn_number": 1 }
+}
+```
+
+**`map`** is the canonical **`MapIdentity`** (exact `MapIdentity.to_dict()` parity between `server/app/domain/world_map.py` and `game/domain/world/map_identity.gd`). Clients load the canonical content by `map_id` and verify the schema version and raw-byte `content_hash`; any mismatch or missing content fails explicitly with **no fallback** (`game/cloud/world_snapshot_bootstrap.gd`). Auto-start adds `player_factions` as with v2. Staging endpoints (claim/faction/ready/rename/lobby) work unchanged for both kinds; lobby summaries and meta of `world_map` matches additionally carry **`match_kind`** and **`map_id`** (absent for legacy rows). **Gameplay endpoints are guarded until N7**: `POST /v1/matches/{id}/actions` and `GET /v1/matches/{id}/legal-actions` return **409** `unsupported for match_kind world_map (gameplay lands in N7)` immediately after snapshot load (after the 404 check, before credential/status/action processing). See [MAP_MODEL.md](MAP_MODEL.md) and [MAP_CONTENT.md](MAP_CONTENT.md).
 
 **Hex / coordinates in JSON**
 

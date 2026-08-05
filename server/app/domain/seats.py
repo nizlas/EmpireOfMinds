@@ -80,9 +80,11 @@ def build_meta(
     *,
     status: str = STATUS_STAGING,
     display_name: str | None = None,
+    match_kind: str | None = None,
+    map_id: str | None = None,
 ) -> dict[str, Any]:
     dn = display_name.strip() if isinstance(display_name, str) and display_name.strip() else default_display_name(match_id)
-    return {
+    meta: dict[str, Any] = {
         "match_id": match_id,
         "schema_version": META_SCHEMA_VERSION,
         "status": status,
@@ -93,6 +95,13 @@ def build_meta(
         "seats": generate_seats(player_ids, claimed=False),
         "host_token": _new_host_token(),
     }
+    # N6 world_map matches only — both keys stay entirely absent for legacy
+    # matches (never null placeholders), keeping legacy meta bytes unchanged.
+    if match_kind is not None:
+        meta["match_kind"] = str(match_kind)
+        if map_id is not None:
+            meta["map_id"] = str(map_id)
+    return meta
 
 
 def match_status(meta: dict[str, Any]) -> str:
@@ -270,6 +279,13 @@ def lobby_summary(match_id: str, meta: dict[str, Any], snap: dict[str, Any]) -> 
         fp = meta.get("first_player_id")
         if isinstance(fp, int):
             summary["first_player_id"] = int(fp)
+    # N6: passthrough for world_map matches only; keys absent for legacy rows.
+    mk = meta.get("match_kind")
+    if isinstance(mk, str) and mk.strip():
+        summary["match_kind"] = mk.strip()
+        mid_raw = meta.get("map_id")
+        if isinstance(mid_raw, str) and mid_raw.strip():
+            summary["map_id"] = mid_raw.strip()
     return summary
 
 

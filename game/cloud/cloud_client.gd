@@ -77,6 +77,7 @@ static func build_resume_row_view(
 		"server_display_name": server_dn,
 		"server_status": str(server_row.get("status", "")).strip_edges(),
 		"server_revision": int(server_row.get("revision", -1)),
+		"match_kind": match_kind_from_lobby_row(server_row),
 		"lobby_row": server_row.duplicate(true),
 		"credential": credential.duplicate(true),
 	}
@@ -330,12 +331,45 @@ static func parse_claim_response(resp: Dictionary) -> Dictionary:
 	}
 
 
-static func build_create_match_body(scenario_id: String, display_name: String = "") -> Dictionary:
-	var body: Dictionary = {"scenario_id": scenario_id}
+## N6: when match_kind is set ("world_map"), the body carries match_kind (+
+## optional map_id) and no scenario_id (world matches have none). When unset,
+## the legacy body {scenario_id, display_name?} is byte-for-byte unchanged.
+static func build_create_match_body(
+	scenario_id: String,
+	display_name: String = "",
+	match_kind: String = "",
+	map_id: String = "",
+) -> Dictionary:
+	var kind: String = str(match_kind).strip_edges()
+	var body: Dictionary = {}
+	if kind.is_empty():
+		body["scenario_id"] = scenario_id
+	else:
+		body["match_kind"] = kind
+		var mid: String = str(map_id).strip_edges()
+		if mid.length() > 0:
+			body["map_id"] = mid
 	var dn: String = str(display_name).strip_edges()
 	if dn.length() > 0:
 		body["display_name"] = dn
 	return body
+
+
+## N6: kind from a token-free lobby row; "" for legacy rows (key absent).
+static func match_kind_from_lobby_row(row: Dictionary) -> String:
+	if typeof(row) != TYPE_DICTIONARY:
+		return ""
+	return str(row.get("match_kind", "")).strip_edges()
+
+
+## N6: kind from a create response (carried inside the snapshot); "" = legacy.
+static func match_kind_from_create_response(response: Dictionary) -> String:
+	if typeof(response) != TYPE_DICTIONARY:
+		return ""
+	var snap = response.get("snapshot", null)
+	if typeof(snap) != TYPE_DICTIONARY:
+		return ""
+	return str((snap as Dictionary).get("match_kind", "")).strip_edges()
 
 
 ## Headless/tests: trace create identity from dialog → POST body → response → credential.

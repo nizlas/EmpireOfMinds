@@ -13,6 +13,14 @@ const MODE_CLOUD_ENTER_CREATED: String = "cloud_enter_created"
 ## Staging area for a match (C14d-3); may carry host and/or seat token.
 const MODE_CLOUD_STAGING: String = "cloud_staging"
 
+## N6 match kinds: "" (legacy HexMap path, default) or "world_map" (snapshot
+## v3 + server-fed WorldMap bootstrap). Routing must preserve the kind across
+## every transition into gameplay (env-create, create->staging, lobby join,
+## saved resume, staging poll->gameplay).
+const MATCH_KIND_WORLD_MAP: String = "world_map"
+const WORLD_PLAY_SCENE: String = "res://cloud/world_play/cloud_world_play.tscn"
+const LEGACY_PLAY_SCENE: String = "res://main.tscn"
+
 ## C14d UI: neutral player-facing overlay while cloud session starts (create/reconnect/enter-created).
 const CLOUD_CONNECTING_STATUS: String = "Connecting to cloud game…"
 const CLOUD_LOADING_STATUS: String = "Loading cloud game…"
@@ -25,6 +33,8 @@ static var host_token: String = ""
 static var actor_id: int = -1
 static var display_name: String = ""
 static var scenario_id: String = "prototype_play"
+## N6: "" = legacy; MATCH_KIND_WORLD_MAP = world_map match (snapshot v3).
+static var match_kind: String = ""
 
 
 static func clear() -> void:
@@ -36,6 +46,7 @@ static func clear() -> void:
 	actor_id = -1
 	display_name = ""
 	scenario_id = "prototype_play"
+	match_kind = ""
 
 
 static func set_local_hotseat() -> void:
@@ -43,7 +54,12 @@ static func set_local_hotseat() -> void:
 	mode = MODE_LOCAL_HOTSEAT
 
 
-static func set_cloud_create(url: String, host_token: String, scen: String = "prototype_play") -> void:
+static func set_cloud_create(
+	url: String,
+	host_token: String,
+	scen: String = "prototype_play",
+	kind: String = "",
+) -> void:
 	clear()
 	mode = MODE_CLOUD_CREATE
 	server_url = str(url).rstrip("/")
@@ -51,6 +67,7 @@ static func set_cloud_create(url: String, host_token: String, scen: String = "pr
 	seat_token = str(host_token).strip_edges()
 	actor_id = 0
 	scenario_id = scen
+	match_kind = str(kind).strip_edges()
 
 
 static func set_cloud_reconnect(
@@ -59,6 +76,7 @@ static func set_cloud_reconnect(
 	token: String,
 	act_id: int,
 	scen: String = "prototype_play",
+	kind: String = "",
 ) -> void:
 	clear()
 	mode = MODE_CLOUD_RECONNECT
@@ -67,6 +85,7 @@ static func set_cloud_reconnect(
 	seat_token = str(token).strip_edges()
 	actor_id = int(act_id)
 	scenario_id = scen
+	match_kind = str(kind).strip_edges()
 
 
 static func set_cloud_staging(
@@ -77,6 +96,7 @@ static func set_cloud_staging(
 	act_id: int = -1,
 	display: String = "",
 	scen: String = "prototype_play",
+	kind: String = "",
 ) -> void:
 	clear()
 	mode = MODE_CLOUD_STAGING
@@ -87,6 +107,7 @@ static func set_cloud_staging(
 	actor_id = int(act_id)
 	display_name = str(display).strip_edges()
 	scenario_id = scen
+	match_kind = str(kind).strip_edges()
 
 
 ## After front-door **POST /v1/matches** — **GET** in **main**, not a second create.
@@ -104,6 +125,18 @@ static func set_cloud_play_from_create_response(
 	seat_token = tok
 	actor_id = 0
 	scenario_id = scen
+
+
+## N6 routing: world_map matches enter the dedicated production world scene;
+## everything else (legacy / absent kind) keeps the untouched default entry.
+static func play_scene_for_match_kind(kind: String) -> String:
+	if str(kind).strip_edges() == MATCH_KIND_WORLD_MAP:
+		return WORLD_PLAY_SCENE
+	return LEGACY_PLAY_SCENE
+
+
+static func is_world_map_kind(kind: String) -> bool:
+	return str(kind).strip_edges() == MATCH_KIND_WORLD_MAP
 
 
 static func is_cloud_enter_created(boot_mode: String) -> bool:
@@ -126,6 +159,17 @@ static func should_skip_front_door_for_env() -> bool:
 	return flg == "1" or flg.to_lower() == "true"
 
 
+## N6 env opt-in: EOM_CLOUD_MATCH_KIND=world_map selects the world_map match
+## kind for env-driven create/reconnect. Unset/empty stays legacy. Optional
+## EOM_CLOUD_MAP_ID picks the canonical map for env-created world matches.
+static func env_match_kind() -> String:
+	return OS.get_environment("EOM_CLOUD_MATCH_KIND").strip_edges()
+
+
+static func env_map_id() -> String:
+	return OS.get_environment("EOM_CLOUD_MAP_ID").strip_edges()
+
+
 static func apply_env_cloud_to_boot_intent() -> void:
 	var url: String = OS.get_environment("EOM_CLOUD_BASE_URL").strip_edges()
 	if url.is_empty():
@@ -135,10 +179,11 @@ static func apply_env_cloud_to_boot_intent() -> void:
 	var scen: String = OS.get_environment("EOM_CLOUD_SCENARIO_ID").strip_edges()
 	if scen.is_empty():
 		scen = "prototype_play"
+	var kind: String = env_match_kind()
 	if CloudClientScript.should_create_match(mid):
-		set_cloud_create(url, tok, scen)
+		set_cloud_create(url, tok, scen, kind)
 	else:
-		set_cloud_reconnect(url, mid, tok, 0, scen)
+		set_cloud_reconnect(url, mid, tok, 0, scen, kind)
 
 
 static func consume_for_main() -> Dictionary:
@@ -151,6 +196,7 @@ static func consume_for_main() -> Dictionary:
 		"actor_id": actor_id,
 		"display_name": display_name,
 		"scenario_id": scenario_id,
+		"match_kind": match_kind,
 	}
 	debug_log_consume(snap)
 	clear()

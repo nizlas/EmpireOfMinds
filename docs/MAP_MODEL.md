@@ -97,9 +97,9 @@ N3c.1 (`Ts08SurfaceGeometry`) consumes the `WorldMap`, the N3a lattice, and the 
 
 See [MAP_CONTENT.md](MAP_CONTENT.md) for yield/knowledge boundaries and [DECISION_LOG.md](DECISION_LOG.md) for the approved direction.
 
-### Snapshot v3 (planned N6 — not implemented)
+### Snapshot v3 (implemented N6)
 
-Match snapshots will carry **`MapIdentity`** (`map_id`, `schema_version`, `content_hash`) plus **mutable match state**. Snapshots should **not** repeat every immutable tile and edge from the canonical map — clients and server load the canonical content matching the identity and verify the hash. Mismatch must **fail explicitly**. Details: [MAP_CONTENT.md](MAP_CONTENT.md).
+Snapshots of the opt-in **`world_map`** match kind carry **`MapIdentity`** (`map_id`, `schema_version`, `content_hash`) plus **mutable match state** (`revision`, `turn_state`; `player_factions` after auto-start). Snapshots do **not** repeat any immutable tile or edge from the canonical map — the client loads the canonical content matching the identity and verifies the raw-byte hash; mismatch or missing content **fails explicitly** with no fallback (`game/cloud/world_snapshot_bootstrap.gd`). Legacy matches keep snapshot v2 unchanged until N9. Gameplay endpoints reject `world_map` matches (409) until N7. Details: [MAP_CONTENT.md](MAP_CONTENT.md), [CLOUD_API_V0.md](CLOUD_API_V0.md).
 
 ### Planned module ownership (names provisional)
 
@@ -112,7 +112,7 @@ Match snapshots will carry **`MapIdentity`** (`map_id`, `schema_version`, `conte
 | `game/domain/world/ts08_cut_lattice.gd` | TS-08 Stage-0 cut-lattice topology from `WorldMap` (N3a) |
 | `game/domain/world/ts08_height_solver.gd` | TS-08 Stage-2 cut-domain thin-plate CG height solve (N3b) |
 | `game/domain/world/ts08_surface_geometry.gd` | TS-08 surface geometry: top surface + Stage-3a cliff-wall faces as packed data (N3c.1) |
-| `server/app/domain/world_map.py` | Python mirror (N5) — **implemented**; loaded via `server/app/domain/map_content_loader.py`; separate from frozen legacy `HexMap`, not yet wired into matches (N6) |
+| `server/app/domain/world_map.py` | Python mirror (N5) — **implemented**; loaded via `server/app/domain/map_content_loader.py`; separate from frozen legacy `HexMap`; wired into opt-in `world_map` matches via `server/app/domain/world_match.py` (N6, snapshot v3 — identity only) |
 
 Presentation modules under `game/presentation/world3d/` consume `WorldMap`; they do not own map truth.
 

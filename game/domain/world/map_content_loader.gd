@@ -15,6 +15,9 @@ const WorldMapScript = preload("res://domain/world/world_map.gd")
 const MapIdentityScript = preload("res://domain/world/map_identity.gd")
 const HexCoordScript = preload("res://domain/hex_coord.gd")
 
+const CONTENT_ROOT := "res://content/maps"
+const MANIFEST_PATH := CONTENT_ROOT + "/manifest.json"
+
 
 static func sha256_hex_lower(raw_bytes: PackedByteArray) -> String:
 	var ctx := HashingContext.new()
@@ -70,6 +73,60 @@ static func try_load_world_map_from_res_path(res_path: String) -> Dictionary:
 
 static func load_reference_world_map():
 	return load_world_map_from_res_path("res://content/maps/reference/handdrawn_test_map_full_01.json")
+
+
+# N6: resolves a canonical map by id through the derived-package manifest
+# (game/content/maps/manifest.json) and loads it. Strict: unknown map_id,
+# missing/invalid manifest, or a manifest row without a path all fail with an
+# explicit error — never a fallback map.
+static func try_load_world_map_by_id(map_id: String) -> Dictionary:
+	var wanted := str(map_id).strip_edges()
+	if wanted.is_empty():
+		return {"ok": false, "error": "map_id must be a non-empty string", "world_map": null}
+	var rel_path := _manifest_path_for_map_id(wanted)
+	if rel_path.begins_with("ERROR:"):
+		return {"ok": false, "error": rel_path.trim_prefix("ERROR:"), "world_map": null}
+	var result := try_load_world_map_from_res_path("%s/%s" % [CONTENT_ROOT, rel_path])
+	if not result["ok"]:
+		return result
+	var loaded_id: String = result["world_map"].identity.map_id
+	if loaded_id != wanted:
+		return {
+			"ok": false,
+			"error": (
+				"Manifest entry for map_id %s resolved to file with logical_map.id %s"
+				% [wanted, loaded_id]
+			),
+			"world_map": null,
+		}
+	return result
+
+
+static func load_world_map_by_id(map_id: String):
+	var result := try_load_world_map_by_id(map_id)
+	if not result["ok"]:
+		push_error(str(result["error"]))
+		return null
+	return result["world_map"]
+
+
+# Returns the manifest-relative content path for map_id, or "ERROR:<detail>".
+static func _manifest_path_for_map_id(map_id: String) -> String:
+	if not FileAccess.file_exists(MANIFEST_PATH):
+		return "ERROR:Map manifest not found: %s" % MANIFEST_PATH
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(MANIFEST_PATH))
+	if not parsed is Dictionary or not (parsed as Dictionary).get("maps") is Array:
+		return "ERROR:Invalid map manifest (expected object with maps array): %s" % MANIFEST_PATH
+	for entry in (parsed as Dictionary)["maps"]:
+		if not entry is Dictionary:
+			continue
+		if str((entry as Dictionary).get("map_id", "")) != map_id:
+			continue
+		var rel := str((entry as Dictionary).get("path", "")).strip_edges()
+		if rel.is_empty():
+			return "ERROR:Manifest entry for map_id %s has no path: %s" % [map_id, MANIFEST_PATH]
+		return rel
+	return "ERROR:Unknown map_id %s (not in %s)" % [map_id, MANIFEST_PATH]
 
 
 static func _require_json_int(value: Variant, field_path: String) -> Dictionary:

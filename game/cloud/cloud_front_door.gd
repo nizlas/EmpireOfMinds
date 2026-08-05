@@ -64,7 +64,11 @@ func _ready() -> void:
 	_server_url = _resolve_server_url()
 	if BootIntentScript.should_skip_front_door_for_env():
 		BootIntentScript.apply_env_cloud_to_boot_intent()
-		get_tree().change_scene_to_file(MAIN_SCENE)
+		# N6: env-created/reconnected world_map matches enter the dedicated
+		# production world scene; legacy env boots keep main.tscn.
+		get_tree().change_scene_to_file(
+			BootIntentScript.play_scene_for_match_kind(BootIntentScript.match_kind)
+		)
 		return
 	_build_ui()
 	CloudCredentialStoreScript.log_resolved_store_if_debug("front_door")
@@ -282,6 +286,12 @@ func _go_main() -> void:
 	get_tree().change_scene_to_file(MAIN_SCENE)
 
 
+## N6: gameplay entry is match-kind aware (world_map -> cloud_world_play).
+func _go_play_for_kind(kind: String) -> void:
+	_stop_front_door_polling()
+	get_tree().change_scene_to_file(BootIntentScript.play_scene_for_match_kind(kind))
+
+
 func _go_staging() -> void:
 	_stop_front_door_polling()
 	get_tree().change_scene_to_file(STAGING_SCENE)
@@ -497,8 +507,16 @@ func _on_create_cloud() -> void:
 		return
 	_set_busy(true)
 	_set_status("Creating cloud match…")
+	# N6 env opt-in: EOM_CLOUD_MATCH_KIND=world_map creates a world_map match
+	# (optional EOM_CLOUD_MAP_ID); unset keeps the legacy create body.
+	var requested_kind: String = BootIntentScript.env_match_kind()
 	var sess = _make_session()
-	var resp: Dictionary = await sess.post_create_match("prototype_play", requested_name)
+	var resp: Dictionary = await sess.post_create_match(
+		"prototype_play",
+		requested_name,
+		requested_kind,
+		BootIntentScript.env_map_id(),
+	)
 	sess.queue_free()
 	_set_busy(false)
 	if resp.has("_error") or str(resp.get("match_id", "")) == "":
@@ -541,8 +559,11 @@ func _on_create_cloud() -> void:
 		CloudCredentialStoreScript.STATUS_STAGING,
 		CloudCredentialStoreScript.resolved_store_path(),
 	)
+	# N6: the authoritative kind comes from the create response snapshot and
+	# is preserved into staging (absent = legacy).
+	var created_kind: String = CloudClientScript.match_kind_from_create_response(resp)
 	if _cloud_debug_enabled():
-		print("SliceC14d3 create_flow staging match_id=%s" % mid)
+		print("SliceC14d3 create_flow staging match_id=%s match_kind=%s" % [mid, created_kind])
 	BootIntentScript.set_cloud_staging(
 		_server_url,
 		mid,
@@ -551,6 +572,7 @@ func _on_create_cloud() -> void:
 		-1,
 		display_name,
 		"prototype_play",
+		created_kind,
 	)
 	_go_staging()
 
@@ -576,7 +598,17 @@ func _enter_staging_for_match(target: Dictionary) -> void:
 	var aid: int = int(cred.get("actor_id", -1)) if not cred.is_empty() else -1
 	if seat_tok.is_empty():
 		aid = -1
-	BootIntentScript.set_cloud_staging(_server_url, match_id, host_tok, seat_tok, aid, dn)
+	# N6: lobby-join preserves the row's match kind into staging.
+	BootIntentScript.set_cloud_staging(
+		_server_url,
+		match_id,
+		host_tok,
+		seat_tok,
+		aid,
+		dn,
+		"prototype_play",
+		CloudClientScript.match_kind_from_lobby_row(lobby_row),
+	)
 	_go_staging()
 
 
@@ -738,6 +770,8 @@ func _on_resume_saved() -> void:
 	if mid.is_empty():
 		_set_status("Saved entry is incomplete.")
 		return
+	# N6: saved-match resume preserves the server row's match kind.
+	var resume_kind: String = str(view.get("match_kind", "")).strip_edges()
 	if st == CloudCredentialStoreScript.STATUS_ONGOING and not seat_tok.is_empty():
 		var aid: int = int(view.get("actor_id", CloudCredentialStoreScript.UNSET_ACTOR_ID))
 		if not seat_tok.begins_with(CloudCredentialStoreScript.SEAT_TOKEN_PREFIX):
@@ -747,14 +781,18 @@ func _on_resume_saved() -> void:
 			_set_status("Saved entry is missing seat actor identity. Re-claim your slot in staging.")
 			return
 		_debug_log_resume_saved(view, mid, aid, seat_tok, host_tok, st)
-		BootIntentScript.set_cloud_reconnect(_server_url, mid, seat_tok, aid)
-		_go_main()
+		BootIntentScript.set_cloud_reconnect(
+			_server_url, mid, seat_tok, aid, "prototype_play", resume_kind
+		)
+		_go_play_for_kind(resume_kind)
 		return
 	if st == CloudCredentialStoreScript.STATUS_STAGING or seat_tok.is_empty():
 		var aid: int = int(view.get("actor_id", -1))
 		if seat_tok.is_empty():
 			aid = -1
-		BootIntentScript.set_cloud_staging(_server_url, mid, host_tok, seat_tok, aid, dn)
+		BootIntentScript.set_cloud_staging(
+			_server_url, mid, host_tok, seat_tok, aid, dn, "prototype_play", resume_kind
+		)
 		_go_staging()
 		return
 	_set_status("Claim a slot in staging before resuming this match.")

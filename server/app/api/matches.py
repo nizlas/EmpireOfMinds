@@ -7,8 +7,9 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Header, HTTPException, Query
 
-from app.domain import legal_actions, match_lifecycle, match_state, player_visibility, seats, snapshot
+from app.domain import legal_actions, match_lifecycle, match_state, player_visibility, seats, snapshot, world_match
 from app.domain.actions import attack_unit, end_turn, found_city, move_unit, set_city_production
+from app.domain.map_content_loader import MapContentError
 from app.domain.combat_rules import resolve_attack
 from app.domain.food_growth_rules import apply_food_growth_for_player
 from app.domain.movement_rules import refresh_movement_for_owner
@@ -140,6 +141,17 @@ def _actor_gate(snap: dict[str, Any], action: dict[str, Any]) -> str | None:
     return None
 
 
+def _reject_world_map_gameplay(snap: dict[str, Any]) -> None:
+    """N6 guard: world_map matches have no gameplay until N7. Runs immediately
+    after snapshot load (and the 404 check), before any credential, status, or
+    action processing, so v3 matches never leak older-path errors."""
+    if world_match.is_world_map_snapshot(snap):
+        raise HTTPException(
+            status_code=409,
+            detail="unsupported for match_kind world_map (gameplay lands in N7)",
+        )
+
+
 @router.get("/healthz")
 def healthz() -> dict[str, bool]:
     return {"ok": True}
@@ -160,6 +172,42 @@ def create_match(
         if not isinstance(pid, int):
             raise HTTPException(status_code=400, detail="player_ids must be integers")
 
+    requested_name = body.get("display_name") if isinstance(body.get("display_name"), str) else None
+
+    # N6: opt-in world_map match kind beside the legacy path. Absent = legacy.
+    match_kind = body.get("match_kind")
+    if match_kind is not None and match_kind != world_match.MATCH_KIND_WORLD_MAP:
+        raise HTTPException(status_code=400, detail="unknown match_kind")
+
+    if match_kind == world_match.MATCH_KIND_WORLD_MAP:
+        map_id = body.get("map_id", world_match.DEFAULT_WORLD_MAP_ID)
+        if not isinstance(map_id, str) or not map_id.strip():
+            raise HTTPException(status_code=400, detail="invalid map_id")
+        mid = match_state.make_match_id()
+        try:
+            snap = world_match.build_initial_world_snapshot(mid, player_ids, map_id)
+        except MapContentError as exc:
+            raise HTTPException(status_code=400, detail=f"invalid map_id: {exc}") from exc
+        file_store.write_snapshot(mid, snap)
+        meta = seats.build_meta(
+            mid,
+            player_ids,
+            map_id,
+            display_name=requested_name,
+            match_kind=world_match.MATCH_KIND_WORLD_MAP,
+            map_id=map_id,
+        )
+        file_store.write_meta(mid, meta)
+        return {
+            "match_id": mid,
+            "display_name": seats.display_name_from_meta(meta, mid),
+            "snapshot": snap,
+            "revision": snap["revision"],
+            "state_hash": state_hash(snap),
+            "seats": seats.public_seats_from_meta(meta),
+            "host_token": meta["host_token"],
+        }
+
     scenario_id = body.get("scenario_id", "prototype_play")
     if scenario_id not in ("prototype_play", "tiny_test"):
         raise HTTPException(status_code=400, detail="unknown scenario_id")
@@ -167,7 +215,6 @@ def create_match(
     mid = match_state.make_match_id()
     snap = match_state.initial_snapshot(mid, player_ids, str(scenario_id))
     file_store.write_snapshot(mid, snap)
-    requested_name = body.get("display_name") if isinstance(body.get("display_name"), str) else None
     meta = seats.build_meta(mid, player_ids, str(scenario_id), display_name=requested_name)
     file_store.write_meta(mid, meta)
     return {
@@ -658,6 +705,8 @@ def post_action(
     if snap is None:
         raise HTTPException(status_code=404, detail="match not found")
 
+    _reject_world_map_gameplay(snap)
+
     cred_reject = _credential_gate(match_id, action, x_empire_seat_token)
     if cred_reject is not None:
         return cred_reject
@@ -696,6 +745,7 @@ def get_legal_actions(
     snap = file_store.read_snapshot(match_id)
     if snap is None:
         raise HTTPException(status_code=404, detail="match not found")
+    _reject_world_map_gameplay(snap)
     return legal_actions.compute_legal_actions_payload(
         snap,
         actor_id,

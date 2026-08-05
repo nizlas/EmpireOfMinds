@@ -161,7 +161,14 @@ func http_json_request(method: int, path: String, body: String = "") -> Dictiona
 	return out
 
 
-func post_create_match(scenario_id: String, display_name: String = "") -> Dictionary:
+## N6: optional match_kind ("world_map") + map_id extend the create request;
+## when both are left empty the legacy request body is unchanged.
+func post_create_match(
+	scenario_id: String,
+	display_name: String = "",
+	match_kind: String = "",
+	map_id: String = "",
+) -> Dictionary:
 	var dbg := _cloud_debug_enabled()
 	var path := "/v1/matches"
 	var base_norm := str(base_url).rstrip("/")
@@ -169,11 +176,13 @@ func post_create_match(scenario_id: String, display_name: String = "") -> Dictio
 	if dbg:
 		print(
 			(
-				"SliceC8TIME create_match_request_start t=%d base_url=%s path=%s full_url=%s scenario_id=%s"
-				% [Time.get_ticks_msec(), base_norm, path, full_url, scenario_id]
+				"SliceC8TIME create_match_request_start t=%d base_url=%s path=%s full_url=%s scenario_id=%s match_kind=%s"
+				% [Time.get_ticks_msec(), base_norm, path, full_url, scenario_id, match_kind]
 			)
 		)
-	var body: Dictionary = CloudClientScript.build_create_match_body(scenario_id, display_name)
+	var body: Dictionary = CloudClientScript.build_create_match_body(
+		scenario_id, display_name, match_kind, map_id
+	)
 	var payload := JSON.stringify(body)
 	if dbg:
 		var keys: PackedStringArray = PackedStringArray()

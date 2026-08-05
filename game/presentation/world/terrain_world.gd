@@ -10,7 +10,11 @@
 # authoritative server; the future one-PC debug mode runs against a locally
 # running authoritative server. Both use the same client-server API/action
 # path and both feed THIS scene an already constructed authoritative
-# WorldMap (server-fed WorldMap path = N7). This component:
+# WorldMap. The server-fed WorldMap bootstrap is N6
+# (cloud/world_play/cloud_world_play.gd: snapshot v3 carries the map
+# identity, the client loads canonical content by map_id and verifies the
+# content hash before building this world); server-authoritative gameplay on
+# world matches arrives with N7. This component:
 # - never loads or constructs the WorldMap itself (the caller owns it) and
 #   never mutates it — read-only input;
 # - never constructs gameplay state and has no dependency on the legacy

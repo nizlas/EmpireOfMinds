@@ -23,6 +23,14 @@ class MapIdentity:
     schema_version: int
     content_hash: str
 
+    def to_dict(self) -> dict[str, str | int]:
+        """Exact key/value parity with map_identity.gd to_dict() (snapshot v3 `map`)."""
+        return {
+            "map_id": self.map_id,
+            "schema_version": self.schema_version,
+            "content_hash": self.content_hash,
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class WorldTile:
