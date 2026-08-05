@@ -22,6 +22,7 @@ from match_helpers import SEAT_TOKEN_HEADER, create_seated_match
 from test_world_map_actions_v3 import (
     MISMATCH_DETAIL,
     REFERENCE_MAP_ID,
+    _delete_meta,
     _make_drifted_content_root,
     _post,
     _start_world_match,
@@ -96,6 +97,27 @@ def test_matching_seat_token_200(client: TestClient) -> None:
     match_id, tokens, _ = _start_world_match(client)
     r = _get_legal(client, match_id, 0, token=tokens[0])
     assert r.status_code == 200
+
+
+def test_missing_meta_fails_closed(client: TestClient) -> None:
+    """No metadata-free mode for world_map: with meta.json absent, a blank
+    token is 403 missing_seat_token and any supplied token (even a previously
+    valid seat token) is 403 invalid_seat_token — the request stops at the
+    credential gate and stays read-only."""
+    match_id, tokens, _ = _start_world_match(client)
+    snap_before = file_store.read_snapshot(match_id)
+    events_before = file_store.read_events(match_id)
+    _delete_meta(match_id)
+
+    r = _get_legal(client, match_id, 0, token=None)
+    assert r.status_code == 403
+    assert r.json()["detail"] == "missing_seat_token"
+    r = _get_legal(client, match_id, 0, token=tokens[0])
+    assert r.status_code == 403
+    assert r.json()["detail"] == "invalid_seat_token"
+
+    assert file_store.read_snapshot(match_id) == snap_before
+    assert file_store.read_events(match_id) == events_before
 
 
 # ------------------------------------------------------- envelope / summary

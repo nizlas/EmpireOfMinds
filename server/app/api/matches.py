@@ -146,16 +146,18 @@ def _world_legal_actions_credential_gate(
     actor_id: int,
     seat_token: str | None,
 ) -> None:
-    """N7b: world legal-actions requires authentication (HTTP 403) — host
-    token may query any actor; a seat token only its own actor_id. There is
-    deliberately NO status gate and NO current-player rejection here: an
+    """N7b: world legal-actions requires authentication (HTTP 403) — the host
+    token may query any player actor_id in the match; a seat token only its
+    own actor_id. World matches FAIL CLOSED when meta.json is missing: no
+    metadata means no credential can be verified (invalid_seat_token). There
+    is deliberately NO status gate and NO current-player rejection here: an
     authenticated out-of-turn actor gets HTTP 200 with is_current_player
     false and empty actions. Legacy legal-actions stays token-free."""
-    meta = file_store.read_meta(match_id)
-    if meta is None:
-        return
     if not seat_token or not str(seat_token).strip():
         raise HTTPException(status_code=403, detail="missing_seat_token")
+    meta = file_store.read_meta(match_id)
+    if meta is None:
+        raise HTTPException(status_code=403, detail="invalid_seat_token")
     allowed = seats.allowed_actor_ids(meta, str(seat_token).strip())
     if allowed is None:
         raise HTTPException(status_code=403, detail="invalid_seat_token")
@@ -261,7 +263,17 @@ def _post_world_action(
     404 (caller) -> world-kind branch -> credential gate -> status gate ->
     dispatch -> world validation -> apply/persist/event. Rejections reuse the
     legacy HTTP-200 {accepted: false} envelope; nothing is written on
-    rejection. Only move_unit and end_turn exist on the world path in N7."""
+    rejection. Only move_unit and end_turn exist on the world path in N7.
+
+    Unlike the shared legacy gate, world matches FAIL CLOSED when meta.json
+    is missing: a blank token rejects missing_seat_token, a supplied token
+    without verifiable metadata rejects invalid_seat_token, and processing
+    stops at the credential gate (no map resolution, status/dispatch, or
+    state change). Legacy no-meta snapshots stay permissive as before."""
+    if not seat_token or not str(seat_token).strip():
+        return _reject("missing_seat_token")
+    if file_store.read_meta(match_id) is None:
+        return _reject("invalid_seat_token")
     cred_reject = _credential_gate(match_id, action, seat_token)
     if cred_reject is not None:
         return cred_reject

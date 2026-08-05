@@ -112,6 +112,11 @@ def _teleport_unit(match_id: str, unit_id: int, pos: tuple[int, int]) -> None:
     file_store.write_snapshot(match_id, snap)
 
 
+def _delete_meta(match_id: str) -> None:
+    """Test fixture only: simulate a world match whose meta.json is missing."""
+    file_store.meta_path(match_id).unlink()
+
+
 def _assert_reject(resp, reason: str) -> None:
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -284,6 +289,30 @@ def test_world_actions_status_gate_after_credential(client: TestClient) -> None:
     data = _create_world(client)
     r = _post(client, data["match_id"], _end_turn(0), token=data["host_token"])
     _assert_reject(r, "match_not_ongoing")
+
+
+def test_world_post_missing_meta_fails_closed(client: TestClient) -> None:
+    """No metadata-free mode for world_map: with meta.json absent, a blank
+    token rejects missing_seat_token and a supplied token rejects
+    invalid_seat_token — stopping at the credential gate with no snapshot,
+    hash, or event change."""
+    match_id, tokens, _ = _start_world_match(client)
+    snap_before = file_store.read_snapshot(match_id)
+    events_before = file_store.read_events(match_id)
+    hash_before = state_hash(snap_before)
+    _delete_meta(match_id)
+
+    r = _post(client, match_id, _move(0, 2, (2, 1), (3, 1)), token=None)
+    _assert_reject(r, "missing_seat_token")
+    r = _post(client, match_id, _move(0, 2, (2, 1), (3, 1)), tokens[0])
+    _assert_reject(r, "invalid_seat_token")
+    r = _post(client, match_id, _end_turn(0), "st_anything")
+    _assert_reject(r, "invalid_seat_token")
+
+    snap_after = file_store.read_snapshot(match_id)
+    assert snap_after == snap_before
+    assert state_hash(snap_after) == hash_before
+    assert file_store.read_events(match_id) == events_before
 
 
 def test_world_unknown_action_type(client: TestClient) -> None:
