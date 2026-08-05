@@ -79,11 +79,25 @@ For map/terrain/world tasks, apply the doc routing row above, then:
 - **N5 boundary (implemented 2026-08):** the server-side logical map foundation is `server/app/domain/world_map.py` (Python `WorldMap`/`MapIdentity` mirror — **separate from frozen legacy `HexMap`**, no adapter, no shared types) plus the strict loader `server/app/domain/map_content_loader.py` (never imports `tools/blender/`). Locked loader contract: `EMPIRE_MAP_CONTENT_DIR` is **authoritative when set** — an invalid override fails with `InvalidContentRootError`, never a fallback; discovery rejects duplicate `logical_map.id` (`DuplicateMapIdError`) and origin/folder mismatch; invalid UTF-8 → `InvalidMapContentError`; `edge_overrides` empty-only everywhere (Godot loader, server loader, sync tool). The loader **computes** `MapIdentity` (raw-byte SHA-256) and never compares it against an expected identity — identity comparison is the N6 Godot bootstrap. Content packaging: the sync tool maintains **two** committed byte-identical derived copies (`game/content/maps/**`, `server/content/maps/**`, each with `manifest.json`; dual-destination `check`); `server/Dockerfile` ships `content/` (build context stays `server/`); repo-root `.gitattributes` keeps map JSON/manifests `-text` (`git check-attr text` → `text: unset`) — never remove those lines or reformat/re-encode canonical or derived map files (breaks `content_hash`). Cross-language parity goldens incl. the shared edge-stream digest are pinned in BOTH `server/tests/test_world_map_loader.py` and `game/domain/tests/test_world_map_foundation.gd` — any edge-rule change updates both loaders and both constants together. Terrain solving/geometry stay Godot-only; the server `WorldMap` is not wired into matches until N6 (no match kind, snapshot v3, bootstrap, units). Server test slice: `.\scripts\run-server-tests.ps1 slice n5`.
 - Do not build on superseded HexPatch/TS-07/Stage 3b experiments. No procedural map generation unless explicitly scoped.
 
+## Execution and delivery modes
+
+**Default mode:** do not commit, push, or create a PR. Leave changes in the worktree for review unless the task prompt explicitly authorizes another delivery mode.
+
+**Isolated cloud mode** — active only when the prompt explicitly states `Delivery mode: isolated Cursor Cloud task` and supplies an isolated branch name. Then:
+
+- Start from an up-to-date `origin/main` and record its baseline SHA; require a clean worktree before editing.
+- Create and work only on the named isolated branch; commit and push only that branch.
+- Open a draft PR targeting `main`; stop with it ready for human review — never merge it.
+- Never write directly to, merge into, or force-push `main`; never modify or reuse another task branch.
+- Report unavailable verification honestly (exact environmental blocker, marked pending) — never claim a check passed that did not run.
+
 ## Phase 1 guardrails
 
 Local playable prototype scope only unless explicitly requested: no full city/production/combat/tech/diplomacy, online multiplayer, backend, database, OpenAI/local LLM, VPS tooling, production art pipeline, or procedural world generator beyond tiny test maps.
 
 ## Final report (substantive implementations)
+
+Isolated cloud tasks additionally report: baseline SHA, branch name, commit SHA, draft-PR link, and exact verification status.
 
 ### Summary
 What was implemented.
