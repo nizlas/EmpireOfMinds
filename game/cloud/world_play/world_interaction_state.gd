@@ -45,6 +45,16 @@ const NO_SELECTION := -1
 
 var my_actor_id: int = -1
 
+# N7d one-PC debug (locked dual-entry direction): when true, the effective
+# actor ALWAYS follows the authoritative snapshot's current player, so one
+# Godot client controls both players in turn against a local authoritative
+# server. Set only by the explicit dev-only opt-in (cloud_world_play guards
+# EOM_CLOUD_ONE_PC_DEBUG=1 + world_map + loopback + host token); normal
+# multiplayer keeps a fixed seat identity with this flag false. Response
+# binding still verifies actor/revision/mode, so responses fetched for the
+# PREVIOUS actor can never render or submit after a turn change.
+var one_pc_debug := false
+
 # Held authoritative snapshot state (mirrors, never mutated locally).
 var revision: int = -1
 var turn_state: Dictionary = {}
@@ -129,6 +139,15 @@ func apply_snapshot(snap: Dictionary) -> Dictionary:
 	turn_state = (ts_variant as Dictionary).duplicate(true) if typeof(ts_variant) == TYPE_DICTIONARY else {}
 	var units_variant = snap.get("units", null)
 	units = (units_variant as Array).duplicate(true) if typeof(units_variant) == TYPE_ARRAY else []
+
+	# One-PC debug: rebind the effective actor to the snapshot's current
+	# player BEFORE selection validation, so an actor change invalidates the
+	# previous player's selection through the normal ownership rule and all
+	# stale previous-actor responses fail the actor binding.
+	if one_pc_debug:
+		var current := current_player_id(turn_state)
+		if current >= 0:
+			my_actor_id = current
 
 	_clear_served_move_rows()
 	_clear_served_end_turn()
@@ -338,6 +357,8 @@ func status_text() -> String:
 		return "No seat identity — actions disabled (claim a seat and reconnect)."
 	if turn_state.is_empty():
 		return ""
+	if one_pc_debug:
+		return "One-PC debug — controlling %s (Player %d)" % [player_label(my_actor_id), my_actor_id]
 	if is_my_turn():
 		return "Your turn — %s (Player %d)" % [player_label(my_actor_id), my_actor_id]
 	return (

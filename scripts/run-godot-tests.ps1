@@ -72,6 +72,7 @@ $Script:SliceTests = @{
 		"res://cloud/tests/test_world_interaction_state.gd"
 		"res://presentation/tests/test_world_destination_markers.gd"
 		"res://cloud/tests/test_cloud_world_play_interaction.gd"
+		"res://cloud/tests/test_cloud_one_pc_debug.gd"
 	)
 	# N7d focused subset (no terrain build; fast — the n7 family slice adds
 	# the full-solve world-play smoke test on top of these).
@@ -79,6 +80,7 @@ $Script:SliceTests = @{
 		"res://cloud/tests/test_world_interaction_state.gd"
 		"res://presentation/tests/test_world_destination_markers.gd"
 		"res://cloud/tests/test_cloud_world_play_interaction.gd"
+		"res://cloud/tests/test_cloud_one_pc_debug.gd"
 	)
 }
 
@@ -260,6 +262,7 @@ $Script:AllTests = @(
 	"res://cloud/tests/test_world_interaction_state.gd",
 	"res://presentation/tests/test_world_destination_markers.gd",
 	"res://cloud/tests/test_cloud_world_play_interaction.gd",
+	"res://cloud/tests/test_cloud_one_pc_debug.gd",
 	"res://cloud/tests/test_cloud_match_labels.gd",
 	"res://cloud/tests/test_cloud_display_name.gd",
 	"res://cloud/tests/test_cloud_saved_row_rename.gd",

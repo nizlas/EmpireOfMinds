@@ -26,6 +26,7 @@
 extends Node3D
 
 const BootIntentScript = preload("res://cloud/boot_intent.gd")
+const CloudClientScript = preload("res://cloud/cloud_client.gd")
 const CloudSessionScript = preload("res://cloud/cloud_session.gd")
 const CloudTurnOwnershipScript = preload("res://cloud/cloud_turn_ownership.gd")
 const CloudPlayerIdentityScript = preload("res://cloud/cloud_player_identity.gd")
@@ -61,6 +62,13 @@ var _end_turn_button: Button = null
 var _poll_timer: Timer = null
 # Own seat identity from the boot intent (st_ token + actor id; -1 = none).
 var _boot_actor_id := -1
+# N7d one-PC debug (locked dual-entry direction): active only when the
+# explicit dev opt-in EOM_CLOUD_ONE_PC_DEBUG=1 is set AND the match is
+# world_map against a loopback server AND the session holds the match's
+# host token (the only mode that may use host-token authority for play).
+# One Godot client then controls both players in turn; normal seat-token /
+# EOM_CLOUD_PROFILE multiplayer is completely unchanged when inactive.
+var _one_pc_debug_active := false
 # One request at a time on the shared CloudSession HTTPRequest.
 var _request_busy := false
 # Independent due-refetch flags for the two served-legality slots (set by
@@ -101,9 +109,17 @@ func _start_from_boot(boot: Dictionary, mode: String) -> void:
 	session.base_url = str(boot.get("server_url", ""))
 	session.seat_token = str(boot.get("seat_token", "")).strip_edges()
 	add_child(session)
+	var kind := str(boot.get("match_kind", "")).strip_edges()
+	var debug_requested := BootIntentScript.one_pc_debug_env_requested()
+	if debug_requested and not BootIntentScript.one_pc_debug_allowed(kind, session.base_url):
+		push_warning(
+			"cloud_world_play: EOM_CLOUD_ONE_PC_DEBUG ignored — valid only for "
+			+ "world_map matches against a loopback server (kind=%s, url=%s)"
+			% [kind, session.base_url]
+		)
+		debug_requested = false
 	var resp: Dictionary = {}
 	if mode == BootIntentScript.MODE_CLOUD_CREATE:
-		var kind := str(boot.get("match_kind", "")).strip_edges()
 		if kind != BootIntentScript.MATCH_KIND_WORLD_MAP:
 			_fail("cloud_world_play entered in create mode without match_kind=world_map")
 			return
@@ -113,6 +129,10 @@ func _start_from_boot(boot: Dictionary, mode: String) -> void:
 			kind,
 			BootIntentScript.env_map_id(),
 		)
+		if not resp.has("_error") and debug_requested:
+			# Fresh env-driven one-PC debug match: adopt the returned host
+			# token and drive the NORMAL staging APIs to ongoing.
+			resp = await _run_one_pc_debug_staging(resp)
 	else:
 		session.match_id = str(boot.get("match_id", "")).strip_edges()
 		resp = await session.get_match()
@@ -124,6 +144,10 @@ func _start_from_boot(boot: Dictionary, mode: String) -> void:
 		return
 	if session.match_id.is_empty():
 		session.match_id = str(resp.get("match_id", "")).strip_edges()
+	# Host-token authority is used ONLY in this explicit local debug mode.
+	_one_pc_debug_active = (
+		debug_requested and str(session.seat_token).strip_edges().begins_with("ht_")
+	)
 	var snap = resp.get("snapshot", null)
 	if typeof(snap) != TYPE_DICTIONARY:
 		_fail("server response has no snapshot object")
@@ -131,6 +155,85 @@ func _start_from_boot(boot: Dictionary, mode: String) -> void:
 	_set_status(BootIntentScript.CLOUD_LOADING_STATUS)
 	if bootstrap_from_snapshot(snap as Dictionary):
 		await _pump_legal_fetch()
+
+
+# Deterministic pick of the first two DISTINCT server-advertised
+# civilizations for the one-PC debug staging flow. `list_resp` is the
+# GET /v1/matches lobby response; the advertised order is the server's.
+# Returns [faction_id_0, faction_id_1] or [] when unavailable.
+static func one_pc_debug_faction_picks(list_resp: Dictionary, match_id: String) -> Array:
+	var rows_variant = list_resp.get("matches", null)
+	if typeof(rows_variant) != TYPE_ARRAY:
+		return []
+	for row_variant in rows_variant:
+		if typeof(row_variant) != TYPE_DICTIONARY:
+			continue
+		var row: Dictionary = row_variant
+		if str(row.get("match_id", "")) != match_id:
+			continue
+		var factions_variant = row.get("available_factions", null)
+		if typeof(factions_variant) != TYPE_ARRAY:
+			return []
+		var picks: Array = []
+		for faction_variant in factions_variant:
+			if typeof(faction_variant) != TYPE_DICTIONARY:
+				continue
+			var fid := str((faction_variant as Dictionary).get("id", "")).strip_edges()
+			if fid.is_empty() or picks.has(fid):
+				continue
+			picks.append(fid)
+			if picks.size() == 2:
+				return picks
+		return []
+	return []
+
+
+# One-PC debug staging: drives the fresh env-created world match to ongoing
+# through the NORMAL staging endpoints only — claim both seats (their own
+# returned tokens are the required credentials for faction/ready; the host
+# token is deliberately not a seat credential), assign the first two
+# distinct server-advertised civilizations deterministically, ready both
+# seats (auto-start), then fetch the ongoing snapshot with the host token.
+# No server bypasses, no direct file access, no schema/API changes.
+func _run_one_pc_debug_staging(create_resp: Dictionary) -> Dictionary:
+	session.match_id = str(create_resp.get("match_id", "")).strip_edges()
+	var host_token: String = CloudClientScript.host_token_from_create_response(create_resp)
+	if not host_token.begins_with("ht_"):
+		return {"_error": "one_pc_debug_no_host_token"}
+	_set_status("One-PC debug — staging both seats…")
+
+	var seat_tokens: Dictionary = {}
+	for actor_id in [0, 1]:
+		session.seat_token = ""
+		var claim: Dictionary = await session.post_claim_seat(actor_id)
+		if claim.has("_error"):
+			return claim
+		var tok := str(claim.get("seat_token", "")).strip_edges()
+		if not tok.begins_with("st_"):
+			return {"_error": "one_pc_debug_claim_no_token"}
+		seat_tokens[actor_id] = tok
+
+	session.seat_token = ""
+	var list_resp: Dictionary = await session.get_matches_list("staging")
+	if list_resp.has("_error"):
+		return list_resp
+	var picks := one_pc_debug_faction_picks(list_resp, session.match_id)
+	if picks.size() != 2:
+		return {"_error": "one_pc_debug_no_factions"}
+
+	for actor_id in [0, 1]:
+		session.seat_token = str(seat_tokens[actor_id])
+		var faction_resp: Dictionary = await session.post_seat_faction(actor_id, str(picks[actor_id]))
+		if faction_resp.has("_error"):
+			return faction_resp
+	for actor_id in [0, 1]:
+		session.seat_token = str(seat_tokens[actor_id])
+		var ready_resp: Dictionary = await session.post_seat_ready(actor_id, true)
+		if ready_resp.has("_error"):
+			return ready_resp
+
+	session.seat_token = host_token
+	return await session.get_match()
 
 
 # Deterministic client bootstrap from an already fetched snapshot v3 (also
@@ -193,6 +296,7 @@ func _render_units() -> void:
 func _setup_interaction() -> void:
 	if interaction == null:
 		interaction = WorldInteractionStateScript.new(_boot_actor_id)
+		interaction.one_pc_debug = _one_pc_debug_active
 	if markers == null:
 		markers = WorldDestinationMarkersScript.new()
 		markers.name = "WorldDestinationMarkers"
