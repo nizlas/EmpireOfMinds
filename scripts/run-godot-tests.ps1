@@ -17,7 +17,7 @@ $GamePath = Join-Path $RepoRoot "game"
 
 $KnownGodotPath = "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"
 
-$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7")
+$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d")
 
 $Script:SliceTests = @{
 	"c13a" = @(
@@ -69,6 +69,16 @@ $Script:SliceTests = @{
 	"n7" = @(
 		"res://presentation/tests/test_world_units_view.gd"
 		"res://cloud/tests/test_cloud_world_play_smoke.gd"
+		"res://cloud/tests/test_world_interaction_state.gd"
+		"res://presentation/tests/test_world_destination_markers.gd"
+		"res://cloud/tests/test_cloud_world_play_interaction.gd"
+	)
+	# N7d focused subset (no terrain build; fast — the n7 family slice adds
+	# the full-solve world-play smoke test on top of these).
+	"n7d" = @(
+		"res://cloud/tests/test_world_interaction_state.gd"
+		"res://presentation/tests/test_world_destination_markers.gd"
+		"res://cloud/tests/test_cloud_world_play_interaction.gd"
 	)
 }
 
@@ -247,6 +257,9 @@ $Script:AllTests = @(
 	"res://cloud/tests/test_world_snapshot_bootstrap.gd",
 	"res://cloud/tests/test_cloud_match_kind_routing.gd",
 	"res://presentation/tests/test_world_units_view.gd",
+	"res://cloud/tests/test_world_interaction_state.gd",
+	"res://presentation/tests/test_world_destination_markers.gd",
+	"res://cloud/tests/test_cloud_world_play_interaction.gd",
 	"res://cloud/tests/test_cloud_match_labels.gd",
 	"res://cloud/tests/test_cloud_display_name.gd",
 	"res://cloud/tests/test_cloud_saved_row_rename.gd",
