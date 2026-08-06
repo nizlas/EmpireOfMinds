@@ -1,5 +1,11 @@
 # Empire of Minds — Cities (domain, Phase 2.1+)
 
+## World cities (planned N8a–N8c — server-authoritative, `world_map` matches)
+
+The opt-in **`world_map`** match path has **no cities yet**. Minimal server-owned world cities are planned as **N8a** (world `found_city`, settler consumed, additive snapshot v3 `cities` + `next_city_id`, city rendering/selection at the N4 anchors), **N8b** (flat yields v2 + world `set_city_production` — locked 2026-08-06: flat production **1 per city on each accepted owner `end_turn`**, reading no tile properties, with **no unlock gating** — both `produce_unit` projects always selectable; yield value and the 2/2 registry costs are explicitly balance placeholders), and **N8c** (authoritative production processing + deterministic unit delivery, **locked 2026-08-06 to legacy-equivalent timing**: the owner's `end_turn` ticks production before the turn advances, and completed units are delivered when the owner next becomes current — requires N7g's unit fields). Full planned contracts and explicit non-goals (no territory, population, growth, food, buildings, or borders on the world path in N8): [PHASE_PLAN.md](PHASE_PLAN.md) “Planned N7d–N8d”. World city naming reuses the canonical rule below (`Capital`, then `Settlement 2`, …).
+
+Everything below is the **legacy (Godot local + Cloud v2) city model**, frozen until its retirement in N9.
+
 ## Representation
 
 **`City`** ([city.gd](../game/domain/city.gd)) is a `RefCounted` value object with:
