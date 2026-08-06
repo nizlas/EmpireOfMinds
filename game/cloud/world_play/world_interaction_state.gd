@@ -6,30 +6,35 @@
 # (cloud_world_play.gd) owns the actual HTTP calls; this class only decides
 # WHAT to do and guards the locked contracts:
 #
-# - Served legality only: this class never computes destinations. It stores
-#   the exact served `move_unit` rows and hands one back verbatim for
-#   submission; every marker/submission maps one-to-one to a served row.
+# - Served legality only: this class never computes destinations and never
+#   constructs actions client-side (including end_turn). It stores the exact
+#   served rows and hands one back verbatim for submission; every marker and
+#   submission maps one-to-one to a served row.
+# - Two INDEPENDENT served-state slots, both bound to the CURRENT revision:
+#   the summary-mode `end_turn` row and the selected-unit `move_unit` rows.
+#   Every new own-turn snapshot revision refetches the summary row, and —
+#   when a valid selection survives — the selection rows as well. Accepting
+#   one response never clears the other; a newer snapshot clears BOTH
+#   immediately; a selection change refetches only selection legality while
+#   a fresh same-revision summary row stays usable. Nothing is ever retained
+#   across revisions.
 # - Locked served-legality freshness (docs/PHASE_PLAN.md "Planned N7d–N8d"):
-#   a legal-actions result is valid only for its returned `revision` AND the
-#   selection that requested it. Stale asynchronous responses (superseded
-#   request serial, selection changed, or revision moved on) are discarded,
-#   never rendered. Every newer snapshot clears the served rows immediately
-#   (apply_snapshot) and reports what to refetch. A served row is NEVER
-#   submitted when its bound revision differs from the held snapshot
-#   revision — move_row_for_tile / can_submit_end_turn return nothing then.
-# - Locked N4 pick semantics feed selection: own-unit tile pick selects,
-#   miss clears, cliff pick leaves selection unchanged. Out-of-turn picks
-#   never change interaction state (action input is disabled out of turn).
+#   every response is bound to its request serial, its returned `revision`,
+#   the requesting actor, and the REQUESTED selection mode — the response's
+#   echoed `selected_unit_id` must match the request (null for summary mode,
+#   the exact unit id for selection mode). Stale or mismatched asynchronous
+#   responses are discarded, never rendered, never submitted. A served row
+#   is NEVER submitted when its bound revision differs from the held
+#   snapshot revision.
+# - Locked pick semantics feed selection ON THE OWN TURN ONLY: own-unit tile
+#   pick selects, miss clears, cliff pick leaves selection unchanged. Out of
+#   turn EVERY pick — including an empty miss — is completely inert (turn
+#   ownership is checked before any miss-clear semantics).
 # - No combat, cities, animation, or client-side legality (N7f/N7g/N8).
 extends RefCounted
 
 const CloudTurnOwnershipScript = preload("res://cloud/cloud_turn_ownership.gd")
 const CloudPlayerIdentityScript = preload("res://cloud/cloud_player_identity.gd")
-
-# Directives returned by apply_snapshot / classify_pick.
-const REFETCH_NONE := ""
-const REFETCH_SUMMARY := "summary"
-const REFETCH_SELECTION := "selection"
 
 const PICK_NONE := "none"
 const PICK_CLEAR := "clear"
@@ -48,18 +53,23 @@ var units: Array = []
 # Presentation-only selection state (unit id; NO_SELECTION = none).
 var selected_unit_id: int = NO_SELECTION
 
-# Served legality, bound to the revision + selection that requested it.
+# Served selection legality (move rows), bound to revision + selection.
 var served_move_rows: Array = []
 var served_move_revision: int = -1
 var served_move_selection: int = NO_SELECTION
+
+# Served summary legality (end_turn row), bound to revision — independent of
+# the selection slot; both may be fresh at the same time.
 var end_turn_row: Dictionary = {}
 var end_turn_revision: int = -1
 
-# Freshness bookkeeping for asynchronous legal-actions requests.
-var _fetch_serial: int = 0
-var _pending_serial: int = -1
-var _pending_selection: int = NO_SELECTION
-var _pending_revision: int = -1
+# Independent freshness bookkeeping per request mode.
+var _serial_counter: int = 0
+var _pending_summary_serial: int = -1
+var _pending_summary_revision: int = -1
+var _pending_selection_serial: int = -1
+var _pending_selection_unit: int = NO_SELECTION
+var _pending_selection_revision: int = -1
 
 
 func _init(p_my_actor_id: int = -1) -> void:
@@ -109,79 +119,116 @@ func own_unit_id_at(tile: Vector2i) -> int:
 
 
 # Applies a (newer or initial) authoritative snapshot. Per the locked
-# freshness contract every held served row is cleared immediately; the
-# return value says what the caller should refetch for the new state.
-func apply_snapshot(snap: Dictionary) -> String:
+# freshness contract BOTH served slots are cleared immediately; the return
+# value says what the caller must refetch for the new revision:
+# {"summary": bool, "selection": bool} — summary on every own-turn snapshot,
+# selection additionally when a valid selection survives.
+func apply_snapshot(snap: Dictionary) -> Dictionary:
 	revision = int(snap.get("revision", -1))
 	var ts_variant = snap.get("turn_state", null)
 	turn_state = (ts_variant as Dictionary).duplicate(true) if typeof(ts_variant) == TYPE_DICTIONARY else {}
 	var units_variant = snap.get("units", null)
 	units = (units_variant as Array).duplicate(true) if typeof(units_variant) == TYPE_ARRAY else []
 
-	_clear_served_rows()
-	end_turn_row = {}
-	end_turn_revision = -1
+	_clear_served_move_rows()
+	_clear_served_end_turn()
 
 	if not is_my_turn():
 		selected_unit_id = NO_SELECTION
-		return REFETCH_NONE
+		return {"summary": false, "selection": false}
 	if selected_unit_id != NO_SELECTION:
 		var unit := unit_by_id(selected_unit_id)
 		if unit.is_empty() or int(unit.get("owner_id", -1)) != my_actor_id:
 			selected_unit_id = NO_SELECTION
-	return REFETCH_SELECTION if selected_unit_id != NO_SELECTION else REFETCH_SUMMARY
+	return {"summary": true, "selection": selected_unit_id != NO_SELECTION}
 
 
 func is_newer_snapshot(snap: Dictionary) -> bool:
 	return int(snap.get("revision", -1)) > revision
 
 
-# Registers one outgoing legal-actions request for the CURRENT selection and
-# revision. Returns the serial the response must present to be accepted.
-func begin_legal_fetch() -> int:
-	_fetch_serial += 1
-	_pending_serial = _fetch_serial
-	_pending_selection = selected_unit_id
-	_pending_revision = revision
-	return _pending_serial
+# Registers one outgoing SUMMARY-mode legal-actions request (no selection
+# parameter). Returns the serial the response must present.
+func begin_summary_fetch() -> int:
+	_serial_counter += 1
+	_pending_summary_serial = _serial_counter
+	_pending_summary_revision = revision
+	return _pending_summary_serial
 
 
-# Accepts or discards one legal-actions response (locked freshness rules).
-# Returns true only when the response was stored.
-func accept_legal_actions(serial: int, response: Dictionary) -> bool:
-	if serial != _pending_serial:
-		return false  # superseded by a newer request
+# Registers one outgoing SELECTION-mode legal-actions request for the
+# CURRENT selection. Returns the serial the response must present.
+func begin_selection_fetch() -> int:
+	_serial_counter += 1
+	_pending_selection_serial = _serial_counter
+	_pending_selection_unit = selected_unit_id
+	_pending_selection_revision = revision
+	return _pending_selection_serial
+
+
+# Shared response binding: serial, transport health, actor echo, and the
+# returned revision must all match the held state.
+func _response_binding_ok(response: Dictionary, expected_revision: int) -> bool:
 	if response.has("_error"):
 		return false
+	if int(response.get("actor_id", -2147483648)) != my_actor_id:
+		return false  # response for a different actor is never ours
 	if int(response.get("revision", -1)) != revision:
 		return false  # bound to a revision we no longer hold
-	if _pending_selection != selected_unit_id:
-		return false  # selection changed while the request was in flight
-	if _pending_revision != revision:
+	if expected_revision != revision:
 		return false  # snapshot advanced while the request was in flight
+	return true
 
-	var actions_variant = response.get("actions", null)
-	var actions: Array = actions_variant if typeof(actions_variant) == TYPE_ARRAY else []
-	var is_current := bool(response.get("is_current_player", false))
 
-	if _pending_selection == NO_SELECTION:
-		end_turn_row = {}
-		end_turn_revision = -1
-		if is_current:
-			for row_variant in actions:
-				if typeof(row_variant) == TYPE_DICTIONARY and str((row_variant as Dictionary).get("action_type", "")) == "end_turn":
-					end_turn_row = (row_variant as Dictionary).duplicate(true)
-					end_turn_revision = revision
-					break
-		return true
+# Accepts or discards one SUMMARY-mode response. The echoed selected_unit_id
+# must be null (summary mode); a mismatched echo is discarded unrendered.
+# Accepting never touches the selection slot. Returns true when stored.
+func accept_summary_legal_actions(serial: int, response: Dictionary) -> bool:
+	if serial != _pending_summary_serial:
+		return false  # superseded by a newer summary request
+	if not _response_binding_ok(response, _pending_summary_revision):
+		return false
+	if response.get("selected_unit_id", -1) != null:
+		return false  # echoed selection does not match the summary request
 
-	_clear_served_rows()
-	if is_current:
+	_clear_served_end_turn()
+	if bool(response.get("is_current_player", false)):
+		var actions_variant = response.get("actions", null)
+		var actions: Array = actions_variant if typeof(actions_variant) == TYPE_ARRAY else []
+		for row_variant in actions:
+			if typeof(row_variant) == TYPE_DICTIONARY and str((row_variant as Dictionary).get("action_type", "")) == "end_turn":
+				end_turn_row = (row_variant as Dictionary).duplicate(true)
+				end_turn_revision = revision
+				break
+	return true
+
+
+# Accepts or discards one SELECTION-mode response. The echoed
+# selected_unit_id must equal the requested unit, and that unit must still
+# be the current selection. Accepting never touches the summary slot.
+# Returns true when stored.
+func accept_selection_legal_actions(serial: int, response: Dictionary) -> bool:
+	if serial != _pending_selection_serial:
+		return false  # superseded by a newer selection request
+	if not _response_binding_ok(response, _pending_selection_revision):
+		return false
+	if _pending_selection_unit != selected_unit_id:
+		return false  # selection changed while the request was in flight
+	var echoed = response.get("selected_unit_id", null)
+	if typeof(echoed) != TYPE_INT and typeof(echoed) != TYPE_FLOAT:
+		return false  # summary-shaped echo can never satisfy a selection request
+	if int(echoed) != _pending_selection_unit:
+		return false  # echoed selection does not match the requested unit
+
+	_clear_served_move_rows()
+	if bool(response.get("is_current_player", false)):
+		var actions_variant = response.get("actions", null)
+		var actions: Array = actions_variant if typeof(actions_variant) == TYPE_ARRAY else []
 		for row_variant in actions:
 			if typeof(row_variant) == TYPE_DICTIONARY and str((row_variant as Dictionary).get("action_type", "")) == "move_unit":
 				served_move_rows.append((row_variant as Dictionary).duplicate(true))
 		served_move_revision = revision
-		served_move_selection = _pending_selection
+		served_move_selection = _pending_selection_unit
 	return true
 
 
@@ -224,15 +271,16 @@ func can_submit_end_turn() -> bool:
 
 
 # Classifies one terrain pick into an interaction directive.
-# Locked semantics: own-unit tile selects, miss clears, cliff unchanged;
-# a fresh served destination submits that exact row; out-of-turn picks
-# never change interaction state.
+# Locked semantics: OUT OF TURN every pick — tile, cliff, or empty miss — is
+# completely inert (turn ownership is checked before miss-clear). On the own
+# turn: a fresh served destination submits that exact row, an own-unit tile
+# selects, miss/foreign/empty tiles clear, cliffs leave selection unchanged.
 func classify_pick(pick: Dictionary) -> Dictionary:
+	if not is_my_turn():
+		return {"kind": PICK_NONE}
 	if pick.is_empty():
 		return {"kind": PICK_CLEAR}
 	if str(pick.get("kind", "")) != "tile":
-		return {"kind": PICK_NONE}
-	if not is_my_turn():
 		return {"kind": PICK_NONE}
 	var tile: Vector2i = pick.get("tile", Vector2i.ZERO)
 	var row := move_row_for_tile(tile)
@@ -246,14 +294,16 @@ func classify_pick(pick: Dictionary) -> Dictionary:
 	return {"kind": PICK_CLEAR}
 
 
+# Selection changes touch ONLY the selection slot: the summary end_turn row
+# stays usable while it remains bound to the current revision.
 func select_unit(unit_id: int) -> void:
 	selected_unit_id = int(unit_id)
-	_clear_served_rows()
+	_clear_served_move_rows()
 
 
 func clear_selection() -> void:
 	selected_unit_id = NO_SELECTION
-	_clear_served_rows()
+	_clear_served_move_rows()
 
 
 # Tile of the selected unit (Variant: Vector2i or null) for the highlight.
@@ -300,7 +350,12 @@ func status_text() -> String:
 	)
 
 
-func _clear_served_rows() -> void:
+func _clear_served_move_rows() -> void:
 	served_move_rows = []
 	served_move_revision = -1
 	served_move_selection = NO_SELECTION
+
+
+func _clear_served_end_turn() -> void:
+	end_turn_row = {}
+	end_turn_revision = -1

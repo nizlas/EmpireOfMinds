@@ -63,8 +63,10 @@ var _poll_timer: Timer = null
 var _boot_actor_id := -1
 # One request at a time on the shared CloudSession HTTPRequest.
 var _request_busy := false
-# A legal-actions refetch is due (set by snapshot applies / selection moves).
-var _legal_refetch_needed := false
+# Independent due-refetch flags for the two served-legality slots (set by
+# snapshot applies / selection moves; consumed by _pump_legal_fetch).
+var _summary_refetch_needed := false
+var _selection_refetch_needed := false
 
 
 # N7c small-unit quality profile: the WorldMap 3D viewport renders with
@@ -199,8 +201,9 @@ func _setup_interaction() -> void:
 	if not world.terrain_picked.is_connected(_on_terrain_picked):
 		world.terrain_picked.connect(_on_terrain_picked)
 	CloudPlayerIdentityScript.apply_from_snapshot(snapshot)
-	var directive: String = interaction.apply_snapshot(snapshot)
-	_legal_refetch_needed = directive != WorldInteractionStateScript.REFETCH_NONE
+	var directives: Dictionary = interaction.apply_snapshot(snapshot)
+	_summary_refetch_needed = bool(directives.get("summary", false))
+	_selection_refetch_needed = bool(directives.get("selection", false))
 	if _poll_timer == null:
 		_poll_timer = Timer.new()
 		_poll_timer.name = "WorldWaitingPollTimer"
@@ -224,8 +227,10 @@ func _on_terrain_picked(pick: Dictionary) -> void:
 		WorldInteractionStateScript.PICK_SUBMIT_MOVE:
 			await _submit_action(directive["action"])
 		WorldInteractionStateScript.PICK_SELECT_UNIT:
+			# Selection changes refetch ONLY selection legality — a fresh
+			# same-revision summary end_turn row stays usable.
 			interaction.select_unit(int(directive["unit_id"]))
-			_legal_refetch_needed = true
+			_selection_refetch_needed = true
 			_refresh_interaction_ui()
 			await _pump_legal_fetch()
 		WorldInteractionStateScript.PICK_CLEAR:
@@ -282,42 +287,75 @@ func _apply_authoritative_snapshot(snap: Dictionary) -> void:
 	CloudPlayerIdentityScript.apply_from_snapshot(snapshot)
 	_render_units()
 	if interaction != null:
-		var directive: String = interaction.apply_snapshot(snapshot)
-		_legal_refetch_needed = directive != WorldInteractionStateScript.REFETCH_NONE
+		var directives: Dictionary = interaction.apply_snapshot(snapshot)
+		_summary_refetch_needed = bool(directives.get("summary", false))
+		_selection_refetch_needed = bool(directives.get("selection", false))
 	_refresh_interaction_ui()
 
 
-# Fetches served legality for the CURRENT selection/summary state when due.
-# Responses are accepted only through the locked freshness rules (serial +
-# revision + still-current selection); discarded responses trigger another
-# pump so a still-valid selection is refetched, never rendered stale.
+# Fetches served legality for the two independent slots when due: the
+# summary end_turn row first (End Turn availability), then the selection
+# move rows. Responses are accepted only through the locked freshness rules
+# (serial + returned revision + actor + requested selection mode, with the
+# echoed selected_unit_id verified against the request); discarded
+# responses are never rendered — the pump refetches while the current state
+# still wants that slot.
 func _pump_legal_fetch() -> void:
-	while _legal_refetch_needed and session != null and interaction != null and not _request_busy:
+	while (
+		(_summary_refetch_needed or _selection_refetch_needed)
+		and session != null
+		and interaction != null
+		and not _request_busy
+	):
 		if interaction.my_actor_id < 0:
-			_legal_refetch_needed = false
+			_summary_refetch_needed = false
+			_selection_refetch_needed = false
 			return
-		_legal_refetch_needed = false
-		var serial: int = interaction.begin_legal_fetch()
+		if _summary_refetch_needed:
+			_summary_refetch_needed = false
+			var summary_serial: int = interaction.begin_summary_fetch()
+			_request_busy = true
+			_refresh_interaction_ui()
+			var summary_resp: Dictionary = await session.get_legal_actions(interaction.my_actor_id)
+			_request_busy = false
+			if summary_resp.has("_error"):
+				_set_action_feedback(
+					"legal-actions failed: %s (HTTP %s)"
+					% [str(summary_resp.get("_error", "")), str(summary_resp.get("_http_code", "?"))]
+				)
+				_refresh_interaction_ui()
+				return
+			if not interaction.accept_summary_legal_actions(summary_serial, summary_resp):
+				# Discarded (revision/actor/mode moved on) — never rendered.
+				# Every transient cause re-arms its flag at the source (a
+				# snapshot apply or a newer request), so no retry here — a
+				# persistent server-side mismatch must not spin the client.
+				pass
+			_refresh_interaction_ui()
+			continue
+		_selection_refetch_needed = false
+		if interaction.selected_unit_id < 0:
+			_refresh_interaction_ui()
+			continue
+		var selection_serial: int = interaction.begin_selection_fetch()
 		_request_busy = true
 		_refresh_interaction_ui()
-		var resp: Dictionary = await session.get_legal_actions(
+		var selection_resp: Dictionary = await session.get_legal_actions(
 			interaction.my_actor_id, interaction.selected_unit_id
 		)
 		_request_busy = false
-		if resp.has("_error"):
+		if selection_resp.has("_error"):
 			_set_action_feedback(
 				"legal-actions failed: %s (HTTP %s)"
-				% [str(resp.get("_error", "")), str(resp.get("_http_code", "?"))]
+				% [str(selection_resp.get("_error", "")), str(selection_resp.get("_http_code", "?"))]
 			)
 			_refresh_interaction_ui()
 			return
-		if not interaction.accept_legal_actions(serial, resp):
-			# Stale (revision/selection/serial moved on) — never rendered.
-			# Refetch when the current state still wants served rows.
-			_legal_refetch_needed = (
-				interaction.is_my_turn()
-				and int(resp.get("revision", -1)) == interaction.revision
-			) or _legal_refetch_needed
+		if not interaction.accept_selection_legal_actions(selection_serial, selection_resp):
+			# Discarded — never rendered. Transient causes re-arm their flag
+			# at the source (snapshot apply / newer selection request); no
+			# pump-side retry, so a persistent mismatch cannot spin.
+			pass
 		_refresh_interaction_ui()
 
 

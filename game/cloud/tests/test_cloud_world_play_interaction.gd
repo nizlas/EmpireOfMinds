@@ -65,8 +65,8 @@ func _init() -> void:
 	st.apply_snapshot(scene.snapshot)
 	scene._refresh_interaction_ui()
 	_check(button.disabled, "End Turn stays disabled without a summary row")
-	var serial: int = st.begin_legal_fetch()
-	st.accept_legal_actions(
+	var serial: int = st.begin_summary_fetch()
+	st.accept_summary_legal_actions(
 		serial,
 		{
 			"revision": 0,
