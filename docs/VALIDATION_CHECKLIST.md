@@ -641,9 +641,11 @@ $env:EOM_CLOUD_ONE_PC_DEBUG="1"
 - Two-client sessions (local or remote), reconnect, deploy checks — **N7e**.
 - Movement animation/facing (N7f), combat (N7g), cities/production (N8a–N8d).
 
-## Slice N7e — N7 verification checkpoint (deterministic audit + two-client gates)
+## Slice N7e — N7 verification checkpoint (deterministic audit + two-client gates — closed 2026-08-06)
 
 **Purpose:** declare the N7 movement/turn core verified before combat (N7g) and cities (N8a) build on it. Tests + documentation only — any defect found stops the checkpoint and becomes its own slice; no drive-by production changes.
+
+**Result: N7e CLOSED (Niclas, 2026-08-06).** Automated coverage audit green (below), local two-client gate **PASSED**, Hetzner two-client gate **WAIVED BY PROJECT OWNER — NOT RUN** (accepted decision: automated coverage + the passed local gate suffice for N7e completion; remote validation, mid-match reconnect, and the image-content check move to the next deploy refresh). N7a–N7e complete; next slice **N7f** (unit locomotion presentation).
 
 ### Automated coverage audit (completed 2026-08-06 — no new tests needed)
 
@@ -665,60 +667,66 @@ Checkpoint runs (2026-08-06, baseline `d86dd57`), each run once per the N7e budg
 
 ### Manual gate 1 — two Godot clients against one local FastAPI server
 
-**Status: PENDING — not yet performed.**
+**Result: PASSED (Niclas, 2026-08-06).** One local FastAPI server, two Godot clients with fixed profiles A/B through the normal front door: A created the `world_map` match through the UI, B joined it through the lobby; movement and End Turn handoff worked in both clients.
+
+Standard two-client testing uses the **normal front door**. `EOM_CLOUD_CLIENT`, `EOM_CLOUD_ONE_PC_DEBUG`, `EOM_CLOUD_MATCH_ID`, and `EOM_CLOUD_SEAT_TOKEN` **must be unset** — a set `EOM_CLOUD_CLIENT` skips the front door and auto-opens the map without a claimed seat (`No seat identity`).
 
 ```powershell
 # Terminal 1 — local authoritative server:
 cd server
 python -m uvicorn app.main:app --port 8000
 
-# Terminal 2 — client A (creates the world match):
+# Terminals 2 AND 3 — clear auto-boot/debug env first (normal front door only):
+Remove-Item Env:EOM_CLOUD_CLIENT, Env:EOM_CLOUD_ONE_PC_DEBUG, Env:EOM_CLOUD_MATCH_ID, Env:EOM_CLOUD_SEAT_TOKEN -ErrorAction SilentlyContinue
 $env:EOM_CLOUD_BASE_URL="http://127.0.0.1:8000"
+
+# Terminal 2 — client A (creates the world_map match through the front-door UI):
 $env:EOM_CLOUD_PROFILE="A"
-$env:EOM_CLOUD_MATCH_KIND="world_map"
+$env:EOM_CLOUD_MATCH_KIND="world_map"   # makes the front-door Create produce a world_map match
 & $env:GODOT_EXE --path game
 
-# Terminal 3 — client B (joins from the lobby; NO match-kind env needed):
-$env:EOM_CLOUD_BASE_URL="http://127.0.0.1:8000"
+# Terminal 3 — client B (joins A's match through the lobby; NO match-kind env):
 $env:EOM_CLOUD_PROFILE="B"
 Remove-Item Env:EOM_CLOUD_MATCH_KIND -ErrorAction SilentlyContinue
 & $env:GODOT_EXE --path game
 ```
 
-- [ ] Client A: **Create Cloud Match** → staging; claim a seat, pick a civ, **Ready**.
-- [ ] Client B: refresh **Cloud Matches**, join the staging match, claim the other seat, pick a civ, **Ready** → server auto-starts; **both clients enter the 3D world scene** (kind-routed), same terrain, four units at the spawn anchors.
-- [ ] Only the current actor can select/move; the other client's picks (including empty misses) are inert and its poll picks up the move (~2 s) without restart.
-- [ ] Several one-step moves on each side; destination markers are exactly the served rows (cliff-blocked and occupied destinations never marked); each accepted move repositions on both clients.
-- [ ] **End Turn** hands off both ways; turn/status UI matches the seat on each client.
-- [ ] The rejection line stays empty during normal play; if a rejection occurs (e.g. a stale-revision race), it surfaces the literal server reason and play continues after re-selection.
+- [x] Client A: front-door **Create Cloud Match** → staging; claim a seat, pick a civ, **Ready**.
+- [x] Client B: refresh **Cloud Matches**, join A's staging match through the lobby, claim the other seat, pick a civ, **Ready** → server auto-starts; **both clients enter the 3D world scene** (kind-routed), same terrain, four units at the spawn anchors.
+- [x] Only the current actor can select/move; the other client's picks (including empty misses) are inert and its poll picks up the move (~2 s) without restart.
+- [x] Several one-step moves on each side; destination markers are exactly the served rows (cliff-blocked and occupied destinations never marked); each accepted move repositions on both clients.
+- [x] **End Turn** hands off both ways; turn/status UI matches the seat on each client.
+- [x] The rejection line stays empty during normal play.
 
 ### Manual gate 2 — two clients against the refreshed Hetzner authority (incl. reconnect mid-match)
 
-**Status: PENDING — not yet performed.** Prerequisite: refresh the deploy per [DEPLOY_HETZNER.md](DEPLOY_HETZNER.md) (`git pull` + `docker compose up --build -d` on the host) — **not** part of this checkpoint's automated work.
+**Status: WAIVED BY PROJECT OWNER — NOT RUN (Niclas, 2026-08-06).** No Hetzner deploy refresh, no remote two-client session, no mid-match reconnect test, and no post-build image-content check were performed for N7e. **Explicit decision:** the automated N7 coverage plus the passed local two-client gate (gate 1) are accepted as sufficient for N7e completion. The steps below remain the reference procedure for the next deploy refresh; they are **not** N7e results.
+
+Prerequisite when eventually run: refresh the deploy per [DEPLOY_HETZNER.md](DEPLOY_HETZNER.md) (`git pull` + `docker compose up --build -d` on the host). Both clients use the same normal front-door flow as gate 1 (same env clearing — `EOM_CLOUD_CLIENT`, `EOM_CLOUD_ONE_PC_DEBUG`, `EOM_CLOUD_MATCH_ID`, `EOM_CLOUD_SEAT_TOKEN` unset), only the authority changes:
 
 ```powershell
-# Both clients, same commands as gate 1 but with the remote authority:
+# Both clients, same front-door commands as gate 1 but with the remote authority:
 $env:EOM_CLOUD_BASE_URL="https://cloud.thewizardsapprentice.org"
-# client A additionally: $env:EOM_CLOUD_MATCH_KIND="world_map"
-# client A: $env:EOM_CLOUD_PROFILE="A"    client B: $env:EOM_CLOUD_PROFILE="B"
+# client A: $env:EOM_CLOUD_PROFILE="A" + $env:EOM_CLOUD_MATCH_KIND="world_map" (UI create)
+# client B: $env:EOM_CLOUD_PROFILE="B" (lobby join; no match-kind env)
 & $env:GODOT_EXE --path game
 ```
 
-- [ ] Repeat the gate-1 staging → auto-start → movement/turn-handoff flow against the remote authority.
-- [ ] **Reconnect mid-match:** close client B completely mid-match (ideally during A's turn); relaunch with the same `EOM_CLOUD_PROFILE="B"`; **Resume match** on the front door → the 3D world rebuilds from the served snapshot with identical unit positions, revision-consistent turn state, and correct seat identity; play continues without restart on either side.
-- [ ] No client-side legality anywhere: markers/actions on both clients always match the served rows after each accepted action.
+- [ ] Repeat the gate-1 front-door create/join → staging → auto-start → movement/turn-handoff flow against the remote authority. *(not run — waived for N7e)*
+- [ ] **Reconnect mid-match:** close client B completely mid-match (ideally during A's turn); relaunch with the same `EOM_CLOUD_PROFILE="B"`; **Resume match** on the front door → the 3D world rebuilds from the served snapshot with identical unit positions, revision-consistent turn state, and correct seat identity; play continues without restart on either side. *(not run — waived for N7e)*
+- [ ] No client-side legality anywhere: markers/actions on both clients always match the served rows after each accepted action. *(not run — waived for N7e)*
 
 ### Post-build server-image content check (with the deploy refresh)
 
-**Status: PENDING — runs with the Hetzner refresh above.**
+**Status: NOT RUN — waived for N7e with the Hetzner gate above; runs with the next deploy refresh.**
 
 ```powershell
 # From repo root (requires Docker; builds server/Dockerfile, probes disposable containers):
 python tools/content/check_server_image_map_content.py
 ```
 
-- [ ] Positive probe: packaged loader serves `handdrawn_test_map_full_01` with the pinned golden hash and tile/edge/cliff counts.
-- [ ] Negative probe: unknown map id fails explicitly with `UnknownMapIdError`.
+- [ ] Positive probe: packaged loader serves `handdrawn_test_map_full_01` with the pinned golden hash and tile/edge/cliff counts. *(not run — waived for N7e)*
+- [ ] Negative probe: unknown map id fails explicitly with `UnknownMapIdError`. *(not run — waived for N7e)*
 
 ### Explicitly not this checkpoint
 
