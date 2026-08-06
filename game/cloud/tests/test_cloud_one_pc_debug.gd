@@ -127,6 +127,18 @@ func _run() -> void:
 	_check(BootIntentScript.is_loopback_url("http://localhost:8000/"), "localhost is loopback")
 	_check(BootIntentScript.is_loopback_url("https://LOCALHOST"), "loopback check is case/scheme tolerant")
 	_check(
+		not BootIntentScript.is_loopback_url("http://127.0.0.1:8000@remote.example"),
+		"loopback-looking user-info cannot hide a remote host"
+	)
+	_check(
+		not BootIntentScript.is_loopback_url("http://localhost:8000.remote.example"),
+		"malformed remote authority cannot pass as localhost"
+	)
+	_check(
+		not BootIntentScript.is_loopback_url("ftp://localhost"),
+		"non-HTTP schemes are rejected"
+	)
+	_check(
 		not BootIntentScript.is_loopback_url("https://cloud.thewizardsapprentice.org"),
 		"remote host is not loopback"
 	)

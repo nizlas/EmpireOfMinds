@@ -172,15 +172,34 @@ static func one_pc_debug_env_requested() -> bool:
 ## Loopback hosts only — the one-PC debug mode runs against a LOCALLY
 ## running authoritative server, never a remote one.
 static func is_loopback_url(url: String) -> bool:
-	var rest := str(url).strip_edges().to_lower()
-	var scheme_split := rest.find("://")
-	if scheme_split >= 0:
-		rest = rest.substr(scheme_split + 3)
-	for sep in [":", "/"]:
+	var normalized := str(url).strip_edges().to_lower()
+	var scheme_split := normalized.find("://")
+	if scheme_split < 0:
+		return false
+	var scheme := normalized.substr(0, scheme_split)
+	if scheme != "http" and scheme != "https":
+		return false
+	var rest := normalized.substr(scheme_split + 3)
+	var authority_end := rest.length()
+	for sep in ["/", "?", "#"]:
 		var idx := rest.find(sep)
 		if idx >= 0:
-			rest = rest.substr(0, idx)
-	return rest == "127.0.0.1" or rest == "localhost"
+			authority_end = mini(authority_end, idx)
+	var authority := rest.substr(0, authority_end)
+	# User-info can make a loopback-looking prefix resolve to a remote host.
+	if authority.is_empty() or authority.contains("@"):
+		return false
+	var host := authority
+	var port_separator := authority.rfind(":")
+	if port_separator >= 0:
+		host = authority.substr(0, port_separator)
+		var port := authority.substr(port_separator + 1)
+		if not port.is_valid_int():
+			return false
+		var port_number := port.to_int()
+		if port_number < 1 or port_number > 65535:
+			return false
+	return host == "127.0.0.1" or host == "localhost"
 
 
 ## The one-PC debug mode is valid ONLY for world_map matches against a

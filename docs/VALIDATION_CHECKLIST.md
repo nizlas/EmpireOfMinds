@@ -595,9 +595,11 @@ Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_player_factio
 
 **Passed (2026-06-03):** external Windows client + Niklas cross-network staging → ongoing → turn handoff → reconnect/resume (after SAC workaround on tester machine).
 
-## Slice N7d — Client world interaction loop (one-PC debug manual gate)
+## Slice N7d — Client world interaction loop (one-PC debug manual gate — passed 2026-08-06)
 
 **Purpose:** Niclas's manual/visual gate for N7d per the locked dual-entry direction: **one local authoritative FastAPI process + ONE Godot instance** controlling both players in turn via the dev-only one-PC debug mode. Genuine two-client verification (two `EOM_CLOUD_PROFILE` instances, local and remote authority) is **N7e**, not this gate. Deterministic coverage: Godot `slice n7d` / `slice n7`; server `slice n7` untouched.
+
+**Result: PASSED (Niclas, 2026-08-06).** Unit selection/movement and End Turn handoff worked for both players in the same Godot window. Units reposition instantly and retain their previous facing in N7d as designed; walking/facing remain N7f.
 
 ### Setup (PowerShell, from repo root)
 
@@ -629,10 +631,10 @@ $env:EOM_CLOUD_ONE_PC_DEBUG="1"
 - [ ] **End Turn** again → control returns to Player 0 with fresh legality.
 - [ ] Rejection line stays empty during normal play; any rejection shows the literal server reason.
 
-### Gate (blocks N7d done)
+### Gate (passed)
 
-- [ ] Selection feel and marker readability approved by Niclas.
-- [ ] End Turn handoff between the two controlled players reads clearly.
+- [x] Selection feel and marker readability approved by Niclas.
+- [x] End Turn handoff between the two controlled players reads clearly.
 
 ### Explicitly not this gate
 
