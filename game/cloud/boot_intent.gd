@@ -159,6 +159,55 @@ static func should_skip_front_door_for_env() -> bool:
 	return flg == "1" or flg.to_lower() == "true"
 
 
+## N7d one-PC debug (locked dual-entry direction): dev-only opt-in that lets
+## ONE Godot client control both players in turn against a LOCAL
+## authoritative FastAPI server, through the same client-server API/action
+## path as remote multiplayer. Explicit env flag only — EOM_CLOUD_DEBUG
+## stays logging-only and normal seat-token/profile multiplayer is
+## untouched when this flag is absent.
+static func one_pc_debug_env_requested() -> bool:
+	return OS.get_environment("EOM_CLOUD_ONE_PC_DEBUG").strip_edges() == "1"
+
+
+## Loopback hosts only — the one-PC debug mode runs against a LOCALLY
+## running authoritative server, never a remote one.
+static func is_loopback_url(url: String) -> bool:
+	var normalized := str(url).strip_edges().to_lower()
+	var scheme_split := normalized.find("://")
+	if scheme_split < 0:
+		return false
+	var scheme := normalized.substr(0, scheme_split)
+	if scheme != "http" and scheme != "https":
+		return false
+	var rest := normalized.substr(scheme_split + 3)
+	var authority_end := rest.length()
+	for sep in ["/", "?", "#"]:
+		var idx := rest.find(sep)
+		if idx >= 0:
+			authority_end = mini(authority_end, idx)
+	var authority := rest.substr(0, authority_end)
+	# User-info can make a loopback-looking prefix resolve to a remote host.
+	if authority.is_empty() or authority.contains("@"):
+		return false
+	var host := authority
+	var port_separator := authority.rfind(":")
+	if port_separator >= 0:
+		host = authority.substr(0, port_separator)
+		var port := authority.substr(port_separator + 1)
+		if not port.is_valid_int():
+			return false
+		var port_number := port.to_int()
+		if port_number < 1 or port_number > 65535:
+			return false
+	return host == "127.0.0.1" or host == "localhost"
+
+
+## The one-PC debug mode is valid ONLY for world_map matches against a
+## loopback server; anything else ignores the flag (normal behavior).
+static func one_pc_debug_allowed(kind: String, url: String) -> bool:
+	return is_world_map_kind(kind) and is_loopback_url(url)
+
+
 ## N6 env opt-in: EOM_CLOUD_MATCH_KIND=world_map selects the world_map match
 ## kind for env-driven create/reconnect. Unset/empty stays legacy. Optional
 ## EOM_CLOUD_MAP_ID picks the canonical map for env-created world matches.

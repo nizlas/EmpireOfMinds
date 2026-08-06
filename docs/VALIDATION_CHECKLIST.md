@@ -594,3 +594,51 @@ Validation: **`scripts/run-server-tests.ps1 slice c14d`** (**`test_player_factio
 - Installer creation, code signing, Docker/Caddy changes, gameplay-rule changes.
 
 **Passed (2026-06-03):** external Windows client + Niklas cross-network staging → ongoing → turn handoff → reconnect/resume (after SAC workaround on tester machine).
+
+## Slice N7d — Client world interaction loop (one-PC debug manual gate — passed 2026-08-06)
+
+**Purpose:** Niclas's manual/visual gate for N7d per the locked dual-entry direction: **one local authoritative FastAPI process + ONE Godot instance** controlling both players in turn via the dev-only one-PC debug mode. Genuine two-client verification (two `EOM_CLOUD_PROFILE` instances, local and remote authority) is **N7e**, not this gate. Deterministic coverage: Godot `slice n7d` / `slice n7`; server `slice n7` untouched.
+
+**Result: PASSED (Niclas, 2026-08-06).** Unit selection/movement and End Turn handoff worked for both players in the same Godot window. Units reposition instantly and retain their previous facing in N7d as designed; walking/facing remain N7f.
+
+### Setup (PowerShell, from repo root)
+
+```powershell
+# Terminal 1 — local authoritative server:
+cd server
+python -m uvicorn app.main:app --port 8000
+
+# Terminal 2 — ONE Godot client in one-PC debug mode:
+$env:EOM_CLOUD_CLIENT="1"
+$env:EOM_CLOUD_MATCH_KIND="world_map"
+$env:EOM_CLOUD_BASE_URL="http://127.0.0.1:8000"
+$env:EOM_CLOUD_ONE_PC_DEBUG="1"
+# (no EOM_CLOUD_MATCH_ID / EOM_CLOUD_SEAT_TOKEN — fresh debug match)
+& $env:GODOT_EXE --path game
+```
+
+### Automatic debug staging (watch the console)
+
+- [ ] Match created; both seats claimed; the first two distinct advertised civilizations assigned deterministically; both seats readied; match enters **ongoing** — all through the normal staging endpoints.
+- [ ] World builds from the verified snapshot; status strip shows **One-PC debug — controlling …**.
+
+### Gameplay — both players in one window
+
+- [ ] Click a Player 0 unit → selection highlight + green destination markers (served rows only; cliffs/occupied absent).
+- [ ] Click a marker → the unit repositions instantly; markers refresh; **End Turn stays available between moves**.
+- [ ] Click empty ground → selection clears; click a cliff wall → selection unchanged.
+- [ ] **End Turn** → the status strip flips to controlling **Player 1**; Player 1's units become selectable/movable immediately in the same window; Player 0's units read as foreign.
+- [ ] **End Turn** again → control returns to Player 0 with fresh legality.
+- [ ] Rejection line stays empty during normal play; any rejection shows the literal server reason.
+
+### Gate (passed)
+
+- [x] Selection feel and marker readability approved by Niclas.
+- [x] End Turn handoff between the two controlled players reads clearly.
+
+### Explicitly not this gate
+
+- Two-client sessions (local or remote), reconnect, deploy checks — **N7e**.
+- Movement animation/facing (N7f), combat (N7g), cities/production (N8a–N8d).
+
+**Status: PENDING — not yet performed.**

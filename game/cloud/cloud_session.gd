@@ -61,6 +61,23 @@ func _create_match_snapshot_debug_fields(out: Dictionary) -> Dictionary:
 
 
 func http_json_request(method: int, path: String, body: String = "") -> Dictionary:
+	var out: Dictionary = await _http_json_request_once(method, path, body)
+	# One transport-level retry for idempotent GETs only: a long main-thread
+	# block (e.g. the GDScript terrain solve) can outlive the server's
+	# keep-alive window, making the next request fail before it is ever sent
+	# (HTTP 0, empty body). GETs are safe to resend once; POST/PATCH are
+	# never retried — a lost-response retry could double-apply an action.
+	if (
+		method == HTTPClient.METHOD_GET
+		and str(out.get("_error", "")) == "http"
+		and int(out.get("_http_code", -1)) == 0
+	):
+		print("CloudSession: transport failure on GET ", path, " — retrying once")
+		out = await _http_json_request_once(method, path, body)
+	return out
+
+
+func _http_json_request_once(method: int, path: String, body: String = "") -> Dictionary:
 	var base_norm := str(base_url).rstrip("/")
 	var full_url := base_norm + path
 	var dbg := _cloud_debug_enabled()
