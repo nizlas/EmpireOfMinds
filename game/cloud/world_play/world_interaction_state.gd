@@ -81,6 +81,19 @@ var _pending_selection_serial: int = -1
 var _pending_selection_unit: int = NO_SELECTION
 var _pending_selection_revision: int = -1
 
+# N7f.1 arrival gate (presentation pacing only — NEVER gameplay authority
+# or anti-skip enforcement; see CLOUD_PLAY.md). Entered ONLY after an
+# accepted move_unit response with a usable authoritative snapshot, bound
+# to the exact moved unit id and accepted revision. While active, every
+# gameplay pick is inert, End Turn is disabled, no destination rows render
+# or submit, and no legality is fetched — released only by the matching
+# unit's real visual arrival (or a safe cancellation: the gated unit
+# vanishing, turn loss, or a different-revision authoritative snapshot
+# superseding the gate). Transport activity (_request_busy in the scene)
+# is a deliberately separate concern.
+var arrival_gate_unit_id: int = NO_SELECTION
+var arrival_gate_revision: int = -1
+
 
 func _init(p_my_actor_id: int = -1) -> void:
 	my_actor_id = int(p_my_actor_id)
@@ -128,11 +141,40 @@ func own_unit_id_at(tile: Vector2i) -> int:
 	return NO_SELECTION
 
 
+func arrival_gate_active() -> bool:
+	return arrival_gate_unit_id != NO_SELECTION
+
+
+# Enters the arrival gate for one accepted move (the caller applies the
+# accepted snapshot immediately afterwards — gameplay state is never
+# delayed; only further local input waits for the visual arrival).
+func enter_arrival_gate(unit_id: int, accepted_revision: int) -> void:
+	arrival_gate_unit_id = int(unit_id)
+	arrival_gate_revision = int(accepted_revision)
+
+
+func clear_arrival_gate() -> void:
+	arrival_gate_unit_id = NO_SELECTION
+	arrival_gate_revision = -1
+
+
+# Accepts one arrival completion. Releases and returns true ONLY when the
+# gate is active and the arriving unit is exactly the gated one — stale or
+# unrelated completions change nothing and return false.
+func try_release_arrival_gate(unit_id: int) -> bool:
+	if not arrival_gate_active() or int(unit_id) != arrival_gate_unit_id:
+		return false
+	clear_arrival_gate()
+	return true
+
+
 # Applies a (newer or initial) authoritative snapshot. Per the locked
 # freshness contract BOTH served slots are cleared immediately; the return
 # value says what the caller must refetch for the new revision:
 # {"summary": bool, "selection": bool} — summary on every own-turn snapshot,
-# selection additionally when a valid selection survives.
+# selection additionally when a valid selection survives. While the
+# arrival gate stays active the directives are {false, false}: no legality
+# is fetched until the gated unit's real arrival.
 func apply_snapshot(snap: Dictionary) -> Dictionary:
 	revision = int(snap.get("revision", -1))
 	var ts_variant = snap.get("turn_state", null)
@@ -152,6 +194,18 @@ func apply_snapshot(snap: Dictionary) -> Dictionary:
 	_clear_served_move_rows()
 	_clear_served_end_turn()
 
+	# Arrival-gate housekeeping: a DIFFERENT-revision authoritative
+	# snapshot supersedes the gate (external reconciliation wins; also
+	# guarantees reconnect/bootstrap snapshots never keep one), and a gate
+	# whose unit vanished or whose turn was lost resolves safely.
+	if arrival_gate_active():
+		if revision != arrival_gate_revision:
+			clear_arrival_gate()
+		else:
+			var gated := unit_by_id(arrival_gate_unit_id)
+			if gated.is_empty() or int(gated.get("owner_id", -1)) != my_actor_id or not is_my_turn():
+				clear_arrival_gate()
+
 	if not is_my_turn():
 		selected_unit_id = NO_SELECTION
 		return {"summary": false, "selection": false}
@@ -159,6 +213,8 @@ func apply_snapshot(snap: Dictionary) -> Dictionary:
 		var unit := unit_by_id(selected_unit_id)
 		if unit.is_empty() or int(unit.get("owner_id", -1)) != my_actor_id:
 			selected_unit_id = NO_SELECTION
+	if arrival_gate_active():
+		return {"summary": false, "selection": false}
 	return {"summary": true, "selection": selected_unit_id != NO_SELECTION}
 
 
@@ -252,6 +308,10 @@ func accept_selection_legal_actions(serial: int, response: Dictionary) -> bool:
 
 
 func _served_rows_fresh() -> bool:
+	# While the arrival gate is active no destination rows render or
+	# submit — markers may only return from the fresh post-arrival fetch.
+	if arrival_gate_active():
+		return false
 	return (
 		served_move_revision == revision
 		and served_move_selection == selected_unit_id
@@ -286,6 +346,8 @@ func move_row_for_tile(tile: Vector2i) -> Dictionary:
 
 
 func can_submit_end_turn() -> bool:
+	if arrival_gate_active():
+		return false
 	return is_my_turn() and not end_turn_row.is_empty() and end_turn_revision == revision
 
 
@@ -295,6 +357,12 @@ func can_submit_end_turn() -> bool:
 # turn: a fresh served destination submits that exact row, an own-unit tile
 # selects, miss/foreign/empty tiles clear, cliffs leave selection unchanged.
 func classify_pick(pick: Dictionary) -> Dictionary:
+	# Arrival gate: EVERY gameplay pick — destinations, other own units,
+	# empty tiles, misses, cliffs — is completely inert until the gated
+	# unit's real arrival. Selection stays untouched; camera gestures were
+	# never picks (locked N4 input contract).
+	if arrival_gate_active():
+		return {"kind": PICK_NONE}
 	if not is_my_turn():
 		return {"kind": PICK_NONE}
 	if pick.is_empty():
@@ -357,10 +425,11 @@ func status_text() -> String:
 		return "No seat identity — actions disabled (claim a seat and reconnect)."
 	if turn_state.is_empty():
 		return ""
+	var moving_suffix: String = " — unit moving…" if arrival_gate_active() else ""
 	if one_pc_debug:
-		return "One-PC debug — controlling %s (Player %d)" % [player_label(my_actor_id), my_actor_id]
+		return "One-PC debug — controlling %s (Player %d)%s" % [player_label(my_actor_id), my_actor_id, moving_suffix]
 	if is_my_turn():
-		return "Your turn — %s (Player %d)" % [player_label(my_actor_id), my_actor_id]
+		return "Your turn — %s (Player %d)%s" % [player_label(my_actor_id), my_actor_id, moving_suffix]
 	return (
 		"%s — you are %s (Player %d)"
 		% [

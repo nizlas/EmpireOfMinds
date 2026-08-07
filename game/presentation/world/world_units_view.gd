@@ -56,6 +56,15 @@
 class_name WorldUnitsView
 extends Node3D
 
+## N7f.1 arrival event: emitted EXACTLY ONCE when a real glide completes —
+## the visual reached its exact final-anchor pose, the locomotion entry was
+## removed, and Idle resumed. Never emitted for initial spawns, identical
+## snapshot reapplies, ordinary idling, degenerate (no-glide) settlements,
+## or units removed mid-glide. Presentation output only: consumers (the
+## world-play arrival gate) pace INPUT with it — gameplay state is never
+## delayed by animation completion.
+signal unit_arrived(unit_id: int)
+
 # Reused for asset-path resolution and the audited GLB idle-clip remap only
 # (RefCounted helpers; none of the legacy env-flag gating applies here).
 const Warrior3DExperimentScript = preload("res://presentation/warrior_3d_unit_experiment.gd")
@@ -410,6 +419,10 @@ func _arrive(unit_id: int, seg: Dictionary, root: Node3D) -> void:
 	_apply_visual_yaw(model_root, seg["dir"] as Vector3)
 	_loco_by_unit_id.erase(unit_id)
 	_play_semantic_clip(unit_id, SEMANTIC_IDLE_CLIP)
+	# N7f.1: the one real-arrival point — pose finalized, entry removed,
+	# Idle resumed. advance_locomotion reaches this branch exactly once per
+	# completed glide (removed units erase their entry without arriving).
+	unit_arrived.emit(unit_id)
 
 
 # Deterministic YAW-ONLY facing (upright-humanoid contract): the ModelRoot

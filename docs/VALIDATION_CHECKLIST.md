@@ -776,3 +776,26 @@ Moves: click an own unit (selection highlight), then click a served destination 
 - Combat animation (N7g), camera follow, path smoothing, unit variety, new animation assets (locked N7f non-goals).
 - **Sole-to-normal foot rotation** (rotating each sole to match the local terrain slope) — a deliberately deferred later visual fine-tune recorded in [UNITS.md](UNITS.md); judge floating/sinking here, not the sole angle on steep ground.
 - The separate non-blocking `cloud_front_door.gd:69` startup warning.
+
+## Slice N7f.1 — Client arrival gate for accepted moves (one-PC/manual gate)
+
+**Purpose:** Niclas verifies the pacing behavior of the deterministic client arrival gate: after an accepted move, further input waits for the visual arrival — no rapid-click move skipping, controls visibly withdrawn while walking, and correct re-enabling exactly at arrival. Deterministic coverage is already green (`slice n7f1`, `slice n7`); this gate is purely interactive. Authoritative state is never delayed: the root/snapshot apply immediately in all cases.
+
+**Status: PENDING.**
+
+Launch exactly as the N7f gate above (one local FastAPI process + one Godot instance in the one-PC debug mode).
+
+### Manual checklist
+
+- [ ] **Rapid clicking:** select a unit, click a destination, then immediately hammer other destinations/tiles — the unit completes its full walk to the first destination; NO second move is submitted or queued; nothing selects or clears mid-walk.
+- [ ] **Hidden controls while walking:** during the walk the destination markers disappear, End Turn is disabled, and the status line reads “unit moving…”; the moved unit's selection highlight stays.
+- [ ] **Camera stays free:** orbit, pan, and zoom (and F12 review capture) work normally during the walk.
+- [ ] **Re-enable at arrival:** the moment the unit settles at its destination (idle resumes), fresh destination markers for the still-selected unit and the End Turn button return — no premature reappearance mid-walk, no dead UI afterwards.
+- [ ] **No deadlocks:** a rejected move (e.g. clicking fast toward an occupied tile after arrival) or an out-of-turn state never leaves the UI locked; End Turn hand-off in the one-PC debug mode continues to work.
+
+**Approval action:** on PASS, mark N7f.1 **Done** in [PHASE_PLAN.md](PHASE_PLAN.md) and update this section; on FAIL, record the objection — the gate lifecycle lives in `game/cloud/world_play/world_interaction_state.gd` / `cloud_world_play.gd`, the arrival event in `game/presentation/world/world_units_view.gd`.
+
+### Explicitly not this gate
+
+- The N7f movement read itself (pace/grounding/facing — separate N7f gate above).
+- Server-side anti-skip enforcement: the permanent rule ([CLOUD_PLAY.md](CLOUD_PLAY.md)) is that mandatory on-entry outcomes must be server-atomic with movement or server-owned pending interaction state; the client gate is pacing/visibility only.
