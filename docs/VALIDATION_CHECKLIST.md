@@ -776,7 +776,6 @@ Moves: click an own unit (selection highlight), then click a served destination 
 
 - Gameplay/legality of moves (server-only, N7a/N7b — unchanged by N7f).
 - Combat animation (N7g), camera follow, path smoothing, unit variety, new animation assets (locked N7f non-goals).
-- **Sole-to-normal foot rotation** (rotating each sole to match the local terrain slope) — a deliberately deferred later visual fine-tune recorded in [UNITS.md](UNITS.md); judge floating/sinking here, not the sole angle on steep ground.
 - The separate non-blocking `cloud_front_door.gd:69` startup warning.
 
 ## Slice N7f.1 — Client arrival gate for accepted moves (one-PC/manual gate)
