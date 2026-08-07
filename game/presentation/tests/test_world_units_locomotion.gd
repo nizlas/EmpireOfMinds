@@ -9,10 +9,18 @@
 # along the horizontal movement direction and is retained after arrival;
 # glide height samples the injected surface sampler with an anchor-lerp
 # fallback; terrain contact is skeletal (WorldUnitLegGrounder: independent
-# per-foot top-surface targets, vertical pelvis adjustment, analytic
-# two-bone knee bend, safe IK bounds, preserved bone lengths); spawn snaps;
-# identical reapply never restarts; mid-glide retargets are continuous;
-# removal cancels cleanly; the final pose is EXACTLY the anchor pose.
+# per-foot top-surface targets, JOINT two-leg pelvis solve with reach
+# feasibility intervals, analytic two-bone knee bend toward the rig-derived
+# ANATOMICAL POLE — never the current possibly-straight knee — extension
+# margins, preserved bone lengths, whole-foot sole alignment toward each
+# foot's own sampled normal with anatomical clamps and frame-rate-
+# independent blending, and pose-derived uphill swing clearance that is
+# zero at takeoff/landing); the uphill sections drive BOTH shipped rigs
+# through their ACTUAL remapped walking clips across flat, shallow,
+# medium, steep and downhill slopes and are the regression for the
+# steep-uphill backward-knee snap; spawn snaps; identical reapply never
+# restarts; mid-glide retargets are continuous; removal cancels cleanly;
+# the final pose is EXACTLY the anchor pose.
 # Fast — no terrain build, no networking.
 extends SceneTree
 
@@ -78,6 +86,41 @@ class MissSampler:
 		return {"ok": false, "height": 0.0, "normal": Vector3.UP}
 
 
+# Plane rising along -Z (uphill AHEAD of a spawn-facing unit): h = base
+# + slope * (-z), with the TRUE plane normal so sole alignment is testable.
+class ZSlopeSampler:
+	extends RefCounted
+	var base := 0.0
+	var slope := 0.0
+
+	func _init(base_in: float, slope_in: float) -> void:
+		base = base_in
+		slope = slope_in
+
+	func height_at(_x: float, z: float) -> float:
+		return base + slope * (-z)
+
+	func normal() -> Vector3:
+		return Vector3(0.0, 1.0, slope).normalized()
+
+	func sample(x: float, z: float, _y_hint: float) -> Dictionary:
+		return {"ok": true, "height": height_at(x, z), "normal": normal()}
+
+
+# Different terrain normal per world X sign (the two feet straddle x=0),
+# flat heights — isolates per-foot INDEPENDENT normal sampling.
+class SplitNormalSampler:
+	extends RefCounted
+
+	func normal_at(x: float) -> Vector3:
+		if x >= 0.0:
+			return Vector3(0.18, 1.0, 0.0).normalized()
+		return Vector3(-0.18, 1.0, 0.0).normalized()
+
+	func sample(x: float, _z: float, _y_hint: float) -> Dictionary:
+		return {"ok": true, "height": 0.0, "normal": normal_at(x)}
+
+
 # Counts engine-driven post-animation modifier invocations.
 class CountingGrounder:
 	extends WorldUnitLegGrounderScript
@@ -121,25 +164,52 @@ func _run() -> void:
 		"vertical movement components never tilt the body"
 	)
 
-	# --- grounder static math (pelvis, safe IK bounds, knee, bone lengths) ---
+	# --- grounder static math (joint pelvis, safe IK margins, pole knee) ---
+	# Joint pelvis: baseline (lower target) passes through when both legs
+	# can still reach; it is clamped into the intersection otherwise; a
+	# conflict resolves to the midpoint; the absolute bound always applies.
+	var iv_wide := Vector2(-1.0, 1.0)
 	_check(
-		absf(WorldUnitLegGrounderScript.pelvis_offset(-0.1, 0.05, 0.5) - (-0.1)) < EPS,
-		"pelvis follows the lower foot target"
+		absf(WorldUnitLegGrounderScript.joint_pelvis_offset(-0.1, iv_wide, iv_wide, 0.5) - (-0.1)) < EPS,
+		"joint pelvis follows the lower-target baseline when feasible"
 	)
 	_check(
-		absf(WorldUnitLegGrounderScript.pelvis_offset(-2.0, 1.0, 0.15) - (-0.15)) < EPS,
-		"pelvis adjustment is clamped to the safe bound"
+		absf(WorldUnitLegGrounderScript.joint_pelvis_offset(-0.9, Vector2(-0.3, 1.0), iv_wide, 0.5) - (-0.3)) < EPS,
+		"joint pelvis is clamped into the reach-feasibility intersection"
 	)
+	_check(
+		absf(WorldUnitLegGrounderScript.joint_pelvis_offset(0.0, Vector2(-0.4, -0.2), Vector2(0.2, 0.4), 0.5) - 0.0) < EPS,
+		"conflicting reach intervals resolve to the midpoint compromise"
+	)
+	_check(
+		absf(WorldUnitLegGrounderScript.joint_pelvis_offset(-2.0, Vector2(-3.0, 3.0), Vector2(-3.0, 3.0), 0.15) - (-0.15)) < EPS,
+		"joint pelvis respects the absolute safety bound"
+	)
+	# Reach-feasibility interval: symmetric around the shifted target and
+	# degenerate when the horizontal offset alone consumes the reach.
+	var iv: Vector2 = WorldUnitLegGrounderScript.pelvis_interval(
+		Vector3(0.0, -0.6, 0.0), Vector3.UP, 0.2, 1.0
+	)
+	_check(
+		absf(iv.x - (-1.4)) < EPS and absf(iv.y - 0.6) < EPS,
+		"pelvis reach interval is centered on the shifted target"
+	)
+	var iv_deg: Vector2 = WorldUnitLegGrounderScript.pelvis_interval(
+		Vector3(2.0, -0.1, 0.0), Vector3.UP, 0.0, 1.0
+	)
+	_check(absf(iv_deg.x - iv_deg.y) < EPS, "out-of-reach horizontal offset degenerates the interval")
+
 	var hip := Vector3(0, 10, 0)
 	var knee0 := Vector3(0, 5.5, 1.0)
 	var foot0 := Vector3(0, 1, 0)
 	var l1 := (knee0 - hip).length()
 	var l2 := (foot0 - knee0).length()
+	var full := l1 + l2
 	var far_target := hip + Vector3(0, -100, 0)
 	var clamped: Vector3 = WorldUnitLegGrounderScript.clamped_reach_target(hip, far_target, l1, l2)
 	_check(
-		(clamped - hip).length() <= l1 + l2,
-		"unreachable target is clamped inside the leg reach (safe IK bound)"
+		(clamped - hip).length() <= full * WorldUnitLegGrounderScript.REACH_MAX_RATIO + EPS,
+		"unreachable target is clamped with a margin from full extension (no lock/hyperextension)"
 	)
 	var near_target := hip + Vector3(0, -0.001, 0)
 	var clamped2: Vector3 = WorldUnitLegGrounderScript.clamped_reach_target(hip, near_target, l1, l2)
@@ -147,20 +217,86 @@ func _run() -> void:
 		(clamped2 - hip).length() >= absf(l1 - l2),
 		"degenerate-near target is clamped outside the fold limit (safe IK bound)"
 	)
-	var lift_target := WorldUnitLegGrounderScript.clamped_reach_target(hip, foot0 + Vector3(0, 2.0, 0), l1, l2)
-	var knee1: Vector3 = WorldUnitLegGrounderScript.knee_position(hip, knee0, lift_target, l1, l2, Vector3(0, 0, 1))
-	_check(
-		absf((knee1 - hip).length() - l1) < 0.001 and absf((lift_target - knee1).length() - l2) < 0.001,
-		"analytic knee preserves both bone lengths at the target"
+	# Pole-side knee: the bend branch comes from the EXPLICIT anatomical
+	# pole — never from a (possibly straight) current knee — and stays on
+	# that side for every reachable target height.
+	var pole := Vector3(0, 0, 1)
+	var knee1: Vector3 = WorldUnitLegGrounderScript.knee_position(
+		hip, WorldUnitLegGrounderScript.clamped_reach_target(hip, foot0 + Vector3(0, 2.0, 0), l1, l2),
+		l1, l2, pole, Vector3.UP
 	)
 	_check(
-		knee1.z > 0.0,
-		"knee bends on its current bend side (no direction flip)"
+		absf((knee1 - hip).length() - l1) < 0.001,
+		"analytic knee preserves the thigh bone length at the target"
 	)
+	var side_stable := true
+	for lift_i in 17:
+		var t_i: Vector3 = WorldUnitLegGrounderScript.clamped_reach_target(
+			hip, foot0 + Vector3(0.3, 0.5 * float(lift_i), -0.4), l1, l2
+		)
+		var k_i: Vector3 = WorldUnitLegGrounderScript.knee_position(hip, t_i, l1, l2, pole, Vector3.UP)
+		var axis_i := (t_i - hip).normalized()
+		var bend_i := k_i - (hip + axis_i * (k_i - hip).dot(axis_i))
+		if bend_i.length() > 0.01 and bend_i.dot(pole) <= 0.0:
+			side_stable = false
+	_check(side_stable, "pole-side knee never flips across the full target-height sweep")
 	var arc := WorldUnitLegGrounderScript.shortest_arc(Vector3(1, 0, 0), Vector3(0, 1, 0))
 	_check(
 		(arc * Vector3(1, 0, 0)).is_equal_approx(Vector3(0, 1, 0)),
 		"shortest-arc rotation carries the source onto the target direction"
+	)
+	# Sole alignment: identity on flat, maps up onto a shallow normal with
+	# the heading preserved, clamps on an extreme normal.
+	_check(
+		WorldUnitLegGrounderScript.sole_alignment(Vector3(0, 0, -1), Vector3.UP)
+			.is_equal_approx(Quaternion.IDENTITY),
+		"sole alignment is exactly identity on flat ground (no threshold needed)"
+	)
+	var n_shallow := Vector3(0.0, 1.0, 0.15).normalized()
+	var q_shallow: Quaternion = WorldUnitLegGrounderScript.sole_alignment(Vector3(0, 0, -1), n_shallow)
+	_check(
+		(q_shallow * Vector3.UP).dot(n_shallow) > 0.9999,
+		"sole alignment carries the sole normal onto a shallow terrain normal"
+	)
+	var h_after := q_shallow * Vector3(0, 0, -1)
+	_check(
+		Vector3(h_after.x, 0.0, h_after.z).normalized().dot(Vector3(0, 0, -1)) > 0.999,
+		"sole alignment preserves the foot heading (tangent-plane projection)"
+	)
+	var n_extreme := Vector3(0.0, 1.0, 4.0).normalized()
+	var q_extreme: Quaternion = WorldUnitLegGrounderScript.sole_alignment(Vector3(0, 0, -1), n_extreme)
+	_check(
+		absf(q_extreme.get_angle()) <= WorldUnitLegGrounderScript.FOOT_PITCH_DOWN_MAX
+			+ WorldUnitLegGrounderScript.FOOT_ROLL_MAX + 0.001,
+		"sole alignment clamps dorsi/plantarflexion anatomically on extreme normals"
+	)
+	# Contact weight + swing clearance: pose-derived, endpoint-zero,
+	# uphill-only, bounded.
+	_check(
+		absf(WorldUnitLegGrounderScript.contact_weight(0.0, 1.0) - 1.0) < EPS,
+		"grounded animated foot reads as full contact"
+	)
+	_check(
+		WorldUnitLegGrounderScript.contact_weight(0.2, 1.0) < EPS,
+		"a fully lifted animated foot reads as swing"
+	)
+	_check(
+		WorldUnitLegGrounderScript.swing_clearance(0.0, 0.5, 1.0) == 0.0,
+		"swing clearance is ZERO at takeoff/landing (zero animated lift)"
+	)
+	_check(
+		WorldUnitLegGrounderScript.swing_clearance(0.06, 0.0, 1.0) == 0.0
+			and WorldUnitLegGrounderScript.swing_clearance(0.06, -0.4, 1.0) == 0.0,
+		"flat and downhill motion never acquire artificial lift"
+	)
+	_check(
+		WorldUnitLegGrounderScript.swing_clearance(0.06, 0.3, 1.0) > 0.0,
+		"uphill mid-swing gains positive clearance"
+	)
+	_check(
+		WorldUnitLegGrounderScript.swing_clearance(1.0, 100.0, 1.0)
+			<= WorldUnitLegGrounderScript.SWING_CLEARANCE_MAX_RATIO + EPS,
+		"swing clearance is bounded relative to the leg length"
 	)
 
 	# --- first placement snaps ------------------------------------------------
@@ -448,6 +584,284 @@ func _run() -> void:
 		"extreme target: pose stays finite (no IK blow-up)"
 	)
 
+	# --- N7f uphill grounding: pole knee, joint pelvis, sole, swing ----------
+	# Both shipped rigs, driven through their ACTUAL remapped walking clips
+	# across flat, shallow, medium and steep uphill plus downhill slopes.
+	# This is the regression for the steep-uphill backward-knee snap: the
+	# old current-bend-side selection fails the stable-signed-knee checks.
+	for rig in [["settler", SETTLER_WALK_CLIP], ["warrior", WARRIOR_WALK_CLIP]]:
+		var type_id: String = rig[0]
+		var walk_clip: String = rig[1]
+		var rview = WorldUnitsViewScript.new()
+		root.add_child(rview)
+		rview.set_process(false)
+		rview.set_tile_anchors(ANCHORS)
+		rview.apply_snapshot_units([{
+			"id": 9, "owner_id": 11, "position": [0, 0], "type_id": type_id,
+		}])
+		var r_root: Node3D = rview.root_for_unit(9)
+		var r_model: Node3D = r_root.get_node("ModelRoot")
+		var r_skel: Skeleton3D = _find_skeleton(r_root)
+		var r_grounder = rview.grounder_for_unit(9)
+		var r_player: AnimationPlayer = rview.animation_player_for_unit(9)
+		_check(r_grounder != null and r_grounder.is_bound(), "%s: grounder binds (uphill suite)" % type_id)
+		var chains := {
+			"L": [r_skel.find_bone("LeftUpLeg"), r_skel.find_bone("LeftLeg"), r_skel.find_bone("LeftFoot"), r_skel.find_bone("LeftToeBase")],
+			"R": [r_skel.find_bone("RightUpLeg"), r_skel.find_bone("RightLeg"), r_skel.find_bone("RightFoot"), r_skel.find_bone("RightToeBase")],
+		}
+		# Rig-derived anatomical pole (skeleton space): horizontal rest
+		# toe-vs-ankle direction — the same audit source the grounder uses.
+		var poles := {}
+		var rest_lengths := {}
+		var rest_up_local := {}
+		var rest_fwd_local := {}
+		for side in ["L", "R"]:
+			var ch: Array = chains[side]
+			var foot_rest: Transform3D = r_skel.get_bone_global_rest(int(ch[2]))
+			var toe_rest: Transform3D = r_skel.get_bone_global_rest(int(ch[3]))
+			var fwd: Vector3 = toe_rest.origin - foot_rest.origin
+			fwd.y = 0.0
+			poles[side] = fwd.normalized()
+			rest_lengths[side] = [
+				(r_skel.get_bone_global_rest(int(ch[1])).origin - r_skel.get_bone_global_rest(int(ch[0])).origin).length(),
+				(foot_rest.origin - r_skel.get_bone_global_rest(int(ch[1])).origin).length(),
+			]
+			rest_up_local[side] = foot_rest.basis.inverse() * Vector3.UP
+			rest_fwd_local[side] = foot_rest.basis.inverse() * (poles[side] as Vector3)
+		_check(r_player != null and r_player.has_animation(walk_clip), "%s: real walking clip available" % type_id)
+		r_player.play(walk_clip)
+		var clip_len: float = r_player.get_animation(walk_clip).length
+		var model_basis_before: Basis = r_model.basis
+		# The unit faces world -Z at spawn; a slope along -Z is uphill AHEAD.
+		for scenario in [
+			["flat", 0.0], ["shallow", 0.08], ["medium", 0.2],
+			["steep", 0.42], ["downhill", -0.25],
+		]:
+			var s_name: String = scenario[0]
+			var s_slope: float = scenario[1]
+			rview.set_surface_sampler(ZSlopeSampler.new(0.0, s_slope))
+			var all_finite := true
+			var lengths_ok := true
+			var side_ok := true
+			var margin_ok := true
+			var continuity_ok := true
+			var prev_bend := {"L": Vector3.ZERO, "R": Vector3.ZERO}
+			for step in 25:
+				r_player.seek(clip_len * float(step) / 24.0, true)
+				var anim_reach := {}
+				for side in ["L", "R"]:
+					var ch0: Array = chains[side]
+					anim_reach[side] = (
+						r_skel.get_bone_global_pose(int(ch0[2])).origin
+						- r_skel.get_bone_global_pose(int(ch0[0])).origin
+					).length()
+				r_grounder.apply_grounding_now()
+				for side in ["L", "R"]:
+					var ch: Array = chains[side]
+					var a: Vector3 = r_skel.get_bone_global_pose(int(ch[0])).origin
+					var b: Vector3 = r_skel.get_bone_global_pose(int(ch[1])).origin
+					var c: Vector3 = r_skel.get_bone_global_pose(int(ch[2])).origin
+					if not (a.is_finite() and b.is_finite() and c.is_finite()):
+						all_finite = false
+						continue
+					var rl: Array = rest_lengths[side]
+					if absf((b - a).length() - float(rl[0])) > 0.01 * float(rl[0]) \
+							or absf((c - b).length() - float(rl[1])) > 0.01 * float(rl[1]):
+						lengths_ok = false
+					var full_len: float = float(rl[0]) + float(rl[1])
+					# The margin bounds SOLVER-placed targets; an authored
+					# pose already straighter than the margin is preserved,
+					# never re-posed and never extended further.
+					var reach_cap: float = maxf(
+						full_len * WorldUnitLegGrounderScript.REACH_MAX_RATIO,
+						minf(float(anim_reach[side]), full_len * 0.999)
+					)
+					if (c - a).length() > reach_cap + 0.005 * full_len:
+						margin_ok = false
+					var axis := (c - a).normalized()
+					var bend := b - (a + axis * (b - a).dot(axis))
+					if bend.length() > 0.03 * full_len:
+						if bend.dot(poles[side] as Vector3) <= 0.0:
+							side_ok = false
+						var pb: Vector3 = prev_bend[side]
+						if pb.length() > 0.03 * full_len \
+								and bend.normalized().angle_to(pb.normalized()) > 1.2:
+							continuity_ok = false
+					prev_bend[side] = bend
+			_check(all_finite, "%s/%s: every grounded pose is finite" % [type_id, s_name])
+			_check(lengths_ok, "%s/%s: exact bone lengths across the whole clip" % [type_id, s_name])
+			_check(side_ok, "%s/%s: knee bend side stays signed toward the anatomical pole (no backward knee)" % [type_id, s_name])
+			_check(margin_ok, "%s/%s: reach keeps the extension margin (no lock/hyperextension)" % [type_id, s_name])
+			_check(continuity_ok, "%s/%s: bounded knee angular continuity (no single-frame branch snap)" % [type_id, s_name])
+			_check(r_model.basis.is_equal_approx(model_basis_before), "%s/%s: root stays upright/unchanged" % [type_id, s_name])
+
+		# --- sole alignment (stance): each foot follows its OWN normal ----
+		# Delta-model contract: the applied correction equals the exact
+		# sole_alignment slope rotation (full weight in stance), so the
+		# sole keeps its authored relationship to the ground plane with
+		# the plane now tilted — its deviation from the terrain normal
+		# never exceeds the authored deviation from flat up.
+		var stance_t := _lowest_lift_time(r_player, r_skel, int(chains["L"][2]), walk_clip, clip_len)
+		var slope_sampler := ZSlopeSampler.new(0.0, 0.15)
+		rview.set_surface_sampler(slope_sampler)
+		var world_b: Basis = r_skel.global_transform.basis
+		r_player.seek(stance_t, true)
+		var anim_basis_l: Basis = r_skel.get_bone_global_pose(int(chains["L"][2])).basis
+		var anim_sole_l: Vector3 = (world_b * anim_basis_l * (rest_up_local["L"] as Vector3)).normalized()
+		var anim_head_l: Vector3 = world_b * anim_basis_l * (rest_fwd_local["L"] as Vector3)
+		r_grounder.apply_grounding_now()
+		var after_basis_l: Basis = r_skel.get_bone_global_pose(int(chains["L"][2])).basis
+		var sole_l: Vector3 = (world_b * after_basis_l * (rest_up_local["L"] as Vector3)).normalized()
+		var applied_corr := Quaternion(
+			((world_b * after_basis_l) * (world_b * anim_basis_l).inverse()).orthonormalized()
+		).normalized()
+		var expected_corr: Quaternion = WorldUnitLegGrounderScript.sole_alignment(
+			anim_head_l, slope_sampler.normal()
+		)
+		if applied_corr.angle_to(expected_corr) >= 0.01:
+			var lf_i: int = int(chains["L"][2])
+			var parent_g: Transform3D = r_skel.get_bone_global_pose(r_skel.get_bone_parent(lf_i))
+			var local_global: Basis = (parent_g * r_skel.get_bone_pose(lf_i)).basis
+			var local_corr: Quaternion = Quaternion(
+				(world_b * local_global) * (world_b * anim_basis_l).inverse()
+			).normalized()
+			print("DBG %s stance_t=%f applied=%f expected=%f angle_to=%f local_corr=%f skel_id=%d" % [
+				type_id, stance_t, applied_corr.get_angle(), expected_corr.get_angle(),
+				applied_corr.angle_to(expected_corr), local_corr.get_angle(), r_skel.get_instance_id()])
+		_check(
+			applied_corr.angle_to(expected_corr) < 0.01,
+			"%s: stance applies the EXACT full sole-alignment slope rotation" % type_id
+		)
+		_check(
+			sole_l.dot(slope_sampler.normal()) > anim_sole_l.dot(Vector3.UP) - 0.002,
+			"%s: stance sole follows the slope (deviation from the terrain normal never exceeds the authored flat deviation)" % type_id
+		)
+		# Heading preserved (horizontal forward before vs after alignment).
+		var fwd_l: Vector3 = world_b * after_basis_l * (rest_fwd_local["L"] as Vector3)
+		_check(
+			Vector3(fwd_l.x, 0.0, fwd_l.z).normalized().dot(Vector3(anim_head_l.x, 0.0, anim_head_l.z).normalized()) > 0.995,
+			"%s: sole alignment preserves the foot heading" % type_id
+		)
+		# Flat ground: the correction naturally approaches zero.
+		rview.set_surface_sampler(ZSlopeSampler.new(0.0, 0.0))
+		r_player.seek(stance_t, true)
+		var flat_before: Basis = r_skel.get_bone_global_pose(int(chains["L"][2])).basis
+		r_grounder.apply_grounding_now()
+		var flat_after: Basis = r_skel.get_bone_global_pose(int(chains["L"][2])).basis
+		_check(
+			Quaternion((flat_after * flat_before.inverse()).orthonormalized()).normalized().get_angle() < 0.03,
+			"%s: flat ground leaves the animated foot orientation (correction -> 0)" % type_id
+		)
+		# Independent per-foot normals (split sampler by world X sign): each
+		# foot's applied correction maps flat-up onto ITS OWN sampled
+		# normal, and the two corrections genuinely differ.
+		rview.set_surface_sampler(SplitNormalSampler.new())
+		r_player.seek(stance_t, true)
+		var split := SplitNormalSampler.new()
+		var anim_bases := {}
+		var own_normals := {}
+		for side in ["L", "R"]:
+			var pose: Transform3D = r_skel.get_bone_global_pose(int(chains[side][2]))
+			anim_bases[side] = pose.basis
+			own_normals[side] = split.normal_at((r_skel.global_transform * pose.origin).x)
+		r_grounder.apply_grounding_now()
+		var corr_by_side := {}
+		var own_ok := true
+		for side in ["L", "R"]:
+			var after: Basis = r_skel.get_bone_global_pose(int(chains[side][2])).basis
+			var corr := Quaternion(
+				((world_b * after) * (world_b * (anim_bases[side] as Basis)).inverse()).orthonormalized()
+			).normalized()
+			corr_by_side[side] = corr
+			# Full contact expected at the stance frame for the planted
+			# foot; the other foot may be partially in swing — its
+			# correction must then be a partial arc TOWARD its own normal:
+			# applying it moves flat-up closer to that foot's own sampled
+			# normal than applying nothing.
+			var own_n: Vector3 = own_normals[side]
+			var improvement: float = (corr * Vector3.UP).dot(own_n) - Vector3.UP.dot(own_n)
+			if corr.get_angle() > 0.01 and improvement <= 0.0:
+				own_ok = false
+		_check(own_ok, "%s: each sole rotates toward its OWN sampled normal (independent feet)" % type_id)
+		_check(
+			(corr_by_side["L"] as Quaternion).angle_to(corr_by_side["R"] as Quaternion) > 0.02,
+			"%s: the two feet apply genuinely different corrections" % type_id
+		)
+
+		# --- swing/contact blending + endpoint-zero uphill clearance ------
+		var swing_t := _highest_lift_time(r_player, r_skel, int(chains["L"][2]), walk_clip, clip_len)
+		var uphill := ZSlopeSampler.new(0.0, 0.42)
+		# Flat reference at the same swing pose.
+		rview.set_surface_sampler(ZSlopeSampler.new(0.0, 0.0))
+		r_player.seek(swing_t, true)
+		var lfoot_i2: int = int(chains["L"][2])
+		var flat_anim_y: float = (r_skel.global_transform * r_skel.get_bone_global_pose(lfoot_i2).origin).y
+		r_grounder.apply_grounding_now()
+		var flat_ground_y: float = (r_skel.global_transform * r_skel.get_bone_global_pose(lfoot_i2).origin).y
+		# Uphill at the same swing pose: the swing foot gains clearance
+		# ABOVE its own terrain delta when its target is above the stance
+		# foot's (uphill ahead), and the correction stays partial (blend
+		# toward the landing normal, never full ground glue mid-swing).
+		rview.set_surface_sampler(uphill)
+		r_player.seek(swing_t, true)
+		var anim_pose_w: Vector3 = r_skel.global_transform * r_skel.get_bone_global_pose(lfoot_i2).origin
+		var d_swing: float = uphill.height_at(anim_pose_w.x, anim_pose_w.z)
+		var rfoot_w: Vector3 = r_skel.global_transform * r_skel.get_bone_global_pose(int(chains["R"][2])).origin
+		var d_stance: float = uphill.height_at(rfoot_w.x, rfoot_w.z)
+		r_grounder.apply_grounding_now()
+		var uphill_y: float = (r_skel.global_transform * r_skel.get_bone_global_pose(lfoot_i2).origin).y
+		if d_swing > d_stance + 0.002:
+			_check(
+				uphill_y - (flat_ground_y + d_swing) > 0.003,
+				"%s: uphill mid-swing foot gains positive clearance over the flat baseline" % type_id
+			)
+		else:
+			# Gait phase put the swing foot below the stance foot on this
+			# rig: clearance must then contribute exactly nothing.
+			_check(
+				absf(uphill_y - (flat_ground_y + d_swing)) < 0.02,
+				"%s: no clearance without positive uphill height gain" % type_id
+			)
+		_check(
+			absf(flat_ground_y - flat_anim_y) < 0.02,
+			"%s: flat mid-swing keeps the authored trajectory (no artificial lift)" % type_id
+		)
+
+		# --- frame-rate-independent foot blending --------------------------
+		var bview = WorldUnitsViewScript.new()
+		root.add_child(bview)
+		bview.set_process(false)
+		bview.set_tile_anchors(ANCHORS)
+		bview.apply_snapshot_units([{
+			"id": 8, "owner_id": 11, "position": [0, 0], "type_id": type_id,
+		}])
+		var b_skel: Skeleton3D = _find_skeleton(bview.root_for_unit(8))
+		var b_grounder = bview.grounder_for_unit(8)
+		var b_player: AnimationPlayer = bview.animation_player_for_unit(8)
+		bview.set_surface_sampler(ZSlopeSampler.new(0.0, 0.15))
+		b_player.play(walk_clip)
+		b_player.seek(stance_t, true)
+		var b_foot: int = b_skel.find_bone("LeftFoot")
+		var anim_basis: Basis = b_skel.get_bone_global_pose(b_foot).basis
+		b_grounder.apply_grounding_now(0.02)
+		var partial_angle: float = Quaternion(
+			(b_skel.get_bone_global_pose(b_foot).basis * anim_basis.inverse()).orthonormalized()
+		).normalized().get_angle()
+		for i in 40:
+			b_player.seek(stance_t, true)
+			b_grounder.apply_grounding_now(0.05)
+		b_player.seek(stance_t, true)
+		b_grounder.apply_grounding_now()
+		var full_angle: float = Quaternion(
+			(b_skel.get_bone_global_pose(b_foot).basis * anim_basis.inverse()).orthonormalized()
+		).normalized().get_angle()
+		_check(
+			partial_angle < full_angle - 0.005 and partial_angle > 0.0005,
+			"%s: timed foot blending is gradual (no single-frame sole snap)" % type_id
+		)
+		bview.queue_free()
+		rview.queue_free()
+
 	# --- engine invocation: the modifier runs post-animation ------------------
 	var counting := CountingGrounder.new()
 	counting.name = "CountingGrounder"
@@ -474,6 +888,32 @@ func _run() -> void:
 # World position of one bone under the CURRENT pose.
 static func _bone_world(skel: Skeleton3D, bone_idx: int) -> Vector3:
 	return skel.global_transform * skel.get_bone_global_pose(bone_idx).origin
+
+
+# Clip time (scan of the ACTUAL remapped clip) where one foot bone is at
+# its lowest — a deterministic stance/contact pose for that rig.
+static func _lowest_lift_time(player: AnimationPlayer, skel: Skeleton3D, foot_i: int, clip: String, clip_len: float) -> float:
+	return _extreme_lift_time(player, skel, foot_i, clip, clip_len, false)
+
+
+# Clip time where one foot bone is at its highest — a deterministic
+# mid-swing pose for that rig.
+static func _highest_lift_time(player: AnimationPlayer, skel: Skeleton3D, foot_i: int, clip: String, clip_len: float) -> float:
+	return _extreme_lift_time(player, skel, foot_i, clip, clip_len, true)
+
+
+static func _extreme_lift_time(player: AnimationPlayer, skel: Skeleton3D, foot_i: int, clip: String, clip_len: float, highest: bool) -> float:
+	player.play(clip)
+	var best_t := 0.0
+	var best_y := -INF if highest else INF
+	for step in 49:
+		var t: float = clip_len * float(step) / 48.0
+		player.seek(t, true)
+		var y: float = skel.get_bone_global_pose(foot_i).origin.y
+		if (highest and y > best_y) or (not highest and y < best_y):
+			best_y = y
+			best_t = t
+	return best_t
 
 
 # EFFECTIVE rendered forward of a unit: the horizontal toe-vs-ankle rest
