@@ -24,9 +24,11 @@ class WorldStub:
 	extends Node3D
 	const ANCHOR_A := Vector3(0.0, 0.0, 0.0)
 	const ANCHOR_B := Vector3(2.0, 0.4, 0.0)
+	const ANCHOR_C := Vector3(0.0, 0.2, 2.0)
 	var tile_anchors := {
 		Vector2i(0, 0): ANCHOR_A,
 		Vector2i(1, 0): ANCHOR_B,
+		Vector2i(0, 1): ANCHOR_C,
 	}
 
 
@@ -41,13 +43,23 @@ class FakeMoveSession:
 		"schema_version": 1,
 		"content_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 	}
+	# When `deferred` is set, post_action suspends on the `respond` signal —
+	# a genuinely pending POST across process frames until the test emits it.
+	signal respond
+	var deferred := false
+	var pending := 0
 	var mode := "accept"
 	var revision := 0
 	var unit_pos: Array = [0, 0]
+	var extra_units: Array = []
 	var post_calls: Array = []
 	var legal_calls: Array = []
 
-	static func make_snapshot(rev: int, upos: Array, current_index: int = 0) -> Dictionary:
+	static func make_snapshot(rev: int, upos: Array, current_index: int = 0, extra: Array = []) -> Dictionary:
+		var units: Array = [
+			{"id": 1, "owner_id": 0, "position": upos, "type_id": "settler"},
+		]
+		units.append_array(extra.duplicate(true))
 		return {
 			"match_id": "m_gate",
 			"schema_version": 3,
@@ -55,29 +67,39 @@ class FakeMoveSession:
 			"map": GATE_MAP.duplicate(true),
 			"revision": rev,
 			"turn_state": {"players": [0, 1], "current_index": current_index, "turn_number": 1},
-			"units": [
-				{"id": 1, "owner_id": 0, "position": upos, "type_id": "settler"},
-			],
+			"units": units,
 		}
 
 	func post_action(action: Dictionary) -> Dictionary:
 		post_calls.append(action.duplicate(true))
+		if deferred:
+			pending += 1
+			await respond
+			pending -= 1
 		if mode == "error":
 			return {"_error": "http", "_http_code": 0}
 		if mode == "reject":
 			return {"accepted": false, "reason": "destination_occupied", "index": -1}
 		if mode == "accepted_no_snapshot":
 			return {"accepted": true, "reason": "", "index": 0, "revision": revision + 1}
+		if mode == "accept_stationary":
+			# Accepted move whose authoritative snapshot leaves the unit at
+			# its current anchor — the applied snapshot starts NO glide.
+			revision += 1
+			return {
+				"accepted": true, "reason": "", "index": 0, "revision": revision,
+				"snapshot": make_snapshot(revision, unit_pos, 0, extra_units),
+			}
 		revision += 1
 		if str(action.get("action_type", "")) == "move_unit":
 			unit_pos = (action.get("to", [0, 0]) as Array).duplicate()
 			return {
 				"accepted": true, "reason": "", "index": 0, "revision": revision,
-				"snapshot": make_snapshot(revision, unit_pos, 0),
+				"snapshot": make_snapshot(revision, unit_pos, 0, extra_units),
 			}
 		return {
 			"accepted": true, "reason": "", "index": 0, "revision": revision,
-			"snapshot": make_snapshot(revision, unit_pos, 1),
+			"snapshot": make_snapshot(revision, unit_pos, 1, extra_units),
 		}
 
 	func get_legal_actions(actor_id: int, selected_unit_id: int = -1, _selected_city_id: int = -1) -> Dictionary:
@@ -279,6 +301,113 @@ func _init() -> void:
 	_check(int(scene2.snapshot.get("revision", -1)) == 2, "the end-turn snapshot applied normally")
 
 	scene2.free()
+
+	# --- N7f.1 request race: picks are inert while a POST is pending ----------
+	# A DEFERRED move response stays genuinely pending across a process frame;
+	# rapid picks during that window must not change or clear the selection
+	# the pending response's arrival gate is about to bind to.
+	var scene3 = packed.instantiate()
+	scene3._build_status_ui()
+	var dfake := FakeMoveSession.new()
+	dfake.deferred = true
+	dfake.extra_units = [
+		{"id": 2, "owner_id": 0, "position": [0, 1], "type_id": "warrior"},
+	]
+	scene3.session = dfake
+	var stub3 := WorldStub.new()
+	scene3.add_child(stub3)
+	scene3.world = stub3
+	scene3.snapshot = FakeMoveSession.make_snapshot(0, [0, 0], 0, dfake.extra_units)
+	var st3 = WorldInteractionStateScript.new(0)
+	scene3.interaction = st3
+	st3.apply_snapshot(scene3.snapshot)
+	st3.select_unit(1)
+	var d_sum: int = st3.begin_summary_fetch()
+	st3.accept_summary_legal_actions(d_sum, dfake.summary_response())
+	var d_sel: int = st3.begin_selection_fetch()
+	st3.accept_selection_legal_actions(d_sel, dfake.selection_response())
+	scene3._render_units()
+	var served_before: Array = st3.destination_tiles()
+	scene3._on_terrain_picked({"kind": "tile", "tile": Vector2i(1, 0)})  # not awaited — stays pending
+	_check(dfake.post_calls.size() == 1 and dfake.pending == 1, "the move POST is genuinely pending")
+	_check(scene3._request_busy, "_request_busy is active while the POST is pending")
+	await process_frame
+	_check(dfake.pending == 1, "the POST remains pending across a process frame")
+	for racy_pick in [
+		{"kind": "tile", "tile": Vector2i(0, 1)},  # another OWN unit
+		{"kind": "tile", "tile": Vector2i(9, 9)},  # empty terrain
+		{"kind": "tile", "tile": Vector2i(1, 0)},  # the served destination
+		{},  # miss
+		{"kind": "cliff", "edge": [], "tiles": []},  # cliff
+	]:
+		scene3._on_terrain_picked(racy_pick)
+	scene3._on_end_turn_pressed()
+	_check(st3.selected_unit_id == 1, "selection stays the moved unit through every pending-POST pick")
+	_check(st3.destination_tiles() == served_before, "served rows are unchanged during the pending POST")
+	_check(dfake.post_calls.size() == 1, "no second POST while the request is pending")
+	_check(not st3.arrival_gate_active(), "the gate is not entered before the response resolves")
+	_check(dfake.legal_calls.size() == 0, "no legality fetch while the request is pending")
+	dfake.respond.emit()  # resolve the accepted response
+	_check(dfake.pending == 0 and not scene3._request_busy, "the deferred response resolved")
+	_check(int(scene3.snapshot.get("revision", -1)) == 1, "the authoritative snapshot applied on resolution")
+	_check(
+		st3.arrival_gate_active()
+			and st3.arrival_gate_unit_id == 1
+			and st3.arrival_gate_revision == 1,
+		"the gate binds to the moved unit and the accepted revision"
+	)
+	_check(st3.selected_unit_id == 1, "unit 1 remains selected after resolution")
+	_check(scene3.units_view.is_unit_moving(1), "the visual glide runs after resolution")
+	_check(dfake.legal_calls.size() == 0, "no legality is fetched before the visual arrival")
+	scene3.units_view.advance_locomotion(60.0)
+	_check(not st3.arrival_gate_active(), "the deferred flow still releases on the real arrival")
+	_check(dfake.legal_calls == [[0, -1], [0, 1]], "one summary + one selection refetch after arrival")
+	scene3.free()
+
+	# --- N7f.1 degenerate/no-glide release: accepted move without a glide -----
+	# The applied snapshot leaves the unit at its current anchor, so no
+	# locomotion starts and no unit_arrived signal will EVER come — the
+	# scene's degenerate-settlement path must release the just-entered gate
+	# synchronously, with exactly one summary + still-valid-selection refetch.
+	var scene4 = packed.instantiate()
+	scene4._build_status_ui()
+	var button4: Button = scene4.get_node("WorldPlayStatus/EndTurnButton") as Button
+	var sfake := FakeMoveSession.new()
+	sfake.mode = "accept_stationary"
+	scene4.session = sfake
+	var stub4 := WorldStub.new()
+	scene4.add_child(stub4)
+	scene4.world = stub4
+	scene4.snapshot = FakeMoveSession.make_snapshot(0, [0, 0])
+	var st4b = WorldInteractionStateScript.new(0)
+	scene4.interaction = st4b
+	st4b.apply_snapshot(scene4.snapshot)
+	st4b.select_unit(1)
+	var g_sum: int = st4b.begin_summary_fetch()
+	st4b.accept_summary_legal_actions(g_sum, sfake.summary_response())
+	var g_sel: int = st4b.begin_selection_fetch()
+	st4b.accept_selection_legal_actions(g_sel, sfake.selection_response())
+	scene4._render_units()
+	scene4._on_terrain_picked({"kind": "tile", "tile": Vector2i(1, 0)})
+	_check(sfake.post_calls.size() == 1, "the degenerate move POSTs exactly once")
+	_check(int(scene4.snapshot.get("revision", -1)) == 1, "the accepted stationary snapshot applied")
+	_check(not scene4.units_view.is_unit_moving(1), "no glide started (degenerate settlement)")
+	_check(not st4b.arrival_gate_active(), "the gate released synchronously without a unit_arrived signal")
+	_check(
+		sfake.legal_calls == [[0, -1], [0, 1]],
+		"exactly one summary + one still-valid-selection refetch (no duplicates)"
+	)
+	_check(st4b.selected_unit_id == 1, "the selection survives the degenerate release")
+	_check(not st4b.destination_tiles().is_empty(), "fresh served rows are usable again — no permanent lock")
+	scene4._refresh_interaction_ui()
+	_check(not button4.disabled, "End Turn re-enables after the degenerate release")
+	scene4.units_view.advance_locomotion(60.0)
+	scene4._on_unit_arrived(1)
+	_check(
+		sfake.legal_calls.size() == 2,
+		"no duplicate release/refetch from later idle advancing or stale arrivals"
+	)
+	scene4.free()
 	_finish()
 
 

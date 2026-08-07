@@ -335,6 +335,14 @@ func _setup_interaction() -> void:
 func _on_terrain_picked(pick: Dictionary) -> void:
 	if interaction == null:
 		return
+	# Pending-request guard: while a POST is in flight EVERY gameplay pick
+	# is inert — before any classification or selection mutation — so a
+	# rapid click can never change or clear the selection that the pending
+	# response's arrival gate is about to bind to. Deliberately separate
+	# from the arrival gate (transport busy vs. locomotion pacing); camera
+	# gestures and F12 capture never route through terrain picks.
+	if _request_busy:
+		return
 	var directive: Dictionary = interaction.classify_pick(pick)
 	match str(directive.get("kind", "")):
 		WorldInteractionStateScript.PICK_SUBMIT_MOVE:
