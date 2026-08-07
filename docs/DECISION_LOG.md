@@ -2194,3 +2194,17 @@ Caveat:
 
 - Plaintext JSON per profile on the same machine; not a security boundary—convenience for local multi-client testing only.
 
+## 2026-08-07 — Client arrival gate is pacing-only; on-entry outcomes must be server-atomic or server-owned pending state
+
+Decision:
+
+- **N7f.1** adds a deterministic **client arrival gate**: after an accepted `move_unit` with a usable snapshot, further LOCAL input (picks, End Turn, destination rows, legality fetches) waits until the moved unit's real visual arrival (`WorldUnitsView.unit_arrived`, exactly once per completed glide). The accepted snapshot and the authoritative root anchor always apply immediately — gameplay state is never delayed by animation.
+- **Permanent client/server boundary rule:** the arrival gate controls **pacing and visibility only**. Any mandatory future on-entry outcome a unit must resolve when entering a tile (events, encounters, captures) must be resolved **atomically by the server together with the movement itself**, or represented as **server-owned pending interaction state** served like any other authoritative state. The client gate must never be the sole anti-skip enforcement.
+
+Rationale:
+
+- A polished client cannot allow a second move to be submitted mid-walk (skipping the intended arrival moment), but a client-side lock is trivially bypassable (modified client, direct API calls) and therefore can never carry rules authority — consistent with the locked server-authoritative direction (client renders/submits exact served rows only).
+
+Caveat:
+
+- Rejections, transport failures, accepted-without-snapshot responses, non-move actions, gated-unit removal, turn loss, and different-revision snapshots must (and do) resolve the gate without deadlock; reconnect/bootstrap never infers one.

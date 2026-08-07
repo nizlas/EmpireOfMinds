@@ -287,6 +287,8 @@ func _render_units() -> void:
 		units_view = WorldUnitsViewScript.new()
 		units_view.name = "WorldUnitsView"
 		add_child(units_view)
+		# N7f.1: real visual arrivals release the arrival gate.
+		units_view.unit_arrived.connect(_on_unit_arrived)
 	# N7f grounding: transient visual height/normal correction samples the
 	# built terrain's rendered top surface only (never walls, never rules).
 	if not units_view.has_surface_sampler():
@@ -333,6 +335,14 @@ func _setup_interaction() -> void:
 func _on_terrain_picked(pick: Dictionary) -> void:
 	if interaction == null:
 		return
+	# Pending-request guard: while a POST is in flight EVERY gameplay pick
+	# is inert — before any classification or selection mutation — so a
+	# rapid click can never change or clear the selection that the pending
+	# response's arrival gate is about to bind to. Deliberately separate
+	# from the arrival gate (transport busy vs. locomotion pacing); camera
+	# gestures and F12 capture never route through terrain picks.
+	if _request_busy:
+		return
 	var directive: Dictionary = interaction.classify_pick(pick)
 	match str(directive.get("kind", "")):
 		WorldInteractionStateScript.PICK_SUBMIT_MOVE:
@@ -355,6 +365,25 @@ func _on_end_turn_pressed() -> void:
 	if interaction == null or _request_busy or not interaction.can_submit_end_turn():
 		return
 	await _submit_action(interaction.end_turn_row)
+
+
+# N7f.1: releases the arrival gate on the REAL visual arrival of exactly
+# the gated unit (WorldUnitsView.unit_arrived, or the scene's degenerate-
+# settlement path). Unrelated or stale completions change nothing. After a
+# matching release, current-revision summary legality (plus selected-unit
+# legality while the selection remains valid) is refetched — markers and
+# End Turn only return from these fresh served responses.
+func _on_unit_arrived(unit_id: int) -> void:
+	if interaction == null:
+		return
+	if not interaction.try_release_arrival_gate(int(unit_id)):
+		return
+	_summary_refetch_needed = interaction.is_my_turn()
+	_selection_refetch_needed = (
+		interaction.is_my_turn() and interaction.selected_unit_id >= 0
+	)
+	_refresh_interaction_ui()
+	await _pump_legal_fetch()
 
 
 # Submits one EXACT served action row. Accepted responses carry the new
@@ -380,9 +409,33 @@ func _submit_action(action_row: Dictionary) -> void:
 		return
 	_set_action_feedback("")
 	var snap = resp.get("snapshot", null)
-	if typeof(snap) == TYPE_DICTIONARY:
-		_apply_authoritative_snapshot(snap as Dictionary)
-		await _pump_legal_fetch()
+	if typeof(snap) != TYPE_DICTIONARY:
+		# Accepted but unusable: fail visibly and never leave a gate armed.
+		push_error("cloud_world_play: accepted action response carried no snapshot")
+		_set_action_feedback("Accepted response carried no snapshot — state not updated.")
+		_refresh_interaction_ui()
+		return
+	# N7f.1 arrival gate: only an accepted move_unit with a usable snapshot
+	# enters it, bound to the exact moved unit and accepted revision. The
+	# snapshot is applied IMMEDIATELY afterwards (gameplay state and the
+	# authoritative root never wait for animation) — the apply installs the
+	# accepted revision before any synchronous/degenerate settlement can
+	# release the gate, and only further local input waits for arrival.
+	var gated_unit := -1
+	if interaction != null and str(action_row.get("action_type", "")) == "move_unit":
+		gated_unit = int(action_row.get("unit_id", -1))
+		interaction.enter_arrival_gate(gated_unit, int(resp.get("revision", -1)))
+	_apply_authoritative_snapshot(snap as Dictionary)
+	# Degenerate/synchronous settlement (no glide started, unit vanished,
+	# or the apply already cleared the gate): resolve NOW — the gate can
+	# never deadlock waiting for an arrival that will not come.
+	if (
+		interaction != null
+		and interaction.arrival_gate_active()
+		and (units_view == null or not units_view.is_unit_moving(interaction.arrival_gate_unit_id))
+	):
+		await _on_unit_arrived(interaction.arrival_gate_unit_id)
+	await _pump_legal_fetch()
 
 
 # Applies a newer authoritative snapshot (accepted action or waiting poll)
@@ -416,6 +469,7 @@ func _pump_legal_fetch() -> void:
 		(_summary_refetch_needed or _selection_refetch_needed)
 		and session != null
 		and interaction != null
+		and not interaction.arrival_gate_active()
 		and not _request_busy
 	):
 		if interaction.my_actor_id < 0:

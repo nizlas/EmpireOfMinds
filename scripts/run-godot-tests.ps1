@@ -17,7 +17,7 @@ $GamePath = Join-Path $RepoRoot "game"
 
 $KnownGodotPath = "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"
 
-$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f")
+$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f", "n7f1")
 
 $Script:SliceTests = @{
 	"c13a" = @(
@@ -82,11 +82,20 @@ $Script:SliceTests = @{
 		"res://presentation/tests/test_world_destination_markers.gd"
 		"res://cloud/tests/test_cloud_world_play_interaction.gd"
 		"res://cloud/tests/test_cloud_one_pc_debug.gd"
+		"res://presentation/tests/test_world_units_arrival_event.gd"
 	)
 	# N7f focused subset (no terrain build; fast — locomotion/facing math,
 	# clip transitions, grounding, retargeting; slice n7 runs it too).
 	"n7f" = @(
 		"res://presentation/tests/test_world_units_locomotion.gd"
+	)
+	# N7f.1 arrival gate (no terrain build; fast — gate interaction state,
+	# production-scene wiring incl. the single-POST rapid-click proof, and
+	# the WorldUnitsView arrival event).
+	"n7f1" = @(
+		"res://cloud/tests/test_world_interaction_state.gd"
+		"res://cloud/tests/test_cloud_world_play_interaction.gd"
+		"res://presentation/tests/test_world_units_arrival_event.gd"
 	)
 }
 
@@ -270,6 +279,7 @@ $Script:AllTests = @(
 	"res://presentation/tests/test_world_destination_markers.gd",
 	"res://cloud/tests/test_cloud_world_play_interaction.gd",
 	"res://cloud/tests/test_cloud_one_pc_debug.gd",
+	"res://presentation/tests/test_world_units_arrival_event.gd",
 	"res://cloud/tests/test_cloud_match_labels.gd",
 	"res://cloud/tests/test_cloud_display_name.gd",
 	"res://cloud/tests/test_cloud_saved_row_rename.gd",

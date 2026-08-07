@@ -389,6 +389,84 @@ func _init() -> void:
 		"missing seat identity is reported instead of silently spectating"
 	)
 
+	# --- N7f.1 arrival gate ---------------------------------------------------
+	var ag = WorldInteractionStateScript.new(0)
+	ag.apply_snapshot(_snapshot(0, 0, _units()))
+	ag.select_unit(1)
+	var ag_sum: int = ag.begin_summary_fetch()
+	ag.accept_summary_legal_actions(ag_sum, _summary_response(0))
+	var ag_sel: int = ag.begin_selection_fetch()
+	var ag_rows := [_move_row(1, [1, 1], [0, 1])]
+	ag.accept_selection_legal_actions(ag_sel, _selection_response(0, 1, ag_rows))
+	_check(
+		ag.can_submit_end_turn() and not ag.destination_tiles().is_empty(),
+		"gate precondition: End Turn and destination rows are live"
+	)
+	# Accepted move: gate entered, then the accepted snapshot applied.
+	var moved_units := _units()
+	(moved_units[0] as Dictionary)["position"] = [0, 1]
+	ag.enter_arrival_gate(1, 1)
+	_check(ag.arrival_gate_active(), "accepted move enters the arrival gate")
+	directives = ag.apply_snapshot(_snapshot(1, 0, moved_units))
+	_check(ag.arrival_gate_active(), "the accepted snapshot (same revision) keeps the gate")
+	_check(
+		directives == {"summary": false, "selection": false},
+		"no legality is fetched while the gate is active"
+	)
+	_check(ag.selected_unit_id == 1, "moved-unit selection survives while gated")
+	_check(ag.selected_tile() == Vector2i(0, 1), "selection highlight follows the moved unit")
+	for gated_pick in [
+		_tile_pick(0, 1), _tile_pick(2, 1), _tile_pick(5, 5),
+		{}, {"kind": "cliff", "edge": [], "tiles": []},
+	]:
+		_check(
+			ag.classify_pick(gated_pick) == {"kind": "none"},
+			"gated pick is inert: %s" % str(gated_pick)
+		)
+	_check(not ag.can_submit_end_turn(), "End Turn is disabled while gated")
+	_check(ag.destination_tiles().is_empty(), "destination rows are hidden while gated")
+	_check(ag.move_row_for_tile(Vector2i(0, 1)).is_empty(), "no row is submittable while gated")
+	_check(ag.status_text().contains("moving"), "gated status text says the unit is moving")
+	# Fresh accepts while gated still cannot render rows (gate wins).
+	var ag_sel2: int = ag.begin_selection_fetch()
+	ag.accept_selection_legal_actions(ag_sel2, _selection_response(1, 1, [_move_row(1, [0, 1], [1, 1])]))
+	_check(ag.destination_tiles().is_empty(), "even freshly accepted rows stay hidden while gated")
+	# Stale/wrong arrival stays inert; the matching one releases.
+	_check(not ag.try_release_arrival_gate(2), "wrong-unit arrival cannot release the gate")
+	_check(ag.arrival_gate_active(), "gate survives an unrelated completion")
+	_check(ag.try_release_arrival_gate(1), "the gated unit's arrival releases the gate")
+	_check(not ag.arrival_gate_active(), "gate is inactive after the matching release")
+	_check(not ag.try_release_arrival_gate(1), "a second (stale) arrival is inert after release")
+	_check(
+		not ag.destination_tiles().is_empty(),
+		"rows accepted at the current revision become usable again after release"
+	)
+	# Gated unit vanishing resolves the gate safely.
+	var ag2 = WorldInteractionStateScript.new(0)
+	ag2.apply_snapshot(_snapshot(0, 0, _units()))
+	ag2.enter_arrival_gate(1, 1)
+	var killed2 := _units()
+	killed2.remove_at(0)
+	ag2.apply_snapshot(_snapshot(1, 0, killed2))
+	_check(not ag2.arrival_gate_active(), "gate clears when the gated unit no longer exists")
+	# Turn loss resolves the gate safely.
+	var ag3 = WorldInteractionStateScript.new(0)
+	ag3.apply_snapshot(_snapshot(0, 0, _units()))
+	ag3.enter_arrival_gate(1, 1)
+	ag3.apply_snapshot(_snapshot(1, 1, _units()))
+	_check(not ag3.arrival_gate_active(), "gate clears when the turn passes to the opponent")
+	# A different-revision authoritative snapshot supersedes the gate
+	# (reconnect/bootstrap snapshots can never keep or infer one).
+	var ag4 = WorldInteractionStateScript.new(0)
+	ag4.apply_snapshot(_snapshot(0, 0, _units()))
+	ag4.enter_arrival_gate(1, 1)
+	directives = ag4.apply_snapshot(_snapshot(5, 0, _units()))
+	_check(not ag4.arrival_gate_active(), "a different-revision snapshot supersedes the gate")
+	_check(
+		directives == {"summary": true, "selection": false},
+		"normal refetch directives resume once the gate is superseded"
+	)
+
 	_finish()
 
 
