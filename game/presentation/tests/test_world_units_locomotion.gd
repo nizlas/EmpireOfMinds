@@ -274,30 +274,53 @@ func _run() -> void:
 		(arc * Vector3(1, 0, 0)).is_equal_approx(Vector3(0, 1, 0)),
 		"shortest-arc rotation carries the source onto the target direction"
 	)
-	# Sole alignment: identity on flat, maps up onto a shallow normal with
-	# the heading preserved, clamps on an extreme normal.
+	# Sole alignment: ABSOLUTE contact orientation. The effective contact
+	# normal is reconstructed EXACTLY for in-clamp normals (including a
+	# mixed-XZ one) and clamped anatomically beyond the limits; the
+	# correction maps the rig-derived rest sole normal onto it exactly
+	# even from a TILTED animated pose, with the heading preserved.
+	var n_mixed := Vector3(0.2, 1.0, 0.25).normalized()
 	_check(
-		WorldUnitLegGrounderScript.sole_alignment(Vector3(0, 0, -1), Vector3.UP)
-			.is_equal_approx(Quaternion.IDENTITY),
-		"sole alignment is exactly identity on flat ground (no threshold needed)"
+		WorldUnitLegGrounderScript.effective_contact_normal(Vector3(0, 0, -1), n_mixed)
+			.is_equal_approx(n_mixed),
+		"effective contact normal reconstructs an in-clamp mixed-XZ normal EXACTLY"
 	)
-	var n_shallow := Vector3(0.0, 1.0, 0.15).normalized()
-	var q_shallow: Quaternion = WorldUnitLegGrounderScript.sole_alignment(Vector3(0, 0, -1), n_shallow)
 	_check(
-		(q_shallow * Vector3.UP).dot(n_shallow) > 0.9999,
-		"sole alignment carries the sole normal onto a shallow terrain normal"
-	)
-	var h_after := q_shallow * Vector3(0, 0, -1)
-	_check(
-		Vector3(h_after.x, 0.0, h_after.z).normalized().dot(Vector3(0, 0, -1)) > 0.999,
-		"sole alignment preserves the foot heading (tangent-plane projection)"
+		WorldUnitLegGrounderScript.effective_contact_normal(Vector3(0, 0, -1), Vector3.UP)
+			.is_equal_approx(Vector3.UP),
+		"effective contact normal is exactly UP on flat ground"
 	)
 	var n_extreme := Vector3(0.0, 1.0, 4.0).normalized()
-	var q_extreme: Quaternion = WorldUnitLegGrounderScript.sole_alignment(Vector3(0, 0, -1), n_extreme)
+	var n_eff: Vector3 = WorldUnitLegGrounderScript.effective_contact_normal(
+		Vector3(0, 0, -1), n_extreme
+	)
 	_check(
-		absf(q_extreme.get_angle()) <= WorldUnitLegGrounderScript.FOOT_PITCH_DOWN_MAX
-			+ WorldUnitLegGrounderScript.FOOT_ROLL_MAX + 0.001,
-		"sole alignment clamps dorsi/plantarflexion anatomically on extreme normals"
+		not n_eff.is_equal_approx(n_extreme)
+			and n_eff.angle_to(Vector3.UP)
+				<= WorldUnitLegGrounderScript.FOOT_PITCH_DOWN_MAX + 0.001,
+		"effective contact normal clamps extreme slopes anatomically"
+	)
+	var anim_tilt := Quaternion(Vector3(1, 0, 0), 0.15)  # authored-like foot tilt
+	var corr_tilted: Quaternion = WorldUnitLegGrounderScript.sole_alignment_correction(
+		anim_tilt, Vector3(0, 0, -1), Vector3.UP, n_mixed
+	)
+	_check(
+		((corr_tilted * anim_tilt) * Vector3.UP).angle_to(n_mixed) < 0.001,
+		"the correction maps a TILTED animated sole EXACTLY onto the terrain normal"
+	)
+	var head_before: Vector3 = anim_tilt * Vector3(0, 0, -1)
+	var head_after: Vector3 = (corr_tilted * anim_tilt) * Vector3(0, 0, -1)
+	_check(
+		Vector3(head_after.x, 0.0, head_after.z).normalized()
+			.dot(Vector3(head_before.x, 0.0, head_before.z).normalized()) > 0.999,
+		"the correction preserves the animated foot heading (never yawed)"
+	)
+	var corr_flat: Quaternion = WorldUnitLegGrounderScript.sole_alignment_correction(
+		anim_tilt, Vector3(0, 0, -1), Vector3.UP, Vector3.UP
+	)
+	_check(
+		((corr_flat * anim_tilt) * Vector3.UP).angle_to(Vector3.UP) < 0.001,
+		"on flat ground the correction is exactly the flatten delta (final sole normal == UP)"
 	)
 	# Contact weight + swing clearance: pose-derived, endpoint-zero,
 	# uphill-only, bounded.
@@ -729,11 +752,11 @@ func _run() -> void:
 			_check(r_model.basis.is_equal_approx(model_basis_before), "%s/%s: root stays upright/unchanged" % [type_id, s_name])
 
 		# --- sole alignment (stance): each foot follows its OWN normal ----
-		# Delta-model contract: the applied correction equals the exact
-		# sole_alignment slope rotation (full weight in stance), so the
-		# sole keeps its authored relationship to the ground plane with
-		# the plane now tilted — its deviation from the terrain normal
-		# never exceeds the authored deviation from flat up.
+		# Absolute-model contract: the applied correction equals the exact
+		# sole_alignment_correction delta (full weight in stance) from the
+		# animated rotation to the ABSOLUTE contact orientation, so the
+		# FINAL transformed sole plane coincides with the terrain plane —
+		# clip-authored foot tilt is absorbed, never transplanted.
 		var stance_t := _lowest_lift_time(r_player, r_skel, int(chains["L"][2]), walk_clip, clip_len)
 		var slope_sampler := ZSlopeSampler.new(0.0, 0.15)
 		rview.set_surface_sampler(slope_sampler)
@@ -748,8 +771,11 @@ func _run() -> void:
 		var applied_corr := Quaternion(
 			((world_b * after_basis_l) * (world_b * anim_basis_l).inverse()).orthonormalized()
 		).normalized()
-		var expected_corr: Quaternion = WorldUnitLegGrounderScript.sole_alignment(
-			anim_head_l, slope_sampler.normal()
+		var expected_corr: Quaternion = WorldUnitLegGrounderScript.sole_alignment_correction(
+			Quaternion((world_b * anim_basis_l).orthonormalized()),
+			rest_fwd_local["L"] as Vector3,
+			rest_up_local["L"] as Vector3,
+			slope_sampler.normal()
 		)
 		if applied_corr.angle_to(expected_corr) >= 0.01:
 			var lf_i: int = int(chains["L"][2])
@@ -769,25 +795,46 @@ func _run() -> void:
 			sole_l.dot(slope_sampler.normal()) > anim_sole_l.dot(Vector3.UP) - 0.002,
 			"%s: stance sole follows the slope (deviation from the terrain normal never exceeds the authored flat deviation)" % type_id
 		)
+		# Final-geometry contract: in full contact the ACTUAL transformed
+		# sole normal equals the terrain normal EXACTLY — the correction
+		# absorbs the clip-authored foot tilt instead of stacking the
+		# slope delta on top of it.
+		_check(
+			sole_l.angle_to(slope_sampler.normal()) < 0.01,
+			"%s: stance FINAL sole normal equals the terrain normal (off by %.4f rad)"
+				% [type_id, sole_l.angle_to(slope_sampler.normal())]
+		)
 		# Heading preserved (horizontal forward before vs after alignment).
 		var fwd_l: Vector3 = world_b * after_basis_l * (rest_fwd_local["L"] as Vector3)
 		_check(
 			Vector3(fwd_l.x, 0.0, fwd_l.z).normalized().dot(Vector3(anim_head_l.x, 0.0, anim_head_l.z).normalized()) > 0.995,
 			"%s: sole alignment preserves the foot heading" % type_id
 		)
-		# Flat ground: the correction naturally approaches zero.
+		# Flat ground, full contact: the FINAL sole plane coincides with
+		# the ground plane exactly — the correction is exactly the small
+		# flatten delta of the clip-authored stance tilt (heading kept),
+		# never a slope rotation stacked onto a still-tilted sole.
 		rview.set_surface_sampler(ZSlopeSampler.new(0.0, 0.0))
 		r_player.seek(stance_t, true)
 		var flat_before: Basis = r_skel.get_bone_global_pose(int(chains["L"][2])).basis
+		var flat_head: Vector3 = world_b * flat_before * (rest_fwd_local["L"] as Vector3)
 		r_grounder.apply_grounding_now()
 		var flat_after: Basis = r_skel.get_bone_global_pose(int(chains["L"][2])).basis
+		var flat_sole: Vector3 = (world_b * flat_after * (rest_up_local["L"] as Vector3)).normalized()
 		_check(
-			Quaternion((flat_after * flat_before.inverse()).orthonormalized()).normalized().get_angle() < 0.03,
-			"%s: flat ground leaves the animated foot orientation (correction -> 0)" % type_id
+			flat_sole.angle_to(Vector3.UP) < 0.01,
+			"%s: flat full contact flattens the sole exactly onto the ground plane (off by %.4f rad)"
+				% [type_id, flat_sole.angle_to(Vector3.UP)]
+		)
+		var flat_fwd: Vector3 = world_b * flat_after * (rest_fwd_local["L"] as Vector3)
+		_check(
+			Vector3(flat_fwd.x, 0.0, flat_fwd.z).normalized()
+				.dot(Vector3(flat_head.x, 0.0, flat_head.z).normalized()) > 0.995,
+			"%s: the flat flatten delta preserves the foot heading" % type_id
 		)
 		# Independent per-foot normals (split sampler by world X sign): each
-		# foot's applied correction maps flat-up onto ITS OWN sampled
-		# normal, and the two corrections genuinely differ.
+		# foot's FINAL sole normal moves toward ITS OWN sampled normal,
+		# and the two corrections genuinely differ.
 		rview.set_surface_sampler(SplitNormalSampler.new())
 		r_player.seek(stance_t, true)
 		var split := SplitNormalSampler.new()
@@ -809,10 +856,16 @@ func _run() -> void:
 			# Full contact expected at the stance frame for the planted
 			# foot; the other foot may be partially in swing — its
 			# correction must then be a partial arc TOWARD its own normal:
-			# applying it moves flat-up closer to that foot's own sampled
-			# normal than applying nothing.
+			# the FINAL sole normal ends closer to that foot's own sampled
+			# normal than the animated one was.
 			var own_n: Vector3 = own_normals[side]
-			var improvement: float = (corr * Vector3.UP).dot(own_n) - Vector3.UP.dot(own_n)
+			var anim_sole_s: Vector3 = (
+				world_b * (anim_bases[side] as Basis) * (rest_up_local[side] as Vector3)
+			).normalized()
+			var after_sole_s: Vector3 = (
+				world_b * after * (rest_up_local[side] as Vector3)
+			).normalized()
+			var improvement: float = after_sole_s.dot(own_n) - anim_sole_s.dot(own_n)
 			if corr.get_angle() > 0.01 and improvement <= 0.0:
 				own_ok = false
 		_check(own_ok, "%s: each sole rotates toward its OWN sampled normal (independent feet)" % type_id)
@@ -1124,33 +1177,73 @@ func _run() -> void:
 			"%s: the timed replant converges onto a stable plant anchor" % p_type
 		)
 
-		# (6) Post-alignment sole-plane contact invariant across slope
-		# directions: for every sampled plane (unit normal n, point s at
-		# the ankle's own XZ) a grounded foot must satisfy
-		# dot(n, ankle - s) == d exactly (d = rest ankle height, the
-		# rig-derived signed ankle-to-sole-plane distance) — both gap and
-		# penetration fail. The unit sits at tile [2,0] (plane y = 0.8);
-		# every plane passes through the anchor and stays inside the
-		# anatomical alignment clamps. The steep and mixed-XZ planes are
-		# where the old world-Y target (terrain + d, i.e. only d * n.y of
-		# perpendicular clearance) measurably penetrates.
+		# (6) FINAL-GEOMETRY sole-plane contact invariants across slope
+		# directions. For every sampled plane (unit normal n, point s at
+		# the ankle's own XZ) a grounded foot must satisfy, at once:
+		#   a. dot(n, ankle - s) == d (d = rest ankle height, the
+		#      rig-derived signed ankle-to-sole-plane distance);
+		#   b. the ACTUAL final transformed sole normal — the post-solver
+		#      foot-bone basis pushed through the rig-derived rest sole
+		#      frame — equals the EFFECTIVE contact normal (the sampled
+		#      normal, anatomically clamped relative to that foot's own
+		#      animated heading; the separately unit-tested reconstruction
+		#      is EXACT for in-clamp normals, and the flat/moderate/
+		#      lateral planes below are in-clamp for every heading, so
+		#      there the final sole normal must equal n itself);
+		#   c. the rig-derived point on the transformed sole plane
+		#      (ankle - d * final_sole_normal) lies ON the terrain plane —
+		#      both gap and penetration fail.
+		# (a) alone can pass while a tilted sole still intersects or gaps
+		# from the terrain — (b) + (c) close that hole (the delta model
+		# transplanted the clip-authored foot tilt onto every plane).
+		# The unit sits at tile [2,0] (plane y = 0.8); every plane passes
+		# through the anchor.
+		var p_world_b: Basis = p_skel.global_transform.basis
+		var p_rest_up := {
+			"L": p_skel.get_bone_global_rest(p_lf).basis.inverse() * Vector3.UP,
+			"R": p_skel.get_bone_global_rest(p_rf).basis.inverse() * Vector3.UP,
+		}
+		var p_rest_fwd := {}
+		for rf_side in [["L", p_lf, "LeftToeBase"], ["R", p_rf, "RightToeBase"]]:
+			var rf_rest: Transform3D = p_skel.get_bone_global_rest(int(rf_side[1]))
+			var rf_fwd: Vector3 = (
+				p_skel.get_bone_global_rest(p_skel.find_bone(str(rf_side[2]))).origin
+				- rf_rest.origin
+			)
+			rf_fwd.y = 0.0
+			p_rest_fwd[rf_side[0]] = rf_rest.basis.inverse() * rf_fwd.normalized()
+		# Third element: the plane's slope sine stays below every anatomical
+		# clamp for ANY foot heading — the effective contact normal is then
+		# provably the sampled normal itself.
 		for plane_case in [
-			["flat", PlaneSampler.new(0.8, 0.0, 0.0, 4.0, 0.0)],
-			["moderate uphill-ahead", PlaneSampler.new(0.8, 0.0, -0.2, 4.0, 0.0)],
-			["steep uphill-ahead", PlaneSampler.new(0.8, 0.0, -0.45, 4.0, 0.0)],
-			["steep downhill-ahead", PlaneSampler.new(0.8, 0.0, 0.45, 4.0, 0.0)],
-			["lateral", PlaneSampler.new(0.8, 0.25, 0.0, 4.0, 0.0)],
-			["mixed XZ", PlaneSampler.new(0.8, 0.2, -0.3, 4.0, 0.0)],
+			["flat", PlaneSampler.new(0.8, 0.0, 0.0, 4.0, 0.0), true],
+			["moderate uphill-ahead", PlaneSampler.new(0.8, 0.0, -0.2, 4.0, 0.0), true],
+			["steep uphill-ahead", PlaneSampler.new(0.8, 0.0, -0.45, 4.0, 0.0), false],
+			["steep downhill-ahead", PlaneSampler.new(0.8, 0.0, 0.45, 4.0, 0.0), false],
+			["lateral", PlaneSampler.new(0.8, 0.25, 0.0, 4.0, 0.0), true],
+			["mixed XZ", PlaneSampler.new(0.8, 0.2, -0.3, 4.0, 0.0), false],
 		]:
 			var pc_name: String = plane_case[0]
 			var pc_plane = plane_case[1]
+			var pc_in_clamp: bool = plane_case[2]
 			pview.set_surface_sampler(pc_plane)
 			p_grounder.set_locomotion_active(true)  # release the old plants
 			p_grounder.set_locomotion_active(false)  # fresh replant below
 			p_player.play(p_idle)
 			p_player.seek(t0, true)
-			p_grounder.apply_grounding_now()
 			var pc_n: Vector3 = pc_plane.normal()
+			# Pre-solve animated heading per foot (the plant capture base)
+			# determines each foot's own anatomically clamped effective
+			# contact normal.
+			var pc_expected := {}
+			for foot_case in [["L", p_lf], ["R", p_rf]]:
+				var pc_anim: Basis = (
+					p_world_b * p_skel.get_bone_global_pose(int(foot_case[1])).basis
+				)
+				pc_expected[foot_case[0]] = WorldUnitLegGrounderScript.effective_contact_normal(
+					pc_anim * (p_rest_fwd[foot_case[0]] as Vector3), pc_n
+				)
+			p_grounder.apply_grounding_now()
 			for foot_case in [["L", p_lf], ["R", p_rf]]:
 				var pc_ankle: Vector3 = _bone_world(p_skel, int(foot_case[1]))
 				var pc_s := Vector3(
@@ -1162,6 +1255,34 @@ func _run() -> void:
 					absf(pc_perp - pc_d) < 0.002,
 					"%s: aligned sole meets the %s plane exactly (%s: perpendicular %.4f vs d %.4f)"
 						% [p_type, pc_name, foot_case[0], pc_perp, pc_d]
+				)
+				# (b) ACTUAL final sole normal from the post-solver basis.
+				var pc_sole_n: Vector3 = (
+					p_world_b
+					* p_skel.get_bone_global_pose(int(foot_case[1])).basis
+					* (p_rest_up[foot_case[0]] as Vector3)
+				).normalized()
+				var pc_want: Vector3 = pc_expected[foot_case[0]]
+				if pc_in_clamp:
+					_check(
+						pc_want.is_equal_approx(pc_n),
+						"%s: the %s plane is in-clamp for this heading — its effective contact normal IS n (%s)"
+							% [p_type, pc_name, foot_case[0]]
+					)
+				_check(
+					pc_sole_n.angle_to(pc_want) < 0.01,
+					"%s: FINAL transformed sole normal equals the %s plane's effective contact normal (%s: off by %.4f rad)"
+						% [p_type, pc_name, foot_case[0], pc_sole_n.angle_to(pc_want)]
+				)
+				# (c) rig-derived transformed sole-plane point ON the plane.
+				var pc_pt: Vector3 = pc_ankle - pc_sole_n * pc_d
+				var pc_res: float = pc_n.dot(
+					pc_pt - Vector3(pc_pt.x, pc_plane.height_at(pc_pt.x, pc_pt.z), pc_pt.z)
+				)
+				_check(
+					absf(pc_res) < 0.002,
+					"%s: the transformed sole plane lies ON the %s plane (%s: residual %.4f — no gap, no penetration)"
+						% [p_type, pc_name, foot_case[0], pc_res]
 				)
 
 		# (7) The CONTACT (non-planted, walking) path targets the same
