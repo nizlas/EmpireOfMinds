@@ -32,6 +32,7 @@ $Script:SliceTests = @{
 	)
 	"n7" = @(
 		"tests/test_world_map_actions_v3.py"
+		"tests/test_world_combat_v3.py"
 		"tests/test_world_legal_actions_v3.py"
 		"tests/test_world_map_match_v3.py"
 	)
