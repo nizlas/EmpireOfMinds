@@ -43,9 +43,11 @@
 #   skeleton) grounds the FEET every frame — independent left/right
 #   rendered-top-surface samples, a vertical pelvis adjustment, and an
 #   analytic two-bone leg (knee) adjustment with whole-foot sole-to-normal
-#   alignment — while walking and idling. Sole contact is CALIBRATED
-#   (terrain + rest ankle height; the audited bind-pose soles sit exactly
-#   on the plane) and STATIONARY units plant each foot in ground space so
+#   alignment — while walking and idling. Sole contact is CALIBRATED to
+#   the post-alignment sole-plane invariant (dot(n, ankle - s) == d with
+#   d = the rig-derived rest ankle height; the audited bind-pose soles sit
+#   exactly on the plane) and STATIONARY units plant each foot in ground
+#   space so
 #   the remapped not-true-idle clips cannot hover, rock, or drift planted
 #   feet; this view toggles the grounder's locomotion gate on glide
 #   begin/arrival so plants release and replant smoothly. Transient glide

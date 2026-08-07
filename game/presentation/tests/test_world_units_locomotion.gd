@@ -107,6 +107,35 @@ class ZSlopeSampler:
 		return {"ok": true, "height": height_at(x, z), "normal": normal()}
 
 
+# General inclined plane through (ox, base, oz) with gradient (gx, gz):
+# h = base + gx*(x-ox) + gz*(z-oz), true unit normal (-gx, 1, -gz)/|.| —
+# the fixture for the post-alignment sole-plane contact invariant across
+# slope directions (including normals with BOTH X and Z components).
+class PlaneSampler:
+	extends RefCounted
+	var base := 0.0
+	var gx := 0.0
+	var gz := 0.0
+	var ox := 0.0
+	var oz := 0.0
+
+	func _init(base_in: float, gx_in: float, gz_in: float, ox_in: float = 0.0, oz_in: float = 0.0) -> void:
+		base = base_in
+		gx = gx_in
+		gz = gz_in
+		ox = ox_in
+		oz = oz_in
+
+	func height_at(x: float, z: float) -> float:
+		return base + gx * (x - ox) + gz * (z - oz)
+
+	func normal() -> Vector3:
+		return Vector3(-gx, 1.0, -gz).normalized()
+
+	func sample(x: float, z: float, _y_hint: float) -> Dictionary:
+		return {"ok": true, "height": height_at(x, z), "normal": normal()}
+
+
 # Different terrain normal per world X sign (the two feet straddle x=0),
 # flat heights — isolates per-foot INDEPENDENT normal sampling.
 class SplitNormalSampler:
@@ -1020,7 +1049,14 @@ func _run() -> void:
 
 		# (4) Arrival replants — on a slope the planted sole re-aligns to
 		# the planted point's OWN terrain normal and stays pinned there.
-		var p_slope := ZSlopeSampler.new(0.4, 0.2)
+		# Contact is the POST-ALIGNMENT sole-plane invariant, not a world-Y
+		# offset: with d = the rig-derived signed ankle-to-sole-plane
+		# distance (rest ankle height — the audited bind-pose soles sit
+		# exactly on the plane), the aligned sole meets the terrain plane
+		# exactly when dot(n, ankle - s) == d. The old "terrain + d"
+		# vertical target gives only d * n.y of perpendicular clearance —
+		# a penetration this assertion rejects (as it rejects any gap).
+		var p_slope := ZSlopeSampler.new(0.4, 0.35)
 		pview.set_surface_sampler(p_slope)
 		p_player.play(p_idle)
 		p_player.seek(t0, true)
@@ -1031,9 +1067,12 @@ func _run() -> void:
 		).normalized()
 		p_grounder.apply_grounding_now()
 		var slope_lf: Vector3 = _bone_world(p_skel, p_lf)
+		var slope_s := Vector3(slope_lf.x, p_slope.height_at(slope_lf.x, slope_lf.z), slope_lf.z)
+		var slope_perp: float = p_slope.normal().dot(slope_lf - slope_s)
 		_check(
-			absf(slope_lf.y - (p_slope.height_at(slope_lf.x, slope_lf.z) + rest_h["L"])) < 0.004,
-			"%s: replanted ankle sits at the calibrated contact height on the slope" % p_type
+			absf(slope_perp - rest_h["L"]) < 0.002,
+			"%s: replanted aligned sole meets the slope plane exactly (perpendicular %.4f vs d %.4f — no gap, no penetration)"
+				% [p_type, slope_perp, rest_h["L"]]
 		)
 		var slope_up: Vector3 = (
 			p_skel.global_transform.basis
@@ -1084,6 +1123,80 @@ func _run() -> void:
 			(blend_p3 - blend_p2).length() < 0.0003,
 			"%s: the timed replant converges onto a stable plant anchor" % p_type
 		)
+
+		# (6) Post-alignment sole-plane contact invariant across slope
+		# directions: for every sampled plane (unit normal n, point s at
+		# the ankle's own XZ) a grounded foot must satisfy
+		# dot(n, ankle - s) == d exactly (d = rest ankle height, the
+		# rig-derived signed ankle-to-sole-plane distance) — both gap and
+		# penetration fail. The unit sits at tile [2,0] (plane y = 0.8);
+		# every plane passes through the anchor and stays inside the
+		# anatomical alignment clamps. The steep and mixed-XZ planes are
+		# where the old world-Y target (terrain + d, i.e. only d * n.y of
+		# perpendicular clearance) measurably penetrates.
+		for plane_case in [
+			["flat", PlaneSampler.new(0.8, 0.0, 0.0, 4.0, 0.0)],
+			["moderate uphill-ahead", PlaneSampler.new(0.8, 0.0, -0.2, 4.0, 0.0)],
+			["steep uphill-ahead", PlaneSampler.new(0.8, 0.0, -0.45, 4.0, 0.0)],
+			["steep downhill-ahead", PlaneSampler.new(0.8, 0.0, 0.45, 4.0, 0.0)],
+			["lateral", PlaneSampler.new(0.8, 0.25, 0.0, 4.0, 0.0)],
+			["mixed XZ", PlaneSampler.new(0.8, 0.2, -0.3, 4.0, 0.0)],
+		]:
+			var pc_name: String = plane_case[0]
+			var pc_plane = plane_case[1]
+			pview.set_surface_sampler(pc_plane)
+			p_grounder.set_locomotion_active(true)  # release the old plants
+			p_grounder.set_locomotion_active(false)  # fresh replant below
+			p_player.play(p_idle)
+			p_player.seek(t0, true)
+			p_grounder.apply_grounding_now()
+			var pc_n: Vector3 = pc_plane.normal()
+			for foot_case in [["L", p_lf], ["R", p_rf]]:
+				var pc_ankle: Vector3 = _bone_world(p_skel, int(foot_case[1]))
+				var pc_s := Vector3(
+					pc_ankle.x, pc_plane.height_at(pc_ankle.x, pc_ankle.z), pc_ankle.z
+				)
+				var pc_perp: float = pc_n.dot(pc_ankle - pc_s)
+				var pc_d: float = rest_h[foot_case[0]]
+				_check(
+					absf(pc_perp - pc_d) < 0.002,
+					"%s: aligned sole meets the %s plane exactly (%s: perpendicular %.4f vs d %.4f)"
+						% [p_type, pc_name, foot_case[0], pc_perp, pc_d]
+				)
+
+		# (7) The CONTACT (non-planted, walking) path targets the same
+		# corrected post-alignment height: at the walk clip's stance pose
+		# on the steep plane, the grounded ankle height equals the exact
+		# contact-weighted blend of the animated height toward
+		# sole_contact_height (with the pose-derived clearance on the
+		# animated side) — the gate is held on so planting stays out.
+		p_grounder.set_locomotion_active(true)
+		var c_plane := PlaneSampler.new(0.8, 0.0, -0.45, 4.0, 0.0)
+		pview.set_surface_sampler(c_plane)
+		p_player.play(p_walk)
+		var c_t := _lowest_lift_time(p_player, p_skel, p_lf, p_walk, w_len)
+		p_player.seek(c_t, true)
+		var c_anim_l: Vector3 = _bone_world(p_skel, p_lf)
+		var c_anim_r: Vector3 = _bone_world(p_skel, p_rf)
+		var c_delta_l: float = c_plane.height_at(c_anim_l.x, c_anim_l.z) - 0.8
+		var c_delta_r: float = c_plane.height_at(c_anim_r.x, c_anim_r.z) - 0.8
+		var c_lift: float = (c_anim_l.y - 0.8) - rest_h["L"]
+		var c_contact: float = WorldUnitLegGrounderScript.contact_weight(c_lift, p_leg_w)
+		var c_extra: float = WorldUnitLegGrounderScript.swing_clearance(
+			c_lift, c_delta_l - c_delta_r, p_leg_w
+		)
+		var c_calib: float = WorldUnitLegGrounderScript.sole_contact_height(
+			c_plane.height_at(c_anim_l.x, c_anim_l.z), c_plane.normal(), rest_h["L"]
+		)
+		var c_expected: float = lerpf(
+			c_anim_l.y + c_delta_l + c_extra, c_calib, c_contact
+		)
+		p_grounder.apply_grounding_now()
+		_check(
+			absf(_bone_world(p_skel, p_lf).y - c_expected) < 0.003,
+			"%s: walking stance on the steep slope blends toward the corrected post-alignment contact height" % p_type
+		)
+		p_grounder.set_locomotion_active(false)
 		pview.queue_free()
 
 	# --- engine invocation: the modifier runs post-animation ------------------

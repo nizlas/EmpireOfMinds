@@ -40,21 +40,31 @@
 #        length) that is ZERO at takeoff and landing by construction —
 #        flat/downhill motion never gains artificial lift; the phase source
 #        is the actual remapped clip pose, never per-unit timings;
-#     5. a SOLE-CONTACT height calibration: both audited rigs stand with
-#        the mesh sole EXACTLY on the bind-pose plane (AABB min y = 0), so
-#        terrain + the rest ankle height IS the exact contact height. The
+#     5. a SOLE-CONTACT height calibration: the contact reference is
+#        RIG-DERIVED — both audited rigs stand with the mesh sole EXACTLY
+#        on the bind-pose plane (AABB min y = 0), so the rest ankle height
+#        IS the signed ankle-to-sole-plane distance d (never a hand-tuned
+#        per-rig constant). After sole alignment (step 3) the sole lies in
+#        the TERRAIN plane, so true contact is the PLANE invariant
+#        dot(n, ankle - s) == d for a sampled plane point s with unit
+#        normal n. The ankle is held at the sample's own XZ, so the
+#        calibrated height is terrain + d / n.y (sole_contact_height) —
+#        NOT terrain + d, which leaves only d * n.y of perpendicular
+#        clearance and sinks the rotated sole into every slope. The
 #        remapped clips, however, HOLD the feet above rest (measured
 #        2026-08: warrior Combat_Stance ankles ~+0.025 model units, settler
 #        Hit_Reaction_1 ~+0.004..0.011) — that clip-held lift is the hover.
 #        In contact the foot target therefore blends (by the contact
 #        weight) from "animated + terrain delta" to the calibrated
-#        "terrain + rest ankle height"; swing stays animation-owned;
+#        post-alignment contact height; swing stays animation-owned;
 #     6. STATIONARY FOOT PLANTING: while the unit is NOT gliding (the view
 #        reports locomotion inactive), each foot is anchored in ground
 #        space the moment planting engages — its XZ, heading, and animated
 #        world orientation are captured once, and from then on the target
-#        is terrain(planted XZ) + rest ankle height with the sole aligned
-#        to the planted point's OWN sampled normal, so the not-true-idle
+#        the calibrated post-alignment contact height over the planted XZ
+#        (the SAME sole-plane invariant as step 5, evaluated at the
+#        planted anchor's own sample) with the sole aligned to the planted
+#        point's OWN sampled normal, so the not-true-idle
 #        clips (they drift/rock the feet: measured up to ~0.014 model
 #        units XZ per warrior idle loop) can no longer move planted feet.
 #        Idle pelvis/upper-body motion continues; the legs compensate.
@@ -114,6 +124,9 @@ const SWING_CLEARANCE_GAIN := 0.9
 const SWING_CLEARANCE_MAX_RATIO := 0.18
 # Frame-rate-independent blend rate for engaging/releasing a foot plant.
 const PLANT_BLEND_RATE := 10.0
+# Defensive floor for the sampled normal's Y in the contact-height
+# division (slopes beyond ~78° — playable terrain never approaches it).
+const CONTACT_NORMAL_Y_MIN := 0.2
 
 const EPS := 0.0001
 
@@ -130,7 +143,9 @@ var _pole: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
 # Per-foot rest sole frame, expressed in the FOOT bone's local space.
 var _rest_up_local: Array[Vector3] = [Vector3.UP, Vector3.UP]
 var _rest_fwd_local: Array[Vector3] = [Vector3.FORWARD, Vector3.FORWARD]
-# Per-foot rest height above the skeleton origin plane (skeleton units).
+# Per-foot rest ankle height above the skeleton origin plane (skeleton
+# units) — the audited bind-pose soles sit EXACTLY on that plane, so this
+# is the rig-derived signed ankle-to-sole-plane distance d.
 var _rest_foot_height: Array[float] = [0.0, 0.0]
 # Per-foot temporally smoothed world-frame correction (presentation state).
 var _foot_corr: Array[Quaternion] = [Quaternion.IDENTITY, Quaternion.IDENTITY]
@@ -310,10 +325,11 @@ func _apply_grounding_pass(delta: float) -> void:
 
 	# Contact weights + uphill swing clearance from the ANIMATED pose lift,
 	# then the final per-foot world targets: contact blends the height from
-	# "animated + terrain delta" to the CALIBRATED sole-contact height
-	# (terrain + rest ankle height — the audited bind-pose sole sits exactly
-	# on the plane), and the plant weight pins position onto the planted
-	# ground-space anchor (planted feet are always at exact contact height).
+	# "animated + terrain delta" to the CALIBRATED post-alignment
+	# sole-contact height (dot(n, ankle - s) == d — see sole_contact_height
+	# and header step 5), and the plant weight pins position onto the
+	# planted ground-space anchor (planted feet are always at the same
+	# exact post-alignment contact height over their planted XZ).
 	var leg_len_w: Array[float] = [leg_len_s[0] / k, leg_len_s[1] / k]
 	var contact: Array[float] = [1.0, 1.0]
 	var targets_w: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
@@ -324,7 +340,9 @@ func _apply_grounding_pass(delta: float) -> void:
 			lift_w, deltas[side] - deltas[1 - side], leg_len_w[side]
 		)
 		var pw: float = _plant_weight[side]
-		var calib_y: float = heights[side] + _rest_foot_height[side] / k
+		var calib_y: float = sole_contact_height(
+			heights[side], normals[side], _rest_foot_height[side] / k
+		)
 		var base_y: float = foot_w[side].y + deltas[side] + extra_w
 		targets_w[side] = Vector3(
 			lerpf(foot_w[side].x, _plant_xz[side].x, pw),
@@ -508,6 +526,19 @@ static func shortest_arc(from_dir: Vector3, to_dir: Vector3) -> Quaternion:
 			axis = from_dir.cross(Vector3.RIGHT)
 		return Quaternion(axis.normalized(), PI)
 	return Quaternion(c.normalized(), acos(d))
+
+
+# Calibrated post-alignment sole-contact ankle height (world Y) above a
+# sampled terrain plane point s = (x, height, z) with upward unit normal
+# n, for an ankle held at the same XZ. d is the rig-derived signed
+# ankle-to-sole-plane distance (rest ankle height; world units here).
+# The aligned sole lies in the terrain plane, so true contact is
+# dot(n, ankle - s) == d, i.e. ankle_y = height + d / n.y. The previous
+# vertical projection (height + d) left only d * n.y of perpendicular
+# clearance — the rotated sole penetrated every slope. n.y is floored
+# defensively; playable terrain never approaches the floor.
+static func sole_contact_height(height: float, normal: Vector3, d: float) -> float:
+	return height + d / maxf(normal.y, CONTACT_NORMAL_Y_MIN)
 
 
 # Contact weight from the ANIMATED foot lift above its rest height: 1 on
