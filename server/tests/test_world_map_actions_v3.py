@@ -29,10 +29,10 @@ PLAYER_COUNT_DETAIL = "world_map supports exactly 2 players in N7"
 MISMATCH_DETAIL = f"world map content unavailable or mismatched for map_id {REFERENCE_MAP_ID}"
 
 EXPECTED_SPAWN_UNITS = [
-    {"id": 1, "owner_id": 0, "position": [1, 1], "type_id": "settler"},
-    {"id": 2, "owner_id": 0, "position": [2, 1], "type_id": "warrior"},
-    {"id": 3, "owner_id": 1, "position": [2, 14], "type_id": "settler"},
-    {"id": 4, "owner_id": 1, "position": [2, 13], "type_id": "warrior"},
+    {"id": 1, "owner_id": 0, "position": [1, 1], "type_id": "settler", "current_hp": 100, "has_attacked": False},
+    {"id": 2, "owner_id": 0, "position": [2, 1], "type_id": "warrior", "current_hp": 100, "has_attacked": False},
+    {"id": 3, "owner_id": 1, "position": [2, 14], "type_id": "settler", "current_hp": 100, "has_attacked": False},
+    {"id": 4, "owner_id": 1, "position": [2, 13], "type_id": "warrior", "current_hp": 100, "has_attacked": False},
 ]
 
 _FACTIONS = ("malmo", "vastervik")
@@ -135,7 +135,11 @@ def test_spawn_table_golden(client: TestClient) -> None:
     assert units == EXPECTED_SPAWN_UNITS
     assert [u["id"] for u in units] == [1, 2, 3, 4]
     for u in units:
-        assert set(u.keys()) == {"id", "owner_id", "position", "type_id"}
+        # N7g.1 additive combat fields only — still no max_hp, movement
+        # points, moved flags, or id counters in snapshot state.
+        assert set(u.keys()) == {
+            "id", "owner_id", "position", "type_id", "current_hp", "has_attacked",
+        }
 
 
 def test_spawn_arbitrary_player_ids_ownership(client: TestClient) -> None:
@@ -214,10 +218,13 @@ def test_spawn_table_matches_canonical_content() -> None:
 
 
 def test_units_carry_no_forbidden_state(client: TestClient) -> None:
+    """N7g.1 added ONLY current_hp + has_attacked; movement points, moved
+    flags, max_hp, cities, and id counters stay out of snapshot state."""
     snap = _create_world(client)["snapshot"]
     assert "next_unit_id" not in snap
+    assert "cities" not in snap
     for u in snap["units"]:
-        for forbidden in ("remaining_movement", "current_hp", "hp", "moved", "max_movement"):
+        for forbidden in ("remaining_movement", "hp", "max_hp", "moved", "max_movement"):
             assert forbidden not in u
     # Map stays MapIdentity only.
     assert set(snap["map"].keys()) == {"map_id", "schema_version", "content_hash"}
@@ -356,8 +363,9 @@ def test_world_unknown_action_type(client: TestClient) -> None:
 
 
 def test_world_legacy_only_actions_rejected(client: TestClient) -> None:
+    """attack_unit left this list with N7g.1 (see test_world_combat_v3.py)."""
     match_id, tokens, _ = _start_world_match(client)
-    for at in ("found_city", "set_city_production", "attack_unit"):
+    for at in ("found_city", "set_city_production"):
         r = _post(
             client,
             match_id,

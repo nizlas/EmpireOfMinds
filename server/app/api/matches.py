@@ -214,6 +214,68 @@ def _handle_world_move_unit(match_id: str, snap: dict[str, Any], action: dict[st
     }
 
 
+def _handle_world_attack_unit(match_id: str, snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:
+    """N7g.1 world attack_unit: two-phase validation around the fail-closed
+    map resolve (adjacency/edge checks only run against identity-verified
+    canonical content), shared pure Local Combat 0.1 resolution, one revision
+    bump, one legacy-shaped combat event. Nothing is written on rejection."""
+    vr = world_actions.validate_attack_unit_pre_map(snap, action)
+    if not vr["ok"]:
+        return _reject(str(vr["reason"]))
+
+    world_map = _resolve_world_map_or_500(snap)
+
+    vr = world_actions.validate_attack_unit_target(world_map, snap, action)
+    if not vr["ok"]:
+        return _reject(str(vr["reason"]))
+
+    atk_u = world_actions.unit_by_id(snap, int(action["attacker_id"]))
+    def_u = world_actions.unit_by_id(snap, int(action["defender_id"]))
+    atk_pos = [int(atk_u["position"][0]), int(atk_u["position"][1])]
+    def_pos = [int(def_u["position"][0]), int(def_u["position"][1])]
+
+    combat_result = world_actions.resolve_attack_combat(snap, action)
+    new_snap = world_actions.apply_attack_unit(snap, action, combat_result)
+    new_revision = int(new_snap["revision"])
+    log_index = len(file_store.read_events(match_id))
+    accepted_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    event: dict[str, Any] = {
+        "index": log_index,
+        "revision": new_revision,
+        "schema_version": int(action["schema_version"]),
+        "action_type": world_actions.ATTACK_UNIT_ACTION_TYPE,
+        "actor_id": int(action["actor_id"]),
+        "attacker_id": int(combat_result["attacker_id"]),
+        "defender_id": int(combat_result["defender_id"]),
+        "attacker_position": atk_pos,
+        "defender_position": def_pos,
+        "attacker_strength": int(combat_result["attacker_strength"]),
+        "defender_strength": int(combat_result["defender_strength"]),
+        "attacker_damage_taken": int(combat_result["attacker_damage_taken"]),
+        "defender_damage_taken": int(combat_result["defender_damage_taken"]),
+        "attacker_hp_before": int(combat_result["attacker_hp_before"]),
+        "defender_hp_before": int(combat_result["defender_hp_before"]),
+        "attacker_hp_after": int(combat_result["attacker_hp_after"]),
+        "defender_hp_after": int(combat_result["defender_hp_after"]),
+        "attacker_killed": bool(combat_result["attacker_killed"]),
+        "defender_killed": bool(combat_result["defender_killed"]),
+        "retaliated": bool(combat_result["retaliated"]),
+        "result": "accepted",
+        "accepted_at": accepted_at,
+    }
+    file_store.write_snapshot(match_id, new_snap)
+    file_store.append_event(match_id, event)
+    return {
+        "accepted": True,
+        "reason": "",
+        "index": log_index,
+        "revision": new_revision,
+        "snapshot": new_snap,
+        "state_hash": state_hash(new_snap),
+        "event": event,
+    }
+
+
 def _handle_world_end_turn(match_id: str, snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:
     vr = world_actions.validate_end_turn(snap, action)
     if not vr["ok"]:
@@ -263,7 +325,8 @@ def _post_world_action(
     404 (caller) -> world-kind branch -> credential gate -> status gate ->
     dispatch -> world validation -> apply/persist/event. Rejections reuse the
     legacy HTTP-200 {accepted: false} envelope; nothing is written on
-    rejection. Only move_unit and end_turn exist on the world path in N7.
+    rejection. move_unit, end_turn, and (since N7g.1) attack_unit exist on
+    the world path.
 
     Unlike the shared legacy gate, world matches FAIL CLOSED when meta.json
     is missing: a blank token rejects missing_seat_token, a supplied token
@@ -302,6 +365,8 @@ def _post_world_action(
         return _handle_world_move_unit(match_id, snap, action)
     if at == world_actions.END_TURN_ACTION_TYPE:
         return _handle_world_end_turn(match_id, snap, action)
+    if at == world_actions.ATTACK_UNIT_ACTION_TYPE:
+        return _handle_world_attack_unit(match_id, snap, action)
     if at in world_actions.LEGACY_ONLY_ACTION_TYPES:
         return _reject("unsupported_action_for_match_kind")
     return _reject("unknown_action_type")

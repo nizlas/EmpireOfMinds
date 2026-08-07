@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.domain.content import unit_definitions
 from app.domain.hex_coord import DIRECTIONS
 from app.domain.world_map import EDGE_SMOOTH, WorldMap
 
@@ -66,12 +67,17 @@ def build_starting_units(world_map: WorldMap, player_ids: list[int]) -> list[dic
     if table is None:
         raise WorldScenarioError(f"no world spawn table for map_id {map_id}")
 
+    # N7g.1 additive combat state: current_hp comes from the server unit
+    # registry (never a literal), has_attacked resets each own turn. No
+    # max_hp, movement points, or id counters in snapshot state.
     units = [
         {
             "id": unit_id,
             "owner_id": int(player_ids[owner_slot]),
             "position": [pos[0], pos[1]],
             "type_id": type_id,
+            "current_hp": unit_definitions.max_hp_for_type(type_id),
+            "has_attacked": False,
         }
         for unit_id, owner_slot, type_id, pos in table
     ]
