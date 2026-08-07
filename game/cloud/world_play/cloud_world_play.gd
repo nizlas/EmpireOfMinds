@@ -21,8 +21,10 @@
 # authoritative WorldMap. Unit legality stays server-only (N7a/N7b): the
 # client renders and submits only served rows, bound to their revision and
 # selection per the locked N7d freshness contract. Movement animation,
-# facing, slope alignment, and foot grounding are N7f; combat is N7g;
-# cities/production are N8a–N8d.
+# upright yaw-only facing, and skeletal foot grounding are the N7f
+# locomotion layer inside WorldUnitsView (presentation-only; grounding
+# samples the rendered top surface via WorldSurfaceSampler — never
+# legality); combat is N7g; cities/production are N8a–N8d.
 extends Node3D
 
 const BootIntentScript = preload("res://cloud/boot_intent.gd")
@@ -35,6 +37,7 @@ const WorldInteractionStateScript = preload("res://cloud/world_play/world_intera
 const TerrainWorldScript = preload("res://presentation/world/terrain_world.gd")
 const WorldAnchorUiScript = preload("res://presentation/world/world_anchor_ui.gd")
 const WorldUnitsViewScript = preload("res://presentation/world/world_units_view.gd")
+const WorldSurfaceSamplerScript = preload("res://presentation/world/world_surface_sampler.gd")
 const WorldDestinationMarkersScript = preload("res://presentation/world/world_destination_markers.gd")
 const Ts08HeightSolver = preload("res://domain/world/ts08_height_solver.gd")
 
@@ -284,6 +287,10 @@ func _render_units() -> void:
 		units_view = WorldUnitsViewScript.new()
 		units_view.name = "WorldUnitsView"
 		add_child(units_view)
+	# N7f grounding: transient visual height/normal correction samples the
+	# built terrain's rendered top surface only (never walls, never rules).
+	if not units_view.has_surface_sampler():
+		units_view.set_surface_sampler(WorldSurfaceSamplerScript.for_terrain_world(world))
 	units_view.set_tile_anchors(world.tile_anchors)
 	var units_variant = snapshot.get("units", [])
 	units_view.apply_snapshot_units(units_variant if units_variant is Array else [])
@@ -480,6 +487,23 @@ func _on_poll_timeout() -> void:
 	if typeof(snap) == TYPE_DICTIONARY and interaction.is_newer_snapshot(snap as Dictionary):
 		_apply_authoritative_snapshot(snap as Dictionary)
 		await _pump_legal_fetch()
+
+
+# N7f manual-gate review support (smallest production-path capture): in the
+# one-PC debug mode only, F12 saves a screenshot of the live world viewport
+# to user:// for the visual review. No new scenes, tooling, or terrain path.
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not _one_pc_debug_active:
+		return
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo or key.keycode != KEY_F12:
+		return
+	var image: Image = get_viewport().get_texture().get_image()
+	if image == null:
+		return
+	var path := "user://n7f_review_%d.png" % Time.get_ticks_msec()
+	image.save_png(path)
+	print("cloud_world_play: review screenshot saved to %s" % ProjectSettings.globalize_path(path))
 
 
 # Explicit, visible failure — the locked N6 contract forbids any fallback

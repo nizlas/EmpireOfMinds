@@ -17,7 +17,7 @@ $GamePath = Join-Path $RepoRoot "game"
 
 $KnownGodotPath = "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"
 
-$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d")
+$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f")
 
 $Script:SliceTests = @{
 	"c13a" = @(
@@ -68,6 +68,7 @@ $Script:SliceTests = @{
 	)
 	"n7" = @(
 		"res://presentation/tests/test_world_units_view.gd"
+		"res://presentation/tests/test_world_units_locomotion.gd"
 		"res://cloud/tests/test_cloud_world_play_smoke.gd"
 		"res://cloud/tests/test_world_interaction_state.gd"
 		"res://presentation/tests/test_world_destination_markers.gd"
@@ -81,6 +82,11 @@ $Script:SliceTests = @{
 		"res://presentation/tests/test_world_destination_markers.gd"
 		"res://cloud/tests/test_cloud_world_play_interaction.gd"
 		"res://cloud/tests/test_cloud_one_pc_debug.gd"
+	)
+	# N7f focused subset (no terrain build; fast — locomotion/facing math,
+	# clip transitions, grounding, retargeting; slice n7 runs it too).
+	"n7f" = @(
+		"res://presentation/tests/test_world_units_locomotion.gd"
 	)
 }
 
@@ -259,6 +265,7 @@ $Script:AllTests = @(
 	"res://cloud/tests/test_world_snapshot_bootstrap.gd",
 	"res://cloud/tests/test_cloud_match_kind_routing.gd",
 	"res://presentation/tests/test_world_units_view.gd",
+	"res://presentation/tests/test_world_units_locomotion.gd",
 	"res://cloud/tests/test_world_interaction_state.gd",
 	"res://presentation/tests/test_world_destination_markers.gd",
 	"res://cloud/tests/test_cloud_world_play_interaction.gd",

@@ -733,3 +733,46 @@ python tools/content/check_server_image_map_content.py
 - New gameplay, endpoints, performance work, terrain/asset changes.
 - Movement animation/facing (N7f), combat (N7g), cities/production (N8a–N8d).
 - Performing the Hetzner deploy itself (documented prerequisite only).
+
+## Slice N7f — Unit locomotion presentation (manual/visual gate)
+
+**Purpose:** Niclas approves the movement read of the N7f presentation-only locomotion: pace, facing, grounding, and slope behavior of the walking glide between anchors. Deterministic coverage is already green (`slice n7f`, `slice n7`); this gate is purely visual. The authoritative snapshot/root position is applied immediately in all cases — everything judged here is the visual catch-up only.
+
+**Status: PENDING.** (A first review on 2026-08-06 rejected two failures, both since corrected: a 180° moonwalk — the rigs are authored facing +Z, now corrected by one shared convention-level mount yaw so the effective −Z forward follows the movement — and whole-body slope tilt, replaced by the upright-body + skeletal foot grounding contract below.)
+
+### Launch — one local authoritative server + ONE Godot instance (one-PC debug)
+
+```powershell
+# Terminal 1 — local authoritative server:
+cd server
+python -m uvicorn app.main:app --port 8000
+
+# Terminal 2 — one Godot client controlling both players (dev-only debug mode):
+Remove-Item Env:EOM_CLOUD_MATCH_ID, Env:EOM_CLOUD_SEAT_TOKEN, Env:EOM_CLOUD_PROFILE -ErrorAction SilentlyContinue
+$env:EOM_CLOUD_CLIENT="1"
+$env:EOM_CLOUD_MATCH_KIND="world_map"
+$env:EOM_CLOUD_BASE_URL="http://127.0.0.1:8000"
+$env:EOM_CLOUD_ONE_PC_DEBUG="1"
+& $env:GODOT_EXE --path game
+```
+
+Moves: click an own unit (selection highlight), then click a served destination marker. The effective player follows the server's current player; End Turn hands control to the other player in the same window. **F12** saves a review screenshot to `user://` (path printed to the console) in this mode.
+
+### Manual checklist (all judged visually; approve or reject the movement read)
+
+- [ ] **Flat move:** a one-tile move on level ground glides (no teleport); pace reads as walking (`LOCOMOTION_SPEED_UNITS_PER_SEC = 1.6` ≈ 1.1 s per tile); the Walking clip plays for the whole glide.
+- [ ] **Uphill move:** moving to a higher tile keeps the feet on the slope the whole way — no obvious floating above or sinking into the surface; the BODY stays upright (never tilted by the terrain) while the legs/pelvis do the grounding work (pelvis follows the lower foot, knees bend to reach).
+- [ ] **Downhill move:** same grounding on the way down; body still upright; no pop at either end of the segment.
+- [ ] **Successive moves:** several accepted moves in a row each play one straight readable segment — no path smoothing across tiles, no drift, no duplicate characters; a move accepted while a glide is still running retargets smoothly from the in-flight position (no visible teleport).
+- [ ] **Facing:** the character's FACE and chest point toward the destination for the whole glide (the effective forward is the locked −Z — no moonwalk) and KEEP that facing after arrival — no snap back to a default orientation.
+- [ ] **Idle return:** on arrival the Walking clip hands off to the idle clip (settler and warrior each use their audited remapped clips); no T-pose or frozen frame between clips.
+- [ ] **Grounding at rest:** after arrival the unit stands exactly at its anchor pose (same placement quality as the approved N7c spawn) with both feet meeting the terrain around the anchor (skeletal grounding stays active at idle); repeated snapshot polls never twitch, restart, or re-play animations on standing units.
+
+**Approval action:** on PASS, mark N7f **Done** in [PHASE_PLAN.md](PHASE_PLAN.md) and update this section; on FAIL, record the objection (pace / grounding / slope / facing) — the tuning constant and the yaw-facing rules live in `game/presentation/world/world_units_view.gd`; the skeletal grounding rules live in `game/presentation/world/world_unit_leg_grounder.gd`.
+
+### Explicitly not this gate
+
+- Gameplay/legality of moves (server-only, N7a/N7b — unchanged by N7f).
+- Combat animation (N7g), camera follow, path smoothing, unit variety, new animation assets (locked N7f non-goals).
+- **Sole-to-normal foot rotation** (rotating each sole to match the local terrain slope) — a deliberately deferred later visual fine-tune recorded in [UNITS.md](UNITS.md); judge floating/sinking here, not the sole angle on steep ground.
+- The separate non-blocking `cloud_front_door.gd:69` startup warning.

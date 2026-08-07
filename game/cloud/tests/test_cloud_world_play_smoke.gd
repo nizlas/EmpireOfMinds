@@ -98,7 +98,17 @@ func _init() -> void:
 		"scene attaches the shared N7c world units view"
 	)
 	if units_view != null and world != null:
+		# N7f: the production path injects the rendered-top-surface sampler.
+		_check(units_view.has_surface_sampler(), "units view receives the N7f top-surface sampler")
 		_check(units_view.unit_ids() == [1, 2, 3, 4], "all snapshot units render with exact ids")
+		# N7f skeletal grounding must bind on the production path too (a
+		# grounder that fails to bind would silently disable foot grounding).
+		var all_grounded := true
+		for uid in [1, 2, 3, 4]:
+			var g = units_view.grounder_for_unit(uid)
+			if g == null or not g.is_bound():
+				all_grounded = false
+		_check(all_grounded, "every production unit binds its N7f leg grounder")
 		var placed := true
 		for row in (_good_snapshot()["units"] as Array):
 			var key := Vector2i(int(row["position"][0]), int(row["position"][1]))
