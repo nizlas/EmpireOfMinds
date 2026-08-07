@@ -96,8 +96,10 @@ Initial snapshots use **`schema_version`: `2`**. Top-level fields include the Cl
   "units": [
     { "id": 1, "owner_id": 0, "position": [1, 1], "type_id": "settler",
       "current_hp": 100, "has_attacked": false },
-    { "id": 2, "owner_id": 0, "position": [2, 1], "type_id": "warrior" },
-    { "id": 3, "owner_id": 1, "position": [2, 14], "type_id": "settler" },
+    { "id": 2, "owner_id": 0, "position": [2, 1], "type_id": "warrior",
+      "current_hp": 100, "has_attacked": false },
+    { "id": 3, "owner_id": 1, "position": [2, 14], "type_id": "settler",
+      "current_hp": 100, "has_attacked": false },
     { "id": 4, "owner_id": 1, "position": [2, 13], "type_id": "warrior",
       "current_hp": 100, "has_attacked": false }
   ]
