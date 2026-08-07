@@ -605,6 +605,10 @@ func _run() -> void:
 		var r_grounder = rview.grounder_for_unit(9)
 		var r_player: AnimationPlayer = rview.animation_player_for_unit(9)
 		_check(r_grounder != null and r_grounder.is_bound(), "%s: grounder binds (uphill suite)" % type_id)
+		# This suite drives WALKING clips on a stationary view unit, so mark
+		# the grounder as walking: stationary foot planting (N7f follow-up)
+		# must not pin the gait being tested here.
+		r_grounder.set_locomotion_active(true)
 		var chains := {
 			"L": [r_skel.find_bone("LeftUpLeg"), r_skel.find_bone("LeftLeg"), r_skel.find_bone("LeftFoot"), r_skel.find_bone("LeftToeBase")],
 			"R": [r_skel.find_bone("RightUpLeg"), r_skel.find_bone("RightLeg"), r_skel.find_bone("RightFoot"), r_skel.find_bone("RightToeBase")],
@@ -838,6 +842,7 @@ func _run() -> void:
 		var b_skel: Skeleton3D = _find_skeleton(bview.root_for_unit(8))
 		var b_grounder = bview.grounder_for_unit(8)
 		var b_player: AnimationPlayer = bview.animation_player_for_unit(8)
+		b_grounder.set_locomotion_active(true)  # walking-clip-driven suite
 		bview.set_surface_sampler(ZSlopeSampler.new(0.0, 0.15))
 		b_player.play(walk_clip)
 		b_player.seek(stance_t, true)
@@ -861,6 +866,225 @@ func _run() -> void:
 		)
 		bview.queue_free()
 		rview.queue_free()
+
+	# --- N7f follow-up: sole-contact calibration + stationary planting -------
+	# Regression for the two manual-gate defects: (1) the remapped idle
+	# clips HOLD the feet above their rest height (measured: warrior
+	# Combat_Stance ~+0.025 model units, settler Hit_Reaction_1 up to
+	# ~+0.011) — a persistent hover the old animation-preserving targets
+	# never corrected; (2) the same clips drift/rock the feet (up to
+	# ~0.014 model units XZ per warrior loop) — planted feet must stay
+	# fixed in ground space while stationary, with idle pelvis/upper-body
+	# motion continuing and smooth release/replant around glides.
+	for prig in [["settler", SETTLER_IDLE_CLIP, SETTLER_WALK_CLIP], ["warrior", WARRIOR_IDLE_CLIP, WARRIOR_WALK_CLIP]]:
+		var p_type: String = prig[0]
+		var p_idle: String = prig[1]
+		var p_walk: String = prig[2]
+		var pview = WorldUnitsViewScript.new()
+		root.add_child(pview)
+		pview.set_process(false)
+		pview.set_tile_anchors(ANCHORS)
+		pview.set_surface_sampler(LinearGroundSampler.new(0.0, 0.0))
+		pview.apply_snapshot_units([{
+			"id": 7, "owner_id": 11, "position": [0, 0], "type_id": p_type,
+		}])
+		var p_skel: Skeleton3D = _find_skeleton(pview.root_for_unit(7))
+		var p_grounder = pview.grounder_for_unit(7)
+		var p_player: AnimationPlayer = pview.animation_player_for_unit(7)
+		var p_lf := p_skel.find_bone("LeftFoot")
+		var p_rf := p_skel.find_bone("RightFoot")
+		var p_hips := p_skel.find_bone("Hips")
+		_check(
+			p_grounder != null and not p_grounder.is_locomotion_active(),
+			"%s: spawned unit is stationary (planting enabled)" % p_type
+		)
+		# Calibrated ankle contact height above the terrain (world units):
+		# the audited bind-pose soles sit EXACTLY on the plane, so the rest
+		# ankle height is the exact sole-contact height.
+		var p_scale: float = p_skel.global_transform.basis.get_scale().y
+		var rest_h := {
+			"L": p_skel.get_bone_global_rest(p_lf).origin.y * p_scale,
+			"R": p_skel.get_bone_global_rest(p_rf).origin.y * p_scale,
+		}
+		var p_clip_len: float = p_player.get_animation(p_idle).length
+		p_player.play(p_idle)
+
+		# (1) Flat terrain on the plane: the idle clip genuinely hovers the
+		# feet; grounding puts each ankle at EXACTLY terrain + rest height.
+		var t0: float = p_clip_len * 0.15
+		p_player.seek(t0, true)
+		var anim_lf_y: float = _bone_world(p_skel, p_lf).y
+		var anim_rf_y: float = _bone_world(p_skel, p_rf).y
+		_check(
+			anim_lf_y > rest_h["L"] + 0.0005 and anim_rf_y > rest_h["R"] + 0.0005,
+			"%s: the raw idle clip holds both feet ABOVE the calibrated contact height (the hover defect exists)" % p_type
+		)
+		p_grounder.apply_grounding_now()
+		var planted_lf: Vector3 = _bone_world(p_skel, p_lf)
+		var planted_rf: Vector3 = _bone_world(p_skel, p_rf)
+		_check(
+			absf(planted_lf.y - rest_h["L"]) < 0.003 and absf(planted_rf.y - rest_h["R"]) < 0.003,
+			"%s: planted ankles sit at the calibrated sole-contact height on flat terrain (hover removed)" % p_type
+		)
+		var planted_lf_basis: Basis = p_skel.get_bone_global_pose(p_lf).basis.orthonormalized()
+
+		# (2) Stationary drift: seek the idle pose that moves the raw foot
+		# the most — after grounding, the planted foot must not follow it,
+		# while the hips (upper body) keep animating.
+		var t1: float = _max_foot_displacement_time(p_player, p_skel, p_lf, p_idle, p_clip_len, t0)
+		p_player.seek(t1, true)
+		var raw_drift: float = (_bone_world(p_skel, p_lf) - planted_lf).length()
+		var hips_raw: Vector3 = _bone_world(p_skel, p_hips)
+		p_grounder.apply_grounding_now()
+		var planted_drift: float = (_bone_world(p_skel, p_lf) - planted_lf).length()
+		_check(
+			raw_drift > 0.0015,
+			"%s: the raw idle clip genuinely drifts the foot (%.4f — the drift defect exists)" % [p_type, raw_drift]
+		)
+		_check(
+			planted_drift < 0.002 and planted_drift < raw_drift * 0.5,
+			"%s: the planted foot stays fixed in ground space (drift %.4f vs raw %.4f)" % [p_type, planted_drift, raw_drift]
+		)
+		_check(
+			(_bone_world(p_skel, p_rf) - planted_rf).length() < 0.002,
+			"%s: the other planted foot stays fixed too" % p_type
+		)
+		var hips_after_plant: Vector3 = _bone_world(p_skel, p_hips)
+		_check(
+			Vector2(hips_after_plant.x - hips_raw.x, hips_after_plant.z - hips_raw.z).length() < 0.0005
+				and (hips_after_plant - _bone_world(p_skel, p_lf)).length() > 0.01,
+			"%s: idle pelvis motion passes through while the legs compensate" % p_type
+		)
+		_check(
+			Quaternion(p_skel.get_bone_global_pose(p_lf).basis.orthonormalized())
+				.angle_to(Quaternion(planted_lf_basis)) < 0.01,
+			"%s: the planted foot orientation is pinned (no idle rocking)" % p_type
+		)
+
+		# (3) Release: an accepted move flips the grounder's locomotion
+		# gate; the feet follow the walking animation again. The visual is
+		# still at the glide start, so the model plane stays at y=0 here.
+		pview.apply_snapshot_units([{
+			"id": 7, "owner_id": 11, "position": [1, 0], "type_id": p_type,
+		}])
+		_check(
+			p_grounder.is_locomotion_active(),
+			"%s: starting a glide releases the plants (locomotion gate on)" % p_type
+		)
+		p_player.play(p_walk)
+		var w_len: float = p_player.get_animation(p_walk).length
+		p_player.seek(w_len * 0.1, true)
+		p_grounder.apply_grounding_now()
+		var walk_a: Vector3 = _bone_world(p_skel, p_lf)
+		p_player.seek(w_len * 0.5, true)
+		p_grounder.apply_grounding_now()
+		_check(
+			(_bone_world(p_skel, p_lf) - walk_a).length() > 0.005,
+			"%s: released feet follow the walking gait again (no residual pinning)" % p_type
+		)
+		pview.advance_locomotion(60.0)
+		_check(
+			not p_grounder.is_locomotion_active(),
+			"%s: arrival re-enables planting (locomotion gate off)" % p_type
+		)
+		# Walking-stance calibration: at the walk clip's lowest-lift
+		# (stance) pose on flat terrain the grounded ankle height follows
+		# the exact contact-weighted blend from the animated height toward
+		# the calibrated contact height. The gate is held on so planting
+		# stays out of this walking-path math (plane is 0.4 post-arrival).
+		p_grounder.set_locomotion_active(true)
+		pview.set_surface_sampler(LinearGroundSampler.new(0.4, 0.0))
+		var stance_w_t := _lowest_lift_time(p_player, p_skel, p_lf, p_walk, w_len)
+		p_player.seek(stance_w_t, true)
+		var stance_anim_y: float = _bone_world(p_skel, p_lf).y
+		var p_leg_w: float = (
+			(p_skel.global_transform.basis * (
+				p_skel.get_bone_global_pose(p_skel.find_bone("LeftLeg")).origin
+				- p_skel.get_bone_global_pose(p_skel.find_bone("LeftUpLeg")).origin
+			)).length()
+			+ (p_skel.global_transform.basis * (
+				p_skel.get_bone_global_pose(p_lf).origin
+				- p_skel.get_bone_global_pose(p_skel.find_bone("LeftLeg")).origin
+			)).length()
+		)
+		var stance_contact: float = WorldUnitLegGrounderScript.contact_weight(
+			(stance_anim_y - 0.4) - rest_h["L"], p_leg_w
+		)
+		p_grounder.apply_grounding_now()
+		var stance_expected_y: float = lerpf(stance_anim_y, 0.4 + rest_h["L"], stance_contact)
+		_check(
+			absf(_bone_world(p_skel, p_lf).y - stance_expected_y) < 0.003,
+			"%s: walking stance height follows the contact-weighted sole calibration" % p_type
+		)
+		p_grounder.set_locomotion_active(false)
+
+		# (4) Arrival replants — on a slope the planted sole re-aligns to
+		# the planted point's OWN terrain normal and stays pinned there.
+		var p_slope := ZSlopeSampler.new(0.4, 0.2)
+		pview.set_surface_sampler(p_slope)
+		p_player.play(p_idle)
+		p_player.seek(t0, true)
+		var slope_anim_up: Vector3 = (
+			p_skel.global_transform.basis
+			* p_skel.get_bone_global_pose(p_lf).basis
+			* (p_skel.get_bone_global_rest(p_lf).basis.inverse() * Vector3.UP)
+		).normalized()
+		p_grounder.apply_grounding_now()
+		var slope_lf: Vector3 = _bone_world(p_skel, p_lf)
+		_check(
+			absf(slope_lf.y - (p_slope.height_at(slope_lf.x, slope_lf.z) + rest_h["L"])) < 0.004,
+			"%s: replanted ankle sits at the calibrated contact height on the slope" % p_type
+		)
+		var slope_up: Vector3 = (
+			p_skel.global_transform.basis
+			* p_skel.get_bone_global_pose(p_lf).basis
+			* (p_skel.get_bone_global_rest(p_lf).basis.inverse() * Vector3.UP)
+		).normalized()
+		_check(
+			slope_up.dot(p_slope.normal()) > slope_anim_up.dot(p_slope.normal()) + 0.002,
+			"%s: the planted sole aligns toward the slope normal (terrain-normal alignment preserved while planted)" % p_type
+		)
+		var slope_basis0: Basis = p_skel.get_bone_global_pose(p_lf).basis.orthonormalized()
+		p_player.seek(t1, true)
+		p_grounder.apply_grounding_now()
+		_check(
+			(_bone_world(p_skel, p_lf) - slope_lf).length() < 0.002
+				and Quaternion(p_skel.get_bone_global_pose(p_lf).basis.orthonormalized())
+					.angle_to(Quaternion(slope_basis0)) < 0.01,
+			"%s: the slope plant stays fixed in position AND orientation across idle poses" % p_type
+		)
+
+		# (5) Timed replant blending: a fresh plant captures the CURRENT
+		# pose (so the capture itself never snaps), then pulls a diverging
+		# animated foot toward the plant anchor gradually until it
+		# converges and stays put.
+		pview.apply_snapshot_units([{
+			"id": 7, "owner_id": 11, "position": [2, 0], "type_id": p_type,
+		}])
+		pview.advance_locomotion(60.0)
+		pview.set_surface_sampler(LinearGroundSampler.new(0.8, 0.0))
+		p_player.play(p_idle)
+		p_player.seek(t1, true)
+		p_grounder.apply_grounding_now(0.02)  # fresh capture AT this pose
+		p_player.seek(t0, true)  # the animated pose diverges from the anchor
+		p_grounder.apply_grounding_now(0.016)
+		var blend_p1: Vector3 = _bone_world(p_skel, p_lf)
+		for i in 40:
+			p_player.seek(t0, true)
+			p_grounder.apply_grounding_now(0.05)
+		var blend_p2: Vector3 = _bone_world(p_skel, p_lf)
+		p_player.seek(t0, true)
+		p_grounder.apply_grounding_now(0.05)
+		var blend_p3: Vector3 = _bone_world(p_skel, p_lf)
+		_check(
+			(blend_p1 - blend_p2).length() > 0.0005,
+			"%s: replanting is gradual (the first timed frame is NOT already at the anchor)" % p_type
+		)
+		_check(
+			(blend_p3 - blend_p2).length() < 0.0003,
+			"%s: the timed replant converges onto a stable plant anchor" % p_type
+		)
+		pview.queue_free()
 
 	# --- engine invocation: the modifier runs post-animation ------------------
 	var counting := CountingGrounder.new()
@@ -900,6 +1124,24 @@ static func _lowest_lift_time(player: AnimationPlayer, skel: Skeleton3D, foot_i:
 # mid-swing pose for that rig.
 static func _highest_lift_time(player: AnimationPlayer, skel: Skeleton3D, foot_i: int, clip: String, clip_len: float) -> float:
 	return _extreme_lift_time(player, skel, foot_i, clip, clip_len, true)
+
+
+# Clip time whose foot pose lies FARTHEST from the pose at ref_t — the
+# most drift the raw clip can produce against a plant captured at ref_t.
+static func _max_foot_displacement_time(player: AnimationPlayer, skel: Skeleton3D, foot_i: int, clip: String, clip_len: float, ref_t: float) -> float:
+	player.play(clip)
+	player.seek(ref_t, true)
+	var ref_pos: Vector3 = skel.get_bone_global_pose(foot_i).origin
+	var best_t := ref_t
+	var best_d := -1.0
+	for step in 33:
+		var t: float = clip_len * float(step) / 32.0
+		player.seek(t, true)
+		var d: float = (skel.get_bone_global_pose(foot_i).origin - ref_pos).length()
+		if d > best_d:
+			best_d = d
+			best_t = t
+	return best_t
 
 
 static func _extreme_lift_time(player: AnimationPlayer, skel: Skeleton3D, foot_i: int, clip: String, clip_len: float, highest: bool) -> float:

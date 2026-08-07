@@ -39,7 +39,31 @@
 #        a pose-derived bell (the animated foot lift normalized by leg
 #        length) that is ZERO at takeoff and landing by construction —
 #        flat/downhill motion never gains artificial lift; the phase source
-#        is the actual remapped clip pose, never per-unit timings.
+#        is the actual remapped clip pose, never per-unit timings;
+#     5. a SOLE-CONTACT height calibration: both audited rigs stand with
+#        the mesh sole EXACTLY on the bind-pose plane (AABB min y = 0), so
+#        terrain + the rest ankle height IS the exact contact height. The
+#        remapped clips, however, HOLD the feet above rest (measured
+#        2026-08: warrior Combat_Stance ankles ~+0.025 model units, settler
+#        Hit_Reaction_1 ~+0.004..0.011) — that clip-held lift is the hover.
+#        In contact the foot target therefore blends (by the contact
+#        weight) from "animated + terrain delta" to the calibrated
+#        "terrain + rest ankle height"; swing stays animation-owned;
+#     6. STATIONARY FOOT PLANTING: while the unit is NOT gliding (the view
+#        reports locomotion inactive), each foot is anchored in ground
+#        space the moment planting engages — its XZ, heading, and animated
+#        world orientation are captured once, and from then on the target
+#        is terrain(planted XZ) + rest ankle height with the sole aligned
+#        to the planted point's OWN sampled normal, so the not-true-idle
+#        clips (they drift/rock the feet: measured up to ~0.014 model
+#        units XZ per warrior idle loop) can no longer move planted feet.
+#        Idle pelvis/upper-body motion continues; the legs compensate.
+#        The plant weight blends in/out frame-rate-independently
+#        (1 - exp(-PLANT_BLEND_RATE*dt); instant for direct/test calls):
+#        starting a glide releases smoothly toward the animation, arrival
+#        replants smoothly — never a snap. Walking gait (including its
+#        separately deferred minor sliding) is untouched: planting never
+#        engages while locomotion is active.
 #   Deltas are measured against the model ground plane (the ModelRoot's
 #   world Y), so animation foot lift is preserved on top of the terrain.
 # - Bone indices AND rest frames are resolved ONCE at setup (cached; no
@@ -88,6 +112,8 @@ const FOOT_ROLL_MAX := 0.3
 const SWING_LIFT_REF_RATIO := 0.12
 const SWING_CLEARANCE_GAIN := 0.9
 const SWING_CLEARANCE_MAX_RATIO := 0.18
+# Frame-rate-independent blend rate for engaging/releasing a foot plant.
+const PLANT_BLEND_RATE := 10.0
 
 const EPS := 0.0001
 
@@ -109,6 +135,19 @@ var _rest_foot_height: Array[float] = [0.0, 0.0]
 # Per-foot temporally smoothed world-frame correction (presentation state).
 var _foot_corr: Array[Quaternion] = [Quaternion.IDENTITY, Quaternion.IDENTITY]
 
+# --- stationary foot planting (presentation state; view-driven gate) ------
+# True while the owning unit's visual is gliding (the view toggles this on
+# _begin_locomotion / _arrive). Planting only engages while false.
+var _locomotion_active := false
+# Per-foot plant state: engaged flag, blend weight, captured ground-space
+# anchor (world XZ), captured horizontal heading, captured animated world
+# rotation (the base the planted sole alignment is applied on).
+var _planted: Array[bool] = [false, false]
+var _plant_weight: Array[float] = [0.0, 0.0]
+var _plant_xz: Array[Vector2] = [Vector2.ZERO, Vector2.ZERO]
+var _plant_heading: Array[Vector3] = [Vector3.FORWARD, Vector3.FORWARD]
+var _plant_base_rot: Array[Quaternion] = [Quaternion.IDENTITY, Quaternion.IDENTITY]
+
 
 # Resolves and caches the bone map + rest frames from the owning skeleton;
 # must be called after this modifier was added as a child of the
@@ -119,6 +158,9 @@ func setup(sampler, plane_node: Node3D) -> bool:
 	_plane_node = plane_node
 	_bound = false
 	_foot_corr = [Quaternion.IDENTITY, Quaternion.IDENTITY]
+	_locomotion_active = false
+	_planted = [false, false]
+	_plant_weight = [0.0, 0.0]
 	var skel := _resolve_skeleton()
 	if skel == null:
 		return false
@@ -157,6 +199,19 @@ func setup(sampler, plane_node: Node3D) -> bool:
 
 func set_surface_sampler(sampler) -> void:
 	_sampler = sampler
+
+
+# View-driven planting gate: true while the unit's visual glides. Starting
+# a glide releases both plants (their weights blend out smoothly); once
+# inactive again, each foot replants on the next grounding pass.
+func set_locomotion_active(active: bool) -> void:
+	_locomotion_active = active
+	if active:
+		_planted = [false, false]
+
+
+func is_locomotion_active() -> bool:
+	return _locomotion_active
 
 
 func is_bound() -> bool:
@@ -214,38 +269,87 @@ func _apply_grounding_pass(delta: float) -> void:
 
 	var legs := [_left, _right]
 	var foot_w: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+	var heights: Array[float] = [0.0, 0.0]
 	var deltas: Array[float] = [0.0, 0.0]
 	var normals: Array[Vector3] = [Vector3.UP, Vector3.UP]
 	for side in 2:
 		var bones: Array[int] = legs[side]
-		foot_w[side] = to_world * skel.get_bone_global_pose(bones[2]).origin
-		var res: Dictionary = _sampler.sample(foot_w[side].x, foot_w[side].z, plane_y)
+		var c_g: Transform3D = skel.get_bone_global_pose(bones[2])
+		foot_w[side] = to_world * c_g.origin
+		# Plant bookkeeping BEFORE sampling: the sample point blends toward
+		# the planted ground-space anchor with the plant weight.
+		_update_plant(
+			side,
+			foot_w[side],
+			Quaternion((to_world.basis * c_g.basis).orthonormalized()),
+			delta,
+		)
+		var pw: float = _plant_weight[side]
+		var res: Dictionary = _sampler.sample(
+			lerpf(foot_w[side].x, _plant_xz[side].x, pw),
+			lerpf(foot_w[side].z, _plant_xz[side].y, pw),
+			plane_y,
+		)
 		if typeof(res) != TYPE_DICTIONARY or not bool(res.get("ok", false)):
 			return  # sampler miss: keep the animated pose untouched
-		deltas[side] = float(res.get("height", plane_y)) - plane_y
+		heights[side] = float(res.get("height", plane_y))
+		deltas[side] = heights[side] - plane_y
 		var n: Vector3 = res.get("normal", Vector3.UP)
 		normals[side] = n.normalized() if n.length() > EPS else Vector3.UP
 
-	# Per-leg geometry for the joint pelvis solve (skeleton space).
-	var reach_intervals: Array[Vector2] = []
+	# Per-leg lengths (needed by the contact/clearance shaping below).
 	var leg_len_s: Array[float] = [0.0, 0.0]
 	for side in 2:
 		var bones: Array[int] = legs[side]
 		var a: Vector3 = skel.get_bone_global_pose(bones[0]).origin
 		var b: Vector3 = skel.get_bone_global_pose(bones[1]).origin
 		var c: Vector3 = skel.get_bone_global_pose(bones[2]).origin
-		var l1 := (b - a).length()
-		var l2 := (c - b).length()
-		leg_len_s[side] = l1 + l2
-		reach_intervals.append(
-			pelvis_interval(
-				c - a, up_s, deltas[side] * k, safe_reach_max((c - a).length(), l1, l2)
-			)
-		)
+		leg_len_s[side] = (b - a).length() + (c - b).length()
 	if leg_len_s[0] < EPS or leg_len_s[1] < EPS:
 		return
+
+	# Contact weights + uphill swing clearance from the ANIMATED pose lift,
+	# then the final per-foot world targets: contact blends the height from
+	# "animated + terrain delta" to the CALIBRATED sole-contact height
+	# (terrain + rest ankle height — the audited bind-pose sole sits exactly
+	# on the plane), and the plant weight pins position onto the planted
+	# ground-space anchor (planted feet are always at exact contact height).
+	var leg_len_w: Array[float] = [leg_len_s[0] / k, leg_len_s[1] / k]
+	var contact: Array[float] = [1.0, 1.0]
+	var targets_w: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+	for side in 2:
+		var lift_w: float = (foot_w[side].y - plane_y) - _rest_foot_height[side] / k
+		contact[side] = contact_weight(lift_w, leg_len_w[side])
+		var extra_w: float = swing_clearance(
+			lift_w, deltas[side] - deltas[1 - side], leg_len_w[side]
+		)
+		var pw: float = _plant_weight[side]
+		var calib_y: float = heights[side] + _rest_foot_height[side] / k
+		var base_y: float = foot_w[side].y + deltas[side] + extra_w
+		targets_w[side] = Vector3(
+			lerpf(foot_w[side].x, _plant_xz[side].x, pw),
+			lerpf(lerpf(base_y, calib_y, contact[side]), calib_y, pw),
+			lerpf(foot_w[side].z, _plant_xz[side].y, pw),
+		)
+
+	# Joint pelvis solve (skeleton space) from the final targets.
+	var reach_intervals: Array[Vector2] = []
+	var shifts_s: Array[float] = [0.0, 0.0]
+	for side in 2:
+		var bones: Array[int] = legs[side]
+		var a: Vector3 = skel.get_bone_global_pose(bones[0]).origin
+		var b: Vector3 = skel.get_bone_global_pose(bones[1]).origin
+		var c: Vector3 = skel.get_bone_global_pose(bones[2]).origin
+		var target_s: Vector3 = to_skel * targets_w[side]
+		shifts_s[side] = (target_s - c).dot(up_s)
+		reach_intervals.append(
+			pelvis_interval(
+				target_s - a, up_s, 0.0,
+				safe_reach_max((c - a).length(), (b - a).length(), (c - b).length())
+			)
+		)
 	var avg_len_s: float = (leg_len_s[0] + leg_len_s[1]) * 0.5
-	var baseline: float = minf(deltas[0], deltas[1]) * k
+	var baseline: float = minf(shifts_s[0], shifts_s[1])
 	var pelvis_s: float = joint_pelvis_offset(
 		baseline, reach_intervals[0], reach_intervals[1], avg_len_s * MAX_PELVIS_RATIO
 	)
@@ -273,17 +377,6 @@ func _apply_grounding_pass(delta: float) -> void:
 	if absf(pelvis_s) > EPS:
 		skel.set_bone_pose(_hips, hips_parent_g.affine_inverse() * hips_new)
 
-	# Contact weights + uphill swing clearance from the ANIMATED pose lift.
-	var leg_len_w: Array[float] = [leg_len_s[0] / k, leg_len_s[1] / k]
-	var contact: Array[float] = [1.0, 1.0]
-	var extra_w: Array[float] = [0.0, 0.0]
-	for side in 2:
-		var lift_w: float = (foot_w[side].y - plane_y) - _rest_foot_height[side] / k
-		contact[side] = contact_weight(lift_w, leg_len_w[side])
-		extra_w[side] = swing_clearance(
-			lift_w, deltas[side] - deltas[1 - side], leg_len_w[side]
-		)
-
 	for side in 2:
 		_solve_leg(
 			skel,
@@ -293,13 +386,36 @@ func _apply_grounding_pass(delta: float) -> void:
 			chain_g[side],
 			hips_new,
 			v,
-			(deltas[side] + extra_w[side]) * k - pelvis_s,
+			to_skel * targets_w[side],
 			up_s,
 			normals[side],
 			contact[side],
 			delta,
 			leg_len_s[side] * MAX_FOOT_RAISE_RATIO,
 		)
+
+
+# Per-foot plant bookkeeping: while the view reports the unit stationary,
+# an unplanted foot captures its ground-space anchor (world XZ), heading,
+# and animated world rotation ONCE; the plant weight then blends toward 1
+# (toward 0 once a glide releases it) frame-rate-independently — instant
+# for direct/test calls (delta < 0), keeping them deterministic.
+func _update_plant(side: int, foot_world: Vector3, animated_rot: Quaternion, delta: float) -> void:
+	if not _locomotion_active and not _planted[side]:
+		_planted[side] = true
+		_plant_xz[side] = Vector2(foot_world.x, foot_world.z)
+		_plant_heading[side] = animated_rot * _rest_fwd_local[side]
+		_plant_base_rot[side] = animated_rot
+		# A fresh plant always blends in from the animated pose: any weight
+		# left over from a previous plant would otherwise engage the new
+		# anchor instantly (a replant pop).
+		_plant_weight[side] = 0.0
+	var goal: float = 1.0 if (_planted[side] and not _locomotion_active) else 0.0
+	if delta >= 0.0:
+		var alpha: float = 1.0 - exp(-PLANT_BLEND_RATE * maxf(delta, 0.0))
+		_plant_weight[side] = lerpf(_plant_weight[side], goal, alpha)
+	else:
+		_plant_weight[side] = goal
 
 
 # --- deterministic math (static, unit-tested) --------------------------------
@@ -459,12 +575,16 @@ func _leg_length_world(skel: Skeleton3D, to_world: Transform3D, bones: Array[int
 
 
 # Two-bone leg + whole-foot pass for one leg: position the foot at its
-# terrain target (pole-side knee, safe reach margins, exact bone lengths),
+# final target (pole-side knee, safe reach margins, exact bone lengths),
 # then rotate the Foot bone about the ankle so the sole follows the
-# sampled normal (contact-weighted, clamped, smoothed). `chain` holds the
+# sampled normal (contact-weighted, clamped, smoothed) — a PLANTED foot
+# instead holds its captured plant orientation aligned to the planted
+# point's normal, blended by the plant weight. `chain` holds the
 # pass-start snapshot of the leg's global poses (pre-pelvis); `v` is the
-# pelvis translation. All writes are LOCAL bone poses computed from the
-# snapshot — no global setters (see _apply_grounding_pass).
+# pelvis translation; `target_s` is the final desired ankle position in
+# skeleton space (calibration/clearance/planting already composed). All
+# writes are LOCAL bone poses computed from the snapshot — no global
+# setters (see _apply_grounding_pass).
 func _solve_leg(
 	skel: Skeleton3D,
 	to_world: Transform3D,
@@ -473,7 +593,7 @@ func _solve_leg(
 	chain: Array,
 	hips_after: Transform3D,
 	v: Vector3,
-	residual_s: float,
+	target_s: Vector3,
 	up_s: Vector3,
 	normal: Vector3,
 	contact: float,
@@ -494,11 +614,16 @@ func _solve_leg(
 	var foot_origin := c1
 	var l1 := (b1 - a1).length()
 	var l2 := (c1 - b1).length()
+	# Bounded correction from the animated (pelvis-shifted) ankle toward
+	# the final target — the same safe bound the vertical residual had.
+	var corr_s: Vector3 = target_s - c1
+	if corr_s.length() > max_raise_s:
+		corr_s = corr_s * (max_raise_s / corr_s.length())
 	var rotated := false
-	if l1 >= EPS and l2 >= EPS and absf(residual_s) > EPS:
+	if l1 >= EPS and l2 >= EPS and corr_s.length() > EPS:
 		var target: Vector3 = clamped_reach_target(
 			a1,
-			c1 + up_s * clampf(residual_s, -max_raise_s, max_raise_s),
+			c1 + corr_s,
 			l1,
 			l2,
 			safe_reach_max((c1 - a1).length(), l1, l2),
@@ -516,6 +641,9 @@ func _solve_leg(
 	# Whole-foot sole alignment about the ankle (position untouched). The
 	# ANIMATED orientation is the base every frame; the correction is a
 	# world-frame delta on top of it, so heading stays animation-owned.
+	# A planted foot blends toward its CAPTURED plant orientation (the
+	# animated rotation at plant time, sole-aligned to the planted point's
+	# own normal) — the not-true-idle clips can then no longer rock it.
 	var world_anim: Basis = to_world.basis * anim_foot_basis
 	var heading: Vector3 = world_anim * _rest_fwd_local[side]
 	var q_target := sole_alignment(heading, normal)
@@ -528,11 +656,19 @@ func _solve_leg(
 		_foot_corr[side] = _foot_corr[side].slerp(q_goal, alpha).normalized()
 	else:
 		_foot_corr[side] = q_goal
-	var applied_world: Basis = Basis(_foot_corr[side]) * world_anim
+	var corrected: Quaternion = (
+		_foot_corr[side] * Quaternion(world_anim.orthonormalized())
+	).normalized()
+	var planted_rot: Quaternion = (
+		sole_alignment(_plant_heading[side], normal) * _plant_base_rot[side]
+	).normalized()
+	var final_rot: Quaternion = corrected.slerp(
+		planted_rot, clampf(_plant_weight[side], 0.0, 1.0)
+	)
 	# Conjugating by the (uniformly scaled) world transform leaves floating
 	# point skew; orthonormalize so the stored bone rotation stays exact.
 	var foot_new := Transform3D(
-		(to_world.basis.inverse() * applied_world).orthonormalized(), foot_origin
+		(to_world.basis.inverse() * Basis(final_rot)).orthonormalized(), foot_origin
 	)
 
 	# LOCAL pose writes: UpLeg's parent is Hips; Leg's is UpLeg; Foot's is

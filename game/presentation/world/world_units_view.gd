@@ -42,13 +42,18 @@
 #   WorldUnitLegGrounder (a SkeletonModifier3D under each character's
 #   skeleton) grounds the FEET every frame — independent left/right
 #   rendered-top-surface samples, a vertical pelvis adjustment, and an
-#   analytic two-bone leg (knee) adjustment — while walking and idling.
-#   Transient glide height and the foot targets sample ONLY the rendered
-#   top surface through the injected WorldSurfaceSampler (never cliff
-#   walls, never legality); without a sampler (or on a miss) the glide
-#   falls back to interpolating the two anchor heights and the skeleton
-#   keeps the animated pose. Sole-to-normal rotation is a documented
-#   deferred fine-tune (see UNITS.md).
+#   analytic two-bone leg (knee) adjustment with whole-foot sole-to-normal
+#   alignment — while walking and idling. Sole contact is CALIBRATED
+#   (terrain + rest ankle height; the audited bind-pose soles sit exactly
+#   on the plane) and STATIONARY units plant each foot in ground space so
+#   the remapped not-true-idle clips cannot hover, rock, or drift planted
+#   feet; this view toggles the grounder's locomotion gate on glide
+#   begin/arrival so plants release and replant smoothly. Transient glide
+#   height and the foot targets sample ONLY the rendered top surface
+#   through the injected WorldSurfaceSampler (never cliff walls, never
+#   legality); without a sampler (or on a miss) the glide falls back to
+#   interpolating the two anchor heights and the skeleton keeps the
+#   animated pose.
 # - No selection, markers, or action submission here (N7d); no legality
 #   (server-only, N7a/N7b); no path smoothing across multiple moves. The
 #   legacy 2D/unit_3d_world_view path (ray placement, ~75x scale) is NOT
@@ -359,6 +364,14 @@ func grounder_for_unit(unit_id: int):
 	return _grounder_by_unit_id.get(unit_id)
 
 
+# Tells the unit's grounder whether its visual is gliding: stationary units
+# plant their feet in ground space (N7f follow-up); walking releases them.
+func _set_grounder_locomotion(unit_id: int, active: bool) -> void:
+	var grounder = _grounder_by_unit_id.get(unit_id)
+	if grounder != null:
+		grounder.set_locomotion_active(active)
+
+
 # Advances every active glide by delta seconds (called from _process;
 # headless tests drive it directly for determinism).
 func advance_locomotion(delta: float) -> void:
@@ -395,6 +408,7 @@ func _begin_locomotion(unit_id: int, from_pos: Vector3, to_anchor: Vector3) -> v
 		model_root.position = Vector3.ZERO
 		_loco_by_unit_id.erase(unit_id)
 		_play_semantic_clip(unit_id, SEMANTIC_IDLE_CLIP)
+		_set_grounder_locomotion(unit_id, false)
 		return
 	var dir := flat / dist
 	_loco_by_unit_id[unit_id] = {
@@ -408,6 +422,9 @@ func _begin_locomotion(unit_id: int, from_pos: Vector3, to_anchor: Vector3) -> v
 	model_root.position = from_pos - to_anchor
 	_apply_visual_yaw(model_root, dir)
 	_play_semantic_clip(unit_id, SEMANTIC_WALK_CLIP)
+	# Release the stationary foot plants smoothly: the grounder blends the
+	# planted anchors out while the walking gait takes over.
+	_set_grounder_locomotion(unit_id, true)
 
 
 # Arrival: EXACT final-anchor pose (offset zero), facing retained (yaw
@@ -419,6 +436,9 @@ func _arrive(unit_id: int, seg: Dictionary, root: Node3D) -> void:
 	_apply_visual_yaw(model_root, seg["dir"] as Vector3)
 	_loco_by_unit_id.erase(unit_id)
 	_play_semantic_clip(unit_id, SEMANTIC_IDLE_CLIP)
+	# Replant the feet smoothly: stationary again, so the grounder captures
+	# fresh ground-space anchors and blends the plants back in.
+	_set_grounder_locomotion(unit_id, false)
 	# N7f.1: the one real-arrival point — pose finalized, entry removed,
 	# Idle resumed. advance_locomotion reaches this branch exactly once per
 	# completed glide (removed units erase their entry without arriving).
