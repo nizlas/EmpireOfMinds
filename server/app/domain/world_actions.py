@@ -15,12 +15,16 @@ the exact legacy wire shape (schema_version 1, actor_id, attacker_id,
 defender_id) and resolves through the SHARED pure Local Combat 0.1 core
 (combat_rules.resolve_combat — one formula, never a drifting duplicate):
 BASE_DAMAGE 30, exp((atk-def)/25) scaling, clamp 1..100, retaliation only if
-the defender survives, elimination at 0 HP, the attacker never advances into
-the defender tile. Melee requires a traversable (smooth) edge — cliff or
-missing edge record blocks fail-closed, the SAME edge-legality source as
-movement. A surviving attacker's has_attacked becomes true: it can neither
-move nor attack again until its owner's next turn (accepted world end_turn
-clears every unit's has_attacked). Pre-attack movement stays budget-free.
+the defender survives, elimination at 0 HP. Tile occupation after combat
+(locked N7g.3 correction): a surviving defender leaves the attacker on its
+original tile; eliminating the defender moves the surviving attacker onto
+the defender's former tile (authoritative capture in the resulting snapshot);
+an attacker killed by retaliation captures nothing and is removed. Melee
+requires a traversable (smooth) edge — cliff or missing edge record blocks
+fail-closed, the SAME edge-legality source as movement. A surviving
+attacker's has_attacked becomes true: it can neither move nor attack again
+until its owner's next turn (accepted world end_turn clears every unit's
+has_attacked). Pre-attack movement stays budget-free.
 
 Validation is two-phase so the API layer can resolve + identity-verify the
 canonical WorldMap between them (world_match.resolve_world_map_for_snapshot):
@@ -289,13 +293,24 @@ def apply_attack_unit(
     combat_result: dict[str, Any],
 ) -> dict[str, Any]:
     """New snapshot after resolved combat, revision bumped exactly once.
-    Units at 0 HP are eliminated; a SURVIVING attacker keeps its tile (never
-    advances) and gets has_attacked = true; a surviving defender only takes
-    damage. Units stay sorted ascending by id."""
+
+    Units at 0 HP are eliminated. A surviving attacker gets has_attacked =
+    true. Tile occupation (authoritative, in the snapshot position only —
+    no presentation fields): surviving defender → attacker stays on its
+    original tile; defender eliminated and attacker survives → attacker
+    captures the defender's former tile; attacker killed by retaliation →
+    no capture (attacker removed). A surviving defender only takes damage.
+    Units stay sorted ascending by id."""
     attacker_id = int(action["attacker_id"])
     defender_id = int(action["defender_id"])
     attacker_killed = bool(combat_result["attacker_killed"])
     defender_killed = bool(combat_result["defender_killed"])
+    defender = _unit_by_id(snap, defender_id)
+    captured_position = (
+        [int(defender["position"][0]), int(defender["position"][1])]
+        if defender_killed and not attacker_killed
+        else None
+    )
     new_units: list[dict[str, Any]] = []
     for u in snap["units"]:
         uid = int(u["id"])
@@ -304,13 +319,14 @@ def apply_attack_unit(
         if defender_killed and uid == defender_id:
             continue
         if uid == attacker_id:
-            new_units.append(
-                {
-                    **u,
-                    "current_hp": int(combat_result["attacker_hp_after"]),
-                    "has_attacked": True,
-                }
-            )
+            row = {
+                **u,
+                "current_hp": int(combat_result["attacker_hp_after"]),
+                "has_attacked": True,
+            }
+            if captured_position is not None:
+                row["position"] = list(captured_position)
+            new_units.append(row)
         elif uid == defender_id:
             new_units.append(
                 {**u, "current_hp": int(combat_result["defender_hp_after"])}

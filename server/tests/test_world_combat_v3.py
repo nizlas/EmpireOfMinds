@@ -32,6 +32,7 @@ from app.domain.map_content_loader import load_world_map
 from app.domain.state_hash import state_hash
 from app.domain.world_map import EDGE_CLIFF, EDGE_SMOOTH
 from app.storage import file_store
+from match_helpers import SEAT_TOKEN_HEADER
 from test_world_map_actions_v3 import (
     MISMATCH_DETAIL,
     REFERENCE_MAP_ID,
@@ -315,7 +316,7 @@ def test_accepted_attack_smooth_edge_full_invariants(client: TestClient) -> None
     assert snap["revision"] == body["revision"]
     unit2 = next(u for u in snap["units"] if u["id"] == 2)
     unit4 = next(u for u in snap["units"] if u["id"] == 4)
-    # Surviving attacker: damaged, flagged, NEVER advanced into the tile.
+    # Surviving defender: attacker stays on its original tile (no capture).
     assert unit2["current_hp"] == WARRIOR_MAX_HP - BASE_DAMAGE
     assert unit2["has_attacked"] is True
     assert unit2["position"] == [a_pos[0], a_pos[1]]
@@ -338,7 +339,7 @@ def test_accepted_attack_smooth_edge_full_invariants(client: TestClient) -> None
 
 def test_defender_elimination_no_retaliation(client: TestClient) -> None:
     match_id, tokens, _ = _start_world_match(client)
-    _place_adjacent_smooth(match_id)
+    a_pos, d_pos = _place_adjacent_smooth(match_id)
     _set_unit_hp(match_id, 4, BASE_DAMAGE)  # dies to one base hit
     r = _post(client, match_id, _attack(0, 2, 4), tokens[0])
     body = r.json()
@@ -347,17 +348,37 @@ def test_defender_elimination_no_retaliation(client: TestClient) -> None:
     assert ev["defender_killed"] is True and ev["defender_hp_after"] == 0
     assert ev["retaliated"] is False
     assert ev["attacker_damage_taken"] == 0 and ev["attacker_killed"] is False
+    # Event positions remain the PRE-combat tiles (not presentation fields).
+    assert ev["attacker_position"] == [a_pos[0], a_pos[1]]
+    assert ev["defender_position"] == [d_pos[0], d_pos[1]]
     units = body["snapshot"]["units"]
     # Deterministic ascending ordering after elimination.
     assert [u["id"] for u in units] == [1, 2, 3]
     unit2 = next(u for u in units if u["id"] == 2)
     assert unit2["current_hp"] == WARRIOR_MAX_HP  # no retaliation damage
     assert unit2["has_attacked"] is True
+    # Authoritative capture: surviving attacker occupies the defender's tile.
+    assert unit2["position"] == [d_pos[0], d_pos[1]]
+    assert all(u["id"] != 4 for u in units)
+    # Reconnect/readback converges on the captured-tile position.
+    readback = client.get(f"/v1/matches/{match_id}").json()["snapshot"]
+    assert next(u for u in readback["units"] if u["id"] == 2)["position"] == [
+        d_pos[0],
+        d_pos[1],
+    ]
+    # Post-capture legality observes the new position + has_attacked gate.
+    legal = client.get(
+        f"/v1/matches/{match_id}/legal-actions",
+        headers={SEAT_TOKEN_HEADER: tokens[0]},
+        params={"actor_id": 0, "selected_unit_id": 2},
+    ).json()
+    assert legal["revision"] == body["revision"]
+    assert legal["actions"] == []
 
 
 def test_attacker_elimination_by_retaliation(client: TestClient) -> None:
     match_id, tokens, _ = _start_world_match(client)
-    _place_adjacent_smooth(match_id)
+    a_pos, d_pos = _place_adjacent_smooth(match_id)
     _set_unit_hp(match_id, 2, BASE_DAMAGE)  # dies to the retaliation
     r = _post(client, match_id, _attack(0, 2, 4), tokens[0])
     body = r.json()
@@ -371,6 +392,17 @@ def test_attacker_elimination_by_retaliation(client: TestClient) -> None:
     unit4 = next(u for u in units if u["id"] == 4)
     assert unit4["current_hp"] == WARRIOR_MAX_HP - BASE_DAMAGE
     assert unit4["has_attacked"] is False
+    # Attacker killed by retaliation: no capture; defender stays put.
+    assert unit4["position"] == [d_pos[0], d_pos[1]]
+    assert all(u["id"] != 2 for u in units)
+    # The defender's former tile is NOT occupied by a surviving attacker.
+    assert all(u["position"] != [a_pos[0], a_pos[1]] or u["id"] != 2 for u in units)
+    readback = client.get(f"/v1/matches/{match_id}").json()["snapshot"]
+    assert [u["id"] for u in readback["units"]] == [1, 3, 4]
+    assert next(u for u in readback["units"] if u["id"] == 4)["position"] == [
+        d_pos[0],
+        d_pos[1],
+    ]
 
 
 # ------------------------------------------------------- has_attacked gate
@@ -469,6 +501,62 @@ def test_world_resolver_uses_shared_core_and_registry() -> None:
         "defender_id": 4,
         **resolve_combat(WARRIOR_STRENGTH, WARRIOR_STRENGTH, 55, 80),
     }
+
+
+def test_apply_attack_unit_tile_occupation_branches() -> None:
+    """Authoritative capture rule: survive → stay; kill → occupy; die → none."""
+    base = {
+        "revision": 3,
+        "turn_state": {"players": [0, 1], "current_index": 0, "turn_number": 1},
+        "units": [
+            {"id": 2, "owner_id": 0, "position": [2, 1], "type_id": "warrior", "current_hp": 100, "has_attacked": False},
+            {"id": 4, "owner_id": 1, "position": [3, 1], "type_id": "warrior", "current_hp": 100, "has_attacked": False},
+        ],
+    }
+    # Defender survives: attacker stays put.
+    both = world_actions.apply_attack_unit(
+        base,
+        _attack(0, 2, 4),
+        {
+            "attacker_hp_after": 70,
+            "defender_hp_after": 70,
+            "attacker_killed": False,
+            "defender_killed": False,
+        },
+    )
+    assert next(u for u in both["units"] if u["id"] == 2)["position"] == [2, 1]
+    assert next(u for u in both["units"] if u["id"] == 2)["has_attacked"] is True
+    assert next(u for u in both["units"] if u["id"] == 4)["position"] == [3, 1]
+
+    # Defender dies, attacker survives: capture the defender's tile.
+    kill = world_actions.apply_attack_unit(
+        base,
+        _attack(0, 2, 4),
+        {
+            "attacker_hp_after": 100,
+            "defender_hp_after": 0,
+            "attacker_killed": False,
+            "defender_killed": True,
+        },
+    )
+    assert [u["id"] for u in kill["units"]] == [2]
+    unit2 = kill["units"][0]
+    assert unit2["position"] == [3, 1]
+    assert unit2["current_hp"] == 100 and unit2["has_attacked"] is True
+
+    # Attacker dies to retaliation: no capture.
+    atk_dies = world_actions.apply_attack_unit(
+        base,
+        _attack(0, 2, 4),
+        {
+            "attacker_hp_after": 0,
+            "defender_hp_after": 70,
+            "attacker_killed": True,
+            "defender_killed": False,
+        },
+    )
+    assert [u["id"] for u in atk_dies["units"]] == [4]
+    assert atk_dies["units"][0]["position"] == [3, 1]
 
 
 # --------------------------------------------- drift / no-write invariants

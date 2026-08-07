@@ -24,7 +24,17 @@
 # upright yaw-only facing, and skeletal foot grounding are the N7f
 # locomotion layer inside WorldUnitsView (presentation-only; grounding
 # samples the rendered top surface via WorldSurfaceSampler — never
-# legality); combat is N7g; cities/production are N8a–N8d.
+# legality). N7g.3 combat client: served attack rows render as DISTINCT
+# attack markers and submit verbatim; an ACCEPTED attack's response event
+# drives one deterministic character combat sequence in WorldUnitsView
+# (attack / hit / retaliation / death one-shot clips), during which the
+# combat gate blocks all gameplay input and served legality while the
+# accepted snapshot is DEFERRED — applied (eliminating dead units) when
+# the sequence finishes, followed by exactly one fresh legality refetch.
+# Rejected/failed attacks never animate; reconnect/bootstrap never replays
+# combat; superseding snapshots cancel the presentation safely. The client
+# NEVER computes combat outcomes — the server event/snapshot are the only
+# sources. Cities/production are N8a–N8d.
 extends Node3D
 
 const BootIntentScript = preload("res://cloud/boot_intent.gd")
@@ -78,6 +88,11 @@ var _request_busy := false
 # snapshot applies / selection moves; consumed by _pump_legal_fetch).
 var _summary_refetch_needed := false
 var _selection_refetch_needed := false
+# N7g.3: the accepted attack response's authoritative snapshot, held while
+# the combat presentation plays (null otherwise). Applied on the sequence's
+# finished signal; dropped (with the presentation canceled) when any other
+# authoritative snapshot supersedes it.
+var _pending_combat_snapshot = null
 
 
 # N7c small-unit quality profile: the WorldMap 3D viewport renders with
@@ -289,6 +304,8 @@ func _render_units() -> void:
 		add_child(units_view)
 		# N7f.1: real visual arrivals release the arrival gate.
 		units_view.unit_arrived.connect(_on_unit_arrived)
+		# N7g.3: combat-sequence completion applies the deferred snapshot.
+		units_view.combat_presentation_finished.connect(_on_combat_presentation_finished)
 	# N7f grounding: transient visual height/normal correction samples the
 	# built terrain's rendered top surface only (never walls, never rules).
 	if not units_view.has_surface_sampler():
@@ -346,6 +363,9 @@ func _on_terrain_picked(pick: Dictionary) -> void:
 	var directive: Dictionary = interaction.classify_pick(pick)
 	match str(directive.get("kind", "")):
 		WorldInteractionStateScript.PICK_SUBMIT_MOVE:
+			await _submit_action(directive["action"])
+		WorldInteractionStateScript.PICK_SUBMIT_ATTACK:
+			# N7g.3: a marked defender tile submits that EXACT served row.
 			await _submit_action(directive["action"])
 		WorldInteractionStateScript.PICK_SELECT_UNIT:
 			# Selection changes refetch ONLY selection legality — a fresh
@@ -415,6 +435,30 @@ func _submit_action(action_row: Dictionary) -> void:
 		_set_action_feedback("Accepted response carried no snapshot — state not updated.")
 		_refresh_interaction_ui()
 		return
+	# N7g.3 combat presentation: an ACCEPTED attack_unit response is the
+	# only combat trigger (rejections/transport failures returned above;
+	# reconnect/bootstrap never routes through here — historical combat is
+	# never replayed). The gate blocks input + served legality IMMEDIATELY;
+	# when the character sequence starts, the authoritative snapshot is
+	# DEFERRED until it finishes, so the killed character survives long
+	# enough to play Dead. If anything about the event/roots/players/clips
+	# is unusable, present_combat refuses and we fall back to immediate
+	# authoritative reconciliation — never a deadlock.
+	if interaction != null and str(action_row.get("action_type", "")) == "attack_unit":
+		var event = resp.get("event", null)
+		interaction.enter_combat_gate()
+		if (
+			units_view != null
+			and typeof(event) == TYPE_DICTIONARY
+			and units_view.present_combat(event as Dictionary, snap as Dictionary)
+		):
+			_pending_combat_snapshot = (snap as Dictionary).duplicate(true)
+			_refresh_interaction_ui()
+			return
+		interaction.clear_combat_gate()
+		_apply_authoritative_snapshot(snap as Dictionary)
+		await _pump_legal_fetch()
+		return
 	# N7f.1 arrival gate: only an accepted move_unit with a usable snapshot
 	# enters it, bound to the exact moved unit and accepted revision. The
 	# snapshot is applied IMMEDIATELY afterwards (gameplay state and the
@@ -438,12 +482,37 @@ func _submit_action(action_row: Dictionary) -> void:
 	await _pump_legal_fetch()
 
 
+# N7g.3: the combat sequence finished — apply the DEFERRED authoritative
+# snapshot now (eliminated units disappear through normal reconciliation;
+# the apply also clears the combat gate), then refetch fresh legality.
+# Input was blocked by the combat gate for the whole sequence and returns
+# only through these fresh served rows. A presentation canceled by a
+# superseding snapshot never emits this signal.
+func _on_combat_presentation_finished(_attacker_id: int, _defender_id: int) -> void:
+	if _pending_combat_snapshot == null:
+		return
+	var snap: Dictionary = _pending_combat_snapshot
+	_pending_combat_snapshot = null
+	_apply_authoritative_snapshot(snap)
+	await _pump_legal_fetch()
+
+
 # Applies a newer authoritative snapshot (accepted action or waiting poll)
 # WITHOUT rebuilding the terrain: the map identity of a match is immutable,
 # so a changed identity is server/content drift and fails visibly (locked
 # no-fallback rule). Clears served rows/markers immediately and schedules
 # the refetch the interaction state asks for (locked freshness contract).
 func _apply_authoritative_snapshot(snap: Dictionary) -> void:
+	# N7g.3: any snapshot arriving while a combat presentation is still
+	# pending supersedes it — cancel the presentation safely (survivors
+	# restored, no finished signal) and drop the deferred snapshot; the
+	# authoritative state applied below wins. (The deferred combat apply
+	# clears the pending snapshot before calling here, so it never cancels
+	# its own sequence.)
+	if _pending_combat_snapshot != null:
+		_pending_combat_snapshot = null
+		if units_view != null:
+			units_view.cancel_combat_presentation()
 	if snapshot.has("map") and snap.get("map", null) != snapshot.get("map", null):
 		_fail("snapshot map identity changed mid-match (server/content drift)")
 		return
@@ -470,6 +539,7 @@ func _pump_legal_fetch() -> void:
 		and session != null
 		and interaction != null
 		and not interaction.arrival_gate_active()
+		and not interaction.combat_gate_active
 		and not _request_busy
 	):
 		if interaction.my_actor_id < 0:
@@ -622,7 +692,11 @@ func _refresh_interaction_ui() -> void:
 	if interaction == null:
 		return
 	if markers != null:
-		markers.set_markers(interaction.selected_tile(), interaction.destination_tiles())
+		markers.set_markers(
+			interaction.selected_tile(),
+			interaction.destination_tiles(),
+			interaction.attack_target_tiles(),
+		)
 	if _end_turn_button != null:
 		_end_turn_button.disabled = _request_busy or not interaction.can_submit_end_turn()
 	if bootstrap_error.is_empty() and not snapshot.is_empty():
@@ -636,6 +710,10 @@ func _refresh_interaction_ui() -> void:
 		var turn_line: String = interaction.status_text()
 		if not turn_line.is_empty():
 			line += "\n" + turn_line
+		# N7g.3: minimal selected-unit HP line (authoritative current_hp).
+		var selected_line: String = interaction.selected_unit_status_line()
+		if not selected_line.is_empty():
+			line += "\n" + selected_line
 		_set_status(line)
 
 

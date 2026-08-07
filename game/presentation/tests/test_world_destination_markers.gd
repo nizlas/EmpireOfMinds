@@ -11,7 +11,10 @@
 # - clearing removes every destination marker and hides the highlight;
 # - anchors behind the camera / unknown tiles hide their markers;
 # - every control ignores the mouse (TerrainWorld stays the single
-#   pick-input boundary — marker clicks are terrain picks).
+#   pick-input boundary — marker clicks are terrain picks);
+# - N7g.3 attack markers: 1:1 with the supplied served attack tiles at the
+#   projected anchors, VISUALLY DISTINCT from destination markers (color
+#   AND shape), cleared with everything else, mouse-transparent.
 extends SceneTree
 
 const WorldDestinationMarkersScript = preload("res://presentation/world/world_destination_markers.gd")
@@ -107,15 +110,54 @@ func _run() -> void:
 		"destination marker for a tile without an anchor stays hidden"
 	)
 
+	# --- N7g.3 attack markers: 1:1, projected, visually distinct ---
+	markers.set_markers(TILE_SEL, [TILE_B], [TILE_A])
+	_check(markers.attack_count() == 1, "one attack marker per supplied attack tile")
+	var attack_a: Control = markers.attack_marker_for_tile(TILE_A)
+	_check(attack_a != null, "attack markers are addressable per tile")
+	_check(
+		attack_a.visible and attack_a.position == camera.unproject_position(stub.tile_anchors[TILE_A]),
+		"attack marker sits exactly at the projected defender anchor"
+	)
+	_check(
+		markers.destination_count() == 1 and markers.attack_count() == 1
+			and markers.destination_marker_for_tile(TILE_B) != null,
+		"attack and destination markers are separate 1:1 sets"
+	)
+	var attack_shape: ColorRect = attack_a.get_node("Square") as ColorRect
+	var dest_shape: ColorRect = markers.destination_marker_for_tile(TILE_B).get_node("Diamond") as ColorRect
+	_check(attack_shape != null and dest_shape != null, "attack and destination markers use distinct shapes")
+	_check(
+		attack_shape.color != dest_shape.color,
+		"attack markers use a distinct color from destination markers"
+	)
+	_check(
+		attack_shape.rotation == 0.0 and dest_shape.rotation != 0.0,
+		"attack squares are unrotated while destination diamonds are rotated"
+	)
+	camera.orbit(-17.0, 6.0)
+	markers.refresh()
+	_check(
+		attack_a.position == camera.unproject_position(stub.tile_anchors[TILE_A]),
+		"attack markers re-project after camera movement"
+	)
+	markers.set_markers(TILE_SEL, [], [TILE_UNKNOWN])
+	var unknown_attack: Control = markers.attack_marker_for_tile(TILE_UNKNOWN)
+	_check(
+		unknown_attack != null and not unknown_attack.visible,
+		"attack marker for a tile without an anchor stays hidden"
+	)
+
 	# --- clear removes everything ---
-	markers.set_markers(TILE_SEL, [TILE_A])
+	markers.set_markers(TILE_SEL, [TILE_A], [TILE_B])
 	markers.clear()
 	_check(markers.destination_count() == 0, "clear removes every destination marker")
+	_check(markers.attack_count() == 0, "clear removes every attack marker")
 	_check(not markers.selected_marker().visible, "clear hides the selection highlight")
 	_check(markers.selected_tile == null, "clear resets the selected tile mirror")
 
 	# --- input transparency (single pick-input boundary stays TerrainWorld) ---
-	markers.set_markers(TILE_SEL, [TILE_A, TILE_B])
+	markers.set_markers(TILE_SEL, [TILE_A], [TILE_B])
 	var all_ignore := true
 	var control_count := 0
 	for node in _all_controls(markers):

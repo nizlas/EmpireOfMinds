@@ -1,16 +1,19 @@
-# N7d projected destination/selection markers (presentation-only, reusable).
+# N7d/N7g.3 projected selection/destination/attack markers (presentation-
+# only, reusable).
 #
-# Shows the selected own unit's tile plus one destination marker per SERVED
-# `move_unit` row at the projected N4 tile anchors. Follows the N4 projected
+# Shows the selected own unit's tile, one destination marker per SERVED
+# `move_unit` row, and one VISUALLY DISTINCT attack marker per served
+# `attack_unit` row (red unrotated square vs. the green destination
+# diamond) at the projected N4 tile anchors. Follows the N4 projected
 # UI pattern (world_anchor_ui.gd): attach to a built TerrainWorld, read its
 # `camera` and `tile_anchors` (derived presentation data — never gameplay
 # authority), and re-project EVERY FRAME so markers track camera orbit,
 # pitch, pan, zoom, and viewport resizing.
 #
 # Contract:
-# - The marker set is exactly what the caller passes from the served
+# - The marker sets are exactly what the caller passes from the served
 #   legal-actions rows — this component never computes, filters, or invents
-#   destinations (no client-side legality, ever).
+#   destinations or attack targets (no client-side legality, ever).
 # - All controls are MOUSE_FILTER_IGNORE: TerrainWorld stays the single
 #   pick-input boundary (locked N4 input contract) — "clicking a marker" is
 #   a terrain pick on the marked tile, not a Control click.
@@ -24,15 +27,20 @@ const DESTINATION_MARKER_SIZE := Vector2(14.0, 14.0)
 const DESTINATION_COLOR := Color(0.35, 0.95, 0.45, 0.92)
 const SELECTED_MARKER_SIZE := Vector2(20.0, 20.0)
 const SELECTED_COLOR := Color(0.30, 0.85, 1.0, 0.95)
+# N7g.3 attack markers: distinct color AND shape (red unrotated square).
+const ATTACK_MARKER_SIZE := Vector2(16.0, 16.0)
+const ATTACK_COLOR := Color(0.98, 0.25, 0.20, 0.95)
 
 # Current marker inputs (read-only mirrors for tests/diagnostics).
 var selected_tile = null  # Variant: null or Vector2i
 var destination_tiles: Array = []  # Array of Vector2i
+var attack_tiles: Array = []  # Array of Vector2i (served attack rows)
 
 var _world = null
 var _overlay: Control = null
 var _selected_marker: Control = null
 var _destination_markers: Array = []  # Array of Control, 1:1 with destination_tiles
+var _attack_markers: Array = []  # Array of Control, 1:1 with attack_tiles
 
 
 func _init() -> void:
@@ -53,11 +61,13 @@ func attach(world) -> void:
 	refresh()
 
 
-# Replaces the marker set: `p_selected_tile` (Variant: null or Vector2i) and
-# `p_destination_tiles` (Vector2i list taken 1:1 from the served rows).
-func set_markers(p_selected_tile, p_destination_tiles: Array) -> void:
+# Replaces the marker sets: `p_selected_tile` (Variant: null or Vector2i),
+# `p_destination_tiles` and `p_attack_tiles` (Vector2i lists taken 1:1 from
+# the served move/attack rows).
+func set_markers(p_selected_tile, p_destination_tiles: Array, p_attack_tiles: Array = []) -> void:
 	selected_tile = p_selected_tile
 	destination_tiles = p_destination_tiles.duplicate()
+	attack_tiles = p_attack_tiles.duplicate()
 	for marker in _destination_markers:
 		(marker as Node).queue_free()
 	_destination_markers = []
@@ -68,19 +78,37 @@ func set_markers(p_selected_tile, p_destination_tiles: Array) -> void:
 		)
 		_overlay.add_child(marker)
 		_destination_markers.append(marker)
+	for marker in _attack_markers:
+		(marker as Node).queue_free()
+	_attack_markers = []
+	for tile_variant in attack_tiles:
+		var tile: Vector2i = tile_variant
+		var marker := _make_square(
+			"Attack_%d_%d" % [tile.x, tile.y], ATTACK_MARKER_SIZE, ATTACK_COLOR
+		)
+		_overlay.add_child(marker)
+		_attack_markers.append(marker)
 	refresh()
 
 
 func clear() -> void:
-	set_markers(null, [])
+	set_markers(null, [], [])
 
 
 func destination_count() -> int:
 	return _destination_markers.size()
 
 
+func attack_count() -> int:
+	return _attack_markers.size()
+
+
 func destination_marker_for_tile(tile: Vector2i) -> Control:
 	return _overlay.get_node_or_null("Destination_%d_%d" % [tile.x, tile.y]) as Control
+
+
+func attack_marker_for_tile(tile: Vector2i) -> Control:
+	return _overlay.get_node_or_null("Attack_%d_%d" % [tile.x, tile.y]) as Control
 
 
 func selected_marker() -> Control:
@@ -95,6 +123,8 @@ func refresh() -> void:
 	_place_marker(_selected_marker, selected_tile, camera, anchors)
 	for i in _destination_markers.size():
 		_place_marker(_destination_markers[i], destination_tiles[i], camera, anchors)
+	for i in _attack_markers.size():
+		_place_marker(_attack_markers[i], attack_tiles[i], camera, anchors)
 
 
 func _process(_delta: float) -> void:
@@ -129,4 +159,21 @@ func _make_diamond(marker_name: String, marker_size: Vector2, color: Color) -> C
 	diamond.rotation = PI / 4.0
 	diamond.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	marker_root.add_child(diamond)
+	return marker_root
+
+
+# Attack-marker shape: an UNROTATED square, so attack targets differ from
+# move destinations in both shape and color.
+func _make_square(marker_name: String, marker_size: Vector2, color: Color) -> Control:
+	var marker_root := Control.new()
+	marker_root.name = marker_name
+	marker_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	marker_root.visible = false
+	var square := ColorRect.new()
+	square.name = "Square"
+	square.color = color
+	square.size = marker_size
+	square.position = -marker_size / 2.0
+	square.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	marker_root.add_child(square)
 	return marker_root

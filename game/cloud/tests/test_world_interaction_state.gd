@@ -467,6 +467,110 @@ func _init() -> void:
 		"normal refetch directives resume once the gate is superseded"
 	)
 
+	# --- N7g.3: served attack rows + HP/has_attacked propagation ---------------
+	var cb = WorldInteractionStateScript.new(0)
+	var cb_units := [
+		{"id": 1, "owner_id": 0, "position": [1, 1], "type_id": "warrior", "current_hp": 100, "has_attacked": false},
+		{"id": 4, "owner_id": 1, "position": [2, 1], "type_id": "warrior", "current_hp": 70, "has_attacked": false},
+	]
+	cb.apply_snapshot(_snapshot(0, 0, cb_units))
+	_check(int(cb.unit_by_id(4).get("current_hp", -1)) == 70, "snapshot current_hp propagates verbatim")
+	_check(cb.unit_by_id(1).has("has_attacked"), "snapshot has_attacked propagates verbatim")
+	cb.select_unit(1)
+	_check(
+		cb.selected_unit_status_line() == "Selected: warrior 1 — HP 100",
+		"selected-unit status line shows the authoritative HP"
+	)
+	var attack_row := {
+		"schema_version": 1,
+		"action_type": "attack_unit",
+		"actor_id": 0,
+		"attacker_id": 1,
+		"defender_id": 4,
+	}
+	var cb_sel: int = cb.begin_selection_fetch()
+	_check(
+		cb.accept_selection_legal_actions(
+			cb_sel, _selection_response(0, 1, [attack_row, _move_row(1, [1, 1], [0, 1])])
+		),
+		"selection response carrying attack + move rows is accepted"
+	)
+	_check(
+		cb.attack_target_tiles() == [Vector2i(2, 1)],
+		"attack-marker tiles come from the defender's held snapshot position"
+	)
+	_check(cb.destination_tiles() == [Vector2i(0, 1)], "move rows still map to destination tiles")
+	_check(
+		cb.attack_row_for_tile(Vector2i(2, 1)) == attack_row,
+		"the attack submission row is the exact served row (deep equality)"
+	)
+	_check(
+		cb.classify_pick(_tile_pick(2, 1)) == {"kind": "submit_attack", "action": attack_row},
+		"picking a marked defender tile submits that exact served attack row"
+	)
+	# Stale-row rejection: a newer snapshot clears the attack rows too.
+	cb.apply_snapshot(_snapshot(1, 0, cb_units))
+	_check(cb.attack_target_tiles().is_empty(), "a newer snapshot clears the served attack rows")
+	_check(cb.attack_row_for_tile(Vector2i(2, 1)).is_empty(), "stale attack rows can never be submitted")
+	_check(
+		cb.classify_pick(_tile_pick(2, 1)) == {"kind": "clear"},
+		"an unmarked enemy tile falls back to the normal clear semantics"
+	)
+	var cb_units_attacked: Array = cb_units.duplicate(true)
+	(cb_units_attacked[0] as Dictionary)["has_attacked"] = true
+	(cb_units_attacked[0] as Dictionary)["current_hp"] = 40
+	cb.apply_snapshot(_snapshot(2, 0, cb_units_attacked))
+	cb.select_unit(1)
+	_check(
+		cb.selected_unit_status_line() == "Selected: warrior 1 — HP 40 (has attacked)",
+		"selected-unit status line shows the updated HP and the has_attacked state"
+	)
+	var cb2 = WorldInteractionStateScript.new(0)
+	cb2.apply_snapshot(_snapshot(0, 0, _units()))
+	cb2.select_unit(1)
+	_check(
+		cb2.selected_unit_status_line() == "Selected: settler 1",
+		"unit rows without combat fields show a plain selection line (nothing invented)"
+	)
+
+	# --- N7g.3 combat gate ------------------------------------------------------
+	var cg = WorldInteractionStateScript.new(0)
+	cg.apply_snapshot(_snapshot(0, 0, cb_units))
+	cg.select_unit(1)
+	var cg_sum: int = cg.begin_summary_fetch()
+	cg.accept_summary_legal_actions(cg_sum, _summary_response(0))
+	var cg_sel: int = cg.begin_selection_fetch()
+	cg.accept_selection_legal_actions(
+		cg_sel, _selection_response(0, 1, [attack_row, _move_row(1, [1, 1], [0, 1])])
+	)
+	_check(
+		cg.can_submit_end_turn() and not cg.attack_target_tiles().is_empty(),
+		"combat-gate precondition: End Turn and attack rows are live"
+	)
+	cg.enter_combat_gate()
+	_check(cg.combat_gate_active, "the accepted attack enters the combat gate")
+	_check(
+		cg.destination_tiles().is_empty() and cg.attack_target_tiles().is_empty(),
+		"entering the combat gate invalidates ALL served rows immediately"
+	)
+	_check(not cg.can_submit_end_turn(), "End Turn is disabled during combat presentation")
+	for combat_pick in [
+		_tile_pick(2, 1), _tile_pick(1, 1), _tile_pick(5, 5),
+		{}, {"kind": "cliff", "edge": [], "tiles": []},
+	]:
+		_check(
+			cg.classify_pick(combat_pick) == {"kind": "none"},
+			"combat-gated pick is inert: %s" % str(combat_pick)
+		)
+	_check(cg.status_text().contains("combat"), "combat-gated status text says so")
+	_check(cg.selected_unit_id == 1, "selection survives the combat gate")
+	directives = cg.apply_snapshot(_snapshot(1, 0, cb_units_attacked))
+	_check(not cg.combat_gate_active, "a snapshot apply clears the combat gate")
+	_check(
+		directives == {"summary": true, "selection": true},
+		"the deferred combat apply directs fresh summary + surviving-selection refetches"
+	)
+
 	_finish()
 
 

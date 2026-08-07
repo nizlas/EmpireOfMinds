@@ -93,6 +93,12 @@
 #   grounder reports unbound and stays inert — never a partial adjustment.
 #   Assets, skin weights, and animations are never modified; exact bone
 #   lengths and finite transforms are preserved.
+# - N7g.3 combat pause: while the view presents a one-shot combat sequence
+#   (attack / hit / death clips) the grounder is explicitly PAUSED — no
+#   grounding pass runs, so combat poses are never distorted; unpausing
+#   drops every plant/smoothing state captured before or during the pause,
+#   so survivors replant fresh from their post-combat pose (see
+#   set_grounding_paused below).
 class_name WorldUnitLegGrounder
 extends SkeletonModifier3D
 
@@ -235,6 +241,30 @@ func is_locomotion_active() -> bool:
 	return _locomotion_active
 
 
+# N7g.3 combat-presentation gate (explicit grounder/combat interaction):
+# while paused, every grounding pass is a no-op so one-shot attack / hit /
+# death clips play exactly as authored — leg IK, sole alignment, and the
+# stationary plants can neither distort those poses nor keep updating from
+# them. Unpausing drops ALL plant/smoothing state captured before or during
+# the pause (never retained), so surviving units replant FRESH from their
+# current pose on the next pass (a fresh plant always blends in smoothly).
+var _paused := false
+
+
+func set_grounding_paused(paused: bool) -> void:
+	if _paused == paused:
+		return
+	_paused = paused
+	if not paused:
+		_planted = [false, false]
+		_plant_weight = [0.0, 0.0]
+		_foot_corr = [Quaternion.IDENTITY, Quaternion.IDENTITY]
+
+
+func is_grounding_paused() -> bool:
+	return _paused
+
+
 func is_bound() -> bool:
 	return _bound
 
@@ -265,7 +295,7 @@ var _applying := false
 
 
 func apply_grounding_now(delta: float = -1.0) -> void:
-	if _applying:
+	if _applying or _paused:
 		return
 	_applying = true
 	_apply_grounding_pass(delta)

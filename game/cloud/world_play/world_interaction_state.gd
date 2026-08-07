@@ -30,7 +30,19 @@
 #   pick selects, miss clears, cliff pick leaves selection unchanged. Out of
 #   turn EVERY pick — including an empty miss — is completely inert (turn
 #   ownership is checked before any miss-clear semantics).
-# - No combat, cities, animation, or client-side legality (N7f/N7g/N8).
+# - N7g.3 attack rows: the selection slot additionally stores the served
+#   `attack_unit` rows (same revision/selection binding as the move rows).
+#   Attack-target tiles are looked up from the held snapshot's defender
+#   positions for MARKER PLACEMENT ONLY — legality stays entirely served;
+#   picking a marked defender tile submits that exact served row.
+# - N7g.3 combat gate: while an accepted attack's presentation runs, BOTH
+#   served slots are invalidated immediately and every gameplay pick /
+#   End Turn / row render is inert. The scene enters the gate on the
+#   accepted response and the gate clears on the next snapshot apply (the
+#   deferred combat apply, or any superseding authoritative snapshot —
+#   which also cancels the presentation itself in the view). Presentation
+#   pacing only, never gameplay authority.
+# - No cities or client-side legality (N8+).
 extends RefCounted
 
 const CloudTurnOwnershipScript = preload("res://cloud/cloud_turn_ownership.gd")
@@ -40,6 +52,7 @@ const PICK_NONE := "none"
 const PICK_CLEAR := "clear"
 const PICK_SELECT_UNIT := "select_unit"
 const PICK_SUBMIT_MOVE := "submit_move"
+const PICK_SUBMIT_ATTACK := "submit_attack"
 
 const NO_SELECTION := -1
 
@@ -63,8 +76,10 @@ var units: Array = []
 # Presentation-only selection state (unit id; NO_SELECTION = none).
 var selected_unit_id: int = NO_SELECTION
 
-# Served selection legality (move rows), bound to revision + selection.
+# Served selection legality (move + N7g.3 attack rows), bound to
+# revision + selection (one binding — both arrive in the same response).
 var served_move_rows: Array = []
+var served_attack_rows: Array = []
 var served_move_revision: int = -1
 var served_move_selection: int = NO_SELECTION
 
@@ -93,6 +108,15 @@ var _pending_selection_revision: int = -1
 # is a deliberately separate concern.
 var arrival_gate_unit_id: int = NO_SELECTION
 var arrival_gate_revision: int = -1
+
+# N7g.3 combat gate (presentation pacing only — NEVER gameplay authority).
+# Entered ONLY when an accepted attack_unit's character presentation begins
+# (the scene defers the accepted snapshot until the sequence ends). While
+# active every gameplay pick is inert, End Turn is disabled, no rows render
+# or submit, and no legality is fetched. Cleared by EVERY snapshot apply:
+# the deferred combat apply on completion, or any superseding authoritative
+# snapshot (which also cancels the view's presentation).
+var combat_gate_active := false
 
 
 func _init(p_my_actor_id: int = -1) -> void:
@@ -168,6 +192,20 @@ func try_release_arrival_gate(unit_id: int) -> bool:
 	return true
 
 
+# Enters the combat gate for one accepted attack whose presentation just
+# began: served legality is invalidated IMMEDIATELY (both slots), so
+# nothing bound to the pre-attack state can render or submit while the
+# sequence plays. The snapshot itself is deferred by the scene.
+func enter_combat_gate() -> void:
+	combat_gate_active = true
+	_clear_served_move_rows()
+	_clear_served_end_turn()
+
+
+func clear_combat_gate() -> void:
+	combat_gate_active = false
+
+
 # Applies a (newer or initial) authoritative snapshot. Per the locked
 # freshness contract BOTH served slots are cleared immediately; the return
 # value says what the caller must refetch for the new revision:
@@ -181,6 +219,12 @@ func apply_snapshot(snap: Dictionary) -> Dictionary:
 	turn_state = (ts_variant as Dictionary).duplicate(true) if typeof(ts_variant) == TYPE_DICTIONARY else {}
 	var units_variant = snap.get("units", null)
 	units = (units_variant as Array).duplicate(true) if typeof(units_variant) == TYPE_ARRAY else []
+
+	# N7g.3: EVERY snapshot apply resolves the combat gate — the deferred
+	# combat apply on sequence completion, and any superseding authoritative
+	# snapshot (the scene cancels the view's presentation for those). The
+	# gate can never outlive the state it paced.
+	combat_gate_active = false
 
 	# One-PC debug: rebind the effective actor to the snapshot's current
 	# player BEFORE selection validation, so an actor change invalidates the
@@ -300,17 +344,22 @@ func accept_selection_legal_actions(serial: int, response: Dictionary) -> bool:
 		var actions_variant = response.get("actions", null)
 		var actions: Array = actions_variant if typeof(actions_variant) == TYPE_ARRAY else []
 		for row_variant in actions:
-			if typeof(row_variant) == TYPE_DICTIONARY and str((row_variant as Dictionary).get("action_type", "")) == "move_unit":
+			if typeof(row_variant) != TYPE_DICTIONARY:
+				continue
+			var action_type := str((row_variant as Dictionary).get("action_type", ""))
+			if action_type == "move_unit":
 				served_move_rows.append((row_variant as Dictionary).duplicate(true))
+			elif action_type == "attack_unit":
+				served_attack_rows.append((row_variant as Dictionary).duplicate(true))
 		served_move_revision = revision
 		served_move_selection = _pending_selection_unit
 	return true
 
 
 func _served_rows_fresh() -> bool:
-	# While the arrival gate is active no destination rows render or
-	# submit — markers may only return from the fresh post-arrival fetch.
-	if arrival_gate_active():
+	# While the arrival or combat gate is active no rows render or submit —
+	# markers may only return from the fresh post-release fetch.
+	if arrival_gate_active() or combat_gate_active:
 		return false
 	return (
 		served_move_revision == revision
@@ -345,8 +394,46 @@ func move_row_for_tile(tile: Vector2i) -> Dictionary:
 	return {}
 
 
+# Tile a served attack row targets: the row carries only defender_id (the
+# exact N7g.1 wire shape), so the tile is the defender's position in the
+# HELD authoritative snapshot — a presentation lookup for marker placement
+# only, never legality. Returns null when the defender is not in the
+# snapshot (the row is then unrenderable and unclickable).
+func _attack_row_tile(row: Dictionary):
+	var defender := unit_by_id(int(row.get("defender_id", -1)))
+	var pos_variant = defender.get("position", null)
+	if typeof(pos_variant) != TYPE_ARRAY or (pos_variant as Array).size() != 2:
+		return null
+	return Vector2i(int(pos_variant[0]), int(pos_variant[1]))
+
+
+# Defender tiles of the fresh served attack rows (attack-marker input;
+# empty when the binding is stale — stale rows are never rendered).
+func attack_target_tiles() -> Array:
+	if not _served_rows_fresh():
+		return []
+	var tiles: Array = []
+	for row in served_attack_rows:
+		var tile = _attack_row_tile(row as Dictionary)
+		if tile != null:
+			tiles.append(tile)
+	return tiles
+
+
+# The EXACT served attack row whose defender stands on `tile`, or {} when
+# none / stale binding. The only path to an attack submission — never a
+# client-built action.
+func attack_row_for_tile(tile: Vector2i) -> Dictionary:
+	if not _served_rows_fresh():
+		return {}
+	for row in served_attack_rows:
+		if _attack_row_tile(row as Dictionary) == tile:
+			return row
+	return {}
+
+
 func can_submit_end_turn() -> bool:
-	if arrival_gate_active():
+	if arrival_gate_active() or combat_gate_active:
 		return false
 	return is_my_turn() and not end_turn_row.is_empty() and end_turn_revision == revision
 
@@ -354,14 +441,15 @@ func can_submit_end_turn() -> bool:
 # Classifies one terrain pick into an interaction directive.
 # Locked semantics: OUT OF TURN every pick — tile, cliff, or empty miss — is
 # completely inert (turn ownership is checked before miss-clear). On the own
-# turn: a fresh served destination submits that exact row, an own-unit tile
-# selects, miss/foreign/empty tiles clear, cliffs leave selection unchanged.
+# turn: a fresh served attack target submits that exact attack row, a fresh
+# served destination submits that exact move row, an own-unit tile selects,
+# miss/foreign/empty tiles clear, cliffs leave selection unchanged.
 func classify_pick(pick: Dictionary) -> Dictionary:
-	# Arrival gate: EVERY gameplay pick — destinations, other own units,
-	# empty tiles, misses, cliffs — is completely inert until the gated
-	# unit's real arrival. Selection stays untouched; camera gestures were
+	# Arrival/combat gate: EVERY gameplay pick — destinations, attack
+	# targets, other own units, empty tiles, misses, cliffs — is completely
+	# inert until release. Selection stays untouched; camera gestures were
 	# never picks (locked N4 input contract).
-	if arrival_gate_active():
+	if arrival_gate_active() or combat_gate_active:
 		return {"kind": PICK_NONE}
 	if not is_my_turn():
 		return {"kind": PICK_NONE}
@@ -370,6 +458,11 @@ func classify_pick(pick: Dictionary) -> Dictionary:
 	if str(pick.get("kind", "")) != "tile":
 		return {"kind": PICK_NONE}
 	var tile: Vector2i = pick.get("tile", Vector2i.ZERO)
+	# A marked defender tile is enemy-occupied and can never also be a
+	# served move destination (occupied tiles are never legal moves).
+	var attack := attack_row_for_tile(tile)
+	if not attack.is_empty():
+		return {"kind": PICK_SUBMIT_ATTACK, "action": attack}
 	var row := move_row_for_tile(tile)
 	if not row.is_empty():
 		return {"kind": PICK_SUBMIT_MOVE, "action": row}
@@ -419,13 +512,36 @@ static func player_label(player_id: int) -> String:
 	return display
 
 
+# N7g.3 minimal selected-unit line for the status UI ("" when nothing is
+# selected): authoritative type + id + current_hp straight from the held
+# snapshot row (never client-computed; no max-HP invention — the snapshot
+# carries current_hp only), plus the has_attacked state that explains an
+# empty marker set after an attack.
+func selected_unit_status_line() -> String:
+	if selected_unit_id == NO_SELECTION:
+		return ""
+	var unit := unit_by_id(selected_unit_id)
+	if unit.is_empty():
+		return ""
+	var line := "Selected: %s %d" % [str(unit.get("type_id", "unit")), selected_unit_id]
+	if unit.has("current_hp"):
+		line += " — HP %d" % int(unit.get("current_hp"))
+	if bool(unit.get("has_attacked", false)):
+		line += " (has attacked)"
+	return line
+
+
 # Minimal turn/status line (current player + own seat identity).
 func status_text() -> String:
 	if my_actor_id < 0:
 		return "No seat identity — actions disabled (claim a seat and reconnect)."
 	if turn_state.is_empty():
 		return ""
-	var moving_suffix: String = " — unit moving…" if arrival_gate_active() else ""
+	var moving_suffix := ""
+	if combat_gate_active:
+		moving_suffix = " — combat…"
+	elif arrival_gate_active():
+		moving_suffix = " — unit moving…"
 	if one_pc_debug:
 		return "One-PC debug — controlling %s (Player %d)%s" % [player_label(my_actor_id), my_actor_id, moving_suffix]
 	if is_my_turn():
@@ -442,6 +558,7 @@ func status_text() -> String:
 
 func _clear_served_move_rows() -> void:
 	served_move_rows = []
+	served_attack_rows = []
 	served_move_revision = -1
 	served_move_selection = NO_SELECTION
 

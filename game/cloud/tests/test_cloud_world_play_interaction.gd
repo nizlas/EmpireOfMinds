@@ -9,7 +9,14 @@
 # - pick/End Turn handlers are inert before the interaction exists and
 #   without a session (no crash, no state invented);
 # - a mid-match snapshot whose map identity differs from the held one fails
-#   VISIBLY (server/content drift — locked no-fallback rule).
+#   VISIBLY (server/content drift — locked no-fallback rule);
+# - N7g.3 combat wiring: a marked defender pick POSTs the exact served
+#   attack row; an ACCEPTED attack enters the combat gate, defers the
+#   authoritative snapshot until the character sequence finishes (input +
+#   legality blocked meanwhile), then applies it and refetches exactly one
+#   summary + selection legality; rejected / transport-failed / event-less
+#   attacks never animate or gate; a superseding snapshot cancels the
+#   presentation safely; reconnect-style applies never replay combat.
 extends SceneTree
 
 const WorldInteractionStateScript = preload("res://cloud/world_play/world_interaction_state.gd")
@@ -132,6 +139,111 @@ class FakeMoveSession:
 				"to": [1, 0] if unit_pos == [0, 0] else [0, 0],
 			}],
 		}
+
+
+# N7g.3 scripted session: two adjacent enemy warriors; serves one submit-
+# ready attack row for the selected warrior 1; accepts attack_unit POSTs
+# with the legacy-shaped combat event + the post-combat authoritative
+# snapshot (`defender_killed` selects elimination vs. damaged survivor with
+# retaliation). `mode` selects rejected / transport-failure / accepted-
+# without-event responses. Awaiting its methods resumes immediately.
+class FakeAttackSession:
+	extends RefCounted
+	const COMBAT_MAP := {
+		"map_id": "handdrawn_test_map_full_01",
+		"schema_version": 1,
+		"content_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+	}
+	var mode := "accept"
+	var defender_killed := false
+	var revision := 0
+	var post_calls: Array = []
+	var legal_calls: Array = []
+
+	static func units_before() -> Array:
+		return [
+			{"id": 1, "owner_id": 0, "position": [0, 0], "type_id": "warrior", "current_hp": 100, "has_attacked": false},
+			{"id": 2, "owner_id": 1, "position": [1, 0], "type_id": "warrior", "current_hp": 30, "has_attacked": false},
+		]
+
+	static func make_snapshot(rev: int, units: Array) -> Dictionary:
+		return {
+			"match_id": "m_combat",
+			"schema_version": 3,
+			"match_kind": "world_map",
+			"map": COMBAT_MAP.duplicate(true),
+			"revision": rev,
+			"turn_state": {"players": [0, 1], "current_index": 0, "turn_number": 1},
+			"units": units,
+		}
+
+	func attack_row() -> Dictionary:
+		return {
+			"schema_version": 1,
+			"action_type": "attack_unit",
+			"actor_id": 0,
+			"attacker_id": 1,
+			"defender_id": 2,
+		}
+
+	func post_action(action: Dictionary) -> Dictionary:
+		post_calls.append(action.duplicate(true))
+		if mode == "error":
+			return {"_error": "http", "_http_code": 0}
+		if mode == "reject":
+			return {"accepted": false, "reason": "attacker_already_attacked", "index": -1}
+		revision += 1
+		var after: Array = []
+		var atk: Dictionary = units_before()[0]
+		atk["has_attacked"] = true
+		# Authoritative capture: surviving attacker occupies the defender tile.
+		if defender_killed:
+			atk["position"] = [1, 0]
+		after.append(atk)
+		if not defender_killed:
+			var dfn: Dictionary = units_before()[1]
+			dfn["current_hp"] = 5
+			after.append(dfn)
+		var resp := {
+			"accepted": true, "reason": "", "index": 0, "revision": revision,
+			"snapshot": make_snapshot(revision, after),
+		}
+		if mode != "accept_no_event":
+			resp["event"] = {
+				"action_type": "attack_unit",
+				"attacker_id": 1,
+				"defender_id": 2,
+				"attacker_killed": false,
+				"defender_killed": defender_killed,
+				"retaliated": not defender_killed,
+				"attacker_hp_after": 100,
+				"defender_hp_after": 0 if defender_killed else 5,
+			}
+		return resp
+
+	func summary_response() -> Dictionary:
+		return {
+			"revision": revision,
+			"actor_id": 0,
+			"is_current_player": true,
+			"selected_unit_id": null,
+			"actions": [{"schema_version": 1, "action_type": "end_turn", "actor_id": 0}],
+		}
+
+	func selection_response() -> Dictionary:
+		return {
+			"revision": revision,
+			"actor_id": 0,
+			"is_current_player": true,
+			"selected_unit_id": 1,
+			"actions": [attack_row()],
+		}
+
+	func get_legal_actions(actor_id: int, selected_unit_id: int = -1, _selected_city_id: int = -1) -> Dictionary:
+		legal_calls.append([actor_id, selected_unit_id])
+		if selected_unit_id >= 0:
+			return selection_response()
+		return summary_response()
 
 
 func _snapshot(rev: int, map_hash: String) -> Dictionary:
@@ -408,6 +520,127 @@ func _init() -> void:
 		"no duplicate release/refetch from later idle advancing or stale arrivals"
 	)
 	scene4.free()
+
+	# --- N7g.3: accepted attack -> combat gate -> deferred snapshot -----------
+	var scene5 = packed.instantiate()
+	scene5._build_status_ui()
+	var button5: Button = scene5.get_node("WorldPlayStatus/EndTurnButton") as Button
+	var afake := FakeAttackSession.new()  # defender survives -> retaliation
+	scene5.session = afake
+	var stub5 := WorldStub.new()
+	scene5.add_child(stub5)
+	scene5.world = stub5
+	scene5.snapshot = FakeAttackSession.make_snapshot(0, FakeAttackSession.units_before())
+	var st5 = WorldInteractionStateScript.new(0)
+	scene5.interaction = st5
+	st5.apply_snapshot(scene5.snapshot)
+	st5.select_unit(1)
+	var a_sum: int = st5.begin_summary_fetch()
+	st5.accept_summary_legal_actions(a_sum, afake.summary_response())
+	var a_sel: int = st5.begin_selection_fetch()
+	st5.accept_selection_legal_actions(a_sel, afake.selection_response())
+	scene5._render_units()
+	_check(scene5.units_view.unit_count() == 2, "both warriors render in the combat scene")
+	_check(
+		(scene5.units_view as Node).is_connected(
+			"combat_presentation_finished", scene5._on_combat_presentation_finished
+		),
+		"production wiring connects combat_presentation_finished"
+	)
+	_check(st5.attack_target_tiles() == [Vector2i(1, 0)], "the served attack row marks the defender tile")
+
+	# Accepted attack: one POST of the EXACT served row; gate armed; the
+	# authoritative snapshot is DEFERRED while the sequence plays.
+	scene5._on_terrain_picked({"kind": "tile", "tile": Vector2i(1, 0)})
+	_check(afake.post_calls.size() == 1, "the defender-tile click POSTs exactly once")
+	_check(afake.post_calls[0] == afake.attack_row(), "the POST body is the exact served attack row")
+	_check(st5.combat_gate_active, "the accepted attack arms the combat gate")
+	_check(scene5.units_view.combat_active(), "the character combat sequence is running")
+	_check(int(scene5.snapshot.get("revision", -1)) == 0, "the accepted snapshot is DEFERRED during combat")
+	_check(scene5._pending_combat_snapshot != null, "the deferred snapshot is held for the finish")
+	_check(afake.legal_calls.size() == 0, "no legality is fetched during combat presentation")
+	scene5._refresh_interaction_ui()
+	_check(button5.disabled, "End Turn is disabled during combat presentation")
+
+	# Every gameplay input stays inert during the sequence.
+	for combat_pick in [
+		{"kind": "tile", "tile": Vector2i(1, 0)},
+		{"kind": "tile", "tile": Vector2i(0, 0)},
+		{},
+		{"kind": "cliff", "edge": [], "tiles": []},
+	]:
+		scene5._on_terrain_picked(combat_pick)
+	scene5._on_end_turn_pressed()
+	_check(afake.post_calls.size() == 1, "picks + End Turn during combat produce NO second POST")
+
+	# Sequence completion: deferred snapshot applied, gate released, exactly
+	# one summary + selection refetch, has_attacked propagated.
+	var combat_guard := 0
+	while scene5.units_view.combat_active() and combat_guard < 16:
+		scene5.units_view.advance_combat(60.0)
+		combat_guard += 1
+	_check(not scene5.units_view.combat_active(), "the combat sequence completes")
+	_check(int(scene5.snapshot.get("revision", -1)) == 1, "the deferred snapshot applies on completion")
+	_check(scene5._pending_combat_snapshot == null, "no deferred snapshot is retained")
+	_check(not st5.combat_gate_active, "the combat gate releases on completion")
+	_check(
+		afake.legal_calls == [[0, -1], [0, 1]],
+		"exactly one summary + one selection refetch after combat"
+	)
+	_check(
+		bool(st5.unit_by_id(1).get("has_attacked", false)) and int(st5.unit_by_id(2).get("current_hp", -1)) == 5,
+		"the authoritative has_attacked/current_hp fields propagate"
+	)
+	_check(
+		st5.selected_unit_status_line().contains("has attacked"),
+		"the selection line reports the attacker's spent attack"
+	)
+
+	# Rejected and transport-failed attacks never animate or gate.
+	afake.mode = "reject"
+	scene5._on_terrain_picked({"kind": "tile", "tile": Vector2i(1, 0)})
+	_check(afake.post_calls.size() == 2, "a rejected attack still POSTs (once)")
+	_check(
+		not scene5.units_view.combat_active() and not st5.combat_gate_active,
+		"a rejected attack never animates or gates"
+	)
+	afake.mode = "error"
+	scene5._on_terrain_picked({"kind": "tile", "tile": Vector2i(1, 0)})
+	_check(
+		not scene5.units_view.combat_active() and not st5.combat_gate_active,
+		"a transport-failed attack never animates or gates"
+	)
+
+	# Accepted response WITHOUT a usable event: safe fallback — immediate
+	# authoritative reconciliation, no animation, no deadlock.
+	afake.mode = "accept_no_event"
+	scene5._on_terrain_picked({"kind": "tile", "tile": Vector2i(1, 0)})
+	_check(not scene5.units_view.combat_active(), "an event-less accepted attack never animates")
+	_check(int(scene5.snapshot.get("revision", -1)) == 2, "the event-less accepted snapshot applies immediately")
+	_check(not st5.combat_gate_active, "the fallback leaves no combat gate armed")
+	_check(afake.legal_calls.size() == 4, "the fallback still refetches legality (no deadlock)")
+
+	# A superseding authoritative snapshot cancels an in-flight presentation.
+	afake.mode = "accept"
+	scene5._on_terrain_picked({"kind": "tile", "tile": Vector2i(1, 0)})
+	_check(scene5.units_view.combat_active() and st5.combat_gate_active, "a fresh combat sequence is running")
+	scene5._apply_authoritative_snapshot(
+		FakeAttackSession.make_snapshot(99, FakeAttackSession.units_before())
+	)
+	_check(not scene5.units_view.combat_active(), "a superseding snapshot cancels the presentation")
+	_check(scene5._pending_combat_snapshot == null, "the superseded deferred snapshot is dropped")
+	_check(not st5.combat_gate_active, "the superseding apply clears the combat gate")
+	_check(int(scene5.snapshot.get("revision", -1)) == 99, "the superseding snapshot is the applied state")
+
+	# Reconnect-style applies (bootstrap/poll path) never replay combat.
+	scene5._apply_authoritative_snapshot(
+		FakeAttackSession.make_snapshot(100, [FakeAttackSession.units_before()[0]])
+	)
+	_check(
+		not scene5.units_view.combat_active(),
+		"applying a post-combat snapshot never replays historical combat"
+	)
+	scene5.free()
 	_finish()
 
 

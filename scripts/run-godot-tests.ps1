@@ -17,7 +17,7 @@ $GamePath = Join-Path $RepoRoot "game"
 
 $KnownGodotPath = "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"
 
-$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f", "n7f1")
+$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f", "n7f1", "n7g3")
 
 $Script:SliceTests = @{
 	"c13a" = @(
@@ -74,6 +74,7 @@ $Script:SliceTests = @{
 		"res://presentation/tests/test_world_destination_markers.gd"
 		"res://cloud/tests/test_cloud_world_play_interaction.gd"
 		"res://cloud/tests/test_cloud_one_pc_debug.gd"
+		"res://presentation/tests/test_world_units_combat.gd"
 	)
 	# N7d focused subset (no terrain build; fast — the n7 family slice adds
 	# the full-solve world-play smoke test on top of these).
@@ -96,6 +97,15 @@ $Script:SliceTests = @{
 		"res://cloud/tests/test_world_interaction_state.gd"
 		"res://cloud/tests/test_cloud_world_play_interaction.gd"
 		"res://presentation/tests/test_world_units_arrival_event.gd"
+	)
+	# N7g.3 combat client (no terrain build; fast — combat presentation on
+	# the real warrior rig, attack rows/gate in the interaction state,
+	# distinct attack markers, and the production-scene combat wiring).
+	"n7g3" = @(
+		"res://presentation/tests/test_world_units_combat.gd"
+		"res://cloud/tests/test_world_interaction_state.gd"
+		"res://presentation/tests/test_world_destination_markers.gd"
+		"res://cloud/tests/test_cloud_world_play_interaction.gd"
 	)
 }
 
@@ -280,6 +290,7 @@ $Script:AllTests = @(
 	"res://cloud/tests/test_cloud_world_play_interaction.gd",
 	"res://cloud/tests/test_cloud_one_pc_debug.gd",
 	"res://presentation/tests/test_world_units_arrival_event.gd",
+	"res://presentation/tests/test_world_units_combat.gd",
 	"res://cloud/tests/test_cloud_match_labels.gd",
 	"res://cloud/tests/test_cloud_display_name.gd",
 	"res://cloud/tests/test_cloud_saved_row_rename.gd",

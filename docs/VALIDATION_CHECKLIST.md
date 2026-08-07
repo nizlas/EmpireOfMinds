@@ -801,3 +801,40 @@ Launch exactly as the N7f gate above (one local FastAPI process + one Godot inst
 
 - The N7f movement read itself (pace/grounding/facing — separate N7f gate above).
 - Server-side anti-skip enforcement: the permanent rule ([CLOUD_PLAY.md](CLOUD_PLAY.md)) is that mandatory on-entry outcomes must be server-atomic with movement or server-owned pending interaction state; the client gate is pacing/visibility only.
+
+## Slice N7g.3 — World Combat 0.1 client (manual / two-client gate)
+
+**Purpose:** Niclas approves the playable combat loop of N7g after the visual-correction passes: served attack markers, melee approach, impact-timed attack/hit (or fatal Dead) overlap, retaliation timing, return-versus-capture occupation, continuous corpse terrain adaptation during `Dead`, smooth clip + travel-facing blends, HP feedback, and turn gating on `world_map` matches. Deterministic coverage is already green (`slice n7g3`, Godot `slice n7`, server `slice n7`); this gate is manual/visual. Every combat outcome and final tile position shown is the server's — the client never computes damage, retaliation, survival, elimination, or occupation. **N7g stays incomplete until this gate passes.**
+
+**Status: PENDING.** (First manual visual test rejected distant tile-center swings, sequential hit timing, fatal hits skipping the hit reaction, corpse penetration on slopes, and missing return/occupation — corrected. Second visual test found standoff too tight, fatal hits wrongly prepending `Hit_Reaction_1` before `Dead`, and snapped clip transitions — corrected (`MELEE_STANDOFF_DISTANCE` 0.80 confirmed). Third visual test found an instantaneous ~180° return yaw snap and corpses sinking through terrain until a late final fit pop — corrected in the uncommitted third visual-correction pass; renewed local visual test required. Do not mark PASS until Niclas re-approves.)
+
+### Launch — local play (one PC, one Godot instance)
+
+Launch exactly as the N7f gate above (one local FastAPI process + one Godot instance in the one-PC debug mode). Maneuver each player's warrior next to the other across the map (several turns of move + End Turn). Semantic clips (`Left_Slash` / `Hit_Reaction_1` / `Dead` / `Idle_3` / `Walking`) are visually confirmed through the central remap — record any remaining clip objection against `game/presentation/warrior_3d_animation_remap.gd`, never raw GLB names.
+
+### Manual checklist
+
+- [ ] **Move-then-attack:** move a warrior adjacent to an enemy warrior in the same turn; after arrival the enemy tile shows an ATTACK marker (red square) clearly distinct from the movement markers (green diamonds).
+- [ ] **Approach to melee range:** on attack, the attacker Walks from its tile toward the defender and stops at a slightly opened melee standoff (~0.80 world units — club-contact distance, not overlapping bodies) — not swinging from distant tile centers; the defender stays put; gameplay position is unchanged during the approach.
+- [ ] **Approximately synchronized swing and hit/death:** at about half a second into the attacker's swing (overlap), a non-fatal hit plays `Hit_Reaction_1`, while a fatal hit starts `Dead` directly — not several seconds after the swing has finished, and not `Hit_Reaction_1` then `Dead`.
+- [ ] **Smooth animation transitions:** Idle↔Walking, Walking↔combat, combat→Idle/Walking, and cancel snaps are blended (no hard pose pops between clips).
+- [ ] **Smooth return facing:** when returning home after a surviving defender, the attacker turns through the ~180° reverse over ~0.28 s while Walking — not an instantaneous spin; capture forward travel stays natural when facing already matches.
+- [ ] **Retaliation timing:** when the defender survives, after its hit reaction the defender swings back and the original attacker's reaction (or fatal `Dead`) overlaps that swing with the same impact delay; when the defender dies, NO retaliation plays.
+- [ ] **Fatal defender death:** a fatal hit on the defender starts `Dead` at impact while the attacker's `Left_Slash` continues; the corpse remains until reconciliation.
+- [ ] **Corpse contact during Dead:** on slopes/curves the body does not fall through the terrain and then pop up after the clip ends — support begins at first ground contact during the fall and settles continuously into the final fitted pose.
+- [ ] **Fatal retaliation death:** a fatal retaliation starts `Dead` on the attacker at impact (no hit-reaction prepend); the attacker does not walk home or occupy the defender tile.
+- [ ] **Return when the defender survives:** the surviving attacker walks back to its original tile, faces the defender, and idles.
+- [ ] **Capture when the defender dies:** the surviving attacker walks forward from the melee standoff onto the former defender tile (authoritative occupation) and idles there — not back to the original tile.
+- [ ] **HP and has_attacked:** the selected-unit status line shows HP; after combat the server's HP/`has_attacked` values are visible.
+- [ ] **No movement action after attacking:** selecting the attacker shows no move/attack markers until End Turn resets `has_attacked`.
+- [ ] **Corpse contact on curved/sloped terrain:** a killed unit's final lying pose rests on representative terrain without obvious penetration or excessive hover (pitch/roll allowed only for corpses).
+- [ ] **Input gating:** gameplay input stays withdrawn through approach, combat, death, and final traversal; camera + F12 remain usable; controls return only after reconciliation + fresh legality.
+- [ ] **Reconnect/readback:** restarting mid-match rebuilds post-combat HP, missing units, and the captured-tile position WITHOUT replaying combat.
+- [ ] **Two clients, same result:** both clients converge on the same HP, eliminations, and authoritative attacker position.
+
+**Approval action:** on PASS, mark N7g **Done** in [PHASE_PLAN.md](PHASE_PLAN.md) and update this section; on FAIL, record the objection — combat sequencing lives in `game/presentation/world/world_units_view.gd`, occupation authority in `server/app/domain/world_actions.py`, the input gate in `world_interaction_state.gd` / `cloud_world_play.gd`, markers in `world_destination_markers.gd`, and semantic clips in `warrior_3d_animation_remap.gd`.
+
+### Explicitly not this gate
+
+- Combat damage math/balance, ranged combat, warrior-vs-settler, HP bars, sound, particles, or the legacy 2D `CombatClashBurstView`.
+- The N7f movement read and arrival pacing (separate gates above).
