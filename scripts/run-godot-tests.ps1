@@ -113,6 +113,7 @@ $Script:SliceTests = @{
 		"res://presentation/tests/test_world_cities_view.gd"
 		"res://cloud/tests/test_world_found_city_interaction.gd"
 		"res://cloud/tests/test_world_interaction_state.gd"
+		"res://cloud/tests/test_world_city_ui_components.gd"
 	)
 	# N8b focused subset (no terrain build; fast — served production rows,
 	# exact payload submit, progress/cost display, snapshot reconcile).
@@ -120,6 +121,7 @@ $Script:SliceTests = @{
 		"res://cloud/tests/test_world_city_production_interaction.gd"
 		"res://cloud/tests/test_world_found_city_interaction.gd"
 		"res://cloud/tests/test_world_interaction_state.gd"
+		"res://cloud/tests/test_world_city_ui_components.gd"
 	)
 }
 

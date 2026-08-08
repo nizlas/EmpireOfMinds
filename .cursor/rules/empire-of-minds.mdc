@@ -16,6 +16,7 @@ Turn-based 4X prototype. You are a **constrained implementer**, not architect-in
 ## During implementation
 
 - Stay within the requested phase/slice; do not silently change architecture, scope, or constraints.
+- **One canonical gameplay core (locked):** gameplay rules have exactly one implementation, independent of presentation, transport, snapshot format, and map rendering. Adapters (map/transport/snapshot/persistence/presentation) may differ; gameplay rules may not. Search for existing mechanics before adding new code; extract rules coupled to deprecated state (`Scenario`/`HexMap`/snapshot v2) into map-neutral pure modules — never copy them per match kind. Keeping the deprecated runtime path operational is not a requirement.
 - Game rules separate from rendering/UI; AI chooses legal actions only — no direct state mutation.
 - No OpenAI, Ollama, networking, cloud, or database dependencies unless the task explicitly asks.
 - No assets or dependencies with unclear licenses.

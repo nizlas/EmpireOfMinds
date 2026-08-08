@@ -10,6 +10,18 @@ Empire of Minds must be built as a game-domain-first project, not as a pile of G
 
 Godot is the initial client/engine choice, but core game rules, action validation, AI decision-making, save/load, and future cloud play must be conceptually separable from rendering and UI.
 
+## One canonical gameplay core (locked, N8R 2026-08-08)
+
+Empire of Minds has **exactly one canonical gameplay core**. These requirements are permanent:
+
+1. **One canonical gameplay core.** Founding, production, turns, combat, IDs, and event semantics each have exactly one implementation. Gameplay mechanics are independent of presentation, transport, snapshot format, and map rendering.
+2. **Adapters may differ; gameplay rules may not.** Presentation, map, transport, snapshot, and persistence adapters are allowed to vary per environment. A rule expressed twice for two state shapes is an architecture defect, not a convenience.
+3. **Search before adding.** Every gameplay slice must search for existing mechanics before adding new code. If a mechanic already exists anywhere in the repository, reuse or extract it.
+4. **Extract, never copy.** Mechanics coupled to deprecated state types (`Scenario`, `HexMap`, snapshot v2) must be extracted into map-neutral pure modules (e.g. `server/app/domain/city_founding_rules.py`, `city_production_rules.py`) and called through narrow typed facts/adapters — never copied into a second state-specific implementation.
+5. **No match-kind-specific copies.** Match-kind-specific copies of map-independent gameplay are forbidden. `WorldMap` supplies map-dependent facts (tile existence, topology, edges, passability, occupancy, placement); server/API code supplies authority orchestration (persistence, revision, snapshots, state hashes); Godot supplies input/presentation and reconciles authoritative snapshots. None of them owns a private copy of a gameplay rule.
+6. **The deprecated runtime path is not a requirement.** Keeping the `Scenario`/`HexMap` route operational is not required; it must never force a parallel gameplay implementation, receive new features, or gain compatibility shims.
+7. **N8c remains blocked until N8R has been reviewed.**
+
 ## Phase 1 architectural framing
 
 Phase 1 must not be treated as “just a Godot hex-map prototype”.

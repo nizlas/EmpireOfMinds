@@ -48,6 +48,8 @@ const CloudTurnOwnershipScript = preload("res://cloud/cloud_turn_ownership.gd")
 const CloudPlayerIdentityScript = preload("res://cloud/cloud_player_identity.gd")
 const WorldSnapshotBootstrapScript = preload("res://cloud/world_snapshot_bootstrap.gd")
 const WorldInteractionStateScript = preload("res://cloud/world_play/world_interaction_state.gd")
+const WorldCitySelectionUiScript = preload("res://cloud/world_play/world_city_selection_ui.gd")
+const WorldCityProductionPanelScript = preload("res://cloud/world_play/world_city_production_panel.gd")
 const TerrainWorldScript = preload("res://presentation/world/terrain_world.gd")
 const WorldAnchorUiScript = preload("res://presentation/world/world_anchor_ui.gd")
 const WorldUnitsViewScript = preload("res://presentation/world/world_units_view.gd")
@@ -78,10 +80,11 @@ var _status_layer: CanvasLayer = null
 var _status_label: Label = null
 var _action_label: Label = null
 var _end_turn_button: Button = null
-var _found_city_button: Button = null
-var _production_panel: VBoxContainer = null
-var _production_status_label: Label = null
-var _production_buttons: Array = []
+# N8R focused components: city-selection UI (Found City button) and the
+# production-presentation panel own their own rendering; this scene only
+# composes them and submits the exact served rows they report.
+var _city_selection_ui = null
+var _production_panel = null
 var _poll_timer: Timer = null
 # Own seat identity from the boot intent (st_ token + actor id; -1 = none).
 var _boot_actor_id := -1
@@ -729,38 +732,17 @@ func _build_status_ui() -> void:
 	_end_turn_button.offset_bottom = -40.0
 	_end_turn_button.pressed.connect(_on_end_turn_pressed)
 	_status_layer.add_child(_end_turn_button)
-	# N8a: Found City — posts the selection-mode submit-ready found_city row
-	# only when a served row is fresh for the selected eligible settler.
-	_found_city_button = Button.new()
-	_found_city_button.name = "FoundCityButton"
-	_found_city_button.text = "Found City"
-	_found_city_button.visible = false
-	_found_city_button.disabled = true
-	_found_city_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_found_city_button.offset_left = -140.0
-	_found_city_button.offset_top = -116.0
-	_found_city_button.offset_right = -16.0
-	_found_city_button.offset_bottom = -80.0
-	_found_city_button.pressed.connect(_on_found_city_pressed)
-	_status_layer.add_child(_found_city_button)
-	# N8b: minimal selected-city production panel — choices from served rows
+	# N8a: Found City component — posts the selection-mode submit-ready
+	# found_city row only when a served row is fresh for the selected
+	# eligible settler (the component renders; this scene submits).
+	_city_selection_ui = WorldCitySelectionUiScript.new()
+	_city_selection_ui.found_city_requested.connect(_on_found_city_pressed)
+	_status_layer.add_child(_city_selection_ui)
+	# N8b: production-presentation component — choices from served rows
 	# only; progress/cost from the authoritative snapshot city row.
-	_production_panel = VBoxContainer.new()
-	_production_panel.name = "CityProductionPanel"
-	_production_panel.visible = false
-	_production_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_production_panel.offset_left = 16.0
-	_production_panel.offset_top = -200.0
-	_production_panel.offset_right = 280.0
-	_production_panel.offset_bottom = -16.0
+	_production_panel = WorldCityProductionPanelScript.new()
+	_production_panel.production_row_chosen.connect(_on_production_row_pressed)
 	_status_layer.add_child(_production_panel)
-	_production_status_label = Label.new()
-	_production_status_label.name = "ProductionStatusLabel"
-	_production_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_production_status_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
-	_production_status_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0))
-	_production_status_label.add_theme_constant_override("outline_size", 4)
-	_production_panel.add_child(_production_status_label)
 
 
 func _set_status(message: String) -> void:
@@ -786,11 +768,10 @@ func _refresh_interaction_ui() -> void:
 		)
 	if _end_turn_button != null:
 		_end_turn_button.disabled = _request_busy or not interaction.can_submit_end_turn()
-	if _found_city_button != null:
-		var can_found := interaction.can_submit_found_city()
-		_found_city_button.visible = can_found
-		_found_city_button.disabled = _request_busy or not can_found
-	_refresh_production_panel()
+	if _city_selection_ui != null:
+		_city_selection_ui.refresh(interaction, _request_busy)
+	if _production_panel != null:
+		_production_panel.refresh(interaction, _request_busy)
 	if bootstrap_error.is_empty() and not snapshot.is_empty():
 		var parsed_map = snapshot.get("map", {})
 		var map_id := str((parsed_map as Dictionary).get("map_id", "")) if typeof(parsed_map) == TYPE_DICTIONARY else ""
@@ -811,47 +792,6 @@ func _refresh_interaction_ui() -> void:
 		if not city_line.is_empty():
 			line += "\n" + city_line
 		_set_status(line)
-
-
-func _refresh_production_panel() -> void:
-	if _production_panel == null or interaction == null:
-		return
-	# Clear previous choice buttons (keep the status label as first child).
-	for btn_variant in _production_buttons:
-		if btn_variant is Node and is_instance_valid(btn_variant):
-			(btn_variant as Node).queue_free()
-	_production_buttons = []
-
-	var city_selected := interaction.selected_city_id >= 0
-	_production_panel.visible = city_selected
-	if not city_selected:
-		if _production_status_label != null:
-			_production_status_label.text = ""
-		return
-
-	if _production_status_label != null:
-		_production_status_label.text = interaction.selected_city_status_line()
-
-	var rows: Array = interaction.production_rows()
-	for row_variant in rows:
-		if typeof(row_variant) != TYPE_DICTIONARY:
-			continue
-		var row: Dictionary = (row_variant as Dictionary).duplicate(true)
-		var pid := str(row.get("project_id", ""))
-		var btn := Button.new()
-		btn.name = "Prod_%s" % pid.replace(":", "_")
-		if pid == "none":
-			btn.text = "Clear production"
-		elif pid == "produce_unit:warrior":
-			btn.text = "Train Warrior"
-		elif pid == "produce_unit:settler":
-			btn.text = "Train Settler"
-		else:
-			btn.text = pid
-		btn.disabled = _request_busy or interaction.production_row_for_project_id(pid).is_empty()
-		btn.pressed.connect(_on_production_row_pressed.bind(pid))
-		_production_panel.add_child(btn)
-		_production_buttons.append(btn)
 
 
 # Client presentation backend policy for this production scene: the built
