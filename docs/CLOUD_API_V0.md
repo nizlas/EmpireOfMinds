@@ -39,7 +39,7 @@ HTTP contract for the **local authority** prototype under `server/`. This is a *
 |--------|----------|---------|
 | `actor_id` | **yes** | Same role as action **`actor_id`** (usually UI’s “acting” seat). |
 | `selected_unit_id` | no | If set, **`actions`** contain only **this unit’s** legal **`attack_unit`**, optional **`found_city`**, and **`move_unit`** rows (if any), in that order. |
-| `selected_city_id` | no | If set (and selection valid), **`actions`** include **`set_city_production`** rows for **this city**. May be combined with **`selected_unit_id`** when both are valid. |
+| `selected_city_id` | no | If set and the city is known and owned by **`actor_id`**, the selection is valid and **`actions`** is **`[]`** with **`selection_error`: `null`** until **N8b** (when **`set_city_production`** rows for this city become available). May be combined with **`selected_unit_id`** when both are valid. |
 
 **Traffic:** Intended for **selection change** and **after accepted actions**, not per-frame polling. Actor summary mode (no selection params) returns **`end_turn`** plus compact **`unit_summaries`** / **`city_summaries`** counts only — not every possible move.
 
