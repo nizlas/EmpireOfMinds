@@ -1,12 +1,12 @@
-"""WorldMap match kind (N6/N7): snapshot v3 with MapIdentity + minimal state.
+"""WorldMap match kind (N6/N7/N8a): snapshot v3 with MapIdentity + minimal state.
 
 Snapshot v3 carries the canonical map identity (map_id, schema_version,
 content_hash via MapIdentity.to_dict) plus only the mutable match state:
-revision, turn_state, and - since N7 - the deterministic starting units
-(auto-start later adds player_factions). It never embeds tiles, edges,
-solved terrain or geometry - clients load canonical content by map_id and
-verify the raw-byte hash (docs/MAP_CONTENT.md, docs/MAP_MODEL.md). Legacy
-snapshot v2 is untouched.
+revision, turn_state, the deterministic starting units (N7; auto-start later
+adds player_factions), and — since N8a — additive `cities` + `next_city_id`.
+It never embeds tiles, edges, solved terrain or geometry - clients load
+canonical content by map_id and verify the raw-byte hash
+(docs/MAP_CONTENT.md, docs/MAP_MODEL.md). Legacy snapshot v2 is untouched.
 """
 
 from __future__ import annotations
@@ -45,6 +45,10 @@ def build_initial_world_snapshot(
         "revision": 0,
         "turn_state": turn_state_from_players(player_ids),
         "units": build_starting_units(world_map, player_ids),
+        # N8a additive city bookkeeping (alpha-store: recreate matches after
+        # shape-extending deploys — never migrate in place).
+        "cities": [],
+        "next_city_id": 1,
     }
 
 

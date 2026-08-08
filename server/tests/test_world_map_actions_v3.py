@@ -218,11 +218,13 @@ def test_spawn_table_matches_canonical_content() -> None:
 
 
 def test_units_carry_no_forbidden_state(client: TestClient) -> None:
-    """N7g.1 added ONLY current_hp + has_attacked; movement points, moved
-    flags, max_hp, cities, and id counters stay out of snapshot state."""
+    """N7g.1 added ONLY current_hp + has_attacked on units; N8a adds empty
+    cities + next_city_id. Movement points, moved flags, max_hp, and
+    next_unit_id stay out of snapshot state until their slices."""
     snap = _create_world(client)["snapshot"]
     assert "next_unit_id" not in snap
-    assert "cities" not in snap
+    assert snap["cities"] == []
+    assert snap["next_city_id"] == 1
     for u in snap["units"]:
         for forbidden in ("remaining_movement", "hp", "max_hp", "moved", "max_movement"):
             assert forbidden not in u
@@ -363,16 +365,16 @@ def test_world_unknown_action_type(client: TestClient) -> None:
 
 
 def test_world_legacy_only_actions_rejected(client: TestClient) -> None:
-    """attack_unit left this list with N7g.1 (see test_world_combat_v3.py)."""
+    """found_city left this list with N8a; set_city_production waits for N8b.
+    attack_unit left earlier with N7g.1 (see test_world_combat_v3.py)."""
     match_id, tokens, _ = _start_world_match(client)
-    for at in ("found_city", "set_city_production"):
-        r = _post(
-            client,
-            match_id,
-            {"schema_version": 1, "action_type": at, "actor_id": 0},
-            tokens[0],
-        )
-        _assert_reject(r, "unsupported_action_for_match_kind")
+    r = _post(
+        client,
+        match_id,
+        {"schema_version": 2, "action_type": "set_city_production", "actor_id": 0},
+        tokens[0],
+    )
+    _assert_reject(r, "unsupported_action_for_match_kind")
 
 
 # ------------------------------------------------------- move_unit rejects

@@ -1,3 +1,10 @@
+## 2026-08-08 — N8a: server-authoritative world city founding
+
+- **Decision:** implement **N8a** on the `world_map` path: world `found_city` (legacy wire shape) atomically validates the acting Settler, allocates `next_city_id`, appends a minimal city row `{"id","owner_id","position","name"}`, consumes the Settler, bumps revision, and appends a legacy-shaped `found_city` event. Initial snapshots carry `cities: []` and `next_city_id: 1`. Locked first-failure order ends at `tile_already_has_city`; cities never block unit movement; no water/territory/elevation/minimum-distance founding rules on schema v1.
+- **Client:** `WorldCitiesView` renders snapshot cities at N4 anchors (reused `ancient_village`); Found City submits the exact served row only; shared-tile selection cycles unit↔city; consumed selected settlers clear safely on snapshot apply — never optimistic city create or Settler consume.
+- **Boundary:** N8a ends at displayable/selectable authoritative cities. **N8b** owns `set_city_production` / `current_project` / flat yields; production progress and spawn stay **N8c**; science/AI settlement stay out. N7 animation/locomotion/combat presentation (incl. Walking scale `0.445` and lethal-swing aim continuation) untouched.
+- **Manual/visual gate: PENDING** — do not mark city marker readability or shared-tile selection feedback passed until Niclas approves.
+
 ## 2026-08-07 — N7g.3 correction: authoritative capture after eliminating a defender
 
 - **Decision (project owner, first manual visual test of N7g.3):** World Combat 0.1 tile occupation is **server-authoritative** and permanent: if the defender survives, the attacker remains on its original tile; if the defender is killed and the attacker survives, the attacker **captures and occupies** the defender's former tile in the resulting snapshot; if the attacker is killed by retaliation, it captures nothing and is removed. The client derives the survivor's final presentation destination only from the deferred authoritative response snapshot — never from `defender_killed` alone, and never as a client-only animation.
