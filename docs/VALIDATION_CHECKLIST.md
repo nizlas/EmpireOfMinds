@@ -844,3 +844,29 @@ Launch exactly as the N7f gate above (one local FastAPI process + one Godot inst
 
 - Combat damage math/balance, ranged combat, warrior-vs-settler, HP bars, sound, particles, or the legacy 2D `CombatClashBurstView`.
 - The N7f movement read and arrival pacing (separate gates above).
+
+## Slice N8a — Minimal world cities + `found_city` (manual / visual gate)
+
+**Purpose:** Niclas approves city marker placement/readability and the locked shared-tile unit↔city selection feedback on `world_map` matches after N8a. Deterministic coverage is already green (server/Godot `slice n8a`); this gate is manual/visual. Founding remains server-authoritative — the client never optimistically creates a city or consumes the Settler.
+
+**Status: PENDING.** Do not mark PASS until Niclas approves.
+
+### Launch — local play (one PC, one Godot instance)
+
+Launch as for the N7f / N7g.3 one-PC debug mode (one local FastAPI process + one Godot instance with `EOM_CLOUD_ONE_PC_DEBUG=1` against loopback `world_map`). Select a Settler; Found City appears only when the server serves a `found_city` row.
+
+### Manual checklist
+
+- [ ] **Found City affordance:** with an eligible own Settler selected on a city-free tile, Found City is available; warriors and ineligible cases never show it.
+- [ ] **Authoritative founding:** accepting Found City removes the Settler and places a city at that tile only after the server snapshot arrives (no optimistic flicker).
+- [ ] **City marker readability:** the reused city asset sits on the N4 anchor and is clearly a city on representative terrain.
+- [ ] **City selection:** picking a city-only tile selects the city; the status line identifies it by name/id.
+- [ ] **Shared-tile cycle:** with a unit and city on the same tile, the first pick selects the unit; repeated picks on that tile alternate city ↔ unit; changing tile or clearing resets the cycle; the player can always tell which object is selected.
+- [ ] **Two clients converge:** both clients show the same city and missing Settler after founding.
+
+**Approval action:** on PASS, record approval here and in [PHASE_PLAN.md](PHASE_PLAN.md); on FAIL, record the objection — founding authority in `server/app/domain/world_actions.py`, city presentation in `game/presentation/world/world_cities_view.gd`, selection/Found City in `world_interaction_state.gd` / `cloud_world_play.gd`.
+
+### Explicitly not this gate
+
+- Production selection/progress (N8b/N8c), science, population/growth, territory, city combat, AI settlement.
+- N7 animation/locomotion/combat presentation (including the `0.445` Walking scale and lethal-swing aim continuation).

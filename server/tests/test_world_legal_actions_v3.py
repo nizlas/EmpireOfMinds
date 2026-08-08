@@ -167,7 +167,7 @@ def test_summary_mode_deterministic(client: TestClient) -> None:
         {"schema_version": 1, "action_type": "end_turn", "actor_id": 0}
     ]
     assert body["unit_summaries"] == [
-        {"unit_id": 1, "legal_action_count": 5},
+        {"unit_id": 1, "legal_action_count": 6},  # 5 moves + found_city (N8a)
         {"unit_id": 2, "legal_action_count": 5},
     ]
     assert body["city_summaries"] == []
@@ -176,8 +176,18 @@ def test_summary_mode_deterministic(client: TestClient) -> None:
 # ------------------------------------------------- selected-unit move rows
 
 
+def _found_city_row(actor_id: int, unit_id: int, pos) -> dict:
+    return {
+        "schema_version": 1,
+        "action_type": "found_city",
+        "actor_id": actor_id,
+        "unit_id": unit_id,
+        "position": list(pos),
+    }
+
+
 def test_selected_unit_rows_direction_order(client: TestClient) -> None:
-    """Move rows use the exact N7a POST shape in canonical DIRECTIONS order;
+    """Settler rows: found_city then moves in canonical DIRECTIONS order;
     the occupied partner tile (2,1) is excluded for unit 1."""
     match_id, tokens, _ = _start_world_match(client)
     r = _get_legal(client, match_id, 0, token=tokens[0], selected_unit_id=1)
@@ -185,9 +195,10 @@ def test_selected_unit_rows_direction_order(client: TestClient) -> None:
     assert body["selected_unit_id"] == 1
     assert body["selection_error"] is None
     assert body["actions"] == [
-        _move_row(0, 1, [1, 1], to) for to in UNIT_1_DESTINATIONS
+        _found_city_row(0, 1, [1, 1]),
+        *[_move_row(0, 1, [1, 1], to) for to in UNIT_1_DESTINATIONS],
     ]
-    assert [2, 1] not in [a["to"] for a in body["actions"]]
+    assert [2, 1] not in [a["to"] for a in body["actions"] if a["action_type"] == "move_unit"]
 
 
 def test_summary_count_equals_selected_rows(client: TestClient) -> None:
@@ -247,7 +258,7 @@ def test_selection_not_owned(client: TestClient) -> None:
 
 
 def test_selection_unknown_city(client: TestClient) -> None:
-    """No world cities in N7: any city selection is unknown_city, including
+    """Absent city ids stay unknown_city (N8a cities start empty), including
     beside a valid owned unit selection (legacy precedence preserved)."""
     match_id, tokens, _ = _start_world_match(client)
     body = _get_legal(client, match_id, 0, token=tokens[0], selected_city_id=1).json()
@@ -304,7 +315,8 @@ def test_every_advertised_action_accepted_by_n7a(client: TestClient) -> None:
             client, match_id, 0, token=tokens[0], selected_unit_id=row["unit_id"]
         ).json()
         advertised.extend(sel["actions"])
-    assert len(advertised) == 1 + 5 + 5
+    # end_turn + settler (5 moves + found_city) + warrior (5 moves)
+    assert len(advertised) == 1 + 6 + 5
     for action in advertised:
         fresh_id, fresh_tokens, _ = _start_world_match(client)
         r = _post(client, fresh_id, action, fresh_tokens[0])
@@ -448,7 +460,9 @@ def test_friendly_settler_and_nonadjacent_targets_excluded(client: TestClient) -
     _teleport_unit(match_id2, 1, edge2.tile_a)
     _teleport_unit(match_id2, 4, edge2.tile_b)
     body2 = _get_legal(client, match_id2, 0, token=tokens2[0], selected_unit_id=1).json()
-    assert all(x["action_type"] == "move_unit" for x in body2["actions"])
+    # Settler stays non-attacking; N8a may also advertise found_city.
+    assert all(x["action_type"] in ("move_unit", "found_city") for x in body2["actions"])
+    assert not any(x["action_type"] == "attack_unit" for x in body2["actions"])
 
 
 def test_cliff_and_missing_edge_targets_excluded(client: TestClient) -> None:
@@ -502,8 +516,8 @@ def test_attacked_unit_advertises_nothing(client: TestClient) -> None:
 
 
 def test_summary_counts_include_attacks(client: TestClient) -> None:
-    """unit_summaries count attacks + moves and equal the selected-unit row
-    count exactly; the settler stays move-only."""
+    """unit_summaries count attacks + found_city + moves and equal the
+    selected-unit row count exactly; the settler stays non-attacking."""
     match_id, tokens, _ = _start_world_match(client)
     _place_adjacent_smooth(match_id)
     summary = _get_legal(client, match_id, 0, token=tokens[0]).json()
@@ -518,7 +532,8 @@ def test_summary_counts_include_attacks(client: TestClient) -> None:
     warrior_row = next(s for s in summary["unit_summaries"] if s["unit_id"] == 2)
     assert warrior_row["legal_action_count"] == len(warrior_sel["actions"])
     settler_sel = _get_legal(client, match_id, 0, token=tokens[0], selected_unit_id=1).json()
-    assert all(x["action_type"] == "move_unit" for x in settler_sel["actions"])
+    assert all(x["action_type"] in ("move_unit", "found_city") for x in settler_sel["actions"])
+    assert not any(x["action_type"] == "attack_unit" for x in settler_sel["actions"])
 
 
 def test_advertised_attack_accepted_by_n7g1(client: TestClient) -> None:

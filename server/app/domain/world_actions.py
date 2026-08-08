@@ -1,5 +1,4 @@
-"""N7 world actions: move_unit + end_turn + attack_unit on world_map matches
-(snapshot v3).
+"""N7/N8a world actions on world_map matches (snapshot v3).
 
 Deliberately separate from the frozen legacy action modules (no Scenario, no
 HexMap, no adapter). World movement v1 legality comes exclusively from the
@@ -8,7 +7,7 @@ canonical neighbor deltas, the connecting edge must be smooth (cliff blocks;
 a missing edge record between existing adjacent tiles rejects fail-closed),
 and the destination must be unoccupied. There are NO movement points, moved
 flags, or terrain-category passability on the world path (docs/PHASE_PLAN.md
-N7, docs/MOVEMENT_RULES.md).
+N7, docs/MOVEMENT_RULES.md). Cities never block unit movement (N8a locked).
 
 N7g.1 World Combat 0.1 (warrior-vs-warrior only, locked): attack_unit keeps
 the exact legacy wire shape (schema_version 1, actor_id, attacker_id,
@@ -26,10 +25,19 @@ attacker's has_attacked becomes true: it can neither move nor attack again
 until its owner's next turn (accepted world end_turn clears every unit's
 has_attacked). Pre-attack movement stays budget-free.
 
+N8a found_city (legacy wire shape: schema_version 1, actor_id, unit_id,
+position): consumes an eligible settler and appends a minimal city row
+({id, owner_id, position, name}) allocated from snapshot next_city_id.
+Naming reuses the canonical Capital / Settlement N rule. After the standard
+action/unit checks, an existing city on the founding tile is the ONLY
+city-placement restriction (no water/territory/elevation/minimum-distance
+reasons on schema v1). No production, population, science, or territory.
+
 Validation is two-phase so the API layer can resolve + identity-verify the
 canonical WorldMap between them (world_match.resolve_world_map_for_snapshot):
   move_unit:   envelope/unit/from checks  ->  map resolve  ->  destination checks
   attack_unit: envelope/unit/state checks ->  map resolve  ->  adjacency/edge checks
+  found_city:  envelope/unit/tile checks  ->  map resolve  ->  apply
   end_turn:    envelope/current-player    ->  map resolve  ->  apply
 
 Locked first-failure reject order (docs/CLOUD_API_V0.md):
@@ -45,6 +53,10 @@ Locked first-failure reject order (docs/CLOUD_API_V0.md):
     -> defender_not_warrior -> cannot_attack_own_unit
     -> attacker_already_attacked -> defender_not_adjacent
     -> attack_edge_missing -> attack_cliff_blocked
+  found_city: wrong_action_type -> unsupported_schema_version
+    -> malformed_action -> not_current_player -> unknown_unit
+    -> unit_not_owned_by_player -> unit_cannot_found_city
+    -> unit_not_at_position -> tile_already_has_city
   end_turn: wrong_action_type -> unsupported_schema_version -> malformed_action
     -> not_current_player
 """
@@ -63,11 +75,12 @@ SCHEMA_VERSION = 1
 MOVE_UNIT_ACTION_TYPE = "move_unit"
 END_TURN_ACTION_TYPE = "end_turn"
 ATTACK_UNIT_ACTION_TYPE = "attack_unit"
+FOUND_CITY_ACTION_TYPE = "found_city"
 WARRIOR_TYPE = "warrior"
 
-# Known legacy action types with no world-path support (N8+ decides their
-# world equivalents); everything else is unknown_action_type.
-LEGACY_ONLY_ACTION_TYPES = ("found_city", "set_city_production")
+# Known legacy action types with no world-path support yet; everything else
+# is unknown_action_type. found_city moved onto the world path in N8a.
+LEGACY_ONLY_ACTION_TYPES = ("set_city_production",)
 
 
 def _is_exact_int(value: Any) -> bool:
@@ -104,6 +117,28 @@ def unit_at(snap: dict[str, Any], pos: tuple[int, int]) -> dict[str, Any] | None
         if int(u["position"][0]) == pos[0] and int(u["position"][1]) == pos[1]:
             return u
     return None
+
+
+def city_at(snap: dict[str, Any], pos: tuple[int, int]) -> dict[str, Any] | None:
+    for c in snap.get("cities", []):
+        if int(c["position"][0]) == pos[0] and int(c["position"][1]) == pos[1]:
+            return c
+    return None
+
+
+def city_by_id(snap: dict[str, Any], city_id: int) -> dict[str, Any] | None:
+    for c in snap.get("cities", []):
+        if int(c["id"]) == city_id:
+            return c
+    return None
+
+
+def default_city_name_for_owner(snap: dict[str, Any], owner_id: int) -> str:
+    """Canonical naming: first city Capital, then Settlement 2, … per owner."""
+    owned = sum(1 for c in snap.get("cities", []) if int(c["owner_id"]) == owner_id)
+    if owned == 0:
+        return "Capital"
+    return f"Settlement {owned + 1}"
 
 
 def _is_coord_pair(value: Any) -> bool:
@@ -338,6 +373,82 @@ def apply_attack_unit(
         **snap,
         "revision": int(snap["revision"]) + 1,
         "units": new_units,
+    }
+
+
+def validate_found_city(snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:
+    """N8a found_city envelope/unit/tile checks (no WorldMap reads).
+
+    Locked first-failure order through tile_already_has_city. Schema v1 has
+    neither water nor territory layers, so those legacy reasons never fire;
+    founding legality never reads elevation. An existing city on the tile is
+    the only city-placement restriction after the unit checks.
+    """
+    if action.get("action_type") != FOUND_CITY_ACTION_TYPE:
+        return _fail("wrong_action_type")
+    schema = action.get("schema_version")
+    if not _is_exact_int(schema) or schema != SCHEMA_VERSION:
+        return _fail("unsupported_schema_version")
+    if (
+        "actor_id" not in action
+        or "unit_id" not in action
+        or "position" not in action
+    ):
+        return _fail("malformed_action")
+    if not _is_exact_int(action["actor_id"]) or not _is_exact_int(action["unit_id"]):
+        return _fail("malformed_action")
+    if not _is_coord_pair(action["position"]):
+        return _fail("malformed_action")
+
+    if int(action["actor_id"]) != _current_player_id(snap):
+        return _fail("not_current_player")
+
+    unit = _unit_by_id(snap, int(action["unit_id"]))
+    if unit is None:
+        # Missing, dead, or already-consumed units share this rejection —
+        # duplicate/stale founding posts after a successful consume also land
+        # here (no partial mutation on the prior accept).
+        return _fail("unknown_unit")
+    if int(unit["owner_id"]) != int(action["actor_id"]):
+        return _fail("unit_not_owned_by_player")
+    if not unit_definitions.can_found_city(str(unit["type_id"])):
+        return _fail("unit_cannot_found_city")
+    if [int(unit["position"][0]), int(unit["position"][1])] != [
+        int(action["position"][0]),
+        int(action["position"][1]),
+    ]:
+        return _fail("unit_not_at_position")
+    pos = (int(action["position"][0]), int(action["position"][1]))
+    if city_at(snap, pos) is not None:
+        return _fail("tile_already_has_city")
+    return _ok()
+
+
+def apply_found_city(snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:
+    """Atomic founding: allocate city id, append city, consume settler, bump
+    revision. Only after validate_found_city returned ok. Cities stay sorted
+    ascending by id; remaining units keep all combat fields unchanged."""
+    uid = int(action["unit_id"])
+    actor_id = int(action["actor_id"])
+    pos = [int(action["position"][0]), int(action["position"][1])]
+    new_city_id = int(snap["next_city_id"])
+    new_city = {
+        "id": new_city_id,
+        "owner_id": actor_id,
+        "position": pos,
+        "name": default_city_name_for_owner(snap, actor_id),
+    }
+    new_cities = [dict(c) for c in snap.get("cities", [])]
+    new_cities.append(new_city)
+    new_cities.sort(key=lambda c: int(c["id"]))
+    new_units = [dict(u) for u in snap["units"] if int(u["id"]) != uid]
+    new_units.sort(key=lambda u: int(u["id"]))
+    return {
+        **snap,
+        "revision": int(snap["revision"]) + 1,
+        "units": new_units,
+        "cities": new_cities,
+        "next_city_id": new_city_id + 1,
     }
 
 

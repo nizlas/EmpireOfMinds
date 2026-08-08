@@ -325,8 +325,9 @@ def _post_world_action(
     404 (caller) -> world-kind branch -> credential gate -> status gate ->
     dispatch -> world validation -> apply/persist/event. Rejections reuse the
     legacy HTTP-200 {accepted: false} envelope; nothing is written on
-    rejection. move_unit, end_turn, and (since N7g.1) attack_unit exist on
-    the world path.
+    rejection. move_unit, end_turn, attack_unit (N7g.1), and found_city
+    (N8a) exist on the world path; set_city_production stays unsupported
+    until N8b.
 
     Unlike the shared legacy gate, world matches FAIL CLOSED when meta.json
     is missing: a blank token rejects missing_seat_token, a supplied token
@@ -367,9 +368,60 @@ def _post_world_action(
         return _handle_world_end_turn(match_id, snap, action)
     if at == world_actions.ATTACK_UNIT_ACTION_TYPE:
         return _handle_world_attack_unit(match_id, snap, action)
+    if at == world_actions.FOUND_CITY_ACTION_TYPE:
+        return _handle_world_found_city(match_id, snap, action)
     if at in world_actions.LEGACY_ONLY_ACTION_TYPES:
         return _reject("unsupported_action_for_match_kind")
     return _reject("unknown_action_type")
+
+
+def _handle_world_found_city(
+    match_id: str, snap: dict[str, Any], action: dict[str, Any]
+) -> dict[str, Any]:
+    """N8a world found_city: validate fully before any write, fail-closed map
+    resolve (identity drift → HTTP 500, no mutation), then atomically create
+    the city, consume the settler, bump revision, and append a legacy-shaped
+    found_city event. Nothing is written on rejection."""
+    vr = world_actions.validate_found_city(snap, action)
+    if not vr["ok"]:
+        return _reject(str(vr["reason"]))
+
+    _resolve_world_map_or_500(snap)
+
+    new_snap = world_actions.apply_found_city(snap, action)
+    new_revision = int(new_snap["revision"])
+    new_city_id = int(new_snap["next_city_id"]) - 1
+    city = world_actions.city_by_id(new_snap, new_city_id)
+    if city is None:
+        return _reject("malformed_action")
+
+    log_index = len(file_store.read_events(match_id))
+    accepted_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    event = {
+        "index": log_index,
+        "revision": new_revision,
+        "schema_version": int(action["schema_version"]),
+        "action_type": world_actions.FOUND_CITY_ACTION_TYPE,
+        "actor_id": int(action["actor_id"]),
+        "unit_id": int(action["unit_id"]),
+        "city_id": int(city["id"]),
+        "city_name": str(city["name"]),
+        "at": [int(city["position"][0]), int(city["position"][1])],
+        "settler_consumed": True,
+        "result": "accepted",
+        "accepted_at": accepted_at,
+    }
+    file_store.write_snapshot(match_id, new_snap)
+    file_store.append_event(match_id, event)
+    return {
+        "accepted": True,
+        "reason": "",
+        "index": log_index,
+        "revision": new_revision,
+        "snapshot": new_snap,
+        "state_hash": state_hash(new_snap),
+        "event": event,
+    }
 
 
 @router.get("/healthz")
