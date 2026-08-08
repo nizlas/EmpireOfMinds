@@ -1,13 +1,18 @@
 """Deprecated Scenario/HexMap adapter for found_city (frozen legacy path).
 
 N8R: this module contains NO founding algorithm. The founding decision
-sequence, naming, and founding semantics live exclusively in the canonical
+sequence, naming, and the complete map-independent founding transition
+(founder consumption, city-id allocation, next-city-id advancement, owner/
+position/name/capital/empty project) live exclusively in the canonical
 app.domain.city_founding_rules — this adapter only parses the legacy wire
 envelope, extracts Scenario/HexMap facts (unit row, tile-on-map, water,
-existing city, territory ownership), and materializes the canonical founding
-effect into the rich snapshot-v2 City (territory, palace, population are
-legacy state-model materialization, not gameplay decisions). Rejection
-reasons are the canonical literal strings. Do not extend this path.
+existing city, territory ownership), and materializes the canonical
+transition into the rich snapshot-v2 City. The legacy-only extras are
+representation (palace/population storage fields derived from the
+transition) plus ONE frozen legacy gameplay policy: the HexMap initial-
+territory rule (initial_owned_tiles_for_city), which is deprecated-path
+territory behavior, never shared WorldMap gameplay. Rejection reasons are
+the canonical literal strings. Do not extend this path.
 """
 
 from __future__ import annotations
@@ -25,8 +30,12 @@ ACTION_TYPE = "found_city"
 
 
 def initial_owned_tiles_for_city(scenario: Scenario, center: HexCoord) -> tuple[HexCoord, ...]:
-    """Legacy territory materialization (map-dependent, snapshot-v2 only):
-    center then legal neighbors, skip already-owned."""
+    """FROZEN legacy HexMap territory policy (deprecated path only): center
+    then legal neighbors, skip already-owned. This is legacy-only gameplay
+    behavior coupled to the HexMap territory layer — NOT shared WorldMap
+    gameplay and NOT generic storage materialization; the WorldMap schema has
+    no territory, so this policy never moves into the canonical core or the
+    world path."""
     seen: set[tuple[int, int]] = {(center.q, center.r)}
     out: list[HexCoord] = [HexCoord(center.q, center.r)]
     for nb in center.neighbors():
@@ -98,32 +107,31 @@ def validate(scenario: Scenario | None, action: dict[str, Any] | None) -> dict[s
 
 
 def apply_found_city(scenario: Scenario, action: dict[str, Any]) -> Scenario:
-    """Materialize the canonical founding effect into snapshot-v2 state:
-    remove founder unit, append rich City, bump next_city_id. Only call after
-    validate ok."""
-    pos_a = action["position"]
-    center = HexCoord(int(pos_a[0]), int(pos_a[1]))
-    uid = int(action["unit_id"])
+    """Materialize the ONE canonical founding transition into snapshot-v2
+    state. Only call after validate ok. The transition decides founder
+    consumption, city-id allocation, and next-city-id advancement — this
+    adapter only reshapes it into the rich legacy ``City`` (palace derives
+    from the transition's capital semantic; initial territory comes from the
+    frozen legacy HexMap territory policy above) and rebuilds the Scenario."""
     actor_id = int(action["actor_id"])
-
-    effect = city_founding_rules.found_city_effect(
+    t = city_founding_rules.found_city_transition(
         owner_id=actor_id,
-        position=(center.q, center.r),
+        founder_unit_id=int(action["unit_id"]),
+        position=(int(action["position"][0]), int(action["position"][1])),
         owned_city_count=len(scenario.cities_owned_by(actor_id)),
+        next_city_id=scenario.peek_next_city_id(),
     )
+    center = HexCoord(t.position[0], t.position[1])
 
-    new_units = tuple(u for u in scenario.units() if u.id != uid)
-    new_city_id = scenario.peek_next_city_id()
-    is_cap = bool(effect["is_capital"])
-
+    new_units = tuple(u for u in scenario.units() if u.id != t.consumed_unit_id)
     new_city = City(
-        id=new_city_id,
-        owner_id=int(effect["owner_id"]),
+        id=t.city_id,
+        owner_id=t.owner_id,
         position=center,
-        current_project=effect["current_project"],
-        city_name=str(effect["name"]),
-        is_capital=is_cap,
-        building_ids=("palace",) if is_cap else (),
+        current_project=t.current_project,
+        city_name=t.name,
+        is_capital=t.is_capital,
+        building_ids=("palace",) if t.is_capital else (),
         owned_tiles=initial_owned_tiles_for_city(scenario, center),
         population=1,
         manual_worked_tiles=(),
@@ -136,6 +144,6 @@ def apply_found_city(scenario: Scenario, action: dict[str, Any]) -> Scenario:
         _units=new_units,
         _cities=new_cities,
         next_unit_id=scenario.next_unit_id,
-        next_city_id=scenario.peek_next_city_id() + 1,
+        next_city_id=t.next_city_id,
         lightning_tree_hex=scenario.lightning_tree_hex,
     )

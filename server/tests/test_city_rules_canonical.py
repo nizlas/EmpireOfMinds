@@ -123,18 +123,41 @@ def test_found_city_locked_first_failure_order() -> None:
     assert vr["reason"] == "tile_already_has_city"
 
 
-def test_found_city_effect_semantics() -> None:
-    effect = cfr.found_city_effect(owner_id=7, position=(3, 4), owned_city_count=0)
-    assert effect == {
-        "owner_id": 7,
-        "position": (3, 4),
-        "name": "Capital",
-        "is_capital": True,
-        "current_project": None,
-    }
-    later = cfr.found_city_effect(owner_id=7, position=(3, 4), owned_city_count=2)
-    assert later["name"] == "Settlement 3"
-    assert later["is_capital"] is False
+def test_found_city_transition_is_the_complete_apply_result() -> None:
+    """The pure canonical transition decides the COMPLETE map-independent
+    founding apply: consumed founder, allocated city id, advanced counter,
+    owner/position/name/capital/empty project — as one immutable value."""
+    t = cfr.found_city_transition(
+        owner_id=7,
+        founder_unit_id=12,
+        position=(3, 4),
+        owned_city_count=0,
+        next_city_id=5,
+    )
+    assert t == cfr.FoundCityTransition(
+        consumed_unit_id=12,
+        city_id=5,
+        next_city_id=6,
+        owner_id=7,
+        position=(3, 4),
+        name="Capital",
+        is_capital=True,
+        current_project=None,
+    )
+    with pytest.raises(Exception):
+        t.city_id = 99  # immutable
+
+    later = cfr.found_city_transition(
+        owner_id=7,
+        founder_unit_id=13,
+        position=(3, 4),
+        owned_city_count=2,
+        next_city_id=6,
+    )
+    assert later.name == "Settlement 3"
+    assert later.is_capital is False
+    assert later.consumed_unit_id == 13
+    assert later.city_id == 6 and later.next_city_id == 7
 
 
 # ----------------------------------------------- canonical production rules
@@ -518,8 +541,14 @@ def test_founding_transition_parity_between_state_adapters() -> None:
     assert sc2.peek_next_city_id() == int(snap2["next_city_id"]) == 2
     # Same canonical naming sequence for the owner's next city.
     assert legacy_found_city.default_city_name_for_owner(sc2, 0) == "Settlement 2"
-    effect = cfr.found_city_effect(owner_id=0, position=(1, 0), owned_city_count=1)
-    assert effect["name"] == "Settlement 2" and effect["is_capital"] is False
+    t = cfr.found_city_transition(
+        owner_id=0,
+        founder_unit_id=2,
+        position=(1, 0),
+        owned_city_count=1,
+        next_city_id=2,
+    )
+    assert t.name == "Settlement 2" and t.is_capital is False
 
 
 def _scp_action(city_id: int = 1, project_id: str = "produce_unit:warrior", actor_id: int = 0) -> dict:
@@ -612,6 +641,41 @@ def test_both_state_adapters_route_founding_through_one_rule(monkeypatch) -> Non
         "ok": False,
         "reason": "one_core",
     }
+
+
+def test_both_state_adapters_materialize_the_one_founding_transition(
+    monkeypatch,
+) -> None:
+    """Patching the ONE canonical founding transition changes the APPLY
+    result of BOTH state adapters — neither independently decides founder
+    consumption, city-id allocation, or next-city-id advancement."""
+    sentinel = cfr.FoundCityTransition(
+        consumed_unit_id=2,  # not the unit named in the action
+        city_id=77,
+        next_city_id=99,
+        owner_id=0,
+        position=(0, 0),
+        name="One Core",
+        is_capital=False,
+    )
+    monkeypatch.setattr(cfr, "found_city_transition", lambda **_: sentinel)
+
+    sc2 = legacy_found_city.apply_found_city(_parity_scenario(), _found_action())
+    assert sc2.unit_by_id(2) is None  # consumed the transition's founder
+    assert sc2.unit_by_id(1) is not None  # not the action's unit_id
+    legacy_city = sc2.city_by_id(77)
+    assert legacy_city is not None
+    assert str(legacy_city.city_name) == "One Core"
+    assert legacy_city.is_capital is False and legacy_city.building_ids == ()
+    assert sc2.peek_next_city_id() == 99
+
+    snap2 = world_actions.apply_found_city(_parity_snapshot(), _found_action())
+    assert all(int(u["id"]) != 2 for u in snap2["units"])
+    assert any(int(u["id"]) == 1 for u in snap2["units"])
+    world_city = next(c for c in snap2["cities"] if int(c["id"]) == 77)
+    assert world_city["name"] == "One Core"
+    assert world_city["current_project"] is None
+    assert int(snap2["next_city_id"]) == 99
 
 
 def test_both_state_adapters_route_production_through_one_rule(monkeypatch) -> None:

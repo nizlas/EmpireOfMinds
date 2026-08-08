@@ -28,7 +28,8 @@ has_attacked). Pre-attack movement stays budget-free.
 N8a found_city and N8b set_city_production are thin snapshot-v3 adapters
 over the CANONICAL gameplay rules (N8R single-gameplay-core recovery):
 the founding decision chain, default Capital / Settlement N naming, and
-the founding effect live in city_founding_rules; the production-selection
+the COMPLETE founding transition (founder consumption, city-id allocation,
+next-city-id advancement) live in city_founding_rules; the production-selection
 decision chain, the canonical {project_id, progress, cost} project state,
 and the event progress representation live in city_production_rules. This
 module owns only the wire/envelope checks (schema, malformed shapes) and
@@ -453,36 +454,40 @@ def validate_found_city(snap: dict[str, Any], action: dict[str, Any]) -> dict[st
 
 
 def apply_found_city(snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:
-    """Atomic founding: materialize the canonical founding effect into
-    snapshot v3 — allocate city id, append city, consume settler, bump
-    revision. Only after validate_found_city returned ok. Cities stay sorted
-    ascending by id; remaining units keep all combat fields unchanged."""
-    uid = int(action["unit_id"])
+    """Atomic founding: materialize the ONE canonical founding transition
+    into snapshot v3. Only after validate_found_city returned ok. The
+    transition decides founder consumption, city-id allocation, and
+    next-city-id advancement — this adapter only reshapes it into v3 rows
+    (cities sorted ascending by id; remaining units keep all combat fields
+    unchanged) and bumps revision."""
     actor_id = int(action["actor_id"])
-    effect = city_founding_rules.found_city_effect(
+    t = city_founding_rules.found_city_transition(
         owner_id=actor_id,
+        founder_unit_id=int(action["unit_id"]),
         position=(int(action["position"][0]), int(action["position"][1])),
         owned_city_count=_owned_city_count(snap, actor_id),
+        next_city_id=int(snap["next_city_id"]),
     )
-    new_city_id = int(snap["next_city_id"])
     new_city = {
-        "id": new_city_id,
-        "owner_id": int(effect["owner_id"]),
-        "position": [int(effect["position"][0]), int(effect["position"][1])],
-        "name": str(effect["name"]),
-        "current_project": effect["current_project"],
+        "id": t.city_id,
+        "owner_id": t.owner_id,
+        "position": [t.position[0], t.position[1]],
+        "name": t.name,
+        "current_project": t.current_project,
     }
     new_cities = [dict(c) for c in snap.get("cities", [])]
     new_cities.append(new_city)
     new_cities.sort(key=lambda c: int(c["id"]))
-    new_units = [dict(u) for u in snap["units"] if int(u["id"]) != uid]
+    new_units = [
+        dict(u) for u in snap["units"] if int(u["id"]) != t.consumed_unit_id
+    ]
     new_units.sort(key=lambda u: int(u["id"]))
     return {
         **snap,
         "revision": int(snap["revision"]) + 1,
         "units": new_units,
         "cities": new_cities,
-        "next_city_id": new_city_id + 1,
+        "next_city_id": t.next_city_id,
     }
 
 

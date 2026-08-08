@@ -5,7 +5,7 @@ and the founding semantic transition are independent of presentation,
 transport, snapshot format, and map rendering. This module never imports
 Scenario, HexMap, WorldMap, snapshot, storage, or API code — callers pass
 plain facts (actor/current player ids, founder unit facts, tile facts) and
-materialize the returned effect into their own state representation. The only
+materialize the returned transition into their own state representation. The only
 allowed dependency is the shared canonical unit registry (which unit types
 may found cities).
 
@@ -33,13 +33,21 @@ Canonical naming rule: a player's first city is "Capital", every later city
 "Settlement N" (N = owned count + 1). Extracted from the proven legacy
 implementation — never copy this rule into a state-specific module again.
 
-Founding effect (semantics owned here, storage owned by the caller): the
-founder unit is consumed, and one new city appears at the founder's tile
-owned by the actor, named by the canonical rule, capital iff it is the
-owner's first city, with no production project selected. Revision,
-persistence, event stamping, and id allocation stay in the caller's
-authority/orchestration layer; adapters materialize only the fields their
-snapshot schema stores (snapshot v3 stores no capital flag).
+Founding transition (the COMPLETE map-independent apply semantics, owned
+here): the founder unit is consumed, the new city id is allocated from the
+caller's next_city_id counter and that counter advances, and one new city
+appears at the founder's tile owned by the actor, named by the canonical
+rule, capital iff it is the owner's first city, with no production project
+selected. ``found_city_transition`` returns all of that as one typed
+immutable value — neither state adapter may independently decide founder
+consumption, city-id allocation, or next-city-id advancement. Adapters
+materialize the SAME transition into their storage shapes only: the
+snapshot-v3 city dict vs the legacy rich ``City`` (whose palace/population
+fields derive from the transition's capital semantic, and whose initial
+territory comes from the FROZEN legacy HexMap territory policy in
+actions/found_city.py — deliberately not part of this core and never added
+to the WorldMap path). Revision, persistence, event stamping, and
+collection reconstruction stay in the caller's authority layer.
 """
 
 from __future__ import annotations
@@ -116,26 +124,49 @@ def validate_found_city(
     return _ok()
 
 
-def found_city_effect(
+@dataclass(frozen=True)
+class FoundCityTransition:
+    """The complete map-independent founding transition, decided once here.
+
+    ``consumed_unit_id``: the founder unit that ceases to exist.
+    ``city_id`` / ``next_city_id``: the allocated id and the advanced
+    counter the caller's state must store afterwards.
+    ``is_capital``: canonical first-city semantic; adapters whose snapshot
+    schema has no capital concept (snapshot v3) simply do not store it,
+    while the Scenario adapter derives its capital flag and palace from it
+    instead of re-deciding.
+    ``current_project``: a founded city never starts with production.
+    """
+
+    consumed_unit_id: int
+    city_id: int
+    next_city_id: int
+    owner_id: int
+    position: tuple[int, int]
+    name: str
+    is_capital: bool
+    current_project: None = None
+
+
+def found_city_transition(
     *,
     owner_id: int,
+    founder_unit_id: int,
     position: tuple[int, int],
     owned_city_count: int,
-) -> dict[str, Any]:
-    """Semantic founding transition: what the new city IS, not how it is stored.
-
-    Only call after validate_found_city returned ok. The caller allocates the
-    id, consumes the founder unit, keeps its collections sorted, and bumps
-    revision — those are state/authority concerns, not gameplay rules.
-    ``is_capital`` is the canonical first-city semantic; adapters whose
-    snapshot schema has no capital concept (snapshot v3) simply do not store
-    it, while the Scenario adapter derives its capital flag and palace from
-    it instead of re-deciding.
+    next_city_id: int,
+) -> FoundCityTransition:
+    """The ONE founding apply decision. Only call after validate_found_city
+    returned ok. All inputs are plain facts from the caller's state; the
+    returned transition is materialized by the adapters — never re-derived.
     """
-    return {
-        "owner_id": owner_id,
-        "position": (int(position[0]), int(position[1])),
-        "name": default_city_name(owned_city_count),
-        "is_capital": owned_city_count == 0,
-        "current_project": None,
-    }
+    city_id = int(next_city_id)
+    return FoundCityTransition(
+        consumed_unit_id=int(founder_unit_id),
+        city_id=city_id,
+        next_city_id=city_id + 1,
+        owner_id=int(owner_id),
+        position=(int(position[0]), int(position[1])),
+        name=default_city_name(owned_city_count),
+        is_capital=owned_city_count == 0,
+    )
