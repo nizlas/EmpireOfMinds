@@ -42,7 +42,9 @@ const SETTLER_IDLE_CLIP := "Hit_Reaction_1"
 const WARRIOR_WALK_CLIP := "Idle_02"
 const WARRIOR_IDLE_CLIP := "Combat_Stance"
 
-const SPEED: float = WorldUnitsViewScript.LOCOMOTION_SPEED_UNITS_PER_SEC
+const BASE_SPEED: float = WorldUnitsViewScript.LOCOMOTION_SPEED_UNITS_PER_SEC
+const SPEED_SCALE: float = WorldUnitsViewScript.LOCOMOTION_TRANSLATION_SPEED_SCALE
+const SPEED: float = BASE_SPEED * SPEED_SCALE
 const EPS := 0.0001
 
 var _total := 0
@@ -84,6 +86,30 @@ class MissSampler:
 
 	func sample(_x: float, _z: float, _y_hint: float) -> Dictionary:
 		return {"ok": false, "height": 0.0, "normal": Vector3.UP}
+
+
+# Convex hill crest peaked at x=2 (arrival tile).
+class CrestSampler:
+	extends RefCounted
+
+	func height_at(x: float, _z: float) -> float:
+		return 0.40 - 0.10 * (x - 2.0) * (x - 2.0)
+
+	func sample(x: float, z: float, _y_hint: float) -> Dictionary:
+		var n := Vector3(0.20 * (x - 2.0), 1.0, 0.0).normalized()
+		return {"ok": true, "height": height_at(x, z), "normal": n}
+
+
+# Concave valley bottom at x=2 (arrival tile).
+class ValleySampler:
+	extends RefCounted
+
+	func height_at(x: float, _z: float) -> float:
+		return 0.10 * (x - 2.0) * (x - 2.0)
+
+	func sample(x: float, z: float, _y_hint: float) -> Dictionary:
+		var n := Vector3(-0.20 * (x - 2.0), 1.0, 0.0).normalized()
+		return {"ok": true, "height": height_at(x, z), "normal": n}
 
 
 # Plane rising along -Z (uphill AHEAD of a spawn-facing unit): h = base
@@ -394,9 +420,16 @@ func _run() -> void:
 	)
 	_check(settler_player.current_animation == SETTLER_WALK_CLIP, "semantic Walking plays while moving")
 	var move_basis: Basis = WorldUnitsViewScript.locomotion_yaw(Vector3(1, 0, 0))
+	_check(is_equal_approx(view.facing_blend_sec(), 0.28), "ordinary facing blend uses the locked 0.28s default")
+	var face_info: Dictionary = view.facing_blend_info(1)
+	_check(
+		not face_info.is_empty() and is_equal_approx(float(face_info["yaw_duration"]), 0.28),
+		"click-to-move requests a centralized shortest-arc facing blend"
+	)
+	view.advance_locomotion(view.facing_blend_sec())
 	_check(
 		_rotation_of(settler_model).is_equal_approx(move_basis),
-		"mover yaws toward the destination"
+		"mover reaches the travel yaw after the facing blend"
 	)
 	_check(
 		_rotation_of(settler_model).y.is_equal_approx(Vector3.UP),
@@ -413,7 +446,8 @@ func _run() -> void:
 
 	# --- grounded mid-segment glide height (sampler-provided) -----------------
 	var duration: float = start_anchor.distance_to(Vector3(mid_anchor.x, start_anchor.y, mid_anchor.z)) / SPEED
-	view.advance_locomotion(duration * 0.5)
+	var remaining_to_half: float = maxf(duration * 0.5 - view.facing_blend_sec(), 0.01)
+	view.advance_locomotion(remaining_to_half)
 	var half_pos: Vector3 = view.visual_position_for_unit(1)
 	_check(absf(half_pos.x - 1.0) < EPS and absf(half_pos.z) < EPS, "half-way visual XZ is on the segment")
 	_check(
@@ -474,6 +508,7 @@ func _run() -> void:
 
 	# --- a second movement direction: effective forward follows ---------------
 	view.apply_snapshot_units(_units([1, 1], [0, 1]))
+	view.advance_locomotion(view.facing_blend_sec())
 	var diag_dir := Vector3(-2.0, 0.0, 2.0).normalized()
 	_check(
 		_effective_forward(settler_root).dot(diag_dir) > 0.99,
@@ -490,6 +525,7 @@ func _run() -> void:
 	_check(warrior_player.current_animation == WARRIOR_IDLE_CLIP, "warrior idles before moving")
 	view.apply_snapshot_units(_units([1, 1], [1, 1]))  # warrior (0,1) -> (1,1): +X move
 	_check(warrior_player.current_animation == WARRIOR_WALK_CLIP, "warrior Walking uses its remapped clip")
+	view.advance_locomotion(view.facing_blend_sec())
 	_check(
 		_effective_forward(view.root_for_unit(2)).dot(Vector3(1, 0, 0)) > 0.9,
 		"warrior effective rendered forward also follows the movement"
@@ -1320,6 +1356,193 @@ func _run() -> void:
 		p_grounder.set_locomotion_active(false)
 		pview.queue_free()
 
+	# --- translation scale 0.445 (stride-derived) with Walking anim speed 1.0 -
+	# 0.445 × 1.6 = 0.712 wu/s matches the measured backward stance-sweep of
+	# the authored Walking clips (warrior ~0.69, settler ~0.73 wu/s); the
+	# ninth pass centered the SIGNED planted-sole drift (0.43 left a
+	# consistent ~−0.024 wu/s backward slide on both rigs). The stance-slip
+	# case below verifies the actual synchronization; this only pins the
+	# centralized constant.
+	_check(
+		is_equal_approx(WorldUnitsViewScript.LOCOMOTION_TRANSLATION_SPEED_SCALE, 0.445),
+		"presentation translation scale is the centralized stride-derived 0.445 tuning"
+	)
+	_check(
+		is_equal_approx(SPEED, BASE_SPEED * SPEED_SCALE)
+			and is_equal_approx(WorldUnitsViewScript.locomotion_translation_speed(), SPEED),
+		"effective translation speed is 1.6 × 0.445"
+	)
+	var speed_view := WorldUnitsViewScript.new()
+	speed_view.name = "SpeedProbeView"
+	speed_view.set_process(false)
+	root.add_child(speed_view)
+	speed_view.set_tile_anchors(ANCHORS)
+	speed_view.set_surface_sampler(RampSampler.new())
+	speed_view.apply_snapshot_units(_units([0, 0], [0, 1]))
+	speed_view.apply_snapshot_units(_units([1, 0], [0, 1]))
+	var speed_player: AnimationPlayer = speed_view.animation_player_for_unit(1)
+	var anim_t0: float = speed_player.current_animation_position
+	var pos_t0: Vector3 = speed_view.visual_position_for_unit(1)
+	var probe_dt := 0.50
+	speed_view.advance_locomotion(probe_dt)
+	var pos_t1: Vector3 = speed_view.visual_position_for_unit(1)
+	var moved := Vector2(pos_t1.x - pos_t0.x, pos_t1.z - pos_t0.z).length()
+	_check(
+		absf(moved - SPEED * probe_dt) < 0.02,
+		"translation over a fixed interval matches the 0.445-scaled speed"
+	)
+	_check(
+		absf(moved - BASE_SPEED * probe_dt) > 0.05,
+		"translation over that interval is materially slower than the unscaled base"
+	)
+	_check(
+		is_equal_approx(speed_player.speed_scale, 1.0),
+		"Walking animation speed_scale stays 1.0 under the translation scale"
+	)
+	_check(
+		speed_player.current_animation == SETTLER_WALK_CLIP,
+		"Walking clip remains active while translation runs at the reduced speed"
+	)
+	# Headless set_process(false) does not tick AnimationPlayer; prove the
+	# play contract is unscaled, then advance the player by the same dt.
+	speed_player.advance(probe_dt)
+	var anim_len := maxf(float(speed_player.current_animation_length), 0.001)
+	var anim_dt := speed_player.current_animation_position - anim_t0
+	if anim_dt < -0.0001:
+		anim_dt += anim_len
+	_check(
+		absf(anim_dt - probe_dt) < 0.04,
+		"Walking animation advances wall-clock time unchanged (not slowed with translation)"
+	)
+	speed_view.queue_free()
+
+	# --- eighth-pass: measured stride/root synchronization (production path) --
+	# Samples full Walking cycles on a real flat glide — AnimationPlayer
+	# advanced in lockstep with the glide clock like tree time in the live
+	# game, grounder applied per frame — and verifies the FINAL post-transform
+	# planted-sole horizontal slip, not merely the configured constant. At the
+	# former arbitrary 0.81 scale the measured worst stance slip was ~0.34 wu
+	# (visible skating); the stride-derived 0.445 scale keeps it under
+	# 0.06 wu AND centers the signed drift (0.43 slid backward one-way).
+	var slip_anchors := {
+		Vector2i(0, 0): Vector3(0.0, 0.0, 0.0),
+		Vector2i(2, 0): Vector3(4.0, 0.0, 0.0),
+		Vector2i(0, 1): Vector3(0.0, 0.0, 2.0),
+		Vector2i(2, 1): Vector3(4.0, 0.0, 2.0),
+	}
+	var slip_view := WorldUnitsViewScript.new()
+	slip_view.name = "StanceSlipView"
+	slip_view.set_process(false)
+	root.add_child(slip_view)
+	slip_view.set_tile_anchors(slip_anchors)
+	slip_view.set_surface_sampler(FlatSlipSampler.new())
+	slip_view.apply_snapshot_units([
+		{"id": 1, "owner_id": 11, "position": [0, 0], "type_id": "settler"},
+		{"id": 2, "owner_id": 22, "position": [0, 1], "type_id": "warrior"},
+	])
+	slip_view.apply_snapshot_units([
+		{"id": 1, "owner_id": 11, "position": [2, 0], "type_id": "settler"},
+		{"id": 2, "owner_id": 22, "position": [2, 1], "type_id": "warrior"},
+	])
+	var slips := _measured_stance_slips(slip_view)
+	for slip_case in [[1, "settler"], [2, "warrior"]]:
+		var s_uid: int = int(slip_case[0])
+		var s_label: String = str(slip_case[1])
+		var st: Dictionary = slips.get(s_uid, {})
+		print(
+			"STANCE_SLIP %s stances=%d disp[min=%.4f max=%.4f] dev[back=%.4f fwd=%.4f] worst_abs=%.4f mean_vel=%.4f wu/s"
+			% [
+				s_label, int(st.get("stances", 0)),
+				float(st.get("min_disp", 0.0)), float(st.get("max_disp", 0.0)),
+				float(st.get("max_back_dev", 0.0)), float(st.get("max_fwd_dev", 0.0)),
+				float(st.get("worst_abs", -1.0)), float(st.get("mean_vel", 0.0)),
+			]
+		)
+		_check(
+			int(st.get("stances", 0)) >= 2,
+			"%s: stance-slip probe finds full planted stance intervals" % s_label
+		)
+		_check(
+			float(st.get("worst_abs", INF)) < 0.06,
+			"%s: planted-sole horizontal slip stays near zero over full Walking cycles (worst %.4f wu)"
+			% [s_label, float(st.get("worst_abs", INF))]
+		)
+		_check(
+			float(st.get("min_disp", -INF)) > -0.035 and float(st.get("max_disp", INF)) < 0.035,
+			"%s: SIGNED per-stance sole displacement is centered (no one-way drift; min %.4f max %.4f)"
+			% [s_label, float(st.get("min_disp", -INF)), float(st.get("max_disp", INF))]
+		)
+	slip_view.queue_free()
+
+	# --- fifth-pass: continuous grounding across crest/valley arrival blend ---
+	for curve_case in [
+		["crest", true],
+		["valley", false],
+	]:
+		var curve_name: String = str(curve_case[0])
+		var is_crest: bool = bool(curve_case[1])
+		var curve_view := WorldUnitsViewScript.new()
+		curve_view.name = "ArrivalCurve_%s" % curve_name
+		curve_view.set_process(false)
+		root.add_child(curve_view)
+		# Anchor Y matches the sampler at tile centers (crest peak / valley floor
+		# at the arrival tile x=2).
+		var y0 := 0.0 if is_crest else 0.40
+		var y1 := 0.40 if is_crest else 0.0
+		var curve_anchors := {
+			Vector2i(0, 0): Vector3(0.0, y0, 0.0),
+			Vector2i(1, 0): Vector3(2.0, y1, 0.0),
+			Vector2i(0, 1): Vector3(0.0, y0, 2.0),
+		}
+		curve_view.set_tile_anchors(curve_anchors)
+		var curve_sampler = CrestSampler.new() if is_crest else ValleySampler.new()
+		curve_view.set_surface_sampler(curve_sampler)
+		curve_view.apply_snapshot_units([
+			{"id": 1, "owner_id": 0, "position": [0, 0], "type_id": "warrior", "current_hp": 100, "has_attacked": false},
+			{"id": 2, "owner_id": 1, "position": [0, 1], "type_id": "settler", "current_hp": 100, "has_attacked": false},
+		])
+		curve_view.apply_snapshot_units([
+			{"id": 1, "owner_id": 0, "position": [1, 0], "type_id": "warrior", "current_hp": 100, "has_attacked": false},
+			{"id": 2, "owner_id": 1, "position": [0, 1], "type_id": "settler", "current_hp": 100, "has_attacked": false},
+		])
+		var c_grounder = curve_view.grounder_for_unit(1)
+		var c_player: AnimationPlayer = curve_view.animation_player_for_unit(1)
+		var c_root: Node3D = curve_view.root_for_unit(1)
+		var c_skel: Skeleton3D = _find_skeleton(c_root)
+		var c_dur: float = 2.0 / SPEED
+		# Final Walking frames before arrival (leave a tiny remainder so the
+		# arrival step itself has negligible settle overshoot).
+		curve_view.advance_locomotion(maxf(c_dur - 0.02, 0.01))
+		_check(curve_view.is_unit_moving(1), "%s: still Walking in the final approach frames" % curve_name)
+		_check(bool(c_grounder.is_locomotion_active()), "%s: locomotion grounding active in final Walking frames" % curve_name)
+		_check(not bool(c_grounder.is_combat_support_grounding()), "%s: no combat-support leak in final Walking frames" % curve_name)
+		_check(is_equal_approx(float(c_grounder.upper_body_pitch()), 0.0), "%s: no attack pitch during ordinary Walking" % curve_name)
+		_probe_support_soles_grounded(curve_view, c_grounder, c_skel, c_player, curve_sampler, "%s final Walking" % curve_name)
+		# Exact arrival.
+		curve_view.advance_locomotion(0.02)
+		_check(not curve_view.is_unit_moving(1), "%s: exact arrival removes the glide" % curve_name)
+		_check(
+			(c_root.get_node("ModelRoot") as Node3D).position == Vector3.ZERO,
+			"%s: exact authoritative arrival offset is zero" % curve_name
+		)
+		_check(bool(c_grounder.is_locomotion_active()), "%s: locomotion grounding continues at exact arrival" % curve_name)
+		_check(not bool(c_grounder.is_combat_support_grounding()), "%s: combat-support stays off at arrival" % curve_name)
+		_probe_support_soles_grounded(curve_view, c_grounder, c_skel, c_player, curve_sampler, "%s exact arrival" % curve_name)
+		# Every phase of the Walking→Idle blend + first fully Idle frames.
+		var blend_sec: float = 0.28
+		var t_acc := 0.0
+		for _i in 5:
+			curve_view.advance_locomotion(0.07)
+			t_acc += 0.07
+			var phase_label := "%s blend t=%.2f" % [curve_name, t_acc]
+			if t_acc < blend_sec - 0.001:
+				_check(bool(c_grounder.is_locomotion_active()), "%s: locomotion grounding through Idle crossfade" % phase_label)
+			_check(not bool(c_grounder.is_combat_support_grounding()), "%s: no combat-support during Idle crossfade" % phase_label)
+			_check(is_equal_approx(float(c_grounder.upper_body_pitch()), 0.0), "%s: no attack pitch during Idle crossfade" % phase_label)
+			_probe_support_soles_grounded(curve_view, c_grounder, c_skel, c_player, curve_sampler, phase_label)
+		_check(not bool(c_grounder.is_locomotion_active()), "%s: stationary planting engages after Idle crossfade" % curve_name)
+		curve_view.queue_free()
+
 	# --- engine invocation: the modifier runs post-animation ------------------
 	var counting := CountingGrounder.new()
 	counting.name = "CountingGrounder"
@@ -1444,6 +1667,169 @@ static func _is_orthonormal(b: Basis) -> bool:
 		and absf(b.y.dot(b.z)) < 0.0001
 		and b.x.cross(b.y).is_equal_approx(b.z)
 	)
+
+
+# Support soles (high contact_weight) must stay near the sampled surface —
+# neither floating nor penetrating — during arrival / Idle crossfade probes.
+func _probe_support_soles_grounded(
+	p_view: Node,
+	p_grounder,
+	p_skel: Skeleton3D,
+	p_player: AnimationPlayer,
+	p_sampler,
+	label: String
+) -> void:
+	if p_skel == null or p_grounder == null:
+		_check(false, "%s: skeleton/grounder available for sole probe" % label)
+		return
+	if p_player != null and p_player.is_playing():
+		p_player.seek(p_player.current_animation_position, true)
+	p_grounder.apply_grounding_now(-1.0)
+	p_skel.force_update_all_bone_transforms()
+	var model: Node3D = (p_view.root_for_unit(1) as Node3D).get_node("ModelRoot")
+	var plane_y := model.global_position.y
+	for bone_name in ["LeftFoot", "RightFoot"]:
+		var bi := p_skel.find_bone(bone_name)
+		var fw: Vector3 = p_skel.to_global(p_skel.get_bone_global_pose(bi).origin)
+		var lift := fw.y - plane_y
+		var samp: Dictionary = p_sampler.sample(fw.x, fw.z, fw.y)
+		if not bool(samp.get("ok", false)):
+			continue
+		# Only assert contact feet (near the model plane); swing feet may be up.
+		if lift > 0.08:
+			continue
+		_check(
+			fw.y >= float(samp["height"]) - 0.05,
+			"%s: %s support sole does not penetrate" % [label, bone_name]
+		)
+		_check(
+			fw.y <= float(samp["height"]) + 0.10,
+			"%s: %s support sole does not float" % [label, bone_name]
+		)
+
+
+# Flat surface for the stance-slip probe (movement along +X; any sole
+# height variation is animation-owned, so stance detection stays clean).
+class FlatSlipSampler:
+	extends RefCounted
+	func sample(_x: float, _z: float, _y: float) -> Dictionary:
+		return {"ok": true, "height": 0.0, "normal": Vector3.UP}
+
+
+# Drives every active glide at 60 Hz — AnimationPlayers advanced in
+# lockstep with the glide clock (tree time in the live game) and the
+# grounder applied per frame — while recording each unit's FINAL
+# post-transform ankle world positions. Returns unit_id -> worst planted
+# stance-interval horizontal drift in world units (-1.0 when no complete
+# stance interval was captured).
+func _measured_stance_slips(p_view) -> Dictionary:
+	var dt := 1.0 / 60.0
+	var samples := {}
+	var uids: Array = []
+	for uid in [1, 2]:
+		if p_view.is_unit_moving(uid):
+			uids.append(uid)
+			samples[uid] = []
+	var t := 0.0
+	while t < 20.0:
+		var moving := false
+		for uid in uids:
+			if p_view.is_unit_moving(uid):
+				moving = true
+		if not moving:
+			break
+		for uid in uids:
+			var pl: AnimationPlayer = p_view.animation_player_for_unit(uid)
+			if pl != null:
+				pl.advance(dt)
+		p_view.advance_locomotion(dt)
+		for uid in uids:
+			var g = p_view.grounder_for_unit(uid)
+			if g != null:
+				g.apply_grounding_now(-1.0)
+		t += dt
+		for uid in uids:
+			if not p_view.is_unit_moving(uid):
+				continue
+			var lf: Vector3 = p_view._bone_world_position(uid, "LeftFoot")
+			var rf: Vector3 = p_view._bone_world_position(uid, "RightFoot")
+			if lf == Vector3.INF or rf == Vector3.INF:
+				continue
+			samples[uid].append([t, lf.x, lf.y, rf.x, rf.y])
+	var out := {}
+	for uid in uids:
+		out[uid] = _stance_slip_stats(samples[uid])
+	return out
+
+
+# Stance = contiguous samples with the ankle near its own minimum height
+# (interior-trimmed; the entry blend and arrival tail are excluded). The
+# eighth-pass check aggregated only absf(x − x0) — a consistent BACKWARD
+# drift below the tolerance passed unnoticed (Niclas saw it live). This
+# keeps the SIGN along the +X travel direction: per planted stance it
+# records signed displacement, duration, and signed average velocity, and
+# aggregates the extreme drift in both directions plus the duration-
+# weighted mean sole velocity (negative = sole slides backward = root too
+# slow for the authored stride sweep; positive = forward skating).
+static func _stance_slip_stats(rows: Array) -> Dictionary:
+	var stats := {
+		"stances": 0,
+		"min_disp": 0.0,
+		"max_disp": 0.0,
+		"worst_abs": -1.0,
+		"mean_vel": 0.0,
+		"max_back_dev": 0.0,
+		"max_fwd_dev": 0.0,
+	}
+	if rows.is_empty():
+		return stats
+	var disp_sum := 0.0
+	var dur_sum := 0.0
+	var t_max := float(rows[rows.size() - 1][0]) - 0.4
+	for foot in [[1, 2], [3, 4]]:
+		var xi := int(foot[0])
+		var yi := int(foot[1])
+		var ymin := INF
+		for r in rows:
+			ymin = minf(ymin, float(r[yi]))
+		var groups: Array = []
+		var group: Array = []
+		for r in rows:
+			var in_stance: bool = (
+				float(r[0]) >= 0.6 and float(r[0]) <= t_max and float(r[yi]) < ymin + 0.02
+			)
+			if in_stance:
+				group.append(r)
+			elif not group.is_empty():
+				groups.append(group)
+				group = []
+		if not group.is_empty():
+			groups.append(group)
+		for grp_v in groups:
+			var grp: Array = grp_v
+			if grp.size() < 12:
+				continue
+			var a := 2
+			var b := grp.size() - 3
+			var x0 := float(grp[a][xi])
+			var t0 := float(grp[a][0])
+			var disp := float(grp[b][xi]) - x0
+			var dur := float(grp[b][0]) - t0
+			if dur <= 0.0:
+				continue
+			stats["stances"] = int(stats["stances"]) + 1
+			stats["min_disp"] = minf(float(stats["min_disp"]), disp)
+			stats["max_disp"] = maxf(float(stats["max_disp"]), disp)
+			disp_sum += disp
+			dur_sum += dur
+			for i in range(a, b + 1):
+				var dev := float(grp[i][xi]) - x0
+				stats["worst_abs"] = maxf(float(stats["worst_abs"]), absf(dev))
+				stats["max_back_dev"] = minf(float(stats["max_back_dev"]), dev)
+				stats["max_fwd_dev"] = maxf(float(stats["max_fwd_dev"]), dev)
+	if dur_sum > 0.0:
+		stats["mean_vel"] = disp_sum / dur_sum
+	return stats
 
 
 func _check(cond: bool, label: String) -> void:

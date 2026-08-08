@@ -70,20 +70,22 @@
 #   never prepend Hit_Reaction_1); (4) retaliation only when the event says
 #   retaliated==true (same impact overlap; never after defender death);
 #   every semantic clip change crossfades via ANIM_BLEND_DEFAULT_SEC;
-#   (5) continuous corpse terrain support WHILE Dead plays — authored fall
+#   (5) living Left_Slash / Hit_Reaction_1 use combat-support grounding
+#   (near-stance support contacts forced; clear authored swing feet free;
+#   ModelRoot stays upright; mutually exclusive with Walking/Idle plants);
+#   a bounded Spine02+Spine01 aim chain rotates the measured club-head
+#   strike endpoint to the defender's head-region contact height at the
+#   impact phase (above → downward strike; below → upward; equal surface
+#   elevation → neutral authored slash; never whole-body tilt);
+#   (6) continuous corpse terrain support WHILE Dead plays — authored fall
 #   until animated body regions would contact/penetrate, then minimum
-#   presentation lift + multi-point pitch/roll into the final fitted pose
-#   (no sink-through then pop; death is the ONE pitch/roll exception);
-#   (6) survivor traversal to the snapshot-authoritative final anchor —
-#   return to the original tile when the defender survives, or forward to
-#   the captured defender tile when the deferred snapshot places the
-#   attacker there (client never invents occupation from defender_killed
-#   alone); survivor travel-facing uses a shortest-arc yaw blend
-#   (TRAVEL_FACING_BLEND_SEC) so a ~180° return does not snap. Living
-#   combat/approach stays upright yaw-only; leg grounders pause around
-#   authored combat clips and resume for survivors. Every clip resolves
-#   through Warrior3DAnimationRemap. combat_presentation_finished fires
-#   once after approach+combat+death+fit+survivor travel.
+#   presentation lift + multi-point pitch/roll (Dead is the ONE full-body
+#   pitch/roll exception; grounder fully paused on corpses);
+#   (7) survivor traversal to the snapshot-authoritative final anchor;
+#   ordinary facing (move, approach, face-opponent, return/occupation,
+#   post-return) uses the centralized FACING_BLEND_SEC shortest-arc
+#   controller. Every clip resolves through Warrior3DAnimationRemap.
+#   combat_presentation_finished fires once after the full sequence.
 #   Malformed events/snapshots/roots/clips refuse and return false for
 #   immediate reconciliation; cancel/supersede clears presentation
 #   offsets. Damage/survival/retaliation/elimination are never computed
@@ -149,11 +151,12 @@ const COMBAT_IMPACT_DELAY_SEC := 0.5
 # One-shot completion timing still uses the remapped clip length from
 # play-start — blending must not delay impact or gate release.
 const ANIM_BLEND_DEFAULT_SEC := 0.28
-# Shortest-arc yaw blend when survivor travel-facing differs materially from
-# the post-combat facing (return ~180° reverse, capture when needed).
-# N7f locomotion snaps facing; combat survivor departure cannot. Duration
-# reuses ANIM_BLEND_DEFAULT_SEC so clip crossfade and turn stay matched.
-const TRAVEL_FACING_BLEND_SEC := ANIM_BLEND_DEFAULT_SEC
+# Centralized shortest-arc yaw blend for ordinary gameplay-driven turns
+# (move start, approach, face-opponent, return/occupation, post-return).
+# Confirmed visual value; lifecycle snaps stay immediate (see _facing_snap).
+const FACING_BLEND_SEC := ANIM_BLEND_DEFAULT_SEC
+# Alias retained for existing combat diagnostics / tests.
+const TRAVEL_FACING_BLEND_SEC := FACING_BLEND_SEC
 # Corpse contact: treat a body region as contacting when within this many
 # world units of the sampled top surface (prevents sub-surface flash).
 const CORPSE_CONTACT_EPS := 0.02
@@ -163,6 +166,40 @@ const CORPSE_PITCH_ENABLE_CLEARANCE := 0.22
 # Footprint half-extents used only as a bone-less fallback fit.
 const CORPSE_FOOTPRINT_HALF_LENGTH := 0.32
 const CORPSE_FOOTPRINT_HALF_WIDTH := 0.12
+# Localized melee elevation aim (radians) — never ModelRoot pitch. Per-bone
+# bound; the correction spans the two authored lower-spine vertebrae
+# (Spine02 + Spine01, half each), so the total world angle is bounded by
+# ATTACK_PITCH_CHAIN_MAX_RAD. Eighth-pass measurement: reaching the strike
+# contact on the reference 0.25-grade slope needs ~0.56 rad total — a single
+# Spine02 DOF at 0.40 was geometrically unable to reach it.
+const ATTACK_PITCH_MAX_RAD := 0.40
+const ATTACK_PITCH_CHAIN_MAX_RAD := 2.0 * ATTACK_PITCH_MAX_RAD
+const ATTACK_PITCH_BLEND_SEC := ANIM_BLEND_DEFAULT_SEC
+# Left_Slash striking endpoint and unchanged Hit_Reaction_1 contact region.
+const ATTACK_STRIKE_BONE := "LeftHand"
+# Canonical defender contact (eighth-pass measurement): on the accepted
+# equal-elevation authored exchange the club head passes the defender's
+# HEAD height (dy +0.029 world at the impact instant; Spine01 was 0.15
+# below the real contact) — the strike is an overhead downswing to the
+# head/upper-chest region, so the Head bone anchors the contact point.
+const ATTACK_TARGET_BONE := "Head"
+# Fallback contact height above the sampled surface when bones are
+# unavailable (flat idle Head height 0.7185 at ModelRoot scale 0.5).
+const ATTACK_AIM_TORSO_HEIGHT := 1.437 * MODEL_ROOT_SCALE
+# Authored warrior strike geometry (eighth pass, rig+clip derived — see
+# docs/UNITS.md): the visible striking endpoint is the club head skinned to
+# LeftHand (hand-local vertex-cluster offset in raw skeleton units). On the
+# audited slash the strike's contact window is the overhead downswing at
+# t ≈ 0.44–0.58 — bracketing the accepted COMBAT_IMPACT_DELAY_SEC — where
+# the endpoint passes the defender's head height at equal elevation. The
+# impact-phase (t = 0.5) endpoint and Spine02 pivot are captured in
+# ModelRoot-local space so the per-swing aim solve is stable (never chases
+# the live mid-swing hand pose, whose short pivot lever made the old
+# correction move the hand only ~0.028 world units at full clamp).
+const ATTACK_STRIKE_TIP_HAND_LOCAL := Vector3(0.384, 20.244, 0.385)
+const ATTACK_IMPACT_PHASE_SEC := COMBAT_IMPACT_DELAY_SEC
+const ATTACK_IMPACT_ENDPOINT_MODEL := Vector3(0.1056, 1.4953, -0.8955)
+const ATTACK_IMPACT_PIVOT_MODEL := Vector3(-0.0260, 1.0966, -0.1320)
 
 # Convention-level authoring correction (NOT a per-unit hack): both shipped
 # rigs are authored facing +Z (the glTF forward convention; audited via the
@@ -171,10 +208,21 @@ const CORPSE_FOOTPRINT_HALF_WIDTH := 0.12
 # model's visual front the locked local -Z (Vector3.FORWARD).
 const MODEL_FORWARD_CORRECTION_YAW := PI
 
-# N7f movement-speed tuning constant (Niclas review value): world units per
-# second at terrain scale S=1. Adjacent tile anchors are ~1.7 world units
-# apart, so one tile move reads as ~1.1 s of walking.
+# N7f base movement-speed tuning (Niclas review value): world units per
+# second at terrain scale S=1 before the presentation translation scale.
 const LOCOMOTION_SPEED_UNITS_PER_SEC := 1.6
+# Presentation-only translation scale, derived from measured stride/root
+# synchronization: with Walking playback fixed at 1.0, the authored stance
+# feet sweep backward under the body at ~0.69–0.73 wu/s (warrior/settler)
+# — root translation must match that or the planted soles slide. The
+# eighth-pass 0.43 (0.688 wu/s) minimized the UNSIGNED slip but both rigs
+# still drifted backward at a signed mean sole velocity of ~−0.024 wu/s
+# (Niclas saw it live); the ninth pass raises the root by exactly that
+# measured deficit: 0.445 × 1.6 = 0.712 wu/s centers the signed planted-
+# sole velocity around zero (settler/warrior means within ±0.002 wu/s)
+# without reintroducing the forward skating of the rejected 0.81 (~0.34 wu
+# per stance). Scales root translation only; Walking playback stays 1.0.
+const LOCOMOTION_TRANSLATION_SPEED_SCALE := 0.445
 # Degenerate-distance guard only (a real tile move is far longer).
 const LOCOMOTION_MIN_DURATION_SEC := 0.05
 
@@ -215,11 +263,17 @@ var _player_by_unit_id: Dictionary = {}
 var _grounder_by_unit_id: Dictionary = {}
 # Injected top-surface sampler (WorldSurfaceSampler-shaped; may stay null).
 var _surface_sampler = null
+# unit id -> remaining seconds to keep locomotion grounding after exact
+# arrival / Idle resume so the Walking→Idle crossfade never briefly shows
+# ungrounded authored soles. Plants engage when the timer elapses.
+var _ground_settle_by_unit_id: Dictionary = {}
 
 # N7g.3 active combat sequence ({} = none). Stage machine — see
 # present_combat / advance_combat. Presentation-only travel lives in
 # _combat["travel"] and NEVER touches _loco_by_unit_id / unit_arrived.
 var _combat: Dictionary = {}
+# Centralized facing blends: unit_id -> {from, to, elapsed, duration}.
+var _facing_by_unit_id: Dictionary = {}
 # Diagnostics for the centralized blend path (last semantic play request).
 var _last_play_unit_id := -1
 var _last_play_semantic := ""
@@ -227,9 +281,19 @@ var _last_play_blend_sec := -1.0
 var _last_play_one_shot := false
 
 
+# Effective presentation translation speed (base × scale). Animation playback
+# speed is independent and stays at 1.0.
+static func locomotion_translation_speed() -> float:
+	return LOCOMOTION_SPEED_UNITS_PER_SEC * LOCOMOTION_TRANSLATION_SPEED_SCALE
+
+
 func _process(delta: float) -> void:
-	advance_locomotion(delta)
-	advance_combat(delta)
+	# Public advance_* helpers also step facing for headless tests; the
+	# engine path advances facing once here to avoid double-speed turns.
+	_step_ground_settle(delta)
+	_step_locomotion(delta)
+	_step_combat(delta)
+	advance_facing(delta)
 
 
 # Injects the presentation-only rendered-top-surface sampler (production:
@@ -344,8 +408,10 @@ func _reconcile() -> void:
 		# Removal cancels any in-flight locomotion cleanly.
 		_target_anchor_by_unit_id.erase(stale_id)
 		_loco_by_unit_id.erase(stale_id)
+		_ground_settle_by_unit_id.erase(stale_id)
 		_player_by_unit_id.erase(stale_id)
 		_grounder_by_unit_id.erase(stale_id)
+		_facing_clear(stale_id)
 
 
 func _create_unit_root(unit_id: int, type_id: String) -> Node3D:
@@ -461,22 +527,63 @@ func grounder_for_unit(unit_id: int):
 	return _grounder_by_unit_id.get(unit_id)
 
 
-# Tells the unit's grounder whether its visual is gliding: stationary units
-# plant their feet in ground space (N7f follow-up); walking releases them.
+# Tells the unit's grounder whether locomotion-mode grounding is active
+# (glide or post-arrival Walking→Idle settle). Stationary planting engages
+# only when this becomes false after the settle window.
 func _set_grounder_locomotion(unit_id: int, active: bool) -> void:
 	var grounder = _grounder_by_unit_id.get(unit_id)
 	if grounder != null:
 		grounder.set_locomotion_active(active)
 
 
+# Clears combat-only grounder state so Walking/Idle never inherit support
+# mode, contact-weight combat selection, or Spine02 attack pitch.
+func _clear_combat_grounding_state(unit_id: int) -> void:
+	_set_combat_support_grounding(unit_id, false)
+	_set_grounder_upper_body_pitch(unit_id, 0.0)
+
+
+# Keep locomotion-mode sole grounding through the Idle crossfade; plant only
+# after ANIM_BLEND_DEFAULT_SEC so authored soles cannot float mid-blend.
+func _begin_arrival_ground_settle(unit_id: int) -> void:
+	_clear_combat_grounding_state(unit_id)
+	_set_grounder_locomotion(unit_id, true)
+	_ground_settle_by_unit_id[unit_id] = ANIM_BLEND_DEFAULT_SEC
+
+
+func _step_ground_settle(delta: float) -> void:
+	if _ground_settle_by_unit_id.is_empty() or delta <= 0.0:
+		return
+	var done: Array = []
+	for id_key in _ground_settle_by_unit_id.keys():
+		var unit_id := int(id_key)
+		var remaining := float(_ground_settle_by_unit_id[unit_id]) - delta
+		if remaining <= 0.0:
+			done.append(unit_id)
+		else:
+			_ground_settle_by_unit_id[unit_id] = remaining
+	for unit_id in done:
+		_ground_settle_by_unit_id.erase(unit_id)
+		# Exact arrival already settled the visual; only plants engage now.
+		_set_grounder_locomotion(unit_id, false)
+
+
 # Advances every active glide by delta seconds (called from _process;
-# headless tests drive it directly for determinism).
+# headless tests drive it directly for determinism). Also advances the
+# centralized facing controller so move-start turns stay in sync.
 func advance_locomotion(delta: float) -> void:
+	_step_ground_settle(delta)
+	_step_locomotion(delta)
+	advance_facing(delta)
+
+
+func _step_locomotion(delta: float) -> void:
 	for id_key in _loco_by_unit_id.keys():
 		var unit_id := int(id_key)
 		var root: Node3D = _root_by_unit_id.get(unit_id) as Node3D
 		if root == null:
 			_loco_by_unit_id.erase(unit_id)
+			_ground_settle_by_unit_id.erase(unit_id)
 			continue
 		var seg: Dictionary = _loco_by_unit_id[unit_id]
 		seg["elapsed"] = float(seg["elapsed"]) + delta
@@ -490,7 +597,8 @@ func advance_locomotion(delta: float) -> void:
 			pos.y = float(sampled["height"])
 		var model_root := _model_root_of(root)
 		model_root.position = pos - root.position
-		_apply_visual_yaw(model_root, seg["dir"] as Vector3)
+		# Facing is owned by the centralized facing controller (not snapped
+		# every locomotion step).
 
 
 func _begin_locomotion(unit_id: int, from_pos: Vector3, to_anchor: Vector3) -> void:
@@ -500,12 +608,13 @@ func _begin_locomotion(unit_id: int, from_pos: Vector3, to_anchor: Vector3) -> v
 	var model_root := _model_root_of(root)
 	var flat := Vector3(to_anchor.x - from_pos.x, 0.0, to_anchor.z - from_pos.z)
 	var dist := flat.length()
+	_ground_settle_by_unit_id.erase(unit_id)
 	if dist < 0.0001:
 		# Degenerate segment: settle at the anchor pose immediately.
 		model_root.position = Vector3.ZERO
 		_loco_by_unit_id.erase(unit_id)
 		_play_semantic_clip(unit_id, SEMANTIC_IDLE_CLIP)
-		_set_grounder_locomotion(unit_id, false)
+		_begin_arrival_ground_settle(unit_id)
 		return
 	var dir := flat / dist
 	_loco_by_unit_id[unit_id] = {
@@ -513,29 +622,40 @@ func _begin_locomotion(unit_id: int, from_pos: Vector3, to_anchor: Vector3) -> v
 		"end": to_anchor,
 		"dir": dir,
 		"elapsed": 0.0,
-		"duration": maxf(dist / LOCOMOTION_SPEED_UNITS_PER_SEC, LOCOMOTION_MIN_DURATION_SEC),
+		"duration": maxf(dist / locomotion_translation_speed(), LOCOMOTION_MIN_DURATION_SEC),
 	}
 	# Visual stays where it was: root moved to the anchor, offset compensates.
 	model_root.position = from_pos - to_anchor
-	_apply_visual_yaw(model_root, dir)
+	_facing_request_dir(unit_id, dir, true)
 	_play_semantic_clip(unit_id, SEMANTIC_WALK_CLIP)
 	# Release the stationary foot plants smoothly: the grounder blends the
-	# planted anchors out while the walking gait takes over.
+	# planted anchors out while the walking gait takes over. Also clears any
+	# leftover combat-support / attack-pitch state.
+	_clear_combat_grounding_state(unit_id)
 	_set_grounder_locomotion(unit_id, true)
 
 
 # Arrival: EXACT final-anchor pose (offset zero), facing retained (yaw
-# toward the movement direction), idle clip resumes; the leg grounder
-# keeps grounding the idle pose from here on.
+# toward the movement direction), idle clip resumes. Locomotion-mode
+# grounding continues through the Walking→Idle crossfade; stationary
+# planting engages only after that blend completes.
 func _arrive(unit_id: int, seg: Dictionary, root: Node3D) -> void:
 	var model_root := _model_root_of(root)
 	model_root.position = Vector3.ZERO
-	_apply_visual_yaw(model_root, seg["dir"] as Vector3)
+	_facing_request_dir(unit_id, seg["dir"] as Vector3, true)
 	_loco_by_unit_id.erase(unit_id)
 	_play_semantic_clip(unit_id, SEMANTIC_IDLE_CLIP)
-	# Replant the feet smoothly: stationary again, so the grounder captures
-	# fresh ground-space anchors and blends the plants back in.
-	_set_grounder_locomotion(unit_id, false)
+	_begin_arrival_ground_settle(unit_id)
+	# Large headless advances can overshoot the arrival instant — consume
+	# that overshoot against the settle window so planting still engages.
+	var overshoot := maxf(float(seg["elapsed"]) - float(seg["duration"]), 0.0)
+	if overshoot > 0.0 and _ground_settle_by_unit_id.has(unit_id):
+		var remaining := float(_ground_settle_by_unit_id[unit_id]) - overshoot
+		if remaining <= 0.0:
+			_ground_settle_by_unit_id.erase(unit_id)
+			_set_grounder_locomotion(unit_id, false)
+		else:
+			_ground_settle_by_unit_id[unit_id] = remaining
 	# N7f.1: the one real-arrival point — pose finalized, entry removed,
 	# Idle resumed. advance_locomotion reaches this branch exactly once per
 	# completed glide (removed units erase their entry without arriving).
@@ -556,6 +676,8 @@ static func locomotion_yaw(move_dir: Vector3) -> Basis:
 	return Basis(Vector3.UP, atan2(-flat.x, -flat.z))
 
 
+# Instant yaw write (lifecycle / internal). Ordinary gameplay turns must
+# go through _facing_request_dir so they blend.
 func _apply_visual_yaw(model_root: Node3D, dir: Vector3) -> void:
 	model_root.basis = locomotion_yaw(dir) * Basis.from_scale(Vector3.ONE * MODEL_ROOT_SCALE)
 
@@ -600,9 +722,14 @@ func combat_impact_delay() -> float:
 	return COMBAT_IMPACT_DELAY_SEC
 
 
-# Locked survivor travel-facing blend duration (tests / diagnostics).
+# Locked ordinary facing-blend duration (tests / diagnostics).
+func facing_blend_sec() -> float:
+	return FACING_BLEND_SEC
+
+
+# Alias for older combat diagnostics.
 func travel_facing_blend_sec() -> float:
-	return TRAVEL_FACING_BLEND_SEC
+	return FACING_BLEND_SEC
 
 
 # True after continuous corpse support has engaged contact during Dead.
@@ -610,17 +737,34 @@ func combat_corpse_contact_active() -> bool:
 	return bool(_combat.get("corpse_contact", false))
 
 
-# Active combat-travel facing blend diagnostics (empty when none).
-func combat_travel_facing_info() -> Dictionary:
-	var travel: Dictionary = _combat.get("travel", {})
-	if travel.is_empty() or not travel.has("yaw_from"):
+# Active facing-blend diagnostics for one unit (empty when none / snapped).
+func facing_blend_info(unit_id: int) -> Dictionary:
+	if not _facing_by_unit_id.has(unit_id):
 		return {}
+	var st: Dictionary = _facing_by_unit_id[unit_id]
 	return {
-		"yaw_from": float(travel["yaw_from"]),
-		"yaw_to": float(travel["yaw_to"]),
-		"yaw_elapsed": float(travel.get("yaw_elapsed", 0.0)),
-		"yaw_duration": float(travel.get("yaw_duration", 0.0)),
+		"yaw_from": float(st["from"]),
+		"yaw_to": float(st["to"]),
+		"yaw_elapsed": float(st["elapsed"]),
+		"yaw_duration": float(st["duration"]),
 	}
+
+
+# Backward-compatible alias used by combat return-travel tests.
+func combat_travel_facing_info() -> Dictionary:
+	if _combat.is_empty():
+		return {}
+	return facing_blend_info(int(_combat.get("attacker_id", -1)))
+
+
+# Locked per-vertebra attack-pitch clamp (radians).
+func attack_pitch_max_rad() -> float:
+	return ATTACK_PITCH_MAX_RAD
+
+
+# Total bounded aim-chain clamp (Spine02 + Spine01, half each).
+func attack_pitch_chain_max_rad() -> float:
+	return ATTACK_PITCH_CHAIN_MAX_RAD
 
 
 # Starts the deterministic combat presentation for one ACCEPTED
@@ -644,6 +788,14 @@ func present_combat(event: Dictionary, deferred_snapshot: Dictionary = {}) -> bo
 # Advances the active combat sequence by delta seconds (called from
 # _process; headless tests drive it directly for determinism).
 func advance_combat(delta: float) -> void:
+	# Combat-only headless drivers never call advance_locomotion; still step
+	# the post-Idle settle so planting engages after survivor restore.
+	_step_ground_settle(delta)
+	_step_combat(delta)
+	advance_facing(delta)
+
+
+func _step_combat(delta: float) -> void:
 	if _combat.is_empty() or delta <= 0.0:
 		return
 	var stage := str(_combat["stage"])
@@ -675,6 +827,8 @@ func cancel_combat_presentation() -> void:
 	var pre_a: Vector3 = _combat["pre_attacker_anchor"]
 	var pre_d: Vector3 = _combat["pre_defender_anchor"]
 	_combat = {}
+	_facing_clear(attacker_id)
+	_facing_clear(defender_id)
 	_snap_combatant_to_anchor(attacker_id, pre_a)
 	_snap_combatant_to_anchor(defender_id, pre_d)
 	_restore_combatant_to_idle(attacker_id)
@@ -817,27 +971,38 @@ func _start_combat_approach() -> void:
 	var attacker_id := int(_combat["attacker_id"])
 	var staging: Vector3 = _combat["melee_staging"]
 	var from_pos := visual_position_for_unit(attacker_id)
+	_ground_settle_by_unit_id.erase(attacker_id)
 	_set_combat_grounder_paused(attacker_id, false)
 	_set_combat_grounder_paused(int(_combat["defender_id"]), false)
+	_set_combat_support_grounding(attacker_id, false)
+	_set_combat_support_grounding(int(_combat["defender_id"]), false)
 	_set_grounder_locomotion(attacker_id, true)
 	_play_semantic_clip(attacker_id, SEMANTIC_WALK_CLIP)
 	_combat["travel"] = _make_combat_travel(attacker_id, from_pos, staging)
+	var travel_dir: Vector3 = _combat["travel"].get("dir", Vector3.ZERO)
+	if travel_dir.length_squared() > 0.000001:
+		_facing_request_dir(attacker_id, travel_dir, true)
 	_combat["stage"] = "approach"
 
 
 func _advance_combat_approach(delta: float) -> void:
 	if not _step_combat_travel(delta):
 		return
-	# Arrived at melee staging: face each other, pause grounders for clips.
+	# Arrived at melee staging: blend face-each-other; enable support-foot
+	# grounding for living one-shots (not full pause — Dead still pauses).
 	var attacker_id := int(_combat["attacker_id"])
 	var defender_id := int(_combat["defender_id"])
 	var face: Vector3 = _combat["face_dir"]
 	_place_visual_at(attacker_id, _combat["melee_staging"] as Vector3)
-	_apply_visual_yaw(_model_root_of(_root_by_unit_id[attacker_id] as Node3D), face)
-	_apply_visual_yaw(_model_root_of(_root_by_unit_id[defender_id] as Node3D), -face)
+	_facing_request_dir(attacker_id, face, true)
+	_facing_request_dir(defender_id, -face, true)
 	_set_grounder_locomotion(attacker_id, false)
-	_set_combat_grounder_paused(attacker_id, true)
-	_set_combat_grounder_paused(defender_id, true)
+	_set_grounder_locomotion(defender_id, false)
+	# Attacker enters Left_Slash under combat-support. Defender stays on
+	# ordinary Idle plants until Hit_Reaction_1 starts — enabling support
+	# early suppressed plants and left the waiting defender hovering.
+	_set_combat_support_grounding(attacker_id, true)
+	_set_combat_support_grounding(defender_id, false)
 	_start_combat_exchange()
 
 
@@ -853,14 +1018,24 @@ func _start_combat_exchange() -> void:
 	_combat["hit_started"] = false
 	_combat["hit_elapsed"] = 0.0
 	_combat["hit_duration"] = 0.0
+	_combat["attack_pitch_unit_id"] = attacker_id
+	# Commit the strike: canonical contact captured once per swing.
+	_combat["aim_target_w"] = _combat_aim_target_world(int(_combat["defender_id"]))
+	_combat["aim_pivot_shift_y"] = _combat_aim_pivot_shift_y(attacker_id)
 
 
 func _advance_combat_exchange(delta: float) -> void:
 	_combat["attack_elapsed"] = float(_combat["attack_elapsed"]) + delta
+	_tick_living_combat_presentation(delta)
 	if not bool(_combat["hit_started"]) and float(_combat["attack_elapsed"]) >= COMBAT_IMPACT_DELAY_SEC:
 		var defender_id := int(_combat["defender_id"])
 		# Fatal: Dead starts at impact (it already contains the hit reaction).
 		# Non-fatal: Hit_Reaction_1 at the same delay. Attack may continue.
+		# The swing's additive aim is NOT cleared here: killing the defender
+		# changes the DEFENDER's reaction, never the incoming strike —
+		# clearing at this tick snapped the club back to the unpitched
+		# (visibly too high) trajectory in the middle of the contact window.
+		# The death stage rides the aim out for the rest of the swing.
 		if bool(_combat["defender_killed"]):
 			_combat["hit_started"] = true
 			_start_combat_death(defender_id)
@@ -869,6 +1044,7 @@ func _advance_combat_exchange(delta: float) -> void:
 		if hit_len <= 0.0:
 			_finish_combat_presentation()
 			return
+		_set_combat_support_grounding(defender_id, true)
 		_combat["hit_started"] = true
 		_combat["hit_elapsed"] = 0.0
 		_combat["hit_duration"] = hit_len
@@ -880,6 +1056,7 @@ func _advance_combat_exchange(delta: float) -> void:
 	_combat["hit_elapsed"] = float(_combat["hit_elapsed"]) + delta
 	if float(_combat["hit_elapsed"]) < float(_combat["hit_duration"]):
 		return
+	_clear_attack_pitch()
 	if bool(_combat["retaliated"]):
 		_start_combat_retaliation()
 	else:
@@ -887,24 +1064,40 @@ func _advance_combat_exchange(delta: float) -> void:
 
 
 func _start_combat_retaliation() -> void:
+	var attacker_id := int(_combat["attacker_id"])
 	var defender_id := int(_combat["defender_id"])
 	var length := _play_semantic_clip_one_shot(defender_id, SEMANTIC_ATTACK_CLIP)
 	if length <= 0.0:
 		_finish_combat_presentation()
 		return
+	_set_combat_support_grounding(defender_id, true)
+	# Original attacker leaves its outgoing Left_Slash / aim state and waits
+	# on ordinary Idle plants until the counterattack hit — same role as the
+	# defender's Idle wait before the initial Hit_Reaction_1.
+	_set_combat_support_grounding(attacker_id, false)
+	_set_grounder_locomotion(attacker_id, false)
+	_set_grounder_upper_body_pitch(attacker_id, 0.0)
+	_play_semantic_clip(attacker_id, SEMANTIC_IDLE_CLIP)
 	_combat["stage"] = "retaliation"
 	_combat["attack_elapsed"] = 0.0
 	_combat["attack_duration"] = length
 	_combat["hit_started"] = false
 	_combat["hit_elapsed"] = 0.0
 	_combat["hit_duration"] = 0.0
+	_combat["attack_pitch_unit_id"] = defender_id
+	# The counter-swing commits to ITS victim's contact (the original
+	# attacker), replacing the initial swing's cached target.
+	_combat["aim_target_w"] = _combat_aim_target_world(attacker_id)
+	_combat["aim_pivot_shift_y"] = _combat_aim_pivot_shift_y(defender_id)
 
 
 func _advance_combat_retaliation(delta: float) -> void:
 	_combat["attack_elapsed"] = float(_combat["attack_elapsed"]) + delta
+	_tick_living_combat_presentation(delta)
 	if not bool(_combat["hit_started"]) and float(_combat["attack_elapsed"]) >= COMBAT_IMPACT_DELAY_SEC:
 		var attacker_id := int(_combat["attacker_id"])
-		# Same fatal/non-fatal impact rule as the initial exchange.
+		# Same fatal/non-fatal impact rule as the initial exchange — the
+		# counter-swing's aim also rides out through the death stage.
 		if bool(_combat["attacker_killed"]):
 			_combat["hit_started"] = true
 			_start_combat_death(attacker_id)
@@ -913,6 +1106,9 @@ func _advance_combat_retaliation(delta: float) -> void:
 		if hit_len <= 0.0:
 			_finish_combat_presentation()
 			return
+		# Victim receives authored Hit_Reaction_1 with no leftover slash pitch.
+		_set_grounder_upper_body_pitch(attacker_id, 0.0)
+		_set_combat_support_grounding(attacker_id, true)
 		_combat["hit_started"] = true
 		_combat["hit_elapsed"] = 0.0
 		_combat["hit_duration"] = hit_len
@@ -923,6 +1119,7 @@ func _advance_combat_retaliation(delta: float) -> void:
 	_combat["hit_elapsed"] = float(_combat["hit_elapsed"]) + delta
 	if float(_combat["hit_elapsed"]) < float(_combat["hit_duration"]):
 		return
+	_clear_attack_pitch()
 	_start_combat_survivor_travel()
 
 
@@ -931,6 +1128,11 @@ func _start_combat_death(unit_id: int) -> void:
 	if length <= 0.0:
 		_finish_combat_presentation()
 		return
+	# Dead: full grounder pause + no facing blends / attack pitch on corpse.
+	_set_combat_support_grounding(unit_id, false)
+	_set_combat_grounder_paused(unit_id, true)
+	_set_grounder_upper_body_pitch(unit_id, 0.0)
+	_facing_clear(unit_id)
 	_combat["stage"] = "death"
 	_combat["death_unit_id"] = unit_id
 	_combat["death_elapsed"] = 0.0
@@ -941,6 +1143,7 @@ func _start_combat_death(unit_id: int) -> void:
 
 
 func _advance_combat_death(delta: float) -> void:
+	_tick_lethal_swing_aim(delta)
 	_combat["death_elapsed"] = float(_combat["death_elapsed"]) + delta
 	var dead_id := int(_combat["death_unit_id"])
 	var elapsed := float(_combat["death_elapsed"])
@@ -975,12 +1178,17 @@ func _start_combat_survivor_travel() -> void:
 		return
 	var to_anchor: Vector3 = dest
 	var from_pos := visual_position_for_unit(attacker_id)
+	_ground_settle_by_unit_id.erase(attacker_id)
+	_clear_attack_pitch()
+	_set_combat_support_grounding(attacker_id, false)
 	_set_combat_grounder_paused(attacker_id, false)
 	_set_grounder_locomotion(attacker_id, true)
-	# Walking crossfade + shortest-arc facing blend start together so the
-	# ~180° return departure is one motion (no idle frame, no yaw snap).
+	# Walking crossfade + centralized facing blend start together.
 	_play_semantic_clip(attacker_id, SEMANTIC_WALK_CLIP)
-	_combat["travel"] = _make_combat_travel(attacker_id, from_pos, to_anchor, true)
+	_combat["travel"] = _make_combat_travel(attacker_id, from_pos, to_anchor)
+	var travel_dir: Vector3 = _combat["travel"].get("dir", Vector3.ZERO)
+	if travel_dir.length_squared() > 0.000001:
+		_facing_request_dir(attacker_id, travel_dir, true)
 	_combat["stage"] = "survivor_travel"
 
 
@@ -990,20 +1198,30 @@ func _advance_combat_survivor_travel(delta: float) -> void:
 	var attacker_id := int(_combat["attacker_id"])
 	var defender_id := int(_combat["defender_id"])
 	var dest: Vector3 = _combat["final_attacker_anchor"]
+	var occupied := bool(_combat["defender_killed"])
 	# Settle the authoritative root on the snapshot-final anchor so the
 	# deferred apply is idempotent (no second glide / teleport).
 	_settle_combatant_at_anchor(attacker_id, dest)
 	_set_grounder_locomotion(attacker_id, false)
-	if not bool(_combat["defender_killed"]) and _root_by_unit_id.get(defender_id) != null:
+	if occupied:
+		# Occupation: keep the travel-arrival facing. Never reuse the
+		# return-path 180° restoration (face_back toward the defender).
+		var travel: Dictionary = _combat.get("travel", {})
+		var travel_dir: Vector3 = travel.get("dir", Vector3.ZERO) as Vector3
+		if travel_dir.length_squared() > 0.000001:
+			_facing_request_dir(attacker_id, travel_dir, false)
+	elif _root_by_unit_id.get(defender_id) != null:
+		# Return home: turn ~180° from return travel to face the defender
+		# again (restore the post-approach / pre-return facing).
 		var face_back := Vector3(
 			(_combat["pre_defender_anchor"] as Vector3).x - dest.x,
 			0.0,
 			(_combat["pre_defender_anchor"] as Vector3).z - dest.z
 		)
 		if face_back.length_squared() > 0.000001:
-			_apply_visual_yaw(_model_root_of(_root_by_unit_id[attacker_id] as Node3D), face_back)
+			_facing_request_dir(attacker_id, face_back, true)
 	_restore_combatant_to_idle(attacker_id)
-	if not bool(_combat["defender_killed"]):
+	if not occupied:
 		_restore_combatant_to_idle(defender_id)
 	_finish_combat_presentation()
 
@@ -1026,40 +1244,23 @@ func _finish_combat_presentation() -> void:
 	combat_presentation_finished.emit(attacker_id, defender_id)
 
 
-func _make_combat_travel(
-	unit_id: int, from_pos: Vector3, to_pos: Vector3, smooth_facing: bool = false
-) -> Dictionary:
+func _make_combat_travel(unit_id: int, from_pos: Vector3, to_pos: Vector3) -> Dictionary:
 	var flat := Vector3(to_pos.x - from_pos.x, 0.0, to_pos.z - from_pos.z)
 	var dist := flat.length()
 	var dir := flat / dist if dist > 0.0001 else Vector3.ZERO
-	var yaw_to := _yaw_angle_for_dir(dir)
-	var yaw_from := yaw_to
-	var yaw_duration := 0.0
-	if smooth_facing and dir.length_squared() > 0.000001:
-		var root: Node3D = _root_by_unit_id.get(unit_id) as Node3D
-		if root != null:
-			yaw_from = _current_visual_yaw_angle(_model_root_of(root))
-			# Material facing change only — skip blend when already aligned.
-			if absf(angle_difference(yaw_from, yaw_to)) > 0.05:
-				yaw_duration = TRAVEL_FACING_BLEND_SEC
-			else:
-				yaw_from = yaw_to
 	return {
 		"unit_id": unit_id,
 		"start": from_pos,
 		"end": to_pos,
 		"dir": dir,
 		"elapsed": 0.0,
-		"duration": maxf(dist / LOCOMOTION_SPEED_UNITS_PER_SEC, LOCOMOTION_MIN_DURATION_SEC) if dist > 0.0001 else 0.0,
-		"yaw_from": yaw_from,
-		"yaw_to": yaw_to,
-		"yaw_elapsed": 0.0,
-		"yaw_duration": yaw_duration,
+		"duration": maxf(dist / locomotion_translation_speed(), LOCOMOTION_MIN_DURATION_SEC) if dist > 0.0001 else 0.0,
 	}
 
 
 # Steps presentation-only combat travel. Returns true when the segment has
-# settled. Never touches _loco_by_unit_id and never emits unit_arrived.
+# settled. Facing is owned by the centralized facing controller. Never
+# touches _loco_by_unit_id and never emits unit_arrived.
 func _step_combat_travel(delta: float) -> bool:
 	var travel: Dictionary = _combat.get("travel", {})
 	if travel.is_empty():
@@ -1069,18 +1270,9 @@ func _step_combat_travel(delta: float) -> bool:
 	if root == null:
 		_combat["travel"] = {}
 		return true
-	var model_root := _model_root_of(root)
-	# Shortest-arc facing blend (survivor travel) advances with translation so
-	# departure is one motion — never an instant 180° snap.
-	travel["yaw_elapsed"] = float(travel.get("yaw_elapsed", 0.0)) + delta
-	var yaw_duration := float(travel.get("yaw_duration", 0.0))
-	var yaw_t := 1.0 if yaw_duration <= 0.0 else clampf(float(travel["yaw_elapsed"]) / yaw_duration, 0.0, 1.0)
-	var yaw := lerp_angle(float(travel.get("yaw_from", 0.0)), float(travel.get("yaw_to", 0.0)), yaw_t)
-	_apply_visual_yaw_angle(model_root, yaw)
 	var duration := float(travel["duration"])
 	if duration <= 0.0:
 		_place_visual_at(unit_id, travel["end"] as Vector3)
-		_apply_visual_yaw_angle(model_root, float(travel.get("yaw_to", yaw)))
 		_combat["travel"] = {}
 		return true
 	travel["elapsed"] = float(travel["elapsed"]) + delta
@@ -1094,7 +1286,6 @@ func _step_combat_travel(delta: float) -> bool:
 	if s < 1.0:
 		return false
 	_place_visual_at(unit_id, travel["end"] as Vector3)
-	_apply_visual_yaw_angle(model_root, float(travel.get("yaw_to", yaw)))
 	_combat["travel"] = {}
 	return true
 
@@ -1119,6 +1310,382 @@ static func _current_visual_yaw_angle(model_root: Node3D) -> float:
 
 func _apply_visual_yaw_angle(model_root: Node3D, yaw: float) -> void:
 	model_root.basis = Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3.ONE * MODEL_ROOT_SCALE)
+
+
+# --- centralized facing controller (ordinary gameplay turns) ---------------
+
+
+# Shortest-arc yaw request. smooth=false snaps (lifecycle / already aligned).
+func _facing_request_dir(unit_id: int, dir: Vector3, smooth: bool = true) -> void:
+	if _facing_blocked(unit_id):
+		return
+	var flat := Vector3(dir.x, 0.0, dir.z)
+	if flat.length_squared() < 0.000001:
+		return
+	var root: Node3D = _root_by_unit_id.get(unit_id) as Node3D
+	if root == null:
+		return
+	var model_root := _model_root_of(root)
+	var yaw_to := _yaw_angle_for_dir(flat)
+	var yaw_from := _current_visual_yaw_angle(model_root)
+	if not smooth or absf(angle_difference(yaw_from, yaw_to)) <= 0.05:
+		_facing_snap_yaw(unit_id, yaw_to)
+		return
+	var existing: Dictionary = _facing_by_unit_id.get(unit_id, {})
+	if not existing.is_empty() and absf(angle_difference(float(existing.get("to", yaw_to)), yaw_to)) < 0.02:
+		# Same target — keep progress (never restart a converging blend).
+		existing["to"] = yaw_to
+		_facing_by_unit_id[unit_id] = existing
+		return
+	_facing_by_unit_id[unit_id] = {
+		"from": yaw_from,
+		"to": yaw_to,
+		"elapsed": 0.0,
+		"duration": FACING_BLEND_SEC,
+	}
+
+
+func _facing_snap_yaw(unit_id: int, yaw: float) -> void:
+	_facing_by_unit_id.erase(unit_id)
+	if _facing_blocked(unit_id):
+		return
+	var root: Node3D = _root_by_unit_id.get(unit_id) as Node3D
+	if root == null:
+		return
+	_apply_visual_yaw_angle(_model_root_of(root), yaw)
+
+
+func _facing_clear(unit_id: int) -> void:
+	_facing_by_unit_id.erase(unit_id)
+
+
+# Frozen / pitched corpses must not be rotated by ordinary facing blends.
+func _facing_blocked(unit_id: int) -> bool:
+	if not _combat.is_empty() and int(_combat.get("death_unit_id", -1)) == unit_id:
+		return true
+	var root: Node3D = _root_by_unit_id.get(unit_id) as Node3D
+	if root == null:
+		return true
+	var up := _model_root_of(root).basis.y.normalized()
+	return up.dot(Vector3.UP) < 0.98
+
+
+func advance_facing(delta: float) -> void:
+	if delta <= 0.0 or _facing_by_unit_id.is_empty():
+		return
+	var done: Array = []
+	for id_key in _facing_by_unit_id.keys():
+		var unit_id := int(id_key)
+		if _facing_blocked(unit_id):
+			done.append(unit_id)
+			continue
+		var root: Node3D = _root_by_unit_id.get(unit_id) as Node3D
+		if root == null:
+			done.append(unit_id)
+			continue
+		var st: Dictionary = _facing_by_unit_id[unit_id]
+		st["elapsed"] = float(st["elapsed"]) + delta
+		var duration := float(st["duration"])
+		var t := 1.0 if duration <= 0.0 else clampf(float(st["elapsed"]) / duration, 0.0, 1.0)
+		var yaw := lerp_angle(float(st["from"]), float(st["to"]), t)
+		_apply_visual_yaw_angle(_model_root_of(root), yaw)
+		if t >= 1.0:
+			done.append(unit_id)
+		else:
+			_facing_by_unit_id[unit_id] = st
+	for unit_id in done:
+		_facing_by_unit_id.erase(unit_id)
+
+
+# --- living combat one-shot support (grounding + localized attack pitch) ---
+
+
+func _set_combat_support_grounding(unit_id: int, active: bool) -> void:
+	var grounder = _grounder_by_unit_id.get(unit_id)
+	if grounder != null:
+		grounder.set_combat_support_grounding(active)
+
+
+func _set_grounder_upper_body_pitch(
+	unit_id: int, pitch: float, right_w: Vector3 = Vector3.ZERO
+) -> void:
+	var grounder = _grounder_by_unit_id.get(unit_id)
+	if grounder != null:
+		grounder.set_upper_body_pitch(pitch, right_w)
+
+
+func _clear_attack_pitch() -> void:
+	if _combat.is_empty():
+		return
+	var uid := int(_combat.get("attack_pitch_unit_id", -1))
+	if uid >= 0:
+		_set_grounder_upper_body_pitch(uid, 0.0)
+	_combat.erase("attack_pitch_unit_id")
+	_combat.erase("attack_pitch_right_w")
+
+
+# Sync one-shot poses to combat elapsed time, ground support feet, then aim
+# the swinging unit's striking hand at the defender's fixed Spine01 contact.
+func _tick_living_combat_presentation(_delta: float) -> void:
+	var attacker_id := int(_combat["attacker_id"])
+	var defender_id := int(_combat["defender_id"])
+	var pitch_uid := int(_combat.get("attack_pitch_unit_id", -1))
+	var death_uid := int(_combat.get("death_unit_id", -1))
+	var stage := str(_combat.get("stage", ""))
+	# Role-owned clocks: attack_elapsed drives the current Left_Slash only.
+	# Seeking the original attacker to attack_elapsed during retaliation was
+	# scrubbing its Hit_Reaction_1 (and leftover slash) onto the counter
+	# swing timeline — the counterattack-only hit corruption.
+	var swing_id := defender_id if stage == "retaliation" else attacker_id
+	var hit_id := attacker_id if stage == "retaliation" else defender_id
+	if swing_id != death_uid:
+		_seek_combat_clip(swing_id, float(_combat.get("attack_elapsed", 0.0)))
+	if (
+		hit_id != death_uid
+		and bool(_combat.get("hit_started", false))
+		and not (stage != "retaliation" and bool(_combat.get("defender_killed", false)))
+		and not (stage == "retaliation" and bool(_combat.get("attacker_killed", false)))
+	):
+		_seek_combat_clip(hit_id, float(_combat.get("hit_elapsed", 0.0)))
+	# Clear pitch before measuring the geometric hand→target angle so the
+	# correction is computed from the authored slash pose, not a prior lean.
+	if pitch_uid >= 0 and pitch_uid != death_uid:
+		_set_grounder_upper_body_pitch(pitch_uid, 0.0)
+	for uid in [attacker_id, defender_id]:
+		if uid == death_uid:
+			continue
+		var grounder = _grounder_by_unit_id.get(uid)
+		if grounder == null:
+			continue
+		# Idle-waiting defender uses ordinary plants; combat-support units
+		# get an explicit support pass (engine modifier also runs on tick).
+		if grounder.is_combat_support_grounding() or not grounder.is_locomotion_active():
+			grounder.apply_grounding_now(-1.0)
+	if pitch_uid < 0 or pitch_uid == death_uid:
+		return
+	var other := defender_id if pitch_uid == attacker_id else attacker_id
+	var aim: Dictionary = _combat_aim_pitch(pitch_uid, other)
+	var target: float = float(aim.get("pitch", 0.0))
+	var right_w: Vector3 = aim.get("right_w", Vector3.ZERO) as Vector3
+	var elapsed := float(_combat["attack_elapsed"])
+	var duration := float(_combat["attack_duration"])
+	var w_in := clampf(elapsed / ATTACK_PITCH_BLEND_SEC, 0.0, 1.0)
+	var w_out := clampf((duration - elapsed) / ATTACK_PITCH_BLEND_SEC, 0.0, 1.0)
+	_combat["attack_pitch_right_w"] = right_w
+	_set_grounder_upper_body_pitch(pitch_uid, target * minf(w_in, w_out), right_w)
+	var grounder_p = _grounder_by_unit_id.get(pitch_uid)
+	if grounder_p != null and grounder_p.is_combat_support_grounding():
+		grounder_p.apply_grounding_now(-1.0)
+
+
+# The killing swing continues while its victim's Dead plays. Keep the
+# committed per-swing aim (cached target — never resampled from the
+# falling body) through the remainder of the swing, exactly like the
+# matched non-fatal strike, then clear it once the one-shot completes.
+func _tick_lethal_swing_aim(delta: float) -> void:
+	var pitch_uid := int(_combat.get("attack_pitch_unit_id", -1))
+	var death_uid := int(_combat.get("death_unit_id", -1))
+	if pitch_uid < 0 or pitch_uid == death_uid:
+		return
+	_combat["attack_elapsed"] = float(_combat["attack_elapsed"]) + delta
+	var elapsed := float(_combat["attack_elapsed"])
+	var duration := float(_combat["attack_duration"])
+	if elapsed >= duration:
+		_clear_attack_pitch()
+		return
+	_seek_combat_clip(pitch_uid, elapsed)
+	_set_grounder_upper_body_pitch(pitch_uid, 0.0)
+	var attacker_id := int(_combat["attacker_id"])
+	var defender_id := int(_combat["defender_id"])
+	var other := defender_id if pitch_uid == attacker_id else attacker_id
+	var aim: Dictionary = _combat_aim_pitch(pitch_uid, other)
+	var right_w: Vector3 = aim.get("right_w", Vector3.ZERO) as Vector3
+	var w_in := clampf(elapsed / ATTACK_PITCH_BLEND_SEC, 0.0, 1.0)
+	var w_out := clampf((duration - elapsed) / ATTACK_PITCH_BLEND_SEC, 0.0, 1.0)
+	_combat["attack_pitch_right_w"] = right_w
+	_set_grounder_upper_body_pitch(
+		pitch_uid, float(aim.get("pitch", 0.0)) * minf(w_in, w_out), right_w
+	)
+	var grounder_p = _grounder_by_unit_id.get(pitch_uid)
+	if grounder_p != null and grounder_p.is_combat_support_grounding():
+		grounder_p.apply_grounding_now(-1.0)
+
+
+func _seek_combat_clip(unit_id: int, elapsed: float) -> void:
+	var player: AnimationPlayer = _player_by_unit_id.get(unit_id) as AnimationPlayer
+	if player == null or not player.is_playing():
+		return
+	var anim := player.current_animation
+	if anim == "" or not player.has_animation(anim):
+		return
+	var length := maxf(float(player.get_animation(anim).length), 0.0)
+	player.seek(clampf(elapsed, 0.0, length), true)
+
+
+# Total world angle + axis that rotate the authored impact-phase strike
+# endpoint (club head) to the cached defender contact HEIGHT about a
+# horizontal axis. Solved from per-swing-stable quantities only — the
+# ModelRoot transform, the model-local authored impact endpoint/pivot, and
+# the contact point cached at swing start — never from the live mid-swing
+# hand pose (chasing the swinging hand made both magnitude and trial sign
+# chatter frame to frame). Hit_Reaction_1 is never retargeted.
+func _combat_aim_pitch(attacker_id: int, defender_id: int) -> Dictionary:
+	_refresh_unit_transforms(attacker_id)
+	var root: Node3D = _root_by_unit_id.get(attacker_id) as Node3D
+	if root == null:
+		return {"pitch": 0.0, "right_w": Vector3.RIGHT}
+	# Equal supported elevation: keep the authored neutral Left_Slash (the
+	# measured baseline — the neutral endpoint passes the contact height).
+	var origin := visual_position_for_unit(attacker_id)
+	var def_pos := visual_position_for_unit(defender_id)
+	if absf(_combat_aim_contact_y(origin) - _combat_aim_contact_y(def_pos)) < 0.06:
+		return {"pitch": 0.0, "right_w": Vector3.RIGHT}
+	var target: Vector3 = _combat.get("aim_target_w", Vector3.INF) as Vector3
+	if target == Vector3.INF:
+		target = _combat_aim_target_world(defender_id)
+	if target == Vector3.INF:
+		return {"pitch": 0.0, "right_w": Vector3.RIGHT}
+	var xf: Transform3D = _model_root_of(root).global_transform
+	var endpoint: Vector3 = xf * ATTACK_IMPACT_ENDPOINT_MODEL
+	var pivot: Vector3 = xf * ATTACK_IMPACT_PIVOT_MODEL
+	# Per-swing grounding calibration: on slopes the pelvis solve lowers the
+	# whole upper body, shifting the real chain relative to the flat-derived
+	# model constants (measured ~0.1 world on the reference slope).
+	var shift_y := float(_combat.get("aim_pivot_shift_y", 0.0))
+	endpoint.y += shift_y
+	pivot.y += shift_y
+	var los_xz := Vector3(target.x - pivot.x, 0.0, target.z - pivot.z)
+	if los_xz.length_squared() < 0.000001:
+		return {"pitch": 0.0, "right_w": Vector3.RIGHT}
+	var fwd := los_xz.normalized()
+	# Axis convention: with axis = fwd × UP, rotating by +θ RAISES the
+	# endpoint's elevation in the fwd/up plane (d/dθ = axis × v; on the
+	# forward direction (axis × fwd)·UP = +1), so θ = e_target − e_endpoint
+	# needs no trial sign.
+	var right_w := fwd.cross(Vector3.UP).normalized()
+	var v: Vector3 = endpoint - pivot
+	var v_p: Vector3 = v - right_w * v.dot(right_w)
+	var r := v_p.length()
+	if r < 0.0001:
+		return {"pitch": 0.0, "right_w": right_w}
+	var e0 := atan2(v_p.dot(Vector3.UP), v_p.dot(fwd))
+	# Solve the endpoint HEIGHT at the impact phase: pivot_y + r·sin(e) must
+	# equal the contact height. Contacts beyond the arc's vertical reach
+	# saturate at the extreme elevation before the chain clamp applies.
+	var sin_new := clampf((target.y - pivot.y) / r, -1.0, 1.0)
+	var theta := clampf(asin(sin_new) - e0, -ATTACK_PITCH_CHAIN_MAX_RAD, ATTACK_PITCH_CHAIN_MAX_RAD)
+	if absf(theta) < 0.000001:
+		return {"pitch": 0.0, "right_w": right_w}
+	return {"pitch": theta, "right_w": right_w}
+
+
+func _combat_aim_pitch_rad(attacker_id: int, defender_id: int) -> float:
+	return float(_combat_aim_pitch(attacker_id, defender_id).get("pitch", 0.0))
+
+
+# Vertical delta between the swinging unit's LIVE Spine02 (final grounded
+# pose) and the flat-derived model-constant pivot, captured once per swing.
+func _combat_aim_pivot_shift_y(unit_id: int) -> float:
+	var root: Node3D = _root_by_unit_id.get(unit_id) as Node3D
+	if root == null:
+		return 0.0
+	var live := _bone_world_position(unit_id, "Spine02")
+	if live == Vector3.INF:
+		return 0.0
+	var modeled: Vector3 = _model_root_of(root).global_transform * ATTACK_IMPACT_PIVOT_MODEL
+	return live.y - modeled.y
+
+
+# Canonical defender contact: the authored Head-region world position when
+# the swing starts (cached per swing — a committed strike must not chase a
+# falling/reacting body). Fallback: sampled surface + contact height.
+func _combat_aim_target_world(defender_id: int) -> Vector3:
+	var bone := _bone_world_position(defender_id, ATTACK_TARGET_BONE)
+	if bone != Vector3.INF:
+		return bone
+	var root: Node3D = _root_by_unit_id.get(defender_id) as Node3D
+	if root == null:
+		return Vector3.INF
+	var pos := visual_position_for_unit(defender_id)
+	return Vector3(pos.x, _combat_aim_contact_y(pos), pos.z)
+
+
+func _combat_aim_contact_y(visual_pos: Vector3) -> float:
+	var sample := _sample_surface(visual_pos)
+	var surface_y := float(sample["height"]) if bool(sample["ok"]) else visual_pos.y
+	return surface_y + ATTACK_AIM_TORSO_HEIGHT
+
+
+# Final post-transform world position of the visible striking endpoint:
+# the club head rigidly skinned to LeftHand (hand-local cluster offset),
+# pushed through the CURRENT forward-kinematic hand pose — including any
+# applied upper-body aim chain rotation.
+func strike_endpoint_world(unit_id: int) -> Vector3:
+	var root: Node3D = _root_by_unit_id.get(unit_id) as Node3D
+	if root == null:
+		return Vector3.INF
+	_refresh_unit_transforms(unit_id)
+	var skel := _find_skeleton(root)
+	if skel == null:
+		return Vector3.INF
+	var hand_i := skel.find_bone(ATTACK_STRIKE_BONE)
+	if hand_i < 0:
+		return Vector3.INF
+	skel.force_update_all_bone_transforms()
+	return skel.to_global(skel.get_bone_global_pose(hand_i) * ATTACK_STRIKE_TIP_HAND_LOCAL)
+
+
+# Fixed anatomical contact on the defender (Head region — the measured
+# body location the accepted neutral slash passes). Never moved to meet
+# the strike — Hit_Reaction_1 stays authored.
+func defender_aim_target_world(unit_id: int) -> Vector3:
+	return _bone_world_position(unit_id, ATTACK_TARGET_BONE)
+
+
+# Vertical aiming error of the strike endpoint vs the defender target.
+func strike_aim_vertical_error(attacker_id: int, defender_id: int) -> float:
+	var hand := strike_endpoint_world(attacker_id)
+	var target := defender_aim_target_world(defender_id)
+	if hand == Vector3.INF or target == Vector3.INF:
+		return INF
+	return hand.y - target.y
+
+
+# Final post-transform sole-to-surface gap (ankle proxy) for one foot bone.
+func sole_surface_gap(unit_id: int, foot_bone: String) -> float:
+	var foot := _bone_world_position(unit_id, foot_bone)
+	if foot == Vector3.INF:
+		return INF
+	var sample := _sample_surface(foot)
+	if not bool(sample.get("ok", false)):
+		return INF
+	return foot.y - float(sample["height"])
+
+
+func _refresh_unit_transforms(unit_id: int) -> void:
+	var root: Node3D = _root_by_unit_id.get(unit_id) as Node3D
+	if root == null:
+		return
+	root.force_update_transform()
+	var model := _model_root_of(root)
+	model.force_update_transform()
+	for n in root.find_children("*", "Node3D", true, false):
+		(n as Node3D).force_update_transform()
+
+
+func _bone_world_position(unit_id: int, bone_name: String) -> Vector3:
+	var root: Node3D = _root_by_unit_id.get(unit_id) as Node3D
+	if root == null:
+		return Vector3.INF
+	_refresh_unit_transforms(unit_id)
+	var skel := _find_skeleton(root)
+	if skel == null:
+		return Vector3.INF
+	var bone_i := skel.find_bone(bone_name)
+	if bone_i < 0:
+		return Vector3.INF
+	skel.force_update_all_bone_transforms()
+	return skel.to_global(skel.get_bone_global_pose(bone_i).origin)
 
 
 # Places the visual at a world position WITHOUT moving the authoritative
@@ -1173,8 +1740,10 @@ func _restore_combatant_to_idle(unit_id: int) -> void:
 	if _root_by_unit_id.get(unit_id) == null:
 		return
 	_set_combat_grounder_paused(unit_id, false)
-	_set_grounder_locomotion(unit_id, false)
 	_play_semantic_clip(unit_id, SEMANTIC_IDLE_CLIP)
+	# Deterministic return to ordinary Idle grounding: clear combat-only
+	# state and keep locomotion grounding through the Idle crossfade.
+	_begin_arrival_ground_settle(unit_id)
 
 
 func _sync_death_animation_pose(unit_id: int, t: float) -> void:

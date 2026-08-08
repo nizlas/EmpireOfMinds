@@ -26,6 +26,14 @@ const ANCHORS := {
 	Vector2i(0, 1): Vector3(0.0, 0.0, 2.0),
 }
 
+# Anchors whose Y matches SlopeSampler height = 0.25 * x (production N4 style).
+const SLOPE_ANCHORS := {
+	Vector2i(0, 0): Vector3(0.0, 0.0, 0.0),
+	Vector2i(1, 0): Vector3(2.0, 0.5, 0.0),
+	Vector2i(2, 0): Vector3(4.0, 1.0, 0.0),
+	Vector2i(0, 1): Vector3(0.0, 0.0, 2.0),
+}
+
 const WARRIOR_GLB_ATTACK := "Dead"  # semantic Left_Slash
 const WARRIOR_GLB_HIT := "Running"  # semantic Hit_Reaction_1
 const WARRIOR_GLB_DEAD := "Left_Slash"  # semantic Dead
@@ -222,12 +230,28 @@ func _run() -> void:
 		is_equal_approx(view.combat_impact_delay(), 0.5),
 		"impact delay stays 0.5s — blending must not retune onset"
 	)
-	# Partial approach: still traveling, not at staging.
-	view.advance_combat(0.2)
+	# Partial approach: still traveling, not at staging — uses the same
+	# centralized stride-derived presentation translation speed as ordinary
+	# movement (0.445, ninth-pass signed-drift centering).
+	_check(
+		is_equal_approx(WorldUnitsViewScript.locomotion_translation_speed(), 1.6 * 0.445),
+		"combat travel uses the centralized 0.445 translation tuning"
+	)
+	var approach_dt := 0.5
+	view.advance_combat(approach_dt)
+	var approach_moved := _visual(view, 1).distance_to(pre_a)
+	_check(
+		absf(approach_moved - WorldUnitsViewScript.locomotion_translation_speed() * approach_dt) < 0.05,
+		"melee approach translation over a fixed interval matches the 0.445 scale"
+	)
 	_check(view.combat_stage() == "approach", "partial approach stays in the approach stage")
 	_check(_visual(view, 1).distance_to(pre_a) > 0.01, "approach leaves the pre-combat anchor")
 	_check(_visual(view, 1).distance_to(staging) > 0.01, "partial approach has not reached staging yet")
 	_check(_arrivals.is_empty(), "partial approach still emits no arrival")
+	_check(
+		is_equal_approx(view.animation_player_for_unit(1).speed_scale, 1.0),
+		"approach Walking animation speed is unchanged by the translation scale"
+	)
 	# Finish approach.
 	view.advance_combat(60.0)
 	_check(view.combat_stage() == "exchange", "approach ends and the exchange begins")
@@ -239,8 +263,17 @@ func _run() -> void:
 		"combatants face each other after approach (yaw-only)"
 	)
 	_check(
-		bool(g1.is_grounding_paused()) and bool(g2.is_grounding_paused()),
-		"both grounders are paused for authored combat clips"
+		bool(g1.is_combat_support_grounding()) and not bool(g2.is_combat_support_grounding()),
+		"attacker combat-support during Left_Slash; defender keeps Idle plants pre-hit"
+	)
+	_check(
+		not bool(g1.is_grounding_paused()) and not bool(g2.is_grounding_paused()),
+		"living combatants are not fully paused during Left_Slash / Hit"
+	)
+	var root_basis_att: Basis = (view.root_for_unit(1) as Node3D).get_node("ModelRoot").basis.orthonormalized()
+	_check(
+		root_basis_att.y.dot(Vector3.UP) > 0.99,
+		"living attacker ModelRoot stays upright (no terrain pitch/roll)"
 	)
 	_check(_current_clip(view, 1) == WARRIOR_GLB_ATTACK, "exchange starts the attacker's Left_Slash")
 	_check(
@@ -263,6 +296,10 @@ func _run() -> void:
 	view.advance_combat(view.combat_impact_delay())
 	_check(_current_clip(view, 2) == WARRIOR_GLB_HIT, "non-fatal hit reaction begins at the impact delay")
 	_check(
+		bool(view.grounder_for_unit(2).is_combat_support_grounding()),
+		"defender combat-support engages with Hit_Reaction_1"
+	)
+	_check(
 		view.last_animation_play_info()["semantic"] == "Hit_Reaction_1"
 			and is_equal_approx(float(view.last_animation_play_info()["blend_sec"]), 0.28),
 		"impact Hit_Reaction_1 requests the centralized blend"
@@ -273,7 +310,61 @@ func _run() -> void:
 			or view.combat_stage() == "retaliation",
 		"attack completion is not required before the hit reaction begins"
 	)
-	# Finish exchange/retaliation into return travel; prove smooth facing.
+	# Initial defender hit: capture authored clip identity + early playback.
+	_check(_current_clip(view, 2) == WARRIOR_GLB_HIT, "initial non-fatal hit plays remapped Hit_Reaction_1")
+	var def_hit_info: Dictionary = view.last_animation_play_info()
+	var def_hit_player: AnimationPlayer = view.animation_player_for_unit(2)
+	view.advance_combat(0.15)
+	var def_hit_pos := float(def_hit_player.current_animation_position)
+	_check(
+		_current_clip(view, 2) == WARRIOR_GLB_HIT and def_hit_pos > 0.05 and def_hit_pos < 0.55,
+		"initial Hit_Reaction_1 advances on its own hit clock (pos %.3f)" % def_hit_pos
+	)
+	var def_gap_l := float(view.sole_surface_gap(2, "LeftFoot"))
+	var def_gap_r := float(view.sole_surface_gap(2, "RightFoot"))
+	_check(minf(def_gap_l, def_gap_r) < 0.08, "initial hit recipient support sole stays grounded")
+	# Finish defender hit into retaliation; original attacker must leave slash.
+	view.advance_combat(_clip_length(view, 2, WARRIOR_GLB_HIT) + 0.05)
+	_check(view.combat_stage() == "retaliation", "surviving defender enters counterattack")
+	_check(_current_clip(view, 2) == WARRIOR_GLB_ATTACK, "counterattack plays defender Left_Slash")
+	_check(_current_clip(view, 1) == WARRIOR_GLB_IDLE, "counterattack victim waits on Idle (not leftover slash)")
+	_check(
+		is_equal_approx(float(view.grounder_for_unit(1).upper_body_pitch()), 0.0)
+			and not bool(view.grounder_for_unit(1).is_combat_support_grounding()),
+		"counterattack victim clears attacker-only pitch/support while waiting"
+	)
+	view.advance_combat(view.combat_impact_delay())
+	_check(_current_clip(view, 1) == WARRIOR_GLB_HIT, "counterattack victim plays the same remapped Hit_Reaction_1")
+	_check(
+		view.last_animation_play_info()["semantic"] == "Hit_Reaction_1"
+			and bool(view.last_animation_play_info()["one_shot"])
+			and is_equal_approx(float(view.last_animation_play_info()["blend_sec"]), 0.28),
+		"counterattack Hit_Reaction_1 uses the same one-shot blend contract"
+	)
+	_check(
+		is_equal_approx(float(view.grounder_for_unit(1).upper_body_pitch()), 0.0),
+		"counterattack victim has no Spine02 attack pitch during Hit_Reaction_1"
+	)
+	var att_hit_player: AnimationPlayer = view.animation_player_for_unit(1)
+	_check(
+		is_equal_approx(float(att_hit_player.current_animation_position), 0.0)
+			or float(att_hit_player.current_animation_position) < 0.08,
+		"counterattack Hit_Reaction_1 starts near frame 0"
+	)
+	view.advance_combat(0.15)
+	var att_hit_pos := float(att_hit_player.current_animation_position)
+	_check(
+		_current_clip(view, 1) == WARRIOR_GLB_HIT and absf(att_hit_pos - def_hit_pos) < 0.12,
+		"counterattack Hit_Reaction_1 tracks hit_elapsed like the initial hit (%.3f vs %.3f)"
+		% [att_hit_pos, def_hit_pos]
+	)
+	for _si in 8:
+		var gap_l := float(view.sole_surface_gap(1, "LeftFoot"))
+		var gap_r := float(view.sole_surface_gap(1, "RightFoot"))
+		_check(minf(gap_l, gap_r) > -0.05, "counterattack victim support sole does not penetrate")
+		_check(minf(gap_l, gap_r) < 0.10, "counterattack victim support sole does not hover")
+		view.advance_combat(0.05)
+	# Finish retaliation into return travel; prove smooth facing.
 	while view.combat_active() and view.combat_stage() != "survivor_travel":
 		view.advance_combat(0.05)
 	_check(view.combat_stage() == "survivor_travel", "survivor return enters travel stage")
@@ -284,10 +375,10 @@ func _run() -> void:
 		"one-shot combat → Walking return requests the centralized blend"
 	)
 	_check(
-		is_equal_approx(view.travel_facing_blend_sec(), 0.28),
-		"survivor travel-facing blend reuses ANIM_BLEND_DEFAULT_SEC (0.28)"
+		is_equal_approx(view.facing_blend_sec(), 0.28),
+		"centralized facing blend reuses ANIM_BLEND_DEFAULT_SEC (0.28)"
 	)
-	var facing_info: Dictionary = view.combat_travel_facing_info()
+	var facing_info: Dictionary = view.facing_blend_info(1)
 	_check(not facing_info.is_empty(), "survivor travel exposes facing-blend diagnostics")
 	_check(
 		is_equal_approx(float(facing_info["yaw_duration"]), 0.28),
@@ -383,6 +474,16 @@ func _run() -> void:
 	)
 	_check(_current_clip(view, 1) == WARRIOR_GLB_IDLE, "the attacker arrives at the captured tile and idles")
 	_check(_arrivals.is_empty(), "occupation travel emits no gameplay arrival")
+	# Occupation must keep travel-arrival facing — no return-path 180° turn.
+	_check(
+		_rendered_forward(view, 1).dot(Vector3(1, 0, 0)) > 0.99,
+		"after occupation the attacker keeps the capture-travel facing (no 180° turn)"
+	)
+	view.advance_facing(1.0)
+	_check(
+		_rendered_forward(view, 1).dot(Vector3(1, 0, 0)) > 0.99,
+		"occupation facing stays on the travel heading after further facing ticks"
+	)
 	view.apply_snapshot_units(_snap_capture()["units"])
 	_check(view.root_for_unit(2) == null, "snapshot reconciliation removes the eliminated unit")
 	_check(view.unit_count() == 1, "exactly the survivor remains")
@@ -490,6 +591,205 @@ func _run() -> void:
 	)
 	view.set_surface_sampler(FlatSampler.new())
 
+	# --- eighth-pass: REAL strike-endpoint trajectory aim on slopes/flat -------
+	# The rejected seventh-pass metric (|LeftHand.y − Spine01.y| on a single
+	# seeked frame) measured blend-frozen poses at a non-impact frame. These
+	# cases run the whole live-advanced exchange and verify the final FK club
+	# endpoint against the committed head-region contact point. The ACCEPTED
+	# equal-elevation authored exchange runs FIRST and defines the neutral
+	# contact baseline (its small live offset below the Head bone origin is
+	# the Walking→slash crossfade residue of the accepted look); the elevated
+	# cases must then reach the SAME contact height relative to that baseline.
+	_finished_events.clear()
+	view.set_tile_anchors(ANCHORS)
+	view.set_surface_sampler(FlatSampler.new())
+	# The corpse case above retained unit 2 on its Dead pose. Server snapshots
+	# never resurrect an eliminated id, so remove it first (reconciliation)
+	# and respawn it fresh — otherwise the "defender" whose head anchors the
+	# aim target would be a stale lying corpse (headless players only advance
+	# when ticked).
+	view.apply_snapshot_units([_units([0, 0], [1, 0])[0]])
+	view.apply_snapshot_units(_units([0, 0], [1, 0]))
+	view.advance_locomotion(60.0)
+	_settle_players(view)
+	_arrivals.clear()
+	_check(view.present_combat(_event(false, false, false), _snap_survive()), "flat equal-elevation slash starts")
+	view.advance_combat(60.0)
+	_check(view.combat_stage() == "exchange", "flat case enters Left_Slash exchange")
+	var g_att = view.grounder_for_unit(1)
+	_check(bool(g_att.is_combat_support_grounding()), "attacker uses combat-support grounding during slash")
+	_check(
+		not bool(view.grounder_for_unit(2).is_combat_support_grounding()),
+		"defender keeps Idle plants before Hit_Reaction_1"
+	)
+	_check(view.combat_impact_delay() == 0.5, "impact delay unchanged by attack pitch")
+	var err_flat := _strike_trajectory_case(view, "equal-elevation", "neutral")
+	_check(bool(view.grounder_for_unit(2).is_combat_support_grounding()), "defender combat-support starts with hit")
+	_run_to_completion(view)
+	_check(is_equal_approx(float(g_att.upper_body_pitch()), 0.0), "attack pitch clears after the one-shot")
+	_check(
+		absf(float(err_flat["impact_dy"])) < 0.12,
+		"neutral authored slash passes the head-region contact height (baseline dy %.4f)" % err_flat["impact_dy"]
+	)
+
+	view.set_tile_anchors(SLOPE_ANCHORS)
+	view.set_surface_sampler(SlopeSampler.new())
+	view.apply_snapshot_units(_units([1, 0], [0, 0]))  # attacker higher on +X slope
+	view.advance_locomotion(60.0)
+	_settle_players(view)
+	_arrivals.clear()
+	var downhill_snap := {
+		"units": [
+			{"id": 1, "owner_id": 1, "position": [1, 0], "type_id": "warrior", "current_hp": 70, "has_attacked": true},
+			{"id": 2, "owner_id": 2, "position": [0, 0], "type_id": "warrior", "current_hp": 70, "has_attacked": false},
+		]
+	}
+	_check(view.present_combat(_event(false, false, false), downhill_snap), "downhill slash sequence starts")
+	view.advance_combat(60.0)  # approach → exchange
+	_check(view.combat_stage() == "exchange", "downhill case enters Left_Slash exchange")
+	var err_above := _strike_trajectory_case(view, "attacker-above", "down")
+	_run_to_completion(view)
+
+	view.apply_snapshot_units(_units([0, 0], [1, 0]))
+	view.advance_locomotion(60.0)
+	_settle_players(view)
+	_arrivals.clear()
+	var uphill_snap := {
+		"units": [
+			{"id": 1, "owner_id": 1, "position": [0, 0], "type_id": "warrior", "current_hp": 70, "has_attacked": true},
+			{"id": 2, "owner_id": 2, "position": [1, 0], "type_id": "warrior", "current_hp": 70, "has_attacked": false},
+		]
+	}
+	_check(view.present_combat(_event(false, false, false), uphill_snap), "uphill slash sequence starts")
+	view.advance_combat(60.0)
+	var err_below := _strike_trajectory_case(view, "attacker-below", "up")
+	_run_to_completion(view)
+	view.set_tile_anchors(ANCHORS)
+	view.set_surface_sampler(FlatSampler.new())
+
+	print(
+		"AIM flat dy %.4f->%.4f d3=%.4f | above dy %.4f->%.4f d3=%.4f | below dy %.4f->%.4f d3=%.4f"
+		% [
+			err_flat["before_dy"], err_flat["impact_dy"], err_flat["impact_d3"],
+			err_above["before_dy"], err_above["impact_dy"], err_above["impact_d3"],
+			err_below["before_dy"], err_below["impact_dy"], err_below["impact_d3"],
+		]
+	)
+	# Tolerance 0.08 wu ≈ the club-head contact radius: elevated strikes must
+	# land inside the same head/upper-chest band the accepted neutral slash
+	# passes. The residual (measured ~0.05–0.07) is the live combat-grounding
+	# pelvis response during the pitched swing — the per-swing solve is
+	# deliberately NOT re-fed from the live mid-swing pose (rejected model).
+	_check(
+		absf(float(err_above["impact_dy"]) - float(err_flat["impact_dy"])) < 0.08,
+		"attacker-above reaches the accepted neutral contact band (dev %.4f)"
+		% absf(float(err_above["impact_dy"]) - float(err_flat["impact_dy"]))
+	)
+	_check(
+		absf(float(err_below["impact_dy"]) - float(err_flat["impact_dy"])) < 0.08,
+		"attacker-below reaches the accepted neutral contact band (dev %.4f)"
+		% absf(float(err_below["impact_dy"]) - float(err_flat["impact_dy"]))
+	)
+	_check(
+		err_above["impact_d3"] < err_flat["impact_d3"] + 0.30
+			and err_below["impact_d3"] < err_flat["impact_d3"] + 0.30,
+		"elevated strikes stay within the accepted equal-elevation contact envelope"
+	)
+	_check(is_equal_approx(WorldUnitsViewScript.LOCOMOTION_TRANSLATION_SPEED_SCALE, 0.445), "locomotion 0.445 translation frozen")
+	_check(is_equal_approx(view.facing_blend_sec(), 0.28), "locomotion 0.28 yaw blend frozen")
+
+	# Entering Walking/Idle after combat restores ordinary locomotion grounding.
+	var g_post = view.grounder_for_unit(1)
+	_check(not bool(g_post.is_combat_support_grounding()), "post-combat Idle clears combat-support")
+	_check(is_equal_approx(float(g_post.upper_body_pitch()), 0.0), "post-combat Idle clears attack pitch")
+	view.advance_locomotion(0.28)
+	_check(not bool(g_post.is_combat_support_grounding()), "post-combat settle never re-enables combat-support")
+	_check(is_equal_approx(WorldUnitsViewScript.LOCOMOTION_TRANSLATION_SPEED_SCALE, 0.445), "0.445 translation scale frozen")
+	_check(is_equal_approx(view.facing_blend_sec(), 0.28), "0.28 yaw blend frozen")
+
+	# --- ninth-pass: matched lethal vs non-lethal downhill strike -------------
+	# Live defect: the killing strike from above snapped back to the
+	# unpitched (visibly too high) trajectory because the lethal impact
+	# branch cleared the additive aim at the 0.5 s tick — mid contact
+	# window — while the non-lethal strike kept aiming. The two sequences
+	# below differ ONLY in defender survival: the cached target, additive
+	# pitch, and full club-tip trajectory must match through the contact
+	# window; only the DEFENDER's reaction may diverge.
+	var matched := {}
+	for lethal in [false, true]:
+		view.set_tile_anchors(SLOPE_ANCHORS)
+		view.set_surface_sampler(SlopeSampler.new())
+		view.apply_snapshot_units([_units([1, 0], [0, 0])[0]])  # fresh defender
+		view.apply_snapshot_units(_units([1, 0], [0, 0]))
+		view.advance_locomotion(60.0)
+		_settle_players(view)
+		var m_label: String = "lethal" if lethal else "non-lethal"
+		var m_snap: Dictionary = downhill_snap
+		if lethal:
+			m_snap = {
+				"units": [
+					{"id": 1, "owner_id": 1, "position": [0, 0], "type_id": "warrior", "current_hp": 70, "has_attacked": true},
+				]
+			}
+		_check(
+			view.present_combat(_event(false, lethal, false), m_snap),
+			"matched %s downhill strike starts" % m_label
+		)
+		view.advance_combat(60.0)  # approach → exchange
+		_check(view.combat_stage() == "exchange", "matched %s case enters the exchange" % m_label)
+		matched[lethal] = _sample_strike_through_window(view)
+		if lethal:
+			_check(view.combat_stage() == "death", "matched lethal case entered Dead at impact")
+		_run_to_completion(view)
+	var tgt_nl: Vector3 = matched[false]["target"]
+	var tgt_l: Vector3 = matched[true]["target"]
+	_check(
+		tgt_nl != Vector3.INF and tgt_l != Vector3.INF and tgt_nl.distance_to(tgt_l) < 0.02,
+		"matched strikes commit the same cached head contact (dev %.4f)" % tgt_nl.distance_to(tgt_l)
+	)
+	var s_nl: Array = matched[false]["samples"]
+	var s_l: Array = matched[true]["samples"]
+	var n_pairs: int = mini(s_nl.size(), s_l.size())
+	_check(n_pairs > 120, "matched strike sampler captured the full window (%d pairs)" % n_pairs)
+	var pre_ep_dev := 0.0
+	var pre_pitch_dev := 0.0
+	var win_ep_dev := 0.0
+	var win_pitch_dev := 0.0
+	var l_win_pitch := 0.0
+	for i in n_pairs:
+		var ra: Array = s_nl[i]
+		var rb: Array = s_l[i]
+		if absf(float(ra[0]) - float(rb[0])) > 0.003:
+			continue
+		var ep_dev: float = (ra[1] as Vector3).distance_to(rb[1] as Vector3)
+		var pitch_dev: float = absf(float(ra[2]) - float(rb[2]))
+		if float(ra[0]) < 0.5:
+			pre_ep_dev = maxf(pre_ep_dev, ep_dev)
+			pre_pitch_dev = maxf(pre_pitch_dev, pitch_dev)
+		if float(ra[0]) >= 0.44 and float(ra[0]) <= 0.58:
+			win_ep_dev = maxf(win_ep_dev, ep_dev)
+			win_pitch_dev = maxf(win_pitch_dev, pitch_dev)
+			l_win_pitch = minf(l_win_pitch, float(rb[2]))
+	print(
+		"MATCHED_STRIKE pairs=%d pre[ep %.4f pitch %.4f] window[ep %.4f pitch %.4f] lethal window pitch %.4f"
+		% [n_pairs, pre_ep_dev, pre_pitch_dev, win_ep_dev, win_pitch_dev, l_win_pitch]
+	)
+	_check(pre_ep_dev < 0.02, "pre-impact club-tip trajectories are equivalent (dev %.4f)" % pre_ep_dev)
+	_check(pre_pitch_dev < 0.01, "pre-impact additive aim is identical (dev %.4f)" % pre_pitch_dev)
+	_check(
+		win_ep_dev < 0.02 and win_pitch_dev < 0.01,
+		"the killing strike holds the aimed trajectory through the whole contact window"
+	)
+	_check(l_win_pitch < -0.02, "the fatal strike from above still aims downward at contact")
+	# Clean production-faithful state for the following sections: the corpse
+	# is removed by reconciliation and both units respawn fresh on flat.
+	view.set_tile_anchors(ANCHORS)
+	view.set_surface_sampler(FlatSampler.new())
+	view.apply_snapshot_units([_units([0, 0], [1, 0])[0]])
+	view.apply_snapshot_units(_units([0, 0], [1, 0]))
+	view.advance_locomotion(60.0)
+	_settle_players(view)
+
 	# --- superseding snapshot cancels safely -----------------------------------
 	_finished_events.clear()
 	view.apply_snapshot_units(_units([0, 0], [1, 0]))
@@ -550,6 +850,145 @@ func _run() -> void:
 	else:
 		print("PASS")
 		quit(0)
+
+
+# Runs the Left_Slash exchange from its start on the REAL production
+# animation/modifier path — AnimationPlayers are advanced per tick exactly
+# like tree frames in the live game (seek alone cannot advance crossfades
+# headlessly, which froze every seventh-pass pose measurement) — and
+# samples the final forward-kinematic strike endpoint (club head skinned
+# to LeftHand) against the per-swing committed head-region contact point.
+# Verifies contact HEIGHT and full 3D approach across the impact window
+# (the authored downswing around COMBAT_IMPACT_DELAY_SEC), plus bounded
+# chain angles, upright ModelRoot, and mid-swing support-sole grounding.
+# Call with combat_stage() == "exchange" at attack_elapsed ~ 0.
+# Headless AnimationPlayers only pose the skeleton when advanced, so any
+# pending Idle crossfade must be played out before a case samples bone
+# positions (live gameplay advances every frame — this mimics that).
+func _settle_players(p_view: Node) -> void:
+	for uid in [1, 2]:
+		var pl: AnimationPlayer = p_view.animation_player_for_unit(uid)
+		if pl != null:
+			pl.advance(0.6)
+
+
+# Advances the live exchange at 240 Hz from swing start until past the
+# contact window (attack_elapsed 0.70) and records the committed target
+# plus per-tick [elapsed, club-tip endpoint, applied pitch] rows — the
+# swing keeps being sampled across the lethal stage change into "death".
+func _sample_strike_through_window(p_view: Node) -> Dictionary:
+	var att_p: AnimationPlayer = p_view.animation_player_for_unit(1)
+	var def_p: AnimationPlayer = p_view.animation_player_for_unit(2)
+	var g = p_view.grounder_for_unit(1)
+	var out := {
+		"target": p_view._combat.get("aim_target_w", Vector3.INF),
+		"samples": [],
+	}
+	var dt := 1.0 / 240.0
+	while p_view.combat_active():
+		if float(p_view._combat.get("attack_elapsed", 0.0)) > 0.70:
+			break
+		att_p.advance(dt)
+		if def_p != null:
+			def_p.advance(dt)
+		p_view.advance_combat(dt)
+		if not p_view.combat_active():
+			break
+		var el := float(p_view._combat.get("attack_elapsed", 0.0))
+		var ep: Vector3 = p_view.strike_endpoint_world(1)
+		(out["samples"] as Array).append([el, ep, float(g.upper_body_pitch())])
+	return out
+
+
+func _strike_trajectory_case(p_view: Node, label: String, expect: String) -> Dictionary:
+	var att_p: AnimationPlayer = p_view.animation_player_for_unit(1)
+	var def_p: AnimationPlayer = p_view.animation_player_for_unit(2)
+	var g_att = p_view.grounder_for_unit(1)
+	var target: Vector3 = p_view._combat.get("aim_target_w", Vector3.INF)
+	_check(target != Vector3.INF, "%s: swing commits a defender contact point" % label)
+	# Unpitched impact prediction (authored endpoint + grounding shift).
+	var model: Node3D = (p_view.root_for_unit(1) as Node3D).get_node("ModelRoot")
+	model.force_update_transform()
+	var shift := float(p_view._combat.get("aim_pivot_shift_y", 0.0))
+	var before_dy: float = (
+		(model.global_transform * p_view.ATTACK_IMPACT_ENDPOINT_MODEL).y + shift - target.y
+	)
+	# 240 Hz sampling: the authored downswing sweeps ~5 wu/s, so 60 Hz ticks
+	# would quantize the height-crossing measurement by up to ~0.08 wu.
+	var dt := 1.0 / 240.0
+	var impact_dy := INF
+	var impact_d3 := INF
+	var impact_pitch := 0.0
+	var best_d3 := INF
+	var best_t := -1.0
+	var soles_checked := false
+	while str(p_view.combat_stage()) == "exchange":
+		att_p.advance(dt)
+		def_p.advance(dt)
+		p_view.advance_combat(dt)
+		var el := float(p_view._combat.get("attack_elapsed", 0.0)) if p_view.combat_active() else INF
+		if el > 0.95:
+			break
+		var ep: Vector3 = p_view.strike_endpoint_world(1)
+		if ep == Vector3.INF:
+			continue
+		var d3 := ep.distance_to(target)
+		if d3 < best_d3:
+			best_d3 = d3
+			best_t = el
+		# Impact window: the authored downswing contact phase.
+		if el >= 0.44 and el <= 0.58:
+			if absf(ep.y - target.y) < absf(impact_dy):
+				impact_dy = ep.y - target.y
+				impact_d3 = d3
+				impact_pitch = float(g_att.upper_body_pitch())
+			if not soles_checked and el >= 0.5:
+				soles_checked = true
+				for uid in [1, 2]:
+					var gap_l := float(p_view.sole_surface_gap(uid, "LeftFoot"))
+					var gap_r := float(p_view.sole_surface_gap(uid, "RightFoot"))
+					var support_gap := minf(gap_l, gap_r)
+					_check(
+						support_gap > -0.05 and support_gap < 0.10,
+						"%s unit %d: mid-swing support sole stays grounded (gap %.4f)" % [label, uid, support_gap]
+					)
+	_check(
+		absf(impact_pitch) <= p_view.attack_pitch_chain_max_rad() + 0.001,
+		"%s: total aim angle respects the chain bound (%.4f)" % [label, impact_pitch]
+	)
+	match expect:
+		"down":
+			_check(impact_pitch < -0.02, "%s: attacker above aims downward (pitch %.4f)" % [label, impact_pitch])
+			_check(
+				absf(impact_dy) < absf(before_dy),
+				"%s: endpoint height error shrinks vs unpitched (%.4f -> %.4f)" % [label, before_dy, impact_dy]
+			)
+		"up":
+			_check(impact_pitch > 0.02, "%s: attacker below aims upward (pitch %.4f)" % [label, impact_pitch])
+			_check(
+				absf(impact_dy) < absf(before_dy),
+				"%s: endpoint height error shrinks vs unpitched (%.4f -> %.4f)" % [label, before_dy, impact_dy]
+			)
+		"neutral":
+			_check(
+				absf(impact_pitch) < 0.001,
+				"%s: equal elevation preserves the authored neutral slash (pitch %.4f)" % [label, impact_pitch]
+			)
+	_check(
+		model.basis.orthonormalized().y.dot(Vector3.UP) > 0.99,
+		"%s: living attacker ModelRoot stays upright" % label
+	)
+	print(
+		"AIM_CASE %s before_dy=%.4f impact_dy=%.4f impact_d3=%.4f best_d3=%.4f@%.3f pitch=%.4f target=(%.3f,%.3f,%.3f)"
+		% [label, before_dy, impact_dy, impact_d3, best_d3, best_t, impact_pitch, target.x, target.y, target.z]
+	)
+	return {
+		"before_dy": before_dy,
+		"impact_dy": impact_dy,
+		"impact_d3": impact_d3,
+		"best_d3": best_d3,
+		"pitch": impact_pitch,
+	}
 
 
 func _check(cond: bool, label: String) -> void:

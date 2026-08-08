@@ -93,16 +93,28 @@
 #   grounder reports unbound and stays inert — never a partial adjustment.
 #   Assets, skin weights, and animations are never modified; exact bone
 #   lengths and finite transforms are preserved.
-# - N7g.3 combat pause: while the view presents a one-shot combat sequence
-#   (attack / hit / death clips) the grounder is explicitly PAUSED — no
-#   grounding pass runs, so combat poses are never distorted; unpausing
-#   drops every plant/smoothing state captured before or during the pause,
-#   so survivors replant fresh from their post-combat pose (see
-#   set_grounding_paused below).
+# - N7g.3 combat modes:
+#   * combat-support grounding (Left_Slash / Hit_Reaction_1): grounding RUNS
+#     but stationary plants are suppressed — near-stance feet are forced into
+#     full contact; only clearly raised swing/react feet stay authored-free.
+#     Living ModelRoot stays upright; no corpse plane.
+#   * full pause (Dead / corpse fit): no grounding pass — continuous corpse
+#     support owns the body. Unpausing drops plant/smoothing state so
+#     survivors replant fresh (see set_grounding_paused below).
+# - Optional upper-body attack pitch (bounded Spine02+Spine01 chain, half of
+#   the requested world angle per vertebra): presentation-only lean toward a
+#   higher/lower defender contact; never pitches ModelRoot/Hips/legs. A single
+#   Spine02 DOF clamped at ATTACK_PITCH_MAX_RAD was measured geometrically
+#   unable to reach the strike contact on reference slopes (eighth pass), so
+#   the correction spans the two authored lower-spine vertebrae.
 class_name WorldUnitLegGrounder
 extends SkeletonModifier3D
 
 const BONE_HIPS := "Hips"
+const BONE_ATTACK_PIVOT := "Spine02"
+# Second chain vertebra (child of Spine02 on both shipped rigs). Optional:
+# when missing the full angle falls back to the Spine02 pivot alone.
+const BONE_ATTACK_PIVOT_UPPER := "Spine01"
 const BONES_LEFT: Array[String] = ["LeftUpLeg", "LeftLeg", "LeftFoot"]
 const BONES_RIGHT: Array[String] = ["RightUpLeg", "RightLeg", "RightFoot"]
 const BONE_TOE_LEFT := "LeftToeBase"
@@ -120,6 +132,11 @@ const FOLD_MIN_RATIO := 1.02
 # leg-length-normalized): full contact below LO, full swing above HI.
 const CONTACT_LIFT_LO_RATIO := 0.02
 const CONTACT_LIFT_HI_RATIO := 0.10
+# Combat-support (plants off): a foot is a clear authored swing/react only when
+# it sits well above the lower support foot OR its rest-relative lift is large.
+# Near-stance pairs (Idle windup, Left_Slash dual plant) stay fully contacted.
+const COMBAT_SUPPORT_RELATIVE_SWING := 0.08
+const COMBAT_SUPPORT_ABS_SWING_RATIO := 0.22
 # Sole alignment strength during swing (blend toward the landing normal;
 # stance/idle always blends at full weight 1.0).
 const SWING_ALIGN_WEIGHT := 0.35
@@ -198,6 +215,8 @@ func setup(sampler, plane_node: Node3D) -> bool:
 	_bound = _hips >= 0 and not _left.has(-1) and not _right.has(-1)
 	if not _bound:
 		return false
+	_spine_pivot = skel.find_bone(BONE_ATTACK_PIVOT)
+	_spine_pivot_upper = skel.find_bone(BONE_ATTACK_PIVOT_UPPER)
 	var toe_left := skel.find_bone(BONE_TOE_LEFT)
 	var toe_right := skel.find_bone(BONE_TOE_RIGHT)
 	for side in 2:
@@ -228,12 +247,17 @@ func set_surface_sampler(sampler) -> void:
 	_sampler = sampler
 
 
-# View-driven planting gate: true while the unit's visual glides. Starting
-# a glide releases both plants (their weights blend out smoothly); once
-# inactive again, each foot replants on the next grounding pass.
+# View-driven planting gate: true while the unit's visual glides OR while
+# the view keeps locomotion grounding through a Walking→Idle crossfade.
+# Starting locomotion releases plants; once inactive again, each foot
+# replants on the next grounding pass. Entering locomotion always clears
+# combat-only support/pitch so those modes cannot leak into Walking/Idle.
 func set_locomotion_active(active: bool) -> void:
 	_locomotion_active = active
 	if active:
+		_combat_support = false
+		_upper_body_pitch = 0.0
+		_upper_body_right_w = Vector3.RIGHT
 		_planted = [false, false]
 
 
@@ -241,20 +265,32 @@ func is_locomotion_active() -> bool:
 	return _locomotion_active
 
 
-# N7g.3 combat-presentation gate (explicit grounder/combat interaction):
-# while paused, every grounding pass is a no-op so one-shot attack / hit /
-# death clips play exactly as authored — leg IK, sole alignment, and the
-# stationary plants can neither distort those poses nor keep updating from
-# them. Unpausing drops ALL plant/smoothing state captured before or during
-# the pause (never retained), so surviving units replant FRESH from their
-# current pose on the next pass (a fresh plant always blends in smoothly).
+# N7g.3 full pause (Dead / corpse fit): every grounding pass is a no-op so
+# continuous corpse support owns the body alone. Unpausing drops ALL
+# plant/smoothing state (never retained) so survivors replant FRESH.
 var _paused := false
+# N7g.3 living combat one-shots ONLY: grounding active, stationary plants
+# off — contact_weight selects support feet vs intentionally free feet.
+# Mutually exclusive with locomotion_active; never used for Walking/Idle.
+var _combat_support := false
+# Presentation-only upper-body pitch (radians) about `_upper_body_right_w`.
+# Sign follows the right-hand rule on that world axis (the view computes the
+# angle that rotates LeftHand toward the defender contact — not a fixed
+# "positive = look up" semantic, which inverts on Left_Slash arm poses).
+var _upper_body_pitch := 0.0
+var _upper_body_right_w := Vector3.RIGHT
+var _spine_pivot := -1
+var _spine_pivot_upper := -1
 
 
 func set_grounding_paused(paused: bool) -> void:
 	if _paused == paused:
 		return
 	_paused = paused
+	if paused:
+		_combat_support = false
+		_upper_body_pitch = 0.0
+		_upper_body_right_w = Vector3.RIGHT
 	if not paused:
 		_planted = [false, false]
 		_plant_weight = [0.0, 0.0]
@@ -263,6 +299,47 @@ func set_grounding_paused(paused: bool) -> void:
 
 func is_grounding_paused() -> bool:
 	return _paused
+
+
+# Enable anatomy-aware support-foot grounding during living combat one-shots
+# (not Dead). Clears stationary plants and leaves locomotion mode. Ordinary
+# Walking/Idle must call set_locomotion_active / clear this explicitly.
+func set_combat_support_grounding(active: bool) -> void:
+	_combat_support = active
+	if active:
+		_paused = false
+		_locomotion_active = false
+		_planted = [false, false]
+		_plant_weight = [0.0, 0.0]
+	else:
+		_upper_body_pitch = 0.0
+		_upper_body_right_w = Vector3.RIGHT
+
+
+func is_combat_support_grounding() -> bool:
+	return _combat_support
+
+
+# Bounded upper-body pitch for melee elevation aim (0 clears). `right_w` is
+# the world axis the view used to compute the angle (ModelRoot/LOS right);
+# when omitted, ModelRoot +X is used. Never applied while fully paused
+# (Dead). Does not pitch ModelRoot or the leg chain.
+func set_upper_body_pitch(pitch_rad: float, right_w: Vector3 = Vector3.ZERO) -> void:
+	_upper_body_pitch = pitch_rad
+	if right_w.length_squared() > EPS:
+		_upper_body_right_w = right_w.normalized()
+	elif _plane_node != null:
+		var axis: Vector3 = _plane_node.global_transform.basis.x
+		if axis.length_squared() > EPS:
+			_upper_body_right_w = axis.normalized()
+
+
+func upper_body_pitch() -> float:
+	return _upper_body_pitch
+
+
+func upper_body_right_w() -> Vector3:
+	return _upper_body_right_w
 
 
 func is_bound() -> bool:
@@ -368,12 +445,31 @@ func _apply_grounding_pass(delta: float) -> void:
 	# exact post-alignment contact height over their planted XZ).
 	var leg_len_w: Array[float] = [leg_len_s[0] / k, leg_len_s[1] / k]
 	var contact: Array[float] = [1.0, 1.0]
+	var lifts_w: Array[float] = [0.0, 0.0]
 	var targets_w: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
 	for side in 2:
 		var lift_w: float = (foot_w[side].y - plane_y) - _rest_foot_height[side] / k
+		lifts_w[side] = lift_w
 		contact[side] = contact_weight(lift_w, leg_len_w[side])
+	# Living combat one-shots (Left_Slash / Hit_Reaction_1) and any Idle
+	# frames that share combat-support (plants off): remapped clips hold
+	# feet above rest, so ordinary contact_weight alone leaves soles
+	# hovering. Force full contact on every foot that is NOT a clear
+	# authored swing/react relative to the lower support foot.
+	if _combat_support:
+		var lower_side := 0 if foot_w[0].y <= foot_w[1].y else 1
+		var lower_y: float = foot_w[lower_side].y
+		for side in 2:
+			var rel: float = foot_w[side].y - lower_y
+			var abs_swing: bool = (
+				lifts_w[side] > leg_len_w[side] * COMBAT_SUPPORT_ABS_SWING_RATIO
+			)
+			if rel < COMBAT_SUPPORT_RELATIVE_SWING and not abs_swing:
+				contact[side] = 1.0
+		contact[lower_side] = 1.0
+	for side in 2:
 		var extra_w: float = swing_clearance(
-			lift_w, deltas[side] - deltas[1 - side], leg_len_w[side]
+			lifts_w[side], deltas[side] - deltas[1 - side], leg_len_w[side]
 		)
 		var pw: float = _plant_weight[side]
 		var calib_y: float = sole_contact_height(
@@ -447,6 +543,79 @@ func _apply_grounding_pass(delta: float) -> void:
 			delta,
 			leg_len_s[side] * MAX_FOOT_RAISE_RATIO,
 		)
+	_apply_upper_body_pitch(skel)
+
+
+# Localized melee elevation aim on the current animated lower-spine chain.
+# Applies the view-computed TOTAL world angle about `_upper_body_right_w`
+# (the SAME axis used to derive the angle) split evenly across Spine02 and
+# Spine01 (full angle on Spine02 when Spine01 is unavailable) so the strike
+# endpoint rotates toward the defender contact. No extra sign flip — a
+# prior "positive = aim up" + Head-based negation inverted the visible
+# strike on Left_Slash. Legs / Hips / ModelRoot pitch/roll stay untouched.
+func _apply_upper_body_pitch(skel: Skeleton3D) -> void:
+	if _spine_pivot < 0 or absf(_upper_body_pitch) < EPS:
+		return
+	if _plane_node == null:
+		return
+	# Keep ModelRoot globals current — headless drivers move offsets without
+	# a frame tick, and a stale identity basis corrupts the fallback axis.
+	_plane_node.force_update_transform()
+	var right_w: Vector3 = _upper_body_right_w
+	if right_w.length_squared() < EPS:
+		right_w = _plane_node.global_transform.basis.x
+	right_w = right_w.normalized()
+	if right_w.length_squared() < EPS:
+		return
+	var skel_xf: Transform3D = skel.global_transform
+	var chain_upper := (
+		_spine_pivot_upper if _spine_pivot_upper >= 0 and _spine_pivot_upper != _spine_pivot else -1
+	)
+	# Read every needed global BEFORE any local write (no mid-pass forced
+	# skeleton updates); the second vertebra's post-write pose is composed
+	# analytically from the rigid-chain relation.
+	var lower_parent_i: int = skel.get_bone_parent(_spine_pivot)
+	var lower_parent_world: Basis = (
+		(skel_xf.basis * skel.get_bone_global_pose(lower_parent_i).basis).orthonormalized()
+		if lower_parent_i >= 0
+		else skel_xf.basis.orthonormalized()
+	)
+	var lower_world: Basis = (
+		skel_xf.basis * skel.get_bone_global_pose(_spine_pivot).basis
+	).orthonormalized()
+	if chain_upper < 0:
+		var pitched: Basis = (
+			Basis(Quaternion(right_w, _upper_body_pitch)) * lower_world
+		).orthonormalized()
+		skel.set_bone_pose_rotation(
+			_spine_pivot, (lower_parent_world.inverse() * pitched).get_rotation_quaternion()
+		)
+		return
+	var half := _upper_body_pitch * 0.5
+	var r_half := Basis(Quaternion(right_w, half))
+	var r_full := Basis(Quaternion(right_w, _upper_body_pitch))
+	var upper_world: Basis = (
+		skel_xf.basis * skel.get_bone_global_pose(chain_upper).basis
+	).orthonormalized()
+	var upper_parent_i: int = skel.get_bone_parent(chain_upper)
+	var upper_parent_world: Basis = (
+		(skel_xf.basis * skel.get_bone_global_pose(upper_parent_i).basis).orthonormalized()
+		if upper_parent_i >= 0
+		else skel_xf.basis.orthonormalized()
+	)
+	# Spine02 rotates by half the angle in world space.
+	var lower_pitched: Basis = (r_half * lower_world).orthonormalized()
+	skel.set_bone_pose_rotation(
+		_spine_pivot, (lower_parent_world.inverse() * lower_pitched).get_rotation_quaternion()
+	)
+	# Spine01 (descendant of Spine02) rides the half rotation and adds its
+	# own half: its new world basis is the FULL rotation of its animated
+	# basis, while its parent's new world basis carries the half rotation.
+	var upper_parent_pitched: Basis = (r_half * upper_parent_world).orthonormalized()
+	var upper_pitched: Basis = (r_full * upper_world).orthonormalized()
+	skel.set_bone_pose_rotation(
+		chain_upper, (upper_parent_pitched.inverse() * upper_pitched).get_rotation_quaternion()
+	)
 
 
 # Per-foot plant bookkeeping: while the view reports the unit stationary,
@@ -454,7 +623,13 @@ func _apply_grounding_pass(delta: float) -> void:
 # and animated world rotation ONCE; the plant weight then blends toward 1
 # (toward 0 once a glide releases it) frame-rate-independently — instant
 # for direct/test calls (delta < 0), keeping them deterministic.
+# Combat-support one-shots suppress plants so only contact_weight grounds
+# support feet (lifted/swing feet stay authored).
 func _update_plant(side: int, foot_world: Vector3, animated_rot: Quaternion, delta: float) -> void:
+	if _combat_support:
+		_planted[side] = false
+		_plant_weight[side] = 0.0
+		return
 	if not _locomotion_active and not _planted[side]:
 		_planted[side] = true
 		_plant_xz[side] = Vector2(foot_world.x, foot_world.z)

@@ -21,7 +21,10 @@ const ANCHORS := {
 	Vector2i(1, 1): Vector3(2.0, 0.6, 2.0),
 }
 const SETTLER_IDLE_CLIP := "Hit_Reaction_1"
-const SPEED: float = WorldUnitsViewScript.LOCOMOTION_SPEED_UNITS_PER_SEC
+const SPEED: float = (
+	WorldUnitsViewScript.LOCOMOTION_SPEED_UNITS_PER_SEC
+	* WorldUnitsViewScript.LOCOMOTION_TRANSLATION_SPEED_SCALE
+)
 
 var _total := 0
 var _any_fail := false
