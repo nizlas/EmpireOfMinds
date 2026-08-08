@@ -1,15 +1,15 @@
-"""N7b/N7g.2/N8a: read-only legal-actions enumeration for world_map matches.
+"""N7b/N7g.2/N8a/N8b: read-only legal-actions enumeration for world_map matches.
 
 Separate from the frozen legacy legal_actions.py (no Scenario, no HexMap, no
 movement_rules import) but wire-compatible: the response envelope, selection
 precedence, and selection errors mirror the legacy endpoint exactly so
 clients consume one schema.
 
-Move, attack, and found_city rows are DERIVED, never re-implemented:
-candidates are constructed and filtered through the SAME world validators
-the POST path uses against the resolved authoritative WorldMap (moves /
-attacks) or the snapshot (found_city). Every returned action is therefore
-submit-ready by construction.
+Move, attack, found_city, and set_city_production rows are DERIVED, never
+re-implemented: candidates are constructed and filtered through the SAME
+world validators the POST path uses against the resolved authoritative
+WorldMap (moves / attacks) or the snapshot (found_city / production). Every
+returned action is therefore submit-ready by construction.
 
 Selected-unit ordering is deterministic: ALL legal attack_unit rows first
 (canonical DIRECTIONS order of the defender tile), then the found_city row
@@ -18,10 +18,12 @@ the destination tile). Unit summaries count attacks + found_city + moves;
 settlers stay non-attacking and a unit with has_attacked true advertises
 neither attacks nor moves (both enforced by the validators).
 
-N8a: city_summaries list the actor's cities with legal_action_count 0
-(production selection is N8b). A selected own city returns empty actions
-without error until N8b; unknown/unowned city selections keep the legacy
-selection_error strings.
+N8b: a selected own city returns submit-ready set_city_production rows in
+legacy deterministic order (none, then sorted project ids), filtered through
+the world validators — already-active project and clearing an empty project
+are excluded by project_already_set. Both produce_unit projects are always
+candidates (no unlock gating). city_summaries count those legal rows.
+Unknown/unowned city selections keep the legacy selection_error strings.
 
 Strictly read-only: no snapshot, revision, hash, or event changes.
 """
@@ -31,6 +33,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.domain import world_actions
+from app.domain.content import city_project_definitions as cpd
 from app.domain.hex_coord import DIRECTIONS
 from app.domain.world_map import WorldMap
 
@@ -133,6 +136,32 @@ def _found_city_action_if_legal(
     return []
 
 
+def _set_city_production_actions_for_city(
+    snap: dict[str, Any],
+    actor_id: int,
+    city_id: int,
+) -> list[dict[str, Any]]:
+    """Submit-ready set_city_production rows (exact N8b POST shape).
+
+    Deterministic order matches the legacy envelope: none first, then
+    lexicographically sorted registry project ids. Filtered through the
+    world validators only — no unlock / progress_state gating.
+    """
+    project_ids = [cpd.PROJECT_ID_NONE, *sorted(c for c in cpd.ids())]
+    out: list[dict[str, Any]] = []
+    for pid in project_ids:
+        act = {
+            "schema_version": world_actions.SET_CITY_PRODUCTION_SCHEMA_VERSION,
+            "action_type": world_actions.SET_CITY_PRODUCTION_ACTION_TYPE,
+            "actor_id": actor_id,
+            "city_id": city_id,
+            "project_id": pid,
+        }
+        if world_actions.validate_set_city_production(snap, act)["ok"]:
+            out.append(act)
+    return out
+
+
 def _unit_action_count(
     snap: dict[str, Any],
     world_map: WorldMap,
@@ -144,6 +173,10 @@ def _unit_action_count(
         + len(_found_city_action_if_legal(snap, actor_id, unit))
         + len(_move_actions_for_unit(snap, world_map, actor_id, unit))
     )
+
+
+def _city_action_count(snap: dict[str, Any], actor_id: int, city_id: int) -> int:
+    return len(_set_city_production_actions_for_city(snap, actor_id, city_id))
 
 
 def compute_world_legal_actions_payload(
@@ -198,7 +231,12 @@ def compute_world_legal_actions_payload(
             selection_error = "unknown_city"
         elif int(city["owner_id"]) != actor_id:
             selection_error = "selection_not_owned_city"
-        # N8a: known own city — empty actions until N8b production selection.
+        else:
+            actions.extend(
+                _set_city_production_actions_for_city(
+                    snap, actor_id, int(selected_city_id)
+                )
+            )
 
     if selection_error is not None:
         out["selection_error"] = selection_error
@@ -210,7 +248,7 @@ def compute_world_legal_actions_payload(
         return out
 
     # Actor summary: submit-ready end_turn + per-unit action counts
-    # (attacks + found_city + moves) and city summaries (count 0 until N8b).
+    # (attacks + found_city + moves) and city summaries (production rows).
     out["actions"] = [_end_turn_action(actor_id)]
     unit_summaries: list[dict[str, int]] = []
     for u in snap.get("units", []):
@@ -227,6 +265,11 @@ def compute_world_legal_actions_payload(
     for c in snap.get("cities", []):
         if int(c["owner_id"]) != actor_id:
             continue
-        city_summaries.append({"city_id": int(c["id"]), "legal_action_count": 0})
+        city_summaries.append(
+            {
+                "city_id": int(c["id"]),
+                "legal_action_count": _city_action_count(snap, actor_id, int(c["id"])),
+            }
+        )
     out["city_summaries"] = city_summaries
     return out

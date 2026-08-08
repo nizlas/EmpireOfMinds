@@ -36,7 +36,9 @@
 # NEVER computes combat outcomes — the server event/snapshot are the only
 # sources. N8a: authoritative cities render via WorldCitiesView; Found City
 # submits the exact served found_city row (no optimistic create/consume).
-# Production/science are N8b+.
+# N8b: minimal selected-city production UI submits exact served
+# set_city_production rows and shows snapshot current_project only (no
+# optimistic project changes; no progress tick — N8c).
 extends Node3D
 
 const BootIntentScript = preload("res://cloud/boot_intent.gd")
@@ -77,6 +79,9 @@ var _status_label: Label = null
 var _action_label: Label = null
 var _end_turn_button: Button = null
 var _found_city_button: Button = null
+var _production_panel: VBoxContainer = null
+var _production_status_label: Label = null
+var _production_buttons: Array = []
 var _poll_timer: Timer = null
 # Own seat identity from the boot intent (st_ token + actor id; -1 = none).
 var _boot_actor_id := -1
@@ -420,6 +425,16 @@ func _on_found_city_pressed() -> void:
 	await _submit_action(interaction.found_city_row())
 
 
+func _on_production_row_pressed(project_id: String) -> void:
+	if interaction == null or _request_busy:
+		return
+	# Exact held served row only — never a client-built payload.
+	var row: Dictionary = interaction.production_row_for_project_id(project_id)
+	if row.is_empty() or not interaction.can_submit_production_row(row):
+		return
+	await _submit_action(row)
+
+
 # N7f.1: releases the arrival gate on the REAL visual arrival of exactly
 # the gated unit (WorldUnitsView.unit_arrived, or the scene's degenerate-
 # settlement path). Unrelated or stale completions change nothing. After a
@@ -728,6 +743,24 @@ func _build_status_ui() -> void:
 	_found_city_button.offset_bottom = -80.0
 	_found_city_button.pressed.connect(_on_found_city_pressed)
 	_status_layer.add_child(_found_city_button)
+	# N8b: minimal selected-city production panel — choices from served rows
+	# only; progress/cost from the authoritative snapshot city row.
+	_production_panel = VBoxContainer.new()
+	_production_panel.name = "CityProductionPanel"
+	_production_panel.visible = false
+	_production_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_production_panel.offset_left = 16.0
+	_production_panel.offset_top = -200.0
+	_production_panel.offset_right = 280.0
+	_production_panel.offset_bottom = -16.0
+	_status_layer.add_child(_production_panel)
+	_production_status_label = Label.new()
+	_production_status_label.name = "ProductionStatusLabel"
+	_production_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_production_status_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	_production_status_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0))
+	_production_status_label.add_theme_constant_override("outline_size", 4)
+	_production_panel.add_child(_production_status_label)
 
 
 func _set_status(message: String) -> void:
@@ -757,6 +790,7 @@ func _refresh_interaction_ui() -> void:
 		var can_found := interaction.can_submit_found_city()
 		_found_city_button.visible = can_found
 		_found_city_button.disabled = _request_busy or not can_found
+	_refresh_production_panel()
 	if bootstrap_error.is_empty() and not snapshot.is_empty():
 		var parsed_map = snapshot.get("map", {})
 		var map_id := str((parsed_map as Dictionary).get("map_id", "")) if typeof(parsed_map) == TYPE_DICTIONARY else ""
@@ -777,6 +811,47 @@ func _refresh_interaction_ui() -> void:
 		if not city_line.is_empty():
 			line += "\n" + city_line
 		_set_status(line)
+
+
+func _refresh_production_panel() -> void:
+	if _production_panel == null or interaction == null:
+		return
+	# Clear previous choice buttons (keep the status label as first child).
+	for btn_variant in _production_buttons:
+		if btn_variant is Node and is_instance_valid(btn_variant):
+			(btn_variant as Node).queue_free()
+	_production_buttons = []
+
+	var city_selected := interaction.selected_city_id >= 0
+	_production_panel.visible = city_selected
+	if not city_selected:
+		if _production_status_label != null:
+			_production_status_label.text = ""
+		return
+
+	if _production_status_label != null:
+		_production_status_label.text = interaction.selected_city_status_line()
+
+	var rows: Array = interaction.production_rows()
+	for row_variant in rows:
+		if typeof(row_variant) != TYPE_DICTIONARY:
+			continue
+		var row: Dictionary = (row_variant as Dictionary).duplicate(true)
+		var pid := str(row.get("project_id", ""))
+		var btn := Button.new()
+		btn.name = "Prod_%s" % pid.replace(":", "_")
+		if pid == "none":
+			btn.text = "Clear production"
+		elif pid == "produce_unit:warrior":
+			btn.text = "Train Warrior"
+		elif pid == "produce_unit:settler":
+			btn.text = "Train Settler"
+		else:
+			btn.text = pid
+		btn.disabled = _request_busy or interaction.production_row_for_project_id(pid).is_empty()
+		btn.pressed.connect(_on_production_row_pressed.bind(pid))
+		_production_panel.add_child(btn)
+		_production_buttons.append(btn)
 
 
 # Client presentation backend policy for this production scene: the built

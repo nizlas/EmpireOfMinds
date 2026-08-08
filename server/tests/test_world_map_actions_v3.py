@@ -364,9 +364,14 @@ def test_world_unknown_action_type(client: TestClient) -> None:
     _assert_reject(r, "unknown_action_type")
 
 
-def test_world_legacy_only_actions_rejected(client: TestClient) -> None:
-    """found_city left this list with N8a; set_city_production waits for N8b.
-    attack_unit left earlier with N7g.1 (see test_world_combat_v3.py)."""
+def test_world_legacy_only_list_empty_after_n8b(client: TestClient) -> None:
+    """N8b emptied LEGACY_ONLY_ACTION_TYPES; incomplete set_city_production
+    reaches world validation (malformed_action) instead of the deferred
+    unsupported_action_for_match_kind reject. Truly unknown types stay
+    unknown_action_type (covered above)."""
+    from app.domain import world_actions
+
+    assert world_actions.LEGACY_ONLY_ACTION_TYPES == ()
     match_id, tokens, _ = _start_world_match(client)
     r = _post(
         client,
@@ -374,7 +379,7 @@ def test_world_legacy_only_actions_rejected(client: TestClient) -> None:
         {"schema_version": 2, "action_type": "set_city_production", "actor_id": 0},
         tokens[0],
     )
-    _assert_reject(r, "unsupported_action_for_match_kind")
+    _assert_reject(r, "malformed_action")
 
 
 # ------------------------------------------------------- move_unit rejects
