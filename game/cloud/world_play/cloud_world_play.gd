@@ -34,7 +34,9 @@
 # Rejected/failed attacks never animate; reconnect/bootstrap never replays
 # combat; superseding snapshots cancel the presentation safely. The client
 # NEVER computes combat outcomes — the server event/snapshot are the only
-# sources. Cities/production are N8a–N8d.
+# sources. N8a: authoritative cities render via WorldCitiesView; Found City
+# submits the exact served found_city row (no optimistic create/consume).
+# Production/science are N8b+.
 extends Node3D
 
 const BootIntentScript = preload("res://cloud/boot_intent.gd")
@@ -47,6 +49,7 @@ const WorldInteractionStateScript = preload("res://cloud/world_play/world_intera
 const TerrainWorldScript = preload("res://presentation/world/terrain_world.gd")
 const WorldAnchorUiScript = preload("res://presentation/world/world_anchor_ui.gd")
 const WorldUnitsViewScript = preload("res://presentation/world/world_units_view.gd")
+const WorldCitiesViewScript = preload("res://presentation/world/world_cities_view.gd")
 const WorldSurfaceSamplerScript = preload("res://presentation/world/world_surface_sampler.gd")
 const WorldDestinationMarkersScript = preload("res://presentation/world/world_destination_markers.gd")
 const Ts08HeightSolver = preload("res://domain/world/ts08_height_solver.gd")
@@ -58,6 +61,7 @@ const NATIVE_DESCRIPTOR_PATH := "res://bin/eom_native.gdextension"
 var world = null
 var anchor_ui = null
 var units_view = null
+var cities_view = null
 # One persistent CloudSession for this match (bootstrap fetch + N7d loop).
 var session = null
 # Held authoritative snapshot (the live server state this scene renders).
@@ -72,6 +76,7 @@ var _status_layer: CanvasLayer = null
 var _status_label: Label = null
 var _action_label: Label = null
 var _end_turn_button: Button = null
+var _found_city_button: Button = null
 var _poll_timer: Timer = null
 # Own seat identity from the boot intent (st_ token + actor id; -1 = none).
 var _boot_actor_id := -1
@@ -280,6 +285,7 @@ func bootstrap_from_snapshot(snap: Dictionary) -> bool:
 	add_child(anchor_ui)
 	anchor_ui.attach(world)
 	_render_units()
+	_render_cities()
 	_setup_interaction()
 	bootstrap_error = ""
 	_refresh_interaction_ui()
@@ -313,6 +319,21 @@ func _render_units() -> void:
 	units_view.set_tile_anchors(world.tile_anchors)
 	var units_variant = snapshot.get("units", [])
 	units_view.apply_snapshot_units(units_variant if units_variant is Array else [])
+
+
+# N8a city projection: authoritative snapshot cities at the same N4 anchors.
+# One persistent WorldCitiesView reconciles by city id — never optimistic
+# create; cities appear only after the server snapshot carries them.
+func _render_cities() -> void:
+	if world == null or snapshot.is_empty():
+		return
+	if cities_view == null:
+		cities_view = WorldCitiesViewScript.new()
+		cities_view.name = "WorldCitiesView"
+		add_child(cities_view)
+	cities_view.set_tile_anchors(world.tile_anchors)
+	var cities_variant = snapshot.get("cities", [])
+	cities_view.apply_snapshot_cities(cities_variant if cities_variant is Array else [])
 
 
 # N7d wiring: interaction state + projected marker layer + pick routing +
@@ -374,6 +395,11 @@ func _on_terrain_picked(pick: Dictionary) -> void:
 			_selection_refetch_needed = true
 			_refresh_interaction_ui()
 			await _pump_legal_fetch()
+		WorldInteractionStateScript.PICK_SELECT_CITY:
+			interaction.select_city(int(directive["city_id"]))
+			_selection_refetch_needed = true
+			_refresh_interaction_ui()
+			await _pump_legal_fetch()
 		WorldInteractionStateScript.PICK_CLEAR:
 			interaction.clear_selection()
 			_refresh_interaction_ui()
@@ -385,6 +411,13 @@ func _on_end_turn_pressed() -> void:
 	if interaction == null or _request_busy or not interaction.can_submit_end_turn():
 		return
 	await _submit_action(interaction.end_turn_row)
+
+
+func _on_found_city_pressed() -> void:
+	if interaction == null or _request_busy or not interaction.can_submit_found_city():
+		return
+	# Exact served row only — never a client-built found_city payload.
+	await _submit_action(interaction.found_city_row())
 
 
 # N7f.1: releases the arrival gate on the REAL visual arrival of exactly
@@ -400,7 +433,11 @@ func _on_unit_arrived(unit_id: int) -> void:
 		return
 	_summary_refetch_needed = interaction.is_my_turn()
 	_selection_refetch_needed = (
-		interaction.is_my_turn() and interaction.selected_unit_id >= 0
+		interaction.is_my_turn()
+		and (
+			interaction.selected_unit_id >= 0
+			or interaction.selected_city_id >= 0
+		)
 	)
 	_refresh_interaction_ui()
 	await _pump_legal_fetch()
@@ -519,6 +556,7 @@ func _apply_authoritative_snapshot(snap: Dictionary) -> void:
 	snapshot = snap.duplicate(true)
 	CloudPlayerIdentityScript.apply_from_snapshot(snapshot)
 	_render_units()
+	_render_cities()
 	if interaction != null:
 		var directives: Dictionary = interaction.apply_snapshot(snapshot)
 		_summary_refetch_needed = bool(directives.get("summary", false))
@@ -569,14 +607,16 @@ func _pump_legal_fetch() -> void:
 			_refresh_interaction_ui()
 			continue
 		_selection_refetch_needed = false
-		if interaction.selected_unit_id < 0:
+		if interaction.selected_unit_id < 0 and interaction.selected_city_id < 0:
 			_refresh_interaction_ui()
 			continue
 		var selection_serial: int = interaction.begin_selection_fetch()
 		_request_busy = true
 		_refresh_interaction_ui()
 		var selection_resp: Dictionary = await session.get_legal_actions(
-			interaction.my_actor_id, interaction.selected_unit_id
+			interaction.my_actor_id,
+			interaction.selected_unit_id,
+			interaction.selected_city_id,
 		)
 		_request_busy = false
 		if selection_resp.has("_error"):
@@ -674,6 +714,20 @@ func _build_status_ui() -> void:
 	_end_turn_button.offset_bottom = -40.0
 	_end_turn_button.pressed.connect(_on_end_turn_pressed)
 	_status_layer.add_child(_end_turn_button)
+	# N8a: Found City — posts the selection-mode submit-ready found_city row
+	# only when a served row is fresh for the selected eligible settler.
+	_found_city_button = Button.new()
+	_found_city_button.name = "FoundCityButton"
+	_found_city_button.text = "Found City"
+	_found_city_button.visible = false
+	_found_city_button.disabled = true
+	_found_city_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_found_city_button.offset_left = -140.0
+	_found_city_button.offset_top = -116.0
+	_found_city_button.offset_right = -16.0
+	_found_city_button.offset_bottom = -80.0
+	_found_city_button.pressed.connect(_on_found_city_pressed)
+	_status_layer.add_child(_found_city_button)
 
 
 func _set_status(message: String) -> void:
@@ -699,6 +753,10 @@ func _refresh_interaction_ui() -> void:
 		)
 	if _end_turn_button != null:
 		_end_turn_button.disabled = _request_busy or not interaction.can_submit_end_turn()
+	if _found_city_button != null:
+		var can_found := interaction.can_submit_found_city()
+		_found_city_button.visible = can_found
+		_found_city_button.disabled = _request_busy or not can_found
 	if bootstrap_error.is_empty() and not snapshot.is_empty():
 		var parsed_map = snapshot.get("map", {})
 		var map_id := str((parsed_map as Dictionary).get("map_id", "")) if typeof(parsed_map) == TYPE_DICTIONARY else ""
@@ -714,6 +772,10 @@ func _refresh_interaction_ui() -> void:
 		var selected_line: String = interaction.selected_unit_status_line()
 		if not selected_line.is_empty():
 			line += "\n" + selected_line
+		# N8a: minimal selected-city line (authoritative name/id/owner).
+		var city_line: String = interaction.selected_city_status_line()
+		if not city_line.is_empty():
+			line += "\n" + city_line
 		_set_status(line)
 
 

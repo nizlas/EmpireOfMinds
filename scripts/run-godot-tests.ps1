@@ -17,7 +17,7 @@ $GamePath = Join-Path $RepoRoot "game"
 
 $KnownGodotPath = "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"
 
-$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f", "n7f1", "n7g3")
+$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f", "n7f1", "n7g3", "n8a")
 
 $Script:SliceTests = @{
 	"c13a" = @(
@@ -106,6 +106,13 @@ $Script:SliceTests = @{
 		"res://cloud/tests/test_world_interaction_state.gd"
 		"res://presentation/tests/test_world_destination_markers.gd"
 		"res://cloud/tests/test_cloud_world_play_interaction.gd"
+	)
+	# N8a focused subset (no terrain build; fast — city projection + founding
+	# /selection interaction; existing world interaction state for regressions).
+	"n8a" = @(
+		"res://presentation/tests/test_world_cities_view.gd"
+		"res://cloud/tests/test_world_found_city_interaction.gd"
+		"res://cloud/tests/test_world_interaction_state.gd"
 	)
 }
 

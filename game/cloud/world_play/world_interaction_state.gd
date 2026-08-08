@@ -42,7 +42,12 @@
 #   deferred combat apply, or any superseding authoritative snapshot —
 #   which also cancels the presentation itself in the view). Presentation
 #   pacing only, never gameplay authority.
-# - No cities or client-side legality (N8+).
+# - N8a cities: snapshot `cities` mirror + city selection with the locked
+#   shared-tile cycle (unit first, then alternate with the city on the same
+#   tile; changing tile or clearing resets). Served `found_city` rows live
+#   in the selection slot; Found City submits the exact served row — never
+#   client-built, never optimistic city create / settler consume. Consumed
+#   selected settlers clear selection safely on the next snapshot apply.
 extends RefCounted
 
 const CloudTurnOwnershipScript = preload("res://cloud/cloud_turn_ownership.gd")
@@ -51,6 +56,7 @@ const CloudPlayerIdentityScript = preload("res://cloud/cloud_player_identity.gd"
 const PICK_NONE := "none"
 const PICK_CLEAR := "clear"
 const PICK_SELECT_UNIT := "select_unit"
+const PICK_SELECT_CITY := "select_city"
 const PICK_SUBMIT_MOVE := "submit_move"
 const PICK_SUBMIT_ATTACK := "submit_attack"
 
@@ -72,16 +78,22 @@ var one_pc_debug := false
 var revision: int = -1
 var turn_state: Dictionary = {}
 var units: Array = []
+var cities: Array = []
 
-# Presentation-only selection state (unit id; NO_SELECTION = none).
+# Presentation-only selection state (unit id / city id; NO_SELECTION = none).
+# At most one of unit/city is selected at a time.
 var selected_unit_id: int = NO_SELECTION
+var selected_city_id: int = NO_SELECTION
 
-# Served selection legality (move + N7g.3 attack rows), bound to
-# revision + selection (one binding — both arrive in the same response).
+# Served selection legality (move + N7g.3 attack + N8a found_city rows),
+# bound to revision + selection (one binding — all arrive in the same
+# response). City selections carry empty action lists until N8b.
 var served_move_rows: Array = []
 var served_attack_rows: Array = []
+var served_found_city_row: Dictionary = {}
 var served_move_revision: int = -1
 var served_move_selection: int = NO_SELECTION
+var served_city_selection: int = NO_SELECTION
 
 # Served summary legality (end_turn row), bound to revision — independent of
 # the selection slot; both may be fresh at the same time.
@@ -94,6 +106,7 @@ var _pending_summary_serial: int = -1
 var _pending_summary_revision: int = -1
 var _pending_selection_serial: int = -1
 var _pending_selection_unit: int = NO_SELECTION
+var _pending_selection_city: int = NO_SELECTION
 var _pending_selection_revision: int = -1
 
 # N7f.1 arrival gate (presentation pacing only — NEVER gameplay authority
@@ -147,6 +160,13 @@ func unit_by_id(unit_id: int) -> Dictionary:
 	return {}
 
 
+func city_by_id(city_id: int) -> Dictionary:
+	for row_variant in cities:
+		if typeof(row_variant) == TYPE_DICTIONARY and int((row_variant as Dictionary).get("id", -1)) == city_id:
+			return row_variant
+	return {}
+
+
 # Own unit standing on `tile` (world occupancy: at most one unit per tile).
 func own_unit_id_at(tile: Vector2i) -> int:
 	for row_variant in units:
@@ -162,6 +182,21 @@ func own_unit_id_at(tile: Vector2i) -> int:
 		if int(row.get("owner_id", -1)) == my_actor_id:
 			return int(row.get("id", -1))
 		return NO_SELECTION
+	return NO_SELECTION
+
+
+# City standing on `tile` (at most one city center per tile — N8a).
+func city_id_at(tile: Vector2i) -> int:
+	for row_variant in cities:
+		if typeof(row_variant) != TYPE_DICTIONARY:
+			continue
+		var row: Dictionary = row_variant
+		var pos_variant = row.get("position", null)
+		if typeof(pos_variant) != TYPE_ARRAY or (pos_variant as Array).size() != 2:
+			continue
+		var pos: Array = pos_variant
+		if Vector2i(int(pos[0]), int(pos[1])) == tile:
+			return int(row.get("id", -1))
 	return NO_SELECTION
 
 
@@ -219,6 +254,8 @@ func apply_snapshot(snap: Dictionary) -> Dictionary:
 	turn_state = (ts_variant as Dictionary).duplicate(true) if typeof(ts_variant) == TYPE_DICTIONARY else {}
 	var units_variant = snap.get("units", null)
 	units = (units_variant as Array).duplicate(true) if typeof(units_variant) == TYPE_ARRAY else []
+	var cities_variant = snap.get("cities", null)
+	cities = (cities_variant as Array).duplicate(true) if typeof(cities_variant) == TYPE_ARRAY else []
 
 	# N7g.3: EVERY snapshot apply resolves the combat gate — the deferred
 	# combat apply on sequence completion, and any superseding authoritative
@@ -252,14 +289,24 @@ func apply_snapshot(snap: Dictionary) -> Dictionary:
 
 	if not is_my_turn():
 		selected_unit_id = NO_SELECTION
+		selected_city_id = NO_SELECTION
 		return {"summary": false, "selection": false}
+	# N8a: a consumed settler (or any vanished/unowned unit) clears unit
+	# selection safely — never retain a stale unit id after founding.
 	if selected_unit_id != NO_SELECTION:
 		var unit := unit_by_id(selected_unit_id)
 		if unit.is_empty() or int(unit.get("owner_id", -1)) != my_actor_id:
 			selected_unit_id = NO_SELECTION
+	if selected_city_id != NO_SELECTION:
+		var city := city_by_id(selected_city_id)
+		if city.is_empty():
+			selected_city_id = NO_SELECTION
 	if arrival_gate_active():
 		return {"summary": false, "selection": false}
-	return {"summary": true, "selection": selected_unit_id != NO_SELECTION}
+	var has_selection := (
+		selected_unit_id != NO_SELECTION or selected_city_id != NO_SELECTION
+	)
+	return {"summary": true, "selection": has_selection}
 
 
 func is_newer_snapshot(snap: Dictionary) -> bool:
@@ -276,11 +323,13 @@ func begin_summary_fetch() -> int:
 
 
 # Registers one outgoing SELECTION-mode legal-actions request for the
-# CURRENT selection. Returns the serial the response must present.
+# CURRENT selection (unit or city). Returns the serial the response must
+# present.
 func begin_selection_fetch() -> int:
 	_serial_counter += 1
 	_pending_selection_serial = _serial_counter
 	_pending_selection_unit = selected_unit_id
+	_pending_selection_city = selected_city_id
 	_pending_selection_revision = revision
 	return _pending_selection_serial
 
@@ -322,22 +371,34 @@ func accept_summary_legal_actions(serial: int, response: Dictionary) -> bool:
 	return true
 
 
-# Accepts or discards one SELECTION-mode response. The echoed
-# selected_unit_id must equal the requested unit, and that unit must still
-# be the current selection. Accepting never touches the summary slot.
-# Returns true when stored.
+# Accepts or discards one SELECTION-mode response. Echoed selected_unit_id /
+# selected_city_id must match the request, and that selection must still be
+# current. Accepting never touches the summary slot. Returns true when stored.
 func accept_selection_legal_actions(serial: int, response: Dictionary) -> bool:
 	if serial != _pending_selection_serial:
 		return false  # superseded by a newer selection request
 	if not _response_binding_ok(response, _pending_selection_revision):
 		return false
-	if _pending_selection_unit != selected_unit_id:
+	if (
+		_pending_selection_unit != selected_unit_id
+		or _pending_selection_city != selected_city_id
+	):
 		return false  # selection changed while the request was in flight
-	var echoed = response.get("selected_unit_id", null)
-	if typeof(echoed) != TYPE_INT and typeof(echoed) != TYPE_FLOAT:
-		return false  # summary-shaped echo can never satisfy a selection request
-	if int(echoed) != _pending_selection_unit:
-		return false  # echoed selection does not match the requested unit
+
+	var echoed_unit = response.get("selected_unit_id", null)
+	var echoed_city = response.get("selected_city_id", null)
+	if _pending_selection_unit != NO_SELECTION:
+		if typeof(echoed_unit) != TYPE_INT and typeof(echoed_unit) != TYPE_FLOAT:
+			return false
+		if int(echoed_unit) != _pending_selection_unit:
+			return false
+	elif _pending_selection_city != NO_SELECTION:
+		if typeof(echoed_city) != TYPE_INT and typeof(echoed_city) != TYPE_FLOAT:
+			return false
+		if int(echoed_city) != _pending_selection_city:
+			return false
+	else:
+		return false
 
 	_clear_served_move_rows()
 	if bool(response.get("is_current_player", false)):
@@ -351,8 +412,11 @@ func accept_selection_legal_actions(serial: int, response: Dictionary) -> bool:
 				served_move_rows.append((row_variant as Dictionary).duplicate(true))
 			elif action_type == "attack_unit":
 				served_attack_rows.append((row_variant as Dictionary).duplicate(true))
+			elif action_type == "found_city" and served_found_city_row.is_empty():
+				served_found_city_row = (row_variant as Dictionary).duplicate(true)
 		served_move_revision = revision
 		served_move_selection = _pending_selection_unit
+		served_city_selection = _pending_selection_city
 	return true
 
 
@@ -361,10 +425,11 @@ func _served_rows_fresh() -> bool:
 	# markers may only return from the fresh post-release fetch.
 	if arrival_gate_active() or combat_gate_active:
 		return false
+	if selected_unit_id == NO_SELECTION:
+		return false
 	return (
 		served_move_revision == revision
 		and served_move_selection == selected_unit_id
-		and selected_unit_id != NO_SELECTION
 	)
 
 
@@ -442,8 +507,9 @@ func can_submit_end_turn() -> bool:
 # Locked semantics: OUT OF TURN every pick — tile, cliff, or empty miss — is
 # completely inert (turn ownership is checked before miss-clear). On the own
 # turn: a fresh served attack target submits that exact attack row, a fresh
-# served destination submits that exact move row, an own-unit tile selects,
-# miss/foreign/empty tiles clear, cliffs leave selection unchanged.
+# served destination submits that exact move row, then the N8a shared-tile
+# selection rule (unit first; repeated picks on the same unit+city tile
+# alternate), miss/foreign/empty tiles clear, cliffs leave selection unchanged.
 func classify_pick(pick: Dictionary) -> Dictionary:
 	# Arrival/combat gate: EVERY gameplay pick — destinations, attack
 	# targets, other own units, empty tiles, misses, cliffs — is completely
@@ -467,10 +533,23 @@ func classify_pick(pick: Dictionary) -> Dictionary:
 	if not row.is_empty():
 		return {"kind": PICK_SUBMIT_MOVE, "action": row}
 	var own_id := own_unit_id_at(tile)
+	var city_id := city_id_at(tile)
+	if own_id >= 0 and city_id >= 0:
+		# Locked shared-tile cycle: first pick → unit; same-tile repeats
+		# alternate city ↔ unit. Changing tile resets via this branch.
+		if selected_unit_id == own_id:
+			return {"kind": PICK_SELECT_CITY, "city_id": city_id}
+		if selected_city_id == city_id:
+			return {"kind": PICK_SELECT_UNIT, "unit_id": own_id}
+		return {"kind": PICK_SELECT_UNIT, "unit_id": own_id}
 	if own_id >= 0:
 		if own_id == selected_unit_id:
 			return {"kind": PICK_NONE}
 		return {"kind": PICK_SELECT_UNIT, "unit_id": own_id}
+	if city_id >= 0:
+		if city_id == selected_city_id:
+			return {"kind": PICK_NONE}
+		return {"kind": PICK_SELECT_CITY, "city_id": city_id}
 	return {"kind": PICK_CLEAR}
 
 
@@ -478,23 +557,53 @@ func classify_pick(pick: Dictionary) -> Dictionary:
 # stays usable while it remains bound to the current revision.
 func select_unit(unit_id: int) -> void:
 	selected_unit_id = int(unit_id)
+	selected_city_id = NO_SELECTION
+	_clear_served_move_rows()
+
+
+func select_city(city_id: int) -> void:
+	selected_city_id = int(city_id)
+	selected_unit_id = NO_SELECTION
 	_clear_served_move_rows()
 
 
 func clear_selection() -> void:
 	selected_unit_id = NO_SELECTION
+	selected_city_id = NO_SELECTION
 	_clear_served_move_rows()
 
 
-# Tile of the selected unit (Variant: Vector2i or null) for the highlight.
+# Tile of the selected unit or city (Variant: Vector2i or null) for the highlight.
 func selected_tile():
+	if selected_unit_id != NO_SELECTION:
+		var unit := unit_by_id(selected_unit_id)
+		var upos = unit.get("position", null)
+		if typeof(upos) == TYPE_ARRAY and (upos as Array).size() == 2:
+			return Vector2i(int(upos[0]), int(upos[1]))
+		return null
+	if selected_city_id != NO_SELECTION:
+		var city := city_by_id(selected_city_id)
+		var cpos = city.get("position", null)
+		if typeof(cpos) == TYPE_ARRAY and (cpos as Array).size() == 2:
+			return Vector2i(int(cpos[0]), int(cpos[1]))
+	return null
+
+
+func can_submit_found_city() -> bool:
+	if arrival_gate_active() or combat_gate_active:
+		return false
 	if selected_unit_id == NO_SELECTION:
-		return null
-	var unit := unit_by_id(selected_unit_id)
-	var pos_variant = unit.get("position", null)
-	if typeof(pos_variant) != TYPE_ARRAY or (pos_variant as Array).size() != 2:
-		return null
-	return Vector2i(int(pos_variant[0]), int(pos_variant[1]))
+		return false
+	if not _served_rows_fresh():
+		return false
+	return not served_found_city_row.is_empty()
+
+
+# Exact served found_city row, or {} when none / stale.
+func found_city_row() -> Dictionary:
+	if not can_submit_found_city():
+		return {}
+	return served_found_city_row
 
 
 # Conservative waiting poll (C14d-4b pattern, dictionary turn_state): poll
@@ -531,6 +640,21 @@ func selected_unit_status_line() -> String:
 	return line
 
 
+# N8a minimal selected-city line ("" when no city is selected): authoritative
+# name + id + owner from the held snapshot row only.
+func selected_city_status_line() -> String:
+	if selected_city_id == NO_SELECTION:
+		return ""
+	var city := city_by_id(selected_city_id)
+	if city.is_empty():
+		return ""
+	return "Selected city: %s (#%d, owner %d)" % [
+		str(city.get("name", "City")),
+		selected_city_id,
+		int(city.get("owner_id", -1)),
+	]
+
+
 # Minimal turn/status line (current player + own seat identity).
 func status_text() -> String:
 	if my_actor_id < 0:
@@ -559,8 +683,10 @@ func status_text() -> String:
 func _clear_served_move_rows() -> void:
 	served_move_rows = []
 	served_attack_rows = []
+	served_found_city_row = {}
 	served_move_revision = -1
 	served_move_selection = NO_SELECTION
+	served_city_selection = NO_SELECTION
 
 
 func _clear_served_end_turn() -> void:
