@@ -325,9 +325,8 @@ def _post_world_action(
     404 (caller) -> world-kind branch -> credential gate -> status gate ->
     dispatch -> world validation -> apply/persist/event. Rejections reuse the
     legacy HTTP-200 {accepted: false} envelope; nothing is written on
-    rejection. move_unit, end_turn, attack_unit (N7g.1), and found_city
-    (N8a) exist on the world path; set_city_production stays unsupported
-    until N8b.
+    rejection. move_unit, end_turn, attack_unit (N7g.1), found_city
+    (N8a), and set_city_production (N8b) exist on the world path.
 
     Unlike the shared legacy gate, world matches FAIL CLOSED when meta.json
     is missing: a blank token rejects missing_seat_token, a supplied token
@@ -370,6 +369,8 @@ def _post_world_action(
         return _handle_world_attack_unit(match_id, snap, action)
     if at == world_actions.FOUND_CITY_ACTION_TYPE:
         return _handle_world_found_city(match_id, snap, action)
+    if at == world_actions.SET_CITY_PRODUCTION_ACTION_TYPE:
+        return _handle_world_set_city_production(match_id, snap, action)
     if at in world_actions.LEGACY_ONLY_ACTION_TYPES:
         return _reject("unsupported_action_for_match_kind")
     return _reject("unknown_action_type")
@@ -408,6 +409,52 @@ def _handle_world_found_city(
         "city_name": str(city["name"]),
         "at": [int(city["position"][0]), int(city["position"][1])],
         "settler_consumed": True,
+        "result": "accepted",
+        "accepted_at": accepted_at,
+    }
+    file_store.write_snapshot(match_id, new_snap)
+    file_store.append_event(match_id, event)
+    return {
+        "accepted": True,
+        "reason": "",
+        "index": log_index,
+        "revision": new_revision,
+        "snapshot": new_snap,
+        "state_hash": state_hash(new_snap),
+        "event": event,
+    }
+
+
+def _handle_world_set_city_production(
+    match_id: str, snap: dict[str, Any], action: dict[str, Any]
+) -> dict[str, Any]:
+    """N8b world set_city_production: validate fully before any write,
+    fail-closed map resolve (identity drift → HTTP 500, no mutation), then
+    atomically set/switch/clear current_project, bump revision, and append a
+    legacy-shaped set_city_production event. No production tick (N8c)."""
+    vr = world_actions.validate_set_city_production(snap, action)
+    if not vr["ok"]:
+        return _reject(str(vr["reason"]))
+
+    _resolve_world_map_or_500(snap)
+
+    new_snap = world_actions.apply_set_city_production(snap, action)
+    new_revision = int(new_snap["revision"])
+    city = world_actions.city_by_id(new_snap, int(action["city_id"]))
+    if city is None:
+        return _reject("unknown_city")
+
+    log_index = len(file_store.read_events(match_id))
+    accepted_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    event: dict[str, Any] = {
+        "index": log_index,
+        "revision": new_revision,
+        "schema_version": int(action["schema_version"]),
+        "action_type": world_actions.SET_CITY_PRODUCTION_ACTION_TYPE,
+        "actor_id": int(action["actor_id"]),
+        "city_id": int(action["city_id"]),
+        "project_id": str(action["project_id"]),
+        "project_progress": world_actions.project_progress_for_event(city),
         "result": "accepted",
         "accepted_at": accepted_at,
     }

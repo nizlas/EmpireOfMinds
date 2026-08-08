@@ -4,8 +4,9 @@ Covers: successful founding with deterministic city id/name, atomic settler
 consumption, additive snapshot cities + next_city_id, the locked first-
 failure rejection order, no partial mutation on reject, duplicate/stale
 posts after consume, legal-actions found_city rows + city_summaries, city
-selection empty actions, fail-closed map drift (HTTP 500), deterministic
-replay/matched-state, and set_city_production remaining unsupported.
+city selection after founding, fail-closed map drift (HTTP 500), and
+deterministic replay/matched-state. Production selection itself is N8b
+(test_world_set_city_production_v3.py).
 """
 
 from __future__ import annotations
@@ -93,7 +94,13 @@ def test_found_city_success_consumes_settler_and_creates_city(client: TestClient
     assert snap["revision"] == body["revision"]
     assert snap["next_city_id"] == 2
     assert snap["cities"] == [
-        {"id": 1, "owner_id": 0, "position": [1, 1], "name": "Capital"}
+        {
+            "id": 1,
+            "owner_id": 0,
+            "position": [1, 1],
+            "name": "Capital",
+            "current_project": None,
+        }
     ]
     # Settler 1 consumed; warrior 2 and opponent units remain.
     assert [u["id"] for u in snap["units"]] == [2, 3, 4]
@@ -153,6 +160,7 @@ def test_second_city_name_and_id_deterministic(client: TestClient) -> None:
         "owner_id": 0,
         "position": [3, 1],
         "name": "Settlement 2",
+        "current_project": None,
     }
     assert body["snapshot"]["next_city_id"] == 3
     assert body["event"]["city_name"] == "Settlement 2"
@@ -417,24 +425,6 @@ def test_found_city_content_drift_500_no_mutation(
     assert file_store.read_events(match_id) == events_before
 
 
-def test_set_city_production_still_unsupported(client: TestClient) -> None:
-    match_id, tokens, _ = _start_world_match(client)
-    assert _post(client, match_id, _found(0, 1, (1, 1)), tokens[0]).json()["accepted"]
-    r = _post(
-        client,
-        match_id,
-        {
-            "schema_version": 2,
-            "action_type": "set_city_production",
-            "actor_id": 0,
-            "city_id": 1,
-            "project_id": "produce_unit:warrior",
-        },
-        tokens[0],
-    )
-    _assert_reject(r, "unsupported_action_for_match_kind")
-
-
 # ----------------------------------------------------------- legal-actions
 
 
@@ -449,14 +439,17 @@ def test_legal_actions_found_city_row_and_round_trip(client: TestClient) -> None
 
     r = _post(client, match_id, found_rows[0], tokens[0])
     assert r.json()["accepted"] is True
-    # After founding, city_summaries lists the new city with 0 actions.
+    # After founding, city_summaries lists the new city; N8b production rows
+    # (warrior + settler; none excluded while current_project is null).
     summary = _get_legal(client, match_id, 0, tokens[0]).json()
-    assert summary["city_summaries"] == [{"city_id": 1, "legal_action_count": 0}]
-    # Selected city: empty actions, no selection_error (N8b fills projects).
+    assert summary["city_summaries"] == [{"city_id": 1, "legal_action_count": 2}]
     city_sel = _get_legal(client, match_id, 0, tokens[0], selected_city_id=1).json()
     assert city_sel["selection_error"] is None
-    assert city_sel["actions"] == []
     assert city_sel["selected_city_id"] == 1
+    assert [a["project_id"] for a in city_sel["actions"]] == [
+        "produce_unit:settler",
+        "produce_unit:warrior",
+    ]
 
 
 def test_legal_actions_excludes_found_city_on_occupied_city_tile(
@@ -503,7 +496,13 @@ def test_apply_found_city_atomic_helper() -> None:
     assert out["revision"] == 4
     assert out["next_city_id"] == 2
     assert out["cities"] == [
-        {"id": 1, "owner_id": 0, "position": [1, 1], "name": "Capital"}
+        {
+            "id": 1,
+            "owner_id": 0,
+            "position": [1, 1],
+            "name": "Capital",
+            "current_project": None,
+        }
     ]
     assert [u["id"] for u in out["units"]] == [2]
     # Remaining unit combat fields preserved verbatim.

@@ -870,3 +870,31 @@ Launch as for the N7f / N7g.3 one-PC debug mode (one local FastAPI process + one
 
 - Production selection/progress (N8b/N8c), science, population/growth, territory, city combat, AI settlement.
 - N7 animation/locomotion/combat presentation (including the `0.445` Walking scale and lethal-swing aim continuation).
+
+## Slice N8b — Flat yields v2 + production selection (manual / visual gate)
+
+**Purpose:** Niclas approves production-choice UI readability and authoritative progress/cost feedback on `world_map` matches after N8b. Deterministic coverage is already green (server/Godot `slice n8b`); this gate is manual/visual. Project changes remain server-authoritative — the client never optimistically sets, switches, or clears `current_project`.
+
+**Status: PENDING.** Do not mark PASS until Niclas approves. The N8a gate above also remains **PENDING**.
+
+### Launch — local play (one PC, one Godot instance)
+
+Launch as for the N7f / N7g.3 / N8a one-PC debug mode (one local FastAPI process + one Godot instance with `EOM_CLOUD_ONE_PC_DEBUG=1` against loopback `world_map`). Found an owned city first (N8a), then select that city to exercise production choices.
+
+### Manual checklist
+
+- [ ] **Served choices:** selecting an owned city shows the currently served Warrior / Settler production choices (and Clear when applicable) — never client-invented options.
+- [ ] **Idle city:** an idle city (no project) shows **production: none**.
+- [ ] **Authoritative set:** choosing a project changes the display only after the authoritative snapshot arrives and shows **0/2**.
+- [ ] **Switch project:** switching to the other project returns the display to **0/2** (progress reset) only after the snapshot.
+- [ ] **Clear production:** clearing production returns the display to **none** only after the snapshot.
+- [ ] **Stale choices:** actor or selection changes remove stale production choices (no leftover buttons from a previous city/actor).
+- [ ] **Legibility:** the production controls and progress/cost line are readable on the selected city.
+
+**Approval action:** on PASS, record approval here and in [PHASE_PLAN.md](PHASE_PLAN.md); on FAIL, record the objection — production authority in `server/app/domain/world_actions.py` / `world_legal_actions.py`, UI/selection in `world_interaction_state.gd` / `cloud_world_play.gd`.
+
+### Explicitly not this gate
+
+- Production ticking beyond the initial **0/2** display and unit spawning belong to **N8c** and **cannot** be approved in the N8b gate.
+- Science/unlocks, food/growth, buildings, yield overlays, AI production strategy, territory, city combat.
+- N7 animation/locomotion/combat presentation.

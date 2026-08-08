@@ -1,9 +1,10 @@
-"""WorldMap match kind (N6/N7/N8a): snapshot v3 with MapIdentity + minimal state.
+"""WorldMap match kind (N6/N7/N8a/N8b): snapshot v3 with MapIdentity + minimal state.
 
 Snapshot v3 carries the canonical map identity (map_id, schema_version,
 content_hash via MapIdentity.to_dict) plus only the mutable match state:
 revision, turn_state, the deterministic starting units (N7; auto-start later
-adds player_factions), and — since N8a — additive `cities` + `next_city_id`.
+adds player_factions), and — since N8a — additive `cities` + `next_city_id`
+(city rows gain N8b `current_project` when founded/selected).
 It never embeds tiles, edges, solved terrain or geometry - clients load
 canonical content by map_id and verify the raw-byte hash
 (docs/MAP_CONTENT.md, docs/MAP_MODEL.md). Legacy snapshot v2 is untouched.
