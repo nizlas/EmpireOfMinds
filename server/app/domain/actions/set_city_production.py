@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.domain import city_production_rules
 from app.domain.city import City
 from app.domain.content import city_project_definitions as cpd
 from app.domain.progress_state import ProgressState
@@ -119,9 +120,5 @@ def apply_set_city_production(scenario: Scenario, action: dict[str, Any]) -> Sce
 
 
 def project_progress_for_event(city: City) -> int | None:
-    if city.current_project is None:
-        return None
-    p = city.current_project.get("progress")
-    if p is None:
-        return None
-    return int(p)
+    """Deprecated-path adapter over the ONE canonical representation (N8R)."""
+    return city_production_rules.project_progress_for_event(city.current_project)

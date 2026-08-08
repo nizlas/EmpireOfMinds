@@ -25,24 +25,33 @@ attacker's has_attacked becomes true: it can neither move nor attack again
 until its owner's next turn (accepted world end_turn clears every unit's
 has_attacked). Pre-attack movement stays budget-free.
 
-N8a found_city (legacy wire shape: schema_version 1, actor_id, unit_id,
+N8a found_city and N8b set_city_production are thin snapshot-v3 adapters
+over the CANONICAL gameplay rules (N8R single-gameplay-core recovery):
+the founding decision chain, default Capital / Settlement N naming, and
+the founding effect live in city_founding_rules; the production-selection
+decision chain, the canonical {project_id, progress, cost} project state,
+and the event progress representation live in city_production_rules. This
+module owns only the wire/envelope checks (schema, malformed shapes) and
+the snapshot-v3 state adaptation (row lookups, list materialization,
+sorting, revision bump) — never a second copy of a gameplay rule.
+
+found_city (legacy wire shape: schema_version 1, actor_id, unit_id,
 position): consumes an eligible settler and appends a minimal city row
 ({id, owner_id, position, name, current_project}) allocated from snapshot
-next_city_id. Naming reuses the canonical Capital / Settlement N rule.
-Newly founded cities start with current_project null. After the standard
-action/unit checks, an existing city on the founding tile is the ONLY
-city-placement restriction (no water/territory/elevation/minimum-distance
-reasons on schema v1). No population, science, or territory.
+next_city_id. Newly founded cities start with current_project null. After
+the standard action/unit checks, an existing city on the founding tile is
+the ONLY city-placement restriction (no water/territory/elevation/minimum-
+distance reasons on schema v1). No population, science, or territory.
 
-N8b set_city_production (legacy wire parity: schema_version 2, actor_id,
+set_city_production (legacy wire parity: schema_version 2, actor_id,
 city_id, project_id ∈ produce_unit:warrior | produce_unit:settler | none):
-sets or clears city current_project ({project_id, progress, cost} or null).
-Costs come from CityProjectDefinitions (Warrior 2, Settler 2). Both unit
-projects are always selectable — no progress_state / unlock gating on the
-WorldMap path. Progress resets to 0 on set/switch; none clears. Selecting
-the already-active project or clearing an already-empty project rejects
-project_already_set with no mutation. Flat production yield (1 per city on
-owner end_turn) lives in world_production_rules; N8b does not tick it (N8c).
+sets or clears city current_project. Costs come from CityProjectDefinitions
+(Warrior 2, Settler 2). Both unit projects are always selectable — no
+progress_state / unlock gating on the WorldMap path. Progress resets to 0
+on set/switch; none clears. Selecting the already-active project or
+clearing an already-empty project rejects project_already_set with no
+mutation. Flat production yield (1 per city on owner end_turn) lives in
+city_production_rules; N8b does not tick it (N8c).
 
 Validation is two-phase so the API layer can resolve + identity-verify the
 canonical WorldMap between them (world_match.resolve_world_map_for_snapshot):
@@ -81,8 +90,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.domain import city_founding_rules, city_production_rules
 from app.domain.combat_rules import resolve_combat
-from app.domain.content import city_project_definitions as cpd
 from app.domain.content import unit_definitions
 from app.domain.hex_coord import DIRECTIONS
 from app.domain.turn_state import advance_turn_state
@@ -153,12 +162,22 @@ def city_by_id(snap: dict[str, Any], city_id: int) -> dict[str, Any] | None:
     return None
 
 
-def default_city_name_for_owner(snap: dict[str, Any], owner_id: int) -> str:
-    """Canonical naming: first city Capital, then Settlement 2, … per owner."""
-    owned = sum(1 for c in snap.get("cities", []) if int(c["owner_id"]) == owner_id)
-    if owned == 0:
-        return "Capital"
-    return f"Settlement {owned + 1}"
+def _owned_city_count(snap: dict[str, Any], owner_id: int) -> int:
+    return sum(1 for c in snap.get("cities", []) if int(c["owner_id"]) == owner_id)
+
+
+def _founder_facts(
+    snap: dict[str, Any], unit_id: int
+) -> city_founding_rules.FounderFacts | None:
+    """Snapshot-v3 adapter: minimal founder facts for the canonical rules."""
+    unit = _unit_by_id(snap, unit_id)
+    if unit is None:
+        return None
+    return city_founding_rules.FounderFacts(
+        owner_id=int(unit["owner_id"]),
+        type_id=str(unit["type_id"]),
+        position=(int(unit["position"][0]), int(unit["position"][1])),
+    )
 
 
 def _is_coord_pair(value: Any) -> bool:
@@ -397,12 +416,12 @@ def apply_attack_unit(
 
 
 def validate_found_city(snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:
-    """N8a found_city envelope/unit/tile checks (no WorldMap reads).
+    """N8a found_city wire/envelope checks, then the CANONICAL founding
+    decision chain (city_founding_rules) over snapshot-v3 facts.
 
-    Locked first-failure order through tile_already_has_city. Schema v1 has
-    neither water nor territory layers, so those legacy reasons never fire;
-    founding legality never reads elevation. An existing city on the tile is
-    the only city-placement restriction after the unit checks.
+    Locked first-failure order through tile_already_has_city (owned by the
+    canonical rules). No WorldMap reads: an existing city on the tile is the
+    only city-placement restriction after the unit checks.
     """
     if action.get("action_type") != FOUND_CITY_ACTION_TYPE:
         return _fail("wrong_action_type")
@@ -420,44 +439,38 @@ def validate_found_city(snap: dict[str, Any], action: dict[str, Any]) -> dict[st
     if not _is_coord_pair(action["position"]):
         return _fail("malformed_action")
 
-    if int(action["actor_id"]) != _current_player_id(snap):
-        return _fail("not_current_player")
-
-    unit = _unit_by_id(snap, int(action["unit_id"]))
-    if unit is None:
-        # Missing, dead, or already-consumed units share this rejection —
-        # duplicate/stale founding posts after a successful consume also land
-        # here (no partial mutation on the prior accept).
-        return _fail("unknown_unit")
-    if int(unit["owner_id"]) != int(action["actor_id"]):
-        return _fail("unit_not_owned_by_player")
-    if not unit_definitions.can_found_city(str(unit["type_id"])):
-        return _fail("unit_cannot_found_city")
-    if [int(unit["position"][0]), int(unit["position"][1])] != [
-        int(action["position"][0]),
-        int(action["position"][1]),
-    ]:
-        return _fail("unit_not_at_position")
     pos = (int(action["position"][0]), int(action["position"][1]))
-    if city_at(snap, pos) is not None:
-        return _fail("tile_already_has_city")
-    return _ok()
+    # A missing, dead, or already-consumed unit yields founder=None →
+    # unknown_unit from the canonical chain (duplicate/stale founding posts
+    # after a successful consume land there; no partial mutation).
+    return city_founding_rules.validate_found_city(
+        actor_id=int(action["actor_id"]),
+        current_player_id=_current_player_id(snap),
+        founder=_founder_facts(snap, int(action["unit_id"])),
+        position=pos,
+        tile_has_city=city_at(snap, pos) is not None,
+    )
 
 
 def apply_found_city(snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:
-    """Atomic founding: allocate city id, append city, consume settler, bump
+    """Atomic founding: materialize the canonical founding effect into
+    snapshot v3 — allocate city id, append city, consume settler, bump
     revision. Only after validate_found_city returned ok. Cities stay sorted
     ascending by id; remaining units keep all combat fields unchanged."""
     uid = int(action["unit_id"])
     actor_id = int(action["actor_id"])
-    pos = [int(action["position"][0]), int(action["position"][1])]
+    effect = city_founding_rules.found_city_effect(
+        owner_id=actor_id,
+        position=(int(action["position"][0]), int(action["position"][1])),
+        owned_city_count=_owned_city_count(snap, actor_id),
+    )
     new_city_id = int(snap["next_city_id"])
     new_city = {
         "id": new_city_id,
-        "owner_id": actor_id,
-        "position": pos,
-        "name": default_city_name_for_owner(snap, actor_id),
-        "current_project": None,
+        "owner_id": int(effect["owner_id"]),
+        "position": [int(effect["position"][0]), int(effect["position"][1])],
+        "name": str(effect["name"]),
+        "current_project": effect["current_project"],
     }
     new_cities = [dict(c) for c in snap.get("cities", [])]
     new_cities.append(new_city)
@@ -473,24 +486,30 @@ def apply_found_city(snap: dict[str, Any], action: dict[str, Any]) -> dict[str, 
     }
 
 
-def _city_active_project_id(city: dict[str, Any]) -> str | None:
-    """Return the active project_id when current_project is a set dict, else None."""
-    project = city.get("current_project", None)
-    if project is None or not isinstance(project, dict):
+def _city_production_facts(
+    snap: dict[str, Any], city_id: int
+) -> city_production_rules.CityProductionFacts | None:
+    """Snapshot-v3 adapter: minimal city facts for the canonical rules."""
+    city = city_by_id(snap, city_id)
+    if city is None:
         return None
-    pid = project.get("project_id", None)
-    if pid is None:
-        return None
-    return str(pid)
+    return city_production_rules.CityProductionFacts(
+        owner_id=int(city["owner_id"]),
+        active_project_id=city_production_rules.active_project_id(
+            city.get("current_project", None)
+        ),
+    )
 
 
 def validate_set_city_production(
     snap: dict[str, Any], action: dict[str, Any]
 ) -> dict[str, Any]:
-    """N8b set_city_production envelope/city/project checks (no WorldMap reads).
+    """N8b set_city_production wire/envelope checks, then the CANONICAL
+    selection decision chain (city_production_rules) over snapshot-v3 facts.
 
-    Locked first-failure order through project_already_set. No unlock /
-    progress_state gating — both produce_unit projects are always selectable.
+    Locked first-failure order through project_already_set (owned by the
+    canonical rules). No WorldMap reads, no unlock / progress_state gating —
+    both produce_unit projects are always selectable.
     """
     if action.get("action_type") != SET_CITY_PRODUCTION_ACTION_TYPE:
         return _fail("wrong_action_type")
@@ -511,46 +530,24 @@ def validate_set_city_production(
     if not isinstance(action["project_id"], str):
         return _fail("malformed_action")
 
-    if int(action["actor_id"]) != _current_player_id(snap):
-        return _fail("not_current_player")
-
-    city = city_by_id(snap, int(action["city_id"]))
-    if city is None:
-        return _fail("unknown_city")
-    if int(city["owner_id"]) != int(action["actor_id"]):
-        return _fail("city_not_owned_by_player")
-
-    project_id = str(action["project_id"])
-    if project_id != cpd.PROJECT_ID_NONE and not cpd.has(project_id):
-        return _fail("unknown_city_project")
-
-    active = _city_active_project_id(city)
-    if project_id != cpd.PROJECT_ID_NONE and active == project_id:
-        return _fail("project_already_set")
-    if project_id == cpd.PROJECT_ID_NONE and active is None:
-        return _fail("project_already_set")
-    return _ok()
+    return city_production_rules.validate_set_city_production(
+        actor_id=int(action["actor_id"]),
+        current_player_id=_current_player_id(snap),
+        city=_city_production_facts(snap, int(action["city_id"])),
+        project_id=str(action["project_id"]),
+    )
 
 
 def apply_set_city_production(
     snap: dict[str, Any], action: dict[str, Any]
 ) -> dict[str, Any]:
-    """Atomic production selection: set/switch/clear current_project, bump
-    revision. Only after validate_set_city_production returned ok. New and
-    switched projects start at progress 0 with registry cost; none clears.
+    """Atomic production selection: materialize the canonical project state
+    into snapshot v3 (set/switch/clear current_project), bump revision. Only
+    after validate_set_city_production returned ok. New and switched projects
+    start at progress 0 with registry cost; none clears.
     """
     city_id = int(action["city_id"])
-    project_id = str(action["project_id"])
-    if project_id == cpd.PROJECT_ID_NONE:
-        new_project: dict[str, Any] | None = None
-    else:
-        defn = cpd.get_definition(project_id)
-        assert defn is not None
-        new_project = {
-            "project_id": project_id,
-            "progress": 0,
-            "cost": int(defn["cost"]),
-        }
+    new_project = city_production_rules.new_project_state(str(action["project_id"]))
 
     new_cities: list[dict[str, Any]] = []
     for c in snap.get("cities", []):
@@ -567,13 +564,10 @@ def apply_set_city_production(
 
 
 def project_progress_for_event(city: dict[str, Any]) -> int | None:
-    """Legacy-shaped event project_progress: 0+ when set, null when cleared."""
-    project = city.get("current_project", None)
-    if project is None or not isinstance(project, dict):
-        return None
-    if "progress" not in project:
-        return None
-    return int(project["progress"])
+    """Event project_progress via the canonical representation rule."""
+    return city_production_rules.project_progress_for_event(
+        city.get("current_project", None)
+    )
 
 
 def validate_end_turn(snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:

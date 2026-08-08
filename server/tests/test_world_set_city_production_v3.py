@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from app.domain import world_actions
 from app.domain.content import city_project_definitions as cpd
 from app.domain.state_hash import state_hash
-from app.domain.world_production_rules import FLAT_PRODUCTION_PER_CITY
+from app.domain.city_production_rules import FLAT_PRODUCTION_PER_CITY
 from app.storage import file_store
 from test_world_found_city_v3 import _found, _get_legal, _seed_city
 from test_world_map_actions_v3 import (

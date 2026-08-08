@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.domain import city_founding_rules
 from app.domain.city import WORKED_TILES_MODE_AUTO, City
 from app.domain.content import unit_definitions
 from app.domain.hex_coord import HexCoord
@@ -32,11 +33,8 @@ def initial_owned_tiles_for_city(scenario: Scenario, center: HexCoord) -> tuple[
 
 
 def default_city_name_for_owner(scenario: Scenario, owner_id: int) -> str:
-    owned = scenario.cities_owned_by(owner_id)
-    n = len(owned)
-    if n == 0:
-        return "Capital"
-    return f"Settlement {n + 1}"
+    """Deprecated-path adapter over the ONE canonical naming rule (N8R)."""
+    return city_founding_rules.default_city_name(len(scenario.cities_owned_by(owner_id)))
 
 
 def validate(scenario: Scenario | None, action: dict[str, Any] | None) -> dict[str, Any]:
