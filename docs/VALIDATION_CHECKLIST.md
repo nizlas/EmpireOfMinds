@@ -849,7 +849,7 @@ Launch exactly as the N7f gate above (one local FastAPI process + one Godot inst
 
 **Purpose:** Niclas approves city marker placement/readability and the locked shared-tile unit↔city selection feedback on `world_map` matches after N8a. Deterministic coverage is already green (server/Godot `slice n8a`); this gate is manual/visual. Founding remains server-authoritative — the client never optimistically creates a city or consumes the Settler.
 
-**Status: PENDING.** Do not mark PASS until Niclas approves.
+**Status: PASS (2026-08-08).** Niclas approved: Found City works; the Settler disappears; the city is visible and understandable; unit/city interaction looks correct. Absence of the old deprecated Scenario/HexMap gameplay menus is expected and approved — that obsolete UI must remain disconnected and must not be restored.
 
 ### Launch — local play (one PC, one Godot instance)
 
@@ -857,14 +857,14 @@ Launch as for the N7f / N7g.3 one-PC debug mode (one local FastAPI process + one
 
 ### Manual checklist
 
-- [ ] **Found City affordance:** with an eligible own Settler selected on a city-free tile, Found City is available; warriors and ineligible cases never show it.
-- [ ] **Authoritative founding:** accepting Found City removes the Settler and places a city at that tile only after the server snapshot arrives (no optimistic flicker).
-- [ ] **City marker readability:** the reused city asset sits on the N4 anchor and is clearly a city on representative terrain.
-- [ ] **City selection:** picking a city-only tile selects the city; the status line identifies it by name/id.
-- [ ] **Shared-tile cycle:** with a unit and city on the same tile, the first pick selects the unit; repeated picks on that tile alternate city ↔ unit; changing tile or clearing resets the cycle; the player can always tell which object is selected.
-- [ ] **Two clients converge:** both clients show the same city and missing Settler after founding.
+- [x] **Found City affordance:** with an eligible own Settler selected on a city-free tile, Found City is available; warriors and ineligible cases never show it.
+- [x] **Authoritative founding:** accepting Found City removes the Settler and places a city at that tile only after the server snapshot arrives (no optimistic flicker).
+- [x] **City marker readability:** the reused city asset sits on the N4 anchor and is clearly a city on representative terrain.
+- [x] **City selection:** picking a city-only tile selects the city; the status line identifies it by name/id.
+- [x] **Shared-tile cycle:** with a unit and city on the same tile, the first pick selects the unit; repeated picks on that tile alternate city ↔ unit; changing tile or clearing resets the cycle; the player can always tell which object is selected.
+- [x] **Two clients converge:** both clients show the same city and missing Settler after founding.
 
-**Approval action:** on PASS, record approval here and in [PHASE_PLAN.md](PHASE_PLAN.md); on FAIL, record the objection — founding authority in `server/app/domain/world_actions.py`, city presentation in `game/presentation/world/world_cities_view.gd`, selection/Found City in `world_interaction_state.gd` / `cloud_world_play.gd`.
+**Approval action:** recorded PASS here and in [PHASE_PLAN.md](PHASE_PLAN.md) / [DECISION_LOG.md](DECISION_LOG.md) (2026-08-08).
 
 ### Explicitly not this gate
 
@@ -875,7 +875,7 @@ Launch as for the N7f / N7g.3 one-PC debug mode (one local FastAPI process + one
 
 **Purpose:** Niclas approves production-choice UI readability and authoritative progress/cost feedback on `world_map` matches after N8b. Deterministic coverage is already green (server/Godot `slice n8b`); this gate is manual/visual. Project changes remain server-authoritative — the client never optimistically sets, switches, or clears `current_project`.
 
-**Status: PENDING.** Do not mark PASS until Niclas approves. The N8a gate above also remains **PENDING**.
+**Status: PASS (2026-08-08).** Niclas approved: production selection and progress/cost presentation look correct. The N8a gate above is also **PASS**.
 
 ### Launch — local play (one PC, one Godot instance)
 
@@ -883,18 +883,24 @@ Launch as for the N7f / N7g.3 / N8a one-PC debug mode (one local FastAPI process
 
 ### Manual checklist
 
-- [ ] **Served choices:** selecting an owned city shows the currently served Warrior / Settler production choices (and Clear when applicable) — never client-invented options.
-- [ ] **Idle city:** an idle city (no project) shows **production: none**.
-- [ ] **Authoritative set:** choosing a project changes the display only after the authoritative snapshot arrives and shows **0/2**.
-- [ ] **Switch project:** switching to the other project returns the display to **0/2** (progress reset) only after the snapshot.
-- [ ] **Clear production:** clearing production returns the display to **none** only after the snapshot.
-- [ ] **Stale choices:** actor or selection changes remove stale production choices (no leftover buttons from a previous city/actor).
-- [ ] **Legibility:** the production controls and progress/cost line are readable on the selected city.
+- [x] **Served choices:** selecting an owned city shows the currently served Warrior / Settler production choices (and Clear when applicable) — never client-invented options.
+- [x] **Idle city:** an idle city (no project) shows **production: none**.
+- [x] **Authoritative set:** choosing a project changes the display only after the authoritative snapshot arrives and shows **0/2**.
+- [x] **Switch project:** switching to the other project returns the display to **0/2** (progress reset) only after the snapshot.
+- [x] **Clear production:** clearing production returns the display to **none** only after the snapshot.
+- [x] **Stale choices:** actor or selection changes remove stale production choices (no leftover buttons from a previous city/actor).
+- [x] **Legibility:** the production controls and progress/cost line are readable on the selected city.
 
-**Approval action:** on PASS, record approval here and in [PHASE_PLAN.md](PHASE_PLAN.md); on FAIL, record the objection — production authority in `server/app/domain/world_actions.py` / `world_legal_actions.py`, UI/selection in `world_interaction_state.gd` / `cloud_world_play.gd`.
+**Approval action:** recorded PASS here and in [PHASE_PLAN.md](PHASE_PLAN.md) / [DECISION_LOG.md](DECISION_LOG.md) (2026-08-08).
 
 ### Explicitly not this gate
 
 - Production ticking beyond the initial **0/2** display and unit spawning belong to **N8c** and **cannot** be approved in the N8b gate.
 - Science/unlocks, food/growth, buildings, yield overlays, AI production strategy, territory, city combat.
 - N7 animation/locomotion/combat presentation.
+
+## Slice N8R — Single-gameplay-core architecture recovery (architectural review)
+
+**Purpose:** confirm that founding, production selection, and production tick/delivery use one canonical map-neutral core with state adapters only for facts/materialization — not a second WorldMap game loop.
+
+**Status: PASS (2026-08-08) at reviewed commit `709810c613d63d93417a1e35093a8212665ef239`.** N8c is **unblocked** by this review and may proceed as its own slice; it is not part of N8R.

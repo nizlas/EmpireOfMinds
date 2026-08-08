@@ -20,7 +20,7 @@ Empire of Minds has **exactly one canonical gameplay core**. These requirements 
 4. **Extract, never copy.** Mechanics coupled to deprecated state types (`Scenario`, `HexMap`, snapshot v2) must be extracted into map-neutral pure modules (e.g. `server/app/domain/city_founding_rules.py`, `city_production_rules.py`) and called through narrow typed facts/adapters — never copied into a second state-specific implementation.
 5. **No match-kind-specific copies.** Match-kind-specific copies of map-independent gameplay are forbidden. `WorldMap` supplies map-dependent facts (tile existence, topology, edges, passability, occupancy, placement); server/API code supplies authority orchestration (persistence, revision, snapshots, state hashes); Godot supplies input/presentation and reconciles authoritative snapshots. None of them owns a private copy of a gameplay rule.
 6. **The deprecated runtime path is not a requirement.** Keeping the `Scenario`/`HexMap` route operational is not required; it must never force a parallel gameplay implementation, receive new features, or gain compatibility shims.
-7. **N8c remains blocked until N8R has been reviewed.**
+7. **N8R architectural review PASS (2026-08-08 at `709810c`); N8c is unblocked** and may proceed as its own slice. N8c must still call the canonical tick/delivery core — never copy it.
 
 ## Phase 1 architectural framing
 

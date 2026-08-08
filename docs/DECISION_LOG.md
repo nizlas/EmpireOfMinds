@@ -1,3 +1,14 @@
+## 2026-08-08 — N8a / N8b / N8R gates PASS; N8 stack authorized to merge into `main`
+
+- **Decision (project owner):** final gate results for the reviewed N8 stack:
+  - **N8a manual/visual gate: PASS** — Found City works; the Settler disappears; the city is visible and understandable; unit/city interaction looks correct.
+  - **N8b manual/visual gate: PASS** — production selection and progress/cost presentation look correct.
+  - **N8R architectural review: PASS** at reviewed commit `709810c613d63d93417a1e35093a8212665ef239`.
+  - Absence of the old deprecated Scenario/HexMap gameplay menus is **expected and approved** — that obsolete UI must remain disconnected and must not be restored.
+  - **N8c is unblocked** by these reviews and may proceed as its own slice; it is **not** implemented by this integration.
+- **Integration authorization:** merge PRs #10 (N8a), #11 (N8b), and #12 (N8R + this gate-status documentation) into `main` in that order using GitHub merge commits (create a merge commit), retargeting stacked bases to `main` after each prerequisite lands. Do not squash, rebase, force-push, or push the combined branch directly onto `main`. Do not delete the three source branches in the integration task.
+- **Status docs:** [PHASE_PLAN.md](PHASE_PLAN.md), [VALIDATION_CHECKLIST.md](VALIDATION_CHECKLIST.md), and [ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) updated to replace contradictory PENDING / “blocked until N8R” language. Historical decision entries below retain their original PENDING wording as history.
+
 ## 2026-08-08 — N8R: single-gameplay-core architecture recovery (locked principle)
 
 - **Decision (project owner):** the N track had drifted toward a second, simplified WorldMap rules engine (N8a/N8b founding/production rules re-implemented on snapshot-v3 dicts beside the proven `Scenario`-typed legacy rules). This is corrected and **locked permanently** ([ARCHITECTURE_PRINCIPLES.md](ARCHITECTURE_PRINCIPLES.md) "One canonical gameplay core"): Empire of Minds has ONE canonical gameplay core; presentation/map/transport/snapshot/persistence **adapters may differ, gameplay rules may not**; every gameplay slice searches for existing mechanics before adding code; mechanics coupled to deprecated state are **extracted** into map-neutral pure modules, never copied; match-kind-specific copies of map-independent gameplay are forbidden; keeping the deprecated `Scenario`/`HexMap` runtime operational is not a requirement; **N8c stays blocked until N8R is reviewed**.
