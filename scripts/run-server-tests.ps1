@@ -13,7 +13,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $ServerDir = Join-Path $RepoRoot "server"
 
-$Script:SupportedSlices = @("c13a", "c14b", "c14d", "n5", "n6", "n7", "n8a")
+$Script:SupportedSlices = @("c13a", "c14b", "c14d", "n5", "n6", "n7", "n8a", "n8b")
 
 $Script:SliceTests = @{
 	"c13a" = @(
@@ -40,6 +40,12 @@ $Script:SliceTests = @{
 		"tests/test_world_found_city_v3.py"
 		"tests/test_world_legal_actions_v3.py"
 		"tests/test_world_map_match_v3.py"
+	)
+	"n8b" = @(
+		"tests/test_world_set_city_production_v3.py"
+		"tests/test_world_found_city_v3.py"
+		"tests/test_world_legal_actions_v3.py"
+		"tests/test_world_map_actions_v3.py"
 	)
 	"c14b" = @(
 		"tests/test_lobby_list.py"

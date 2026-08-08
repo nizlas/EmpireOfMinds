@@ -1,4 +1,4 @@
-"""N7/N8a world actions on world_map matches (snapshot v3).
+"""N7/N8a/N8b world actions on world_map matches (snapshot v3).
 
 Deliberately separate from the frozen legacy action modules (no Scenario, no
 HexMap, no adapter). World movement v1 legality comes exclusively from the
@@ -27,18 +27,30 @@ has_attacked). Pre-attack movement stays budget-free.
 
 N8a found_city (legacy wire shape: schema_version 1, actor_id, unit_id,
 position): consumes an eligible settler and appends a minimal city row
-({id, owner_id, position, name}) allocated from snapshot next_city_id.
-Naming reuses the canonical Capital / Settlement N rule. After the standard
+({id, owner_id, position, name, current_project}) allocated from snapshot
+next_city_id. Naming reuses the canonical Capital / Settlement N rule.
+Newly founded cities start with current_project null. After the standard
 action/unit checks, an existing city on the founding tile is the ONLY
 city-placement restriction (no water/territory/elevation/minimum-distance
-reasons on schema v1). No production, population, science, or territory.
+reasons on schema v1). No population, science, or territory.
+
+N8b set_city_production (legacy wire parity: schema_version 2, actor_id,
+city_id, project_id ∈ produce_unit:warrior | produce_unit:settler | none):
+sets or clears city current_project ({project_id, progress, cost} or null).
+Costs come from CityProjectDefinitions (Warrior 2, Settler 2). Both unit
+projects are always selectable — no progress_state / unlock gating on the
+WorldMap path. Progress resets to 0 on set/switch; none clears. Selecting
+the already-active project or clearing an already-empty project rejects
+project_already_set with no mutation. Flat production yield (1 per city on
+owner end_turn) lives in world_production_rules; N8b does not tick it (N8c).
 
 Validation is two-phase so the API layer can resolve + identity-verify the
 canonical WorldMap between them (world_match.resolve_world_map_for_snapshot):
-  move_unit:   envelope/unit/from checks  ->  map resolve  ->  destination checks
-  attack_unit: envelope/unit/state checks ->  map resolve  ->  adjacency/edge checks
-  found_city:  envelope/unit/tile checks  ->  map resolve  ->  apply
-  end_turn:    envelope/current-player    ->  map resolve  ->  apply
+  move_unit:            envelope/unit/from checks  ->  map resolve  ->  destination
+  attack_unit:          envelope/unit/state checks ->  map resolve  ->  adjacency
+  found_city:           envelope/unit/tile checks  ->  map resolve  ->  apply
+  set_city_production:  envelope/city/project      ->  map resolve  ->  apply
+  end_turn:             envelope/current-player    ->  map resolve  ->  apply
 
 Locked first-failure reject order (docs/CLOUD_API_V0.md):
   move_unit: wrong_action_type -> unsupported_schema_version -> malformed_action
@@ -57,6 +69,10 @@ Locked first-failure reject order (docs/CLOUD_API_V0.md):
     -> malformed_action -> not_current_player -> unknown_unit
     -> unit_not_owned_by_player -> unit_cannot_found_city
     -> unit_not_at_position -> tile_already_has_city
+  set_city_production: wrong_action_type -> unsupported_schema_version
+    -> malformed_action -> not_current_player -> unknown_city
+    -> city_not_owned_by_player -> unknown_city_project
+    -> project_already_set
   end_turn: wrong_action_type -> unsupported_schema_version -> malformed_action
     -> not_current_player
 """
@@ -66,21 +82,25 @@ from __future__ import annotations
 from typing import Any
 
 from app.domain.combat_rules import resolve_combat
+from app.domain.content import city_project_definitions as cpd
 from app.domain.content import unit_definitions
 from app.domain.hex_coord import DIRECTIONS
 from app.domain.turn_state import advance_turn_state
 from app.domain.world_map import EDGE_CLIFF, WorldMap
 
 SCHEMA_VERSION = 1
+SET_CITY_PRODUCTION_SCHEMA_VERSION = 2
 MOVE_UNIT_ACTION_TYPE = "move_unit"
 END_TURN_ACTION_TYPE = "end_turn"
 ATTACK_UNIT_ACTION_TYPE = "attack_unit"
 FOUND_CITY_ACTION_TYPE = "found_city"
+SET_CITY_PRODUCTION_ACTION_TYPE = "set_city_production"
 WARRIOR_TYPE = "warrior"
 
-# Known legacy action types with no world-path support yet; everything else
-# is unknown_action_type. found_city moved onto the world path in N8a.
-LEGACY_ONLY_ACTION_TYPES = ("set_city_production",)
+# Empty after N8b: every previously deferred legacy action type that the world
+# path now supports is dispatched explicitly. Unknown types still reject as
+# unknown_action_type.
+LEGACY_ONLY_ACTION_TYPES: tuple[str, ...] = ()
 
 
 def _is_exact_int(value: Any) -> bool:
@@ -437,6 +457,7 @@ def apply_found_city(snap: dict[str, Any], action: dict[str, Any]) -> dict[str, 
         "owner_id": actor_id,
         "position": pos,
         "name": default_city_name_for_owner(snap, actor_id),
+        "current_project": None,
     }
     new_cities = [dict(c) for c in snap.get("cities", [])]
     new_cities.append(new_city)
@@ -450,6 +471,109 @@ def apply_found_city(snap: dict[str, Any], action: dict[str, Any]) -> dict[str, 
         "cities": new_cities,
         "next_city_id": new_city_id + 1,
     }
+
+
+def _city_active_project_id(city: dict[str, Any]) -> str | None:
+    """Return the active project_id when current_project is a set dict, else None."""
+    project = city.get("current_project", None)
+    if project is None or not isinstance(project, dict):
+        return None
+    pid = project.get("project_id", None)
+    if pid is None:
+        return None
+    return str(pid)
+
+
+def validate_set_city_production(
+    snap: dict[str, Any], action: dict[str, Any]
+) -> dict[str, Any]:
+    """N8b set_city_production envelope/city/project checks (no WorldMap reads).
+
+    Locked first-failure order through project_already_set. No unlock /
+    progress_state gating — both produce_unit projects are always selectable.
+    """
+    if action.get("action_type") != SET_CITY_PRODUCTION_ACTION_TYPE:
+        return _fail("wrong_action_type")
+    schema = action.get("schema_version")
+    if (
+        not _is_exact_int(schema)
+        or schema != SET_CITY_PRODUCTION_SCHEMA_VERSION
+    ):
+        return _fail("unsupported_schema_version")
+    if (
+        "actor_id" not in action
+        or "city_id" not in action
+        or "project_id" not in action
+    ):
+        return _fail("malformed_action")
+    if not _is_exact_int(action["actor_id"]) or not _is_exact_int(action["city_id"]):
+        return _fail("malformed_action")
+    if not isinstance(action["project_id"], str):
+        return _fail("malformed_action")
+
+    if int(action["actor_id"]) != _current_player_id(snap):
+        return _fail("not_current_player")
+
+    city = city_by_id(snap, int(action["city_id"]))
+    if city is None:
+        return _fail("unknown_city")
+    if int(city["owner_id"]) != int(action["actor_id"]):
+        return _fail("city_not_owned_by_player")
+
+    project_id = str(action["project_id"])
+    if project_id != cpd.PROJECT_ID_NONE and not cpd.has(project_id):
+        return _fail("unknown_city_project")
+
+    active = _city_active_project_id(city)
+    if project_id != cpd.PROJECT_ID_NONE and active == project_id:
+        return _fail("project_already_set")
+    if project_id == cpd.PROJECT_ID_NONE and active is None:
+        return _fail("project_already_set")
+    return _ok()
+
+
+def apply_set_city_production(
+    snap: dict[str, Any], action: dict[str, Any]
+) -> dict[str, Any]:
+    """Atomic production selection: set/switch/clear current_project, bump
+    revision. Only after validate_set_city_production returned ok. New and
+    switched projects start at progress 0 with registry cost; none clears.
+    """
+    city_id = int(action["city_id"])
+    project_id = str(action["project_id"])
+    if project_id == cpd.PROJECT_ID_NONE:
+        new_project: dict[str, Any] | None = None
+    else:
+        defn = cpd.get_definition(project_id)
+        assert defn is not None
+        new_project = {
+            "project_id": project_id,
+            "progress": 0,
+            "cost": int(defn["cost"]),
+        }
+
+    new_cities: list[dict[str, Any]] = []
+    for c in snap.get("cities", []):
+        row = dict(c)
+        if int(row["id"]) == city_id:
+            row["current_project"] = new_project
+        new_cities.append(row)
+    new_cities.sort(key=lambda c: int(c["id"]))
+    return {
+        **snap,
+        "revision": int(snap["revision"]) + 1,
+        "cities": new_cities,
+    }
+
+
+def project_progress_for_event(city: dict[str, Any]) -> int | None:
+    """Legacy-shaped event project_progress: 0+ when set, null when cleared."""
+    project = city.get("current_project", None)
+    if project is None or not isinstance(project, dict):
+        return None
+    if "progress" not in project:
+        return None
+    return int(project["progress"])
 
 
 def validate_end_turn(snap: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:

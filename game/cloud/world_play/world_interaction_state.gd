@@ -49,11 +49,13 @@
 #   or clearing resets). An own unit on an enemy city tile never cycles
 #   into that city. Snapshot reconcile clears `selected_city_id` when the
 #   city is missing OR no longer owned by `my_actor_id` (covers one-PC
-#   actor rebinding before selection validation). Served `found_city` rows
-#   live in the selection slot; Found City submits the exact served row —
-#   never client-built, never optimistic city create / settler consume.
+#   actor rebinding before selection validation). Served `found_city` and
+#   N8b `set_city_production` rows live in the selection slot; Found City /
+#   production choices submit the exact served row — never client-built,
+#   never optimistic city create / settler consume / project changes.
 #   Consumed selected settlers clear selection safely on the next snapshot
-#   apply.
+#   apply. Stale production rows clear on revision, selection, or actor
+#   change with the rest of the selection slot.
 extends RefCounted
 
 const CloudTurnOwnershipScript = preload("res://cloud/cloud_turn_ownership.gd")
@@ -91,12 +93,13 @@ var cities: Array = []
 var selected_unit_id: int = NO_SELECTION
 var selected_city_id: int = NO_SELECTION
 
-# Served selection legality (move + N7g.3 attack + N8a found_city rows),
-# bound to revision + selection (one binding — all arrive in the same
-# response). City selections carry empty action lists until N8b.
+# Served selection legality (move + N7g.3 attack + N8a found_city + N8b
+# set_city_production rows), bound to revision + selection (one binding —
+# all arrive in the same response).
 var served_move_rows: Array = []
 var served_attack_rows: Array = []
 var served_found_city_row: Dictionary = {}
+var served_production_rows: Array = []
 var served_move_revision: int = -1
 var served_move_selection: int = NO_SELECTION
 var served_city_selection: int = NO_SELECTION
@@ -426,6 +429,8 @@ func accept_selection_legal_actions(serial: int, response: Dictionary) -> bool:
 				served_attack_rows.append((row_variant as Dictionary).duplicate(true))
 			elif action_type == "found_city" and served_found_city_row.is_empty():
 				served_found_city_row = (row_variant as Dictionary).duplicate(true)
+			elif action_type == "set_city_production":
+				served_production_rows.append((row_variant as Dictionary).duplicate(true))
 		served_move_revision = revision
 		served_move_selection = _pending_selection_unit
 		served_city_selection = _pending_selection_city
@@ -442,6 +447,17 @@ func _served_rows_fresh() -> bool:
 	return (
 		served_move_revision == revision
 		and served_move_selection == selected_unit_id
+	)
+
+
+func _served_city_rows_fresh() -> bool:
+	if arrival_gate_active() or combat_gate_active:
+		return false
+	if selected_city_id == NO_SELECTION:
+		return false
+	return (
+		served_move_revision == revision
+		and served_city_selection == selected_city_id
 	)
 
 
@@ -619,6 +635,42 @@ func found_city_row() -> Dictionary:
 	return served_found_city_row
 
 
+# Fresh served set_city_production rows for the selected city (exact payloads
+# for UI buttons — empty when stale / no city selection / gated).
+func production_rows() -> Array:
+	if not _served_city_rows_fresh():
+		return []
+	return served_production_rows
+
+
+# Exact served production row for project_id, or {} when none / stale.
+func production_row_for_project_id(project_id: String) -> Dictionary:
+	if not _served_city_rows_fresh():
+		return {}
+	for row_variant in served_production_rows:
+		if typeof(row_variant) != TYPE_DICTIONARY:
+			continue
+		var row: Dictionary = row_variant
+		if str(row.get("project_id", "")) == project_id:
+			return row
+	return {}
+
+
+func can_submit_production_row(row: Dictionary) -> bool:
+	if arrival_gate_active() or combat_gate_active:
+		return false
+	if row.is_empty() or not _served_city_rows_fresh():
+		return false
+	# Must be the exact held served Dictionary instance (never a client-built
+	# lookalike — value-equal copies are rejected).
+	for held_variant in served_production_rows:
+		if typeof(held_variant) != TYPE_DICTIONARY:
+			continue
+		if is_same(held_variant, row):
+			return true
+	return false
+
+
 # Conservative waiting poll (C14d-4b pattern, dictionary turn_state): poll
 # only while seated, out of turn, and no request is already in flight.
 func should_poll(request_in_flight: bool) -> bool:
@@ -653,19 +705,31 @@ func selected_unit_status_line() -> String:
 	return line
 
 
-# N8a minimal selected-city line ("" when no city is selected): authoritative
-# name + id + owner from the held snapshot row only.
+# N8a/N8b minimal selected-city line ("" when no city is selected):
+# authoritative name + id + owner, plus current_project progress/cost from
+# the held snapshot row only (never optimistic).
 func selected_city_status_line() -> String:
 	if selected_city_id == NO_SELECTION:
 		return ""
 	var city := city_by_id(selected_city_id)
 	if city.is_empty():
 		return ""
-	return "Selected city: %s (#%d, owner %d)" % [
+	var line := "Selected city: %s (#%d, owner %d)" % [
 		str(city.get("name", "City")),
 		selected_city_id,
 		int(city.get("owner_id", -1)),
 	]
+	var project = city.get("current_project", null)
+	if project == null:
+		line += " — production: none"
+	elif typeof(project) == TYPE_DICTIONARY:
+		var proj: Dictionary = project
+		line += " — production: %s %d/%d" % [
+			str(proj.get("project_id", "?")),
+			int(proj.get("progress", 0)),
+			int(proj.get("cost", 0)),
+		]
+	return line
 
 
 # Minimal turn/status line (current player + own seat identity).
@@ -697,6 +761,7 @@ func _clear_served_move_rows() -> void:
 	served_move_rows = []
 	served_attack_rows = []
 	served_found_city_row = {}
+	served_production_rows = []
 	served_move_revision = -1
 	served_move_selection = NO_SELECTION
 	served_city_selection = NO_SELECTION
