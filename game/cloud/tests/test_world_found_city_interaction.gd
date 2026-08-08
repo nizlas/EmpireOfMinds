@@ -13,14 +13,14 @@ var _total := 0
 var _any_fail := false
 
 
-func _snapshot(rev: int, units: Array, cities: Array = []) -> Dictionary:
+func _snapshot(rev: int, units: Array, cities: Array = [], current_index: int = 0) -> Dictionary:
 	return {
 		"match_id": "m_n8a",
 		"schema_version": 3,
 		"match_kind": "world_map",
 		"map": {"map_id": "handdrawn_test_map_full_01", "schema_version": 1, "content_hash": "x"},
 		"revision": rev,
-		"turn_state": {"players": [0, 1], "current_index": 0, "turn_number": 1},
+		"turn_state": {"players": [0, 1], "current_index": current_index, "turn_number": 1},
 		"units": units,
 		"cities": cities,
 		"next_city_id": cities.size() + 1,
@@ -86,6 +86,10 @@ func _run() -> void:
 	_test_shared_tile_selection_cycle()
 	_test_city_only_selection_and_status()
 	_test_no_optimistic_found_city_construction()
+	_test_foreign_city_pick_clears_never_selects()
+	_test_own_unit_on_enemy_city_never_cycles_to_city()
+	_test_lost_city_ownership_clears_selection()
+	_test_one_pc_actor_switch_clears_previous_city_selection()
 	_finish()
 
 
@@ -198,6 +202,117 @@ func _test_no_optimistic_found_city_construction() -> void:
 	_check(st.found_city_row().is_empty(), "no client-built found_city without served row")
 	_check(not st.can_submit_found_city(), "Found City disabled without served row")
 	_check(st.cities.is_empty(), "cities mirror stays empty until snapshot carries them")
+
+
+func _test_foreign_city_pick_clears_never_selects() -> void:
+	# Enemy city remains in the cities mirror (visibility) but picking its
+	# tile follows the established foreign/empty clear path — never selects.
+	var cities := [
+		{"id": 1, "owner_id": 1, "position": [3, 3], "name": "Enemy Capital"},
+	]
+	var st = WorldInteractionStateScript.new(0)
+	st.apply_snapshot(_snapshot(0, [], cities))
+	_check(st.cities.size() == 1, "foreign city stays visible in the cities mirror")
+	_check(
+		st.city_id_at(Vector2i(3, 3)) == WorldInteractionStateScript.NO_SELECTION,
+		"city_id_at ignores foreign cities (own-only, like units)"
+	)
+	var d: Dictionary = st.classify_pick(_tile_pick(3, 3))
+	_check(
+		str(d.get("kind", "")) == WorldInteractionStateScript.PICK_CLEAR,
+		"enemy-city-only tile clears like foreign/empty (never selects)"
+	)
+	_check(st.selected_city_id == WorldInteractionStateScript.NO_SELECTION, "no city selected after foreign pick")
+
+
+func _test_own_unit_on_enemy_city_never_cycles_to_city() -> void:
+	# Own unit sharing an enemy city tile: select the unit, never cycle into
+	# the enemy city on repeated picks (cycle is own-unit + own-city only).
+	var units := [
+		{"id": 2, "owner_id": 0, "position": [3, 3], "type_id": "warrior", "current_hp": 100, "has_attacked": false},
+	]
+	var cities := [
+		{"id": 1, "owner_id": 1, "position": [3, 3], "name": "Enemy Capital"},
+	]
+	var st = WorldInteractionStateScript.new(0)
+	st.apply_snapshot(_snapshot(0, units, cities))
+	var d1: Dictionary = st.classify_pick(_tile_pick(3, 3))
+	_check(str(d1.get("kind", "")) == WorldInteractionStateScript.PICK_SELECT_UNIT, "shared enemy-city tile selects own unit")
+	_check(int(d1.get("unit_id", -1)) == 2, "own warrior selected on enemy city tile")
+	st.select_unit(2)
+	var d2: Dictionary = st.classify_pick(_tile_pick(3, 3))
+	_check(
+		str(d2.get("kind", "")) == WorldInteractionStateScript.PICK_NONE,
+		"repeat pick on own-unit/enemy-city tile never cycles into the enemy city"
+	)
+	_check(st.selected_city_id == WorldInteractionStateScript.NO_SELECTION, "enemy city never becomes selection")
+	_check(st.selected_unit_id == 2, "own unit selection retained on inert repeat pick")
+
+
+func _test_lost_city_ownership_clears_selection() -> void:
+	var cities := [
+		{"id": 1, "owner_id": 0, "position": [1, 1], "name": "Capital"},
+	]
+	var st = WorldInteractionStateScript.new(0)
+	st.apply_snapshot(_snapshot(0, [], cities))
+	st.select_city(1)
+	_check(st.selected_city_id == 1, "own city selected before ownership change")
+
+	# Same-owner snapshot update: selection survives and selection refetch is directed.
+	var same_owner_dirs: Dictionary = st.apply_snapshot(_snapshot(1, [], cities))
+	_check(st.selected_city_id == 1, "still-owned city selection survives same-owner snapshot update")
+	_check(bool(same_owner_dirs.get("selection", false)), "selection refetch directed for surviving own city")
+
+	# Ownership lost (city still present under the other player): clear.
+	var flipped := [
+		{"id": 1, "owner_id": 1, "position": [1, 1], "name": "Capital"},
+	]
+	var lost_dirs: Dictionary = st.apply_snapshot(_snapshot(2, [], flipped))
+	_check(
+		st.selected_city_id == WorldInteractionStateScript.NO_SELECTION,
+		"lost ownership clears selected_city_id (city may still exist)"
+	)
+	_check(st.cities.size() == 1, "city remains mirrored after ownership loss")
+	_check(not bool(lost_dirs.get("selection", false)), "no selection refetch after ownership clear")
+
+
+func _test_one_pc_actor_switch_clears_previous_city_selection() -> void:
+	# One-PC rebinds my_actor_id to the new current player BEFORE selection
+	# validation; without an ownership check the previous actor's city would
+	# survive and trigger an invalid selection fetch.
+	var cities := [
+		{"id": 1, "owner_id": 0, "position": [1, 1], "name": "Capital"},
+		{"id": 2, "owner_id": 1, "position": [2, 2], "name": "Settlement 2"},
+	]
+	var st = WorldInteractionStateScript.new(0)
+	st.one_pc_debug = true
+	st.apply_snapshot(_snapshot(0, [], cities, 0))
+	_check(st.my_actor_id == 0, "one-PC starts as Player 0")
+	st.select_city(1)
+	_check(st.selected_city_id == 1, "Player 0 city selected before End Turn")
+
+	var dirs: Dictionary = st.apply_snapshot(_snapshot(1, [], cities, 1))
+	_check(st.my_actor_id == 1, "one-PC rebinds to Player 1 on turn change")
+	_check(
+		st.selected_city_id == WorldInteractionStateScript.NO_SELECTION,
+		"previous actor's city selection cleared on one-PC rebind"
+	)
+	_check(bool(dirs.get("summary", false)), "new actor summary refetch directed")
+	_check(
+		not bool(dirs.get("selection", false)),
+		"no selection refetch for the previous actor's city after one-PC rebind"
+	)
+	# New actor may select their own city; foreign city tile still clears.
+	var own_pick: Dictionary = st.classify_pick(_tile_pick(2, 2))
+	_check(
+		str(own_pick.get("kind", "")) == WorldInteractionStateScript.PICK_SELECT_CITY,
+		"new actor can select their own city"
+	)
+	var foreign_pick: Dictionary = st.classify_pick(_tile_pick(1, 1))
+	_check(
+		str(foreign_pick.get("kind", "")) == WorldInteractionStateScript.PICK_CLEAR,
+		"previous actor's city is foreign after one-PC rebind"
+	)
 
 
 func _check(cond: bool, msg: String) -> void:

@@ -42,12 +42,18 @@
 #   deferred combat apply, or any superseding authoritative snapshot —
 #   which also cancels the presentation itself in the view). Presentation
 #   pacing only, never gameplay authority.
-# - N8a cities: snapshot `cities` mirror + city selection with the locked
-#   shared-tile cycle (unit first, then alternate with the city on the same
-#   tile; changing tile or clearing resets). Served `found_city` rows live
-#   in the selection slot; Found City submits the exact served row — never
-#   client-built, never optimistic city create / settler consume. Consumed
-#   selected settlers clear selection safely on the next snapshot apply.
+# - N8a cities: snapshot `cities` mirror + OWN-city selection only (same
+#   ownership rule as units — foreign cities stay visible but never become
+#   local selection). Locked shared-tile cycle applies only when an own
+#   unit shares an OWN city tile (unit first, then alternate; changing tile
+#   or clearing resets). An own unit on an enemy city tile never cycles
+#   into that city. Snapshot reconcile clears `selected_city_id` when the
+#   city is missing OR no longer owned by `my_actor_id` (covers one-PC
+#   actor rebinding before selection validation). Served `found_city` rows
+#   live in the selection slot; Found City submits the exact served row —
+#   never client-built, never optimistic city create / settler consume.
+#   Consumed selected settlers clear selection safely on the next snapshot
+#   apply.
 extends RefCounted
 
 const CloudTurnOwnershipScript = preload("res://cloud/cloud_turn_ownership.gd")
@@ -185,7 +191,8 @@ func own_unit_id_at(tile: Vector2i) -> int:
 	return NO_SELECTION
 
 
-# City standing on `tile` (at most one city center per tile — N8a).
+# Own city standing on `tile` (at most one city center per tile — N8a).
+# Mirrors `own_unit_id_at`: a foreign city on the tile is never selectable.
 func city_id_at(tile: Vector2i) -> int:
 	for row_variant in cities:
 		if typeof(row_variant) != TYPE_DICTIONARY:
@@ -195,8 +202,11 @@ func city_id_at(tile: Vector2i) -> int:
 		if typeof(pos_variant) != TYPE_ARRAY or (pos_variant as Array).size() != 2:
 			continue
 		var pos: Array = pos_variant
-		if Vector2i(int(pos[0]), int(pos[1])) == tile:
+		if Vector2i(int(pos[0]), int(pos[1])) != tile:
+			continue
+		if int(row.get("owner_id", -1)) == my_actor_id:
 			return int(row.get("id", -1))
+		return NO_SELECTION
 	return NO_SELECTION
 
 
@@ -297,9 +307,11 @@ func apply_snapshot(snap: Dictionary) -> Dictionary:
 		var unit := unit_by_id(selected_unit_id)
 		if unit.is_empty() or int(unit.get("owner_id", -1)) != my_actor_id:
 			selected_unit_id = NO_SELECTION
+	# Clear when missing OR no longer owned (one-PC rebinds my_actor_id
+	# before this check, so the previous actor's city cannot survive).
 	if selected_city_id != NO_SELECTION:
 		var city := city_by_id(selected_city_id)
-		if city.is_empty():
+		if city.is_empty() or int(city.get("owner_id", -1)) != my_actor_id:
 			selected_city_id = NO_SELECTION
 	if arrival_gate_active():
 		return {"summary": false, "selection": false}
@@ -508,8 +520,9 @@ func can_submit_end_turn() -> bool:
 # completely inert (turn ownership is checked before miss-clear). On the own
 # turn: a fresh served attack target submits that exact attack row, a fresh
 # served destination submits that exact move row, then the N8a shared-tile
-# selection rule (unit first; repeated picks on the same unit+city tile
-# alternate), miss/foreign/empty tiles clear, cliffs leave selection unchanged.
+# selection rule for an own unit + OWN city (unit first; repeated picks
+# alternate), miss/foreign/empty/enemy-city tiles clear, cliffs leave
+# selection unchanged.
 func classify_pick(pick: Dictionary) -> Dictionary:
 	# Arrival/combat gate: EVERY gameplay pick — destinations, attack
 	# targets, other own units, empty tiles, misses, cliffs — is completely
