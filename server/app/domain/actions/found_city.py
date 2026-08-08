@@ -1,4 +1,14 @@
-"""Found city action. Parity: game/domain/actions/found_city.gd."""
+"""Deprecated Scenario/HexMap adapter for found_city (frozen legacy path).
+
+N8R: this module contains NO founding algorithm. The founding decision
+sequence, naming, and founding semantics live exclusively in the canonical
+app.domain.city_founding_rules — this adapter only parses the legacy wire
+envelope, extracts Scenario/HexMap facts (unit row, tile-on-map, water,
+existing city, territory ownership), and materializes the canonical founding
+effect into the rich snapshot-v2 City (territory, palace, population are
+legacy state-model materialization, not gameplay decisions). Rejection
+reasons are the canonical literal strings. Do not extend this path.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +16,6 @@ from typing import Any
 
 from app.domain import city_founding_rules
 from app.domain.city import WORKED_TILES_MODE_AUTO, City
-from app.domain.content import unit_definitions
 from app.domain.hex_coord import HexCoord
 from app.domain.hex_map import Terrain
 from app.domain.scenario import Scenario
@@ -16,7 +25,8 @@ ACTION_TYPE = "found_city"
 
 
 def initial_owned_tiles_for_city(scenario: Scenario, center: HexCoord) -> tuple[HexCoord, ...]:
-    """Mirror FoundCity._initial_owned_tiles_for_city: center then legal neighbors, skip already-owned."""
+    """Legacy territory materialization (map-dependent, snapshot-v2 only):
+    center then legal neighbors, skip already-owned."""
     seen: set[tuple[int, int]] = {(center.q, center.r)}
     out: list[HexCoord] = [HexCoord(center.q, center.r)]
     for nb in center.neighbors():
@@ -33,12 +43,26 @@ def initial_owned_tiles_for_city(scenario: Scenario, center: HexCoord) -> tuple[
 
 
 def default_city_name_for_owner(scenario: Scenario, owner_id: int) -> str:
-    """Deprecated-path adapter over the ONE canonical naming rule (N8R)."""
+    """Scenario adapter over the ONE canonical naming rule."""
     return city_founding_rules.default_city_name(len(scenario.cities_owned_by(owner_id)))
 
 
+def _founder_facts(scenario: Scenario, unit_id: int) -> city_founding_rules.FounderFacts | None:
+    u = scenario.unit_by_id(unit_id)
+    if u is None:
+        return None
+    return city_founding_rules.FounderFacts(
+        owner_id=int(u.owner_id),
+        type_id=str(u.type_id),
+        position=(int(u.position.q), int(u.position.r)),
+    )
+
+
 def validate(scenario: Scenario | None, action: dict[str, Any] | None) -> dict[str, Any]:
-    """current_player checked in API layer. Reason strings align with Godot where noted; API maps some."""
+    """Legacy envelope checks, then the canonical founding decision over
+    Scenario/HexMap facts. current_player is checked in the API layer, so the
+    adapter passes actor as current (the canonical chain owns the check on
+    paths that gate in-domain)."""
     if scenario is None:
         return {"ok": False, "reason": "malformed_action"}
     if action is None or not isinstance(action, dict):
@@ -58,55 +82,49 @@ def validate(scenario: Scenario | None, action: dict[str, Any] | None) -> dict[s
     if not isinstance(pos_a[0], int) or not isinstance(pos_a[1], int):
         return {"ok": False, "reason": "malformed_action"}
 
-    u = scenario.unit_by_id(int(action["unit_id"]))
-    if u is None:
-        return {"ok": False, "reason": "unknown_unit"}
-    if u.owner_id != int(action["actor_id"]):
-        return {"ok": False, "reason": "actor_not_owner"}
-    if not unit_definitions.can_found_city(u.type_id):
-        return {"ok": False, "reason": "unit_type_cannot_found"}
-
+    actor_id = int(action["actor_id"])
     pos_c = HexCoord(int(pos_a[0]), int(pos_a[1]))
-    if u.position != pos_c:
-        return {"ok": False, "reason": "unit_not_at_position"}
-    if not scenario.map.has(pos_c):
-        return {"ok": False, "reason": "tile_not_on_map"}
-    if scenario.map.terrain_at(pos_c) == Terrain.WATER:
-        return {"ok": False, "reason": "tile_is_water"}
-    if len(scenario.cities_at(pos_c)) > 0:
-        return {"ok": False, "reason": "tile_already_has_city"}
-    if scenario.tile_is_owned(pos_c):
-        return {"ok": False, "reason": "tile_already_owned"}
-
-    return {"ok": True, "reason": ""}
+    tile_on_map = scenario.map.has(pos_c)
+    return city_founding_rules.validate_found_city(
+        actor_id=actor_id,
+        current_player_id=actor_id,
+        founder=_founder_facts(scenario, int(action["unit_id"])),
+        position=(pos_c.q, pos_c.r),
+        tile_has_city=len(scenario.cities_at(pos_c)) > 0,
+        tile_on_map=tile_on_map,
+        tile_is_water=tile_on_map and scenario.map.terrain_at(pos_c) == Terrain.WATER,
+        tile_is_owned=scenario.tile_is_owned(pos_c),
+    )
 
 
 def apply_found_city(scenario: Scenario, action: dict[str, Any]) -> Scenario:
-    """Remove founder unit, append city, bump next_city_id. Only call after validate ok."""
+    """Materialize the canonical founding effect into snapshot-v2 state:
+    remove founder unit, append rich City, bump next_city_id. Only call after
+    validate ok."""
     pos_a = action["position"]
-    q, r = int(pos_a[0]), int(pos_a[1])
-    center = HexCoord(q, r)
+    center = HexCoord(int(pos_a[0]), int(pos_a[1]))
     uid = int(action["unit_id"])
     actor_id = int(action["actor_id"])
 
+    effect = city_founding_rules.found_city_effect(
+        owner_id=actor_id,
+        position=(center.q, center.r),
+        owned_city_count=len(scenario.cities_owned_by(actor_id)),
+    )
+
     new_units = tuple(u for u in scenario.units() if u.id != uid)
     new_city_id = scenario.peek_next_city_id()
-
-    cname = default_city_name_for_owner(scenario, actor_id)
-    owned_before = scenario.cities_owned_by(actor_id)
-    is_cap = len(owned_before) == 0
-    bld: tuple[str, ...] = ("palace",) if is_cap else ()
-    initial_owned = initial_owned_tiles_for_city(scenario, center)
+    is_cap = bool(effect["is_capital"])
 
     new_city = City(
         id=new_city_id,
-        owner_id=actor_id,
+        owner_id=int(effect["owner_id"]),
         position=center,
-        current_project=None,
-        city_name=cname,
+        current_project=effect["current_project"],
+        city_name=str(effect["name"]),
         is_capital=is_cap,
-        building_ids=bld,
-        owned_tiles=initial_owned,
+        building_ids=("palace",) if is_cap else (),
+        owned_tiles=initial_owned_tiles_for_city(scenario, center),
         population=1,
         manual_worked_tiles=(),
         food_stored=0,
