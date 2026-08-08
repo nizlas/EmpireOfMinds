@@ -59,28 +59,11 @@ def _map_end_turn_validate_reason(vr_reason: str) -> str:
 
 
 def _map_move_validate_reason(vr_reason: str) -> str:
+    # N8R: founding/production adapters return the canonical wire strings
+    # directly (one rules implementation), so only the shared
+    # wrong_action_type -> unknown_action_type envelope mapping remains.
     if vr_reason == "wrong_action_type":
         return "unknown_action_type"
-    return vr_reason
-
-
-def _map_found_city_validate_reason(vr_reason: str) -> str:
-    if vr_reason == "wrong_action_type":
-        return "unknown_action_type"
-    if vr_reason == "actor_not_owner":
-        return "unit_not_owned_by_player"
-    if vr_reason == "unit_type_cannot_found":
-        return "unit_cannot_found_city"
-    return vr_reason
-
-
-def _map_set_city_production_reason(vr_reason: str) -> str:
-    if vr_reason == "wrong_action_type":
-        return "unknown_action_type"
-    if vr_reason == "actor_not_owner":
-        return "city_not_owned_by_player"
-    if vr_reason == "unsupported_project_id":
-        return "unknown_city_project"
     return vr_reason
 
 
@@ -862,7 +845,7 @@ def _handle_found_city(match_id: str, snap: dict[str, Any], action: dict[str, An
     scenario = snapshot.scenario_from_snapshot_dict(snap["scenario"])
     vr = found_city.validate(scenario, action)
     if not vr["ok"]:
-        return _reject(_map_found_city_validate_reason(str(vr["reason"])))
+        return _reject(_map_move_validate_reason(str(vr["reason"])))
 
     new_scenario = found_city.apply_found_city(scenario, action)
     new_revision = int(snap["revision"]) + 1
@@ -918,7 +901,7 @@ def _handle_set_city_production(match_id: str, snap: dict[str, Any], action: dic
     progress = ProgressState.from_snapshot_dict(snap["progress_state"])
     vr = set_city_production.validate(scenario, progress, action)
     if not vr["ok"]:
-        return _reject(_map_set_city_production_reason(str(vr["reason"])))
+        return _reject(_map_move_validate_reason(str(vr["reason"])))
 
     new_scenario = set_city_production.apply_set_city_production(scenario, action)
     new_revision = int(snap["revision"]) + 1

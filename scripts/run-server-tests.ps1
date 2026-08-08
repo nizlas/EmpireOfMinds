@@ -40,12 +40,14 @@ $Script:SliceTests = @{
 		"tests/test_world_found_city_v3.py"
 		"tests/test_world_legal_actions_v3.py"
 		"tests/test_world_map_match_v3.py"
+		"tests/test_city_rules_canonical.py"
 	)
 	"n8b" = @(
 		"tests/test_world_set_city_production_v3.py"
 		"tests/test_world_found_city_v3.py"
 		"tests/test_world_legal_actions_v3.py"
 		"tests/test_world_map_actions_v3.py"
+		"tests/test_city_rules_canonical.py"
 	)
 	"c14b" = @(
 		"tests/test_lobby_list.py"
