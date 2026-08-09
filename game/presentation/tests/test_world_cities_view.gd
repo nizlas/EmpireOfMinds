@@ -2,12 +2,14 @@
 #
 # N8a world-city projection: WorldCitiesView reconciles one stable Node3D
 # root per snapshot city (keyed by exact city id), places every root exactly
-# at the supplied tile anchor, reuses ancient_village below a 0.5-scaled
-# ModelRoot, waits until BOTH snapshot cities and anchors are available,
-# never duplicates on reapplied snapshots, and never falls back to the origin.
+# at the supplied tile anchor, reuses ancient_village below a city-specific
+# CITY_MODEL_ROOT_SCALE ModelRoot (not the humanoid unit scale), waits until
+# BOTH snapshot cities and anchors are available, never duplicates on
+# reapplied snapshots, and never falls back to the origin.
 extends SceneTree
 
 const WorldCitiesViewScript = preload("res://presentation/world/world_cities_view.gd")
+const WorldUnitsViewScript = preload("res://presentation/world/world_units_view.gd")
 
 const ANCHORS := {
 	Vector2i(1, 1): Vector3(1.5, 2.0, -1.25),
@@ -32,6 +34,16 @@ func _init() -> void:
 func _run() -> void:
 	await process_frame
 
+	# City scale is an independent presentation contract — never the unit scale.
+	_check(
+		WorldCitiesViewScript.CITY_MODEL_ROOT_SCALE != WorldUnitsViewScript.MODEL_ROOT_SCALE,
+		"city scale is distinct from humanoid unit MODEL_ROOT_SCALE"
+	)
+	_check(
+		is_equal_approx(WorldCitiesViewScript.CITY_MODEL_ROOT_SCALE, 5.0),
+		"city CITY_MODEL_ROOT_SCALE is the tuned 5.0 contract"
+	)
+
 	var view = WorldCitiesViewScript.new()
 	root.add_child(view)
 	view.set_tile_anchors(ANCHORS)
@@ -51,8 +63,13 @@ func _run() -> void:
 		_check(model_root != null, "city %d has a ModelRoot" % city_id)
 		if model_root != null:
 			_check(
-				model_root.scale == Vector3.ONE * WorldCitiesViewScript.MODEL_ROOT_SCALE,
-				"city %d ModelRoot scale is %s" % [city_id, str(WorldCitiesViewScript.MODEL_ROOT_SCALE)]
+				model_root.scale == Vector3.ONE * WorldCitiesViewScript.CITY_MODEL_ROOT_SCALE,
+				"city %d ModelRoot uses CITY_MODEL_ROOT_SCALE %s"
+				% [city_id, str(WorldCitiesViewScript.CITY_MODEL_ROOT_SCALE)]
+			)
+			_check(
+				not is_equal_approx(model_root.scale.x, WorldUnitsViewScript.MODEL_ROOT_SCALE),
+				"city %d ModelRoot is not the unit scale 0.5" % city_id
 			)
 			_check(model_root.get_child_count() == 1, "city %d ModelRoot holds the village" % city_id)
 		_check(view.name_for_city(city_id) == str(row["name"]), "city %d name mirrored" % city_id)
