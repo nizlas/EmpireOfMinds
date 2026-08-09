@@ -17,7 +17,7 @@ $GamePath = Join-Path $RepoRoot "game"
 
 $KnownGodotPath = "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"
 
-$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f", "n7f1", "n7g3", "n8a", "n8b")
+$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f", "n7f1", "n7g3", "n8a", "n8b", "cp1")
 
 $Script:SliceTests = @{
 	"c13a" = @(
@@ -122,6 +122,11 @@ $Script:SliceTests = @{
 		"res://cloud/tests/test_world_found_city_interaction.gd"
 		"res://cloud/tests/test_world_interaction_state.gd"
 		"res://cloud/tests/test_world_city_ui_components.gd"
+	)
+	# CP1 focused subset (no terrain build; fast — asset-independent city
+	# building composition placement / reconcile; does not touch WorldCitiesView).
+	"cp1" = @(
+		"res://presentation/tests/test_city_building_composition.gd"
 	)
 }
 
@@ -307,6 +312,7 @@ $Script:AllTests = @(
 	"res://cloud/tests/test_cloud_one_pc_debug.gd",
 	"res://presentation/tests/test_world_units_arrival_event.gd",
 	"res://presentation/tests/test_world_units_combat.gd",
+	"res://presentation/tests/test_city_building_composition.gd",
 	"res://cloud/tests/test_cloud_match_labels.gd",
 	"res://cloud/tests/test_cloud_display_name.gd",
 	"res://cloud/tests/test_cloud_saved_row_rename.gd",
