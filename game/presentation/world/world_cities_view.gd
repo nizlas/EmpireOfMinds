@@ -9,16 +9,26 @@
 #   fallback, never a recomputed axial/mesh-derived anchor. A city position
 #   without an anchor is a contract violation: explicit error, city skipped.
 # - Visuals reuse the project's imported ancient_village GLB below a
-#   ModelRoot child (scale MODEL_ROOT_SCALE for terrain S=1) with the same
-#   locked matte material treatment as world units. No selection, legality,
-#   production UI, territory, or new assets here.
+#   ModelRoot child scaled by CITY_MODEL_ROOT_SCALE (city-specific — NOT the
+#   humanoid WorldUnitsView.MODEL_ROOT_SCALE 0.5; the two assets have different
+#   authored dimensions) with the same locked matte material treatment as
+#   world units. No selection, legality, production UI, territory, or new
+#   assets here.
 class_name WorldCitiesView
 extends Node3D
 
 const Warrior3DExperimentScript = preload("res://presentation/warrior_3d_unit_experiment.gd")
 const WorldUnitsViewScript = preload("res://presentation/world/world_units_view.gd")
 
-const MODEL_ROOT_SCALE := 0.5
+# City-only ModelRoot scale for terrain S=1. Measured from the imported
+# ancient_village AABB (~0.287 × 0.120 × 0.287 at scale 1): at 5.0 the
+# world footprint diameter is ~1.44 wu ≈ 83% of one hex flat-to-flat
+# (√3·S ≈ 1.732) and half-extent ~0.72 stays inside the hex inradius
+# (√3/2·S ≈ 0.866), so the settlement reads as a city on its tile without
+# claiming neighbors. Do NOT reuse WorldUnitsView.MODEL_ROOT_SCALE (0.5) —
+# that left the village at ~8% of a hex (microscopic). Do NOT copy the
+# deprecated legacy model_scale_3d = 800 (different coordinate path).
+const CITY_MODEL_ROOT_SCALE := 5.0
 # Matches the accepted legacy city yaw so the village faces a readable angle
 # on the terrain (presentation-only; never gameplay).
 const MODEL_YAW_RAD := deg_to_rad(-67.0)
@@ -116,7 +126,7 @@ func _create_city_root(city_id: int) -> Node3D:
 	root.name = "City_%d" % city_id
 	var model_root := Node3D.new()
 	model_root.name = "ModelRoot"
-	model_root.scale = Vector3.ONE * MODEL_ROOT_SCALE
+	model_root.scale = Vector3.ONE * CITY_MODEL_ROOT_SCALE
 	model_root.rotation = Vector3(0.0, MODEL_YAW_RAD, 0.0)
 	root.add_child(model_root)
 	var instance := scene.instantiate()
