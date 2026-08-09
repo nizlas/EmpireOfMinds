@@ -219,10 +219,10 @@ def test_spawn_table_matches_canonical_content() -> None:
 
 def test_units_carry_no_forbidden_state(client: TestClient) -> None:
     """N7g.1 added ONLY current_hp + has_attacked on units; N8a adds empty
-    cities + next_city_id. Movement points, moved flags, max_hp, and
-    next_unit_id stay out of snapshot state until their slices."""
+    cities + next_city_id; N8c adds next_unit_id. Movement points, moved
+    flags, and max_hp stay out of snapshot state."""
     snap = _create_world(client)["snapshot"]
-    assert "next_unit_id" not in snap
+    assert snap["next_unit_id"] == 5
     assert snap["cities"] == []
     assert snap["next_city_id"] == 1
     for u in snap["units"]:

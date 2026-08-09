@@ -163,8 +163,8 @@ def test_clear_project_with_none(client: TestClient) -> None:
     assert body["event"]["project_progress"] is None
 
 
-def test_end_turn_does_not_tick_production_in_n8b(client: TestClient) -> None:
-    """N8b establishes the yield constant but must not accrue progress."""
+def test_end_turn_accrues_flat_production_constant(client: TestClient) -> None:
+    """N8b's FLAT_PRODUCTION_PER_CITY is the yield N8c accrues on end_turn."""
     match_id, tokens, _ = _start_world_match(client)
     _found_capital(client, match_id, tokens[0])
     assert _post(
@@ -179,7 +179,7 @@ def test_end_turn_does_not_tick_production_in_n8b(client: TestClient) -> None:
     assert r.status_code == 200, r.text
     assert r.json()["accepted"] is True
     city = r.json()["snapshot"]["cities"][0]
-    assert city["current_project"]["progress"] == 0
+    assert city["current_project"]["progress"] == FLAT_PRODUCTION_PER_CITY
     assert city["current_project"]["cost"] == 2
 
 

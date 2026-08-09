@@ -354,6 +354,7 @@ def test_delivery_allocates_sequential_ids_clears_and_builds_events() -> None:
     assert next_uid == 42
     assert [s["city_id"] for s in spawns] == [2, 4]
     assert [s["unit_id"] for s in spawns] == [40, 41]
+    assert [s["owner_id"] for s in spawns] == [0, 0]
     assert spawns[0]["unit_type_id"] == "settler"
     assert spawns[0]["position"] == (1, 1)
     assert spawns[1]["unit_type_id"] == "warrior"
@@ -372,6 +373,62 @@ def test_delivery_no_complete_projects_is_a_no_op() -> None:
         [_prod_city(1, project=_v3_project(progress=1))], 0, 7
     )
     assert spawns == [] and events == [] and next_uid == 7
+
+
+def test_delivery_resolver_can_defer_without_allocating_or_clearing() -> None:
+    """N8c placement deferral lives in the ONE delivery loop via resolver."""
+    cities = [
+        _prod_city(1, pos=(0, 0), project=_v3_project(progress=2)),
+        _prod_city(2, pos=(1, 0), project=_v3_project(progress=2, pid="produce_unit:settler")),
+    ]
+    occupied: set[tuple[int, int]] = {(0, 0)}
+
+    def resolve(city: cpr.ProducingCityFacts, occ: set[tuple[int, int]]):
+        # City 1 blocked; city 2 places on its center when free.
+        if city.position in occ:
+            return None
+        return city.position
+
+    spawns, events, next_uid = cpr.deliver_completed_production(
+        cities,
+        0,
+        10,
+        occupied_positions=occupied,
+        resolve_spawn_position=resolve,
+    )
+    assert [s["city_id"] for s in spawns] == [2]
+    assert spawns[0]["unit_id"] == 10
+    assert next_uid == 11
+    assert events[0]["city_id"] == 2
+    # Deferred city 1 never consumed an id.
+
+
+def test_delivery_resolver_updates_occupancy_across_ready_cities() -> None:
+    cities = [
+        _prod_city(1, pos=(0, 0), project=_v3_project(progress=2)),
+        _prod_city(2, pos=(0, 0), project=_v3_project(progress=2, pid="produce_unit:settler")),
+    ]
+    # Both cities share the same preferred tile; the second must fall back.
+
+    def resolve(city: cpr.ProducingCityFacts, occ: set[tuple[int, int]]):
+        first = city.position
+        if first not in occ:
+            return first
+        alt = (1, 0)
+        if alt not in occ:
+            return alt
+        return None
+
+    spawns, _, next_uid = cpr.deliver_completed_production(
+        cities,
+        0,
+        5,
+        occupied_positions=set(),
+        resolve_spawn_position=resolve,
+    )
+    assert [s["position"] for s in spawns] == [(0, 0), (1, 0)]
+    assert [s["unit_id"] for s in spawns] == [5, 6]
+    assert next_uid == 7
 
 
 def test_n8c_can_tick_and_deliver_from_flat_yields_without_scenario() -> None:
@@ -439,6 +496,7 @@ def _parity_snapshot(with_city_at_origin: bool = False) -> dict:
         "units": units,
         "cities": [],
         "next_city_id": 1,
+        "next_unit_id": 4,
     }
     if with_city_at_origin:
         snap = world_actions.apply_found_city(

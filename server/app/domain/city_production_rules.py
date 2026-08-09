@@ -14,9 +14,10 @@ There is exactly ONE selection validator and ONE tick/delivery loop.
 State-specific callers are fact adapters, never separate algorithms:
 
 - the active WorldMap path (world_actions.py) passes no unlock policy —
-  every registry project is always selectable (locked N8b) — and N8b does
-  not tick progress (processing arrives with N8c, which supplies the flat
-  yield and WorldMap spawn placement to the SAME loop below);
+  every registry project is always selectable (locked N8b) — and N8c ticks
+  with FLAT_PRODUCTION_PER_CITY plus a spawn-position resolver that may
+  defer a ready city (no id allocation / clear / unit_produced) until a
+  legal unit-unoccupied tile exists;
 - the deprecated Scenario/HexMap adapter (actions/set_city_production.py,
   production_rules.py) passes its progress-unlock policy and its worked-tile
   yields as explicit inputs around the same rules.
@@ -271,20 +272,35 @@ def deliver_completed_production(
     cities: Sequence[ProducingCityFacts],
     owner_id: int,
     next_unit_id: int,
+    *,
+    occupied_positions: set[tuple[int, int]] | None = None,
+    resolve_spawn_position: Callable[
+        [ProducingCityFacts, set[tuple[int, int]]], tuple[int, int] | None
+    ]
+    | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int]:
     """The canonical delivery decision (extracted from the proven legacy loop).
 
     For every complete produce_unit project owned by the player who just
-    became current, in ascending city-id order: allocate the next sequential
-    unit id, spawn one unit of the registry-produced type at the caller-
-    supplied city position, clear that city's project, and emit one
-    unit_produced engine event. Returns (spawn effects, unstamped events,
-    new next_unit_id); each spawn effect is
-    {"city_id", "unit_id", "unit_type_id", "position"} and implies clearing
-    that city's current_project. Materializing units/cities and stamping
-    events are adapter/authority concerns. Spawn placement policy beyond the
-    city center (N8c WorldMap placement) is supplied by the caller via the
-    facts' position — never a second loop.
+    became current, in ascending city-id order: resolve a spawn tile, then
+    allocate the next sequential unit id, emit one unit_produced engine
+    event, and clear that city's project. Returns (spawn effects, unstamped
+    events, new next_unit_id); each spawn effect is
+    {"city_id", "owner_id", "unit_id", "unit_type_id", "position"} and
+    implies clearing that city's current_project.
+
+    Placement:
+    - default (resolve_spawn_position is None): city-center facts position
+      (legacy Scenario path — no occupancy gate);
+    - when a resolver is supplied (N8c WorldMap): it receives the ready city
+      facts plus the running occupied-unit set and returns a tile or None.
+      None defers that city — no id allocation, no clear, no event — so the
+      completed project/progress retry the next time the owner becomes
+      current. Successful spawns are added to the occupied set before the
+      next ready city is considered.
+
+    Materializing units/cities and stamping events are adapter/authority
+    concerns. This is still ONE loop — never copied into an adapter.
     """
     by_id = {c.city_id: c for c in cities}
     ready_ids = sorted(
@@ -295,12 +311,22 @@ def deliver_completed_production(
     if not ready_ids:
         return [], [], next_unit_id
 
+    occupied: set[tuple[int, int]] = set(occupied_positions or ())
     spawns: list[dict[str, Any]] = []
     events: list[dict[str, Any]] = []
     running_next_unit_id = int(next_unit_id)
 
     for rcid in ready_ids:
         cty = by_id[rcid]
+        if resolve_spawn_position is None:
+            pos: tuple[int, int] | None = (
+                int(cty.position[0]),
+                int(cty.position[1]),
+            )
+        else:
+            pos = resolve_spawn_position(cty, occupied)
+        if pos is None:
+            continue
         unit_id = running_next_unit_id
         running_next_unit_id += 1
         proj_id = ""
@@ -311,12 +337,15 @@ def deliver_completed_production(
             t = cpd.produces_unit_type(proj_id)
             if t:
                 produced_type = t
+        spawn_pos = (int(pos[0]), int(pos[1]))
+        occupied.add(spawn_pos)
         spawns.append(
             {
                 "city_id": rcid,
+                "owner_id": int(cty.owner_id),
                 "unit_id": unit_id,
                 "unit_type_id": produced_type,
-                "position": (int(cty.position[0]), int(cty.position[1])),
+                "position": spawn_pos,
             }
         )
         up_ev: dict[str, Any] = {
@@ -325,7 +354,7 @@ def deliver_completed_production(
             "actor_id": owner_id,
             "city_id": rcid,
             "unit_id": unit_id,
-            "position": [int(cty.position[0]), int(cty.position[1])],
+            "position": [spawn_pos[0], spawn_pos[1]],
             "project_type": PROJECT_TYPE_PRODUCE_UNIT,
             "unit_type_id": produced_type,
             "source": "engine",

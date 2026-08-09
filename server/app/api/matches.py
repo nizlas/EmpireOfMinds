@@ -264,18 +264,31 @@ def _handle_world_end_turn(match_id: str, snap: dict[str, Any], action: dict[str
     if not vr["ok"]:
         return _reject(str(vr["reason"]))
 
-    _resolve_world_map_or_500(snap)
+    world_map = _resolve_world_map_or_500(snap)
 
     prev_turn_number = int(snap["turn_state"]["turn_number"])
-    new_snap = world_actions.apply_end_turn(snap)
+    new_snap, tick_events, delivery_events = world_actions.apply_end_turn(snap, world_map)
     new_revision = int(new_snap["revision"])
     next_player = int(
         new_snap["turn_state"]["players"][int(new_snap["turn_state"]["current_index"])]
     )
-    log_index = len(file_store.read_events(match_id))
     accepted_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    event = {
-        "index": log_index,
+    # Locked event order: production_progress* → end_turn → unit_produced*.
+    # Primary response event/index remains the accepted end_turn row.
+    base = len(file_store.read_events(match_id))
+    for i, te in enumerate(tick_events):
+        file_store.append_event(
+            match_id,
+            {
+                **te,
+                "index": base + i,
+                "revision": new_revision,
+                "accepted_at": accepted_at,
+            },
+        )
+    end_turn_index = base + len(tick_events)
+    end_turn_event = {
+        "index": end_turn_index,
         "revision": new_revision,
         "schema_version": int(action["schema_version"]),
         "action_type": world_actions.END_TURN_ACTION_TYPE,
@@ -286,15 +299,26 @@ def _handle_world_end_turn(match_id: str, snap: dict[str, Any], action: dict[str
         "accepted_at": accepted_at,
     }
     file_store.write_snapshot(match_id, new_snap)
-    file_store.append_event(match_id, event)
+    file_store.append_event(match_id, end_turn_event)
+    del_base = end_turn_index + 1
+    for i, de in enumerate(delivery_events):
+        file_store.append_event(
+            match_id,
+            {
+                **de,
+                "index": del_base + i,
+                "revision": new_revision,
+                "accepted_at": accepted_at,
+            },
+        )
     return {
         "accepted": True,
         "reason": "",
-        "index": log_index,
+        "index": end_turn_index,
         "revision": new_revision,
         "snapshot": new_snap,
         "state_hash": state_hash(new_snap),
-        "event": event,
+        "event": end_turn_event,
     }
 
 
@@ -414,7 +438,8 @@ def _handle_world_set_city_production(
     """N8b world set_city_production: validate fully before any write,
     fail-closed map resolve (identity drift → HTTP 500, no mutation), then
     atomically set/switch/clear current_project, bump revision, and append a
-    legacy-shaped set_city_production event. No production tick (N8c)."""
+    legacy-shaped set_city_production event. Production tick/delivery run on
+    accepted world end_turn (N8c), not on selection."""
     vr = world_actions.validate_set_city_production(snap, action)
     if not vr["ok"]:
         return _reject(str(vr["reason"]))

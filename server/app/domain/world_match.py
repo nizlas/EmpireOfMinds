@@ -1,10 +1,11 @@
-"""WorldMap match kind (N6/N7/N8a/N8b): snapshot v3 with MapIdentity + minimal state.
+"""WorldMap match kind (N6/N7/N8a/N8b/N8c): snapshot v3 with MapIdentity + minimal state.
 
 Snapshot v3 carries the canonical map identity (map_id, schema_version,
 content_hash via MapIdentity.to_dict) plus only the mutable match state:
 revision, turn_state, the deterministic starting units (N7; auto-start later
-adds player_factions), and — since N8a — additive `cities` + `next_city_id`
-(city rows gain N8b `current_project` when founded/selected).
+adds player_factions), additive `cities` + `next_city_id` (N8a; city rows
+gain N8b `current_project` when founded/selected), and additive
+`next_unit_id` (N8c — advanced only after a successful production delivery).
 It never embeds tiles, edges, solved terrain or geometry - clients load
 canonical content by map_id and verify the raw-byte hash
 (docs/MAP_CONTENT.md, docs/MAP_MODEL.md). Legacy snapshot v2 is untouched.
@@ -38,6 +39,11 @@ def build_initial_world_snapshot(
     load failure and WorldScenarioError on spawn/content divergence - both
     before the caller writes anything (never a partial match)."""
     world_map = load_world_map(map_id)
+    units = build_starting_units(world_map, player_ids)
+    # N8c: next allocated unit id is strictly above every starting id
+    # (stable under later unit elimination — never derive from max-existing
+    # at delivery time).
+    next_unit_id = (max(int(u["id"]) for u in units) + 1) if units else 1
     return {
         "match_id": match_id,
         "schema_version": SNAPSHOT_SCHEMA_V3,
@@ -45,11 +51,12 @@ def build_initial_world_snapshot(
         "map": world_map.identity.to_dict(),
         "revision": 0,
         "turn_state": turn_state_from_players(player_ids),
-        "units": build_starting_units(world_map, player_ids),
-        # N8a additive city bookkeeping (alpha-store: recreate matches after
+        "units": units,
+        # N8a/N8c additive bookkeeping (alpha-store: recreate matches after
         # shape-extending deploys — never migrate in place).
         "cities": [],
         "next_city_id": 1,
+        "next_unit_id": next_unit_id,
     }
 
 

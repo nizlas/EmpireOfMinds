@@ -38,6 +38,7 @@ SNAPSHOT_V3_KEYS = {
     "units",  # N7a: deterministic starting units (sorted by id)
     "cities",  # N8a: empty until founding
     "next_city_id",  # N8a: authoritative city-id allocation counter
+    "next_unit_id",  # N8c: authoritative unit-id allocation counter
 }
 
 
