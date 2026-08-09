@@ -1,3 +1,9 @@
+## 2026-08-09 — N8c: authoritative production processing + deterministic spawn
+
+- **Decision:** implement **N8c** on `origin/main`: additive snapshot-v3 `next_unit_id`; world `end_turn` atomically ticks ending-player production via the ONE canonical `city_production_rules` loop + `FLAT_PRODUCTION_PER_CITY`, advances the turn / clears `has_attacked`, then delivers for the player who has just become current with WorldMap placement (city tile if unit-unoccupied, else first unit-unoccupied smooth-adjacent tile in `DIRECTIONS` order; defer with retained progress when no tile; id / clear / `unit_produced` only after successful placement). Locked event order `production_progress* → end_turn → unit_produced*`; POST primary `event`/`index` stay on `end_turn`.
+- **Boundary:** no second tick/delivery algorithm; legal-action shapes unchanged; no client production/placement rules; no presentation/asset/terrain changes; `docs/CITIES.md` narrowly updated (PR #13 also touches that file — not imported/rebased here).
+- **Manual/two-client runtime gate: PENDING** for Niclas.
+
 ## 2026-08-08 — N8a / N8b / N8R gates PASS; N8 stack authorized to merge into `main`
 
 - **Decision (project owner):** final gate results for the reviewed N8 stack:

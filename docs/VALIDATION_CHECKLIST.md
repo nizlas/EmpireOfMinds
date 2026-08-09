@@ -903,4 +903,17 @@ Launch as for the N7f / N7g.3 / N8a one-PC debug mode (one local FastAPI process
 
 **Purpose:** confirm that founding, production selection, and production tick/delivery use one canonical map-neutral core with state adapters only for facts/materialization — not a second WorldMap game loop.
 
-**Status: PASS (2026-08-08) at reviewed commit `709810c613d63d93417a1e35093a8212665ef239`.** N8c is **unblocked** by this review and may proceed as its own slice; it is not part of N8R.
+**Status: PASS (2026-08-08) at reviewed commit `709810c613d63d93417a1e35093a8212665ef239`.** N8c was **unblocked** by this review and has since been implemented as its own slice (below).
+
+## Slice N8c — Authoritative production processing + deterministic spawn
+
+**Purpose:** confirm produce→spawn→act on `world_map` matches uses the canonical production loop with locked legacy-equivalent timing and deterministic WorldMap placement.
+
+**Deterministic coverage:** server `slice n8c` (`test_world_production_v3.py` + canonical city-rule guards). Godot `test_world_units_view.gd` already proves newly appearing unit ids place at supplied anchors (no production-specific client code).
+
+**Manual / two-client runtime gate: PENDING** (Niclas) — full produce→spawn→act round on two clients against the authoritative server.
+
+### Explicitly not this gate
+
+- Build queues, overflow carry-over beyond retained progress, rush/purchase, city growth, science, AI production strategy.
+- City/unit presentation redesign; PR #13 / PR #14 presentation work.

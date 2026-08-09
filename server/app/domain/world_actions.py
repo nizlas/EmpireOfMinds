@@ -1,4 +1,4 @@
-"""N7/N8a/N8b world actions on world_map matches (snapshot v3).
+"""N7/N8a/N8b/N8c world actions on world_map matches (snapshot v3).
 
 Deliberately separate from the frozen legacy action modules (no Scenario, no
 HexMap, no adapter). World movement v1 legality comes exclusively from the
@@ -52,7 +52,8 @@ progress_state / unlock gating on the WorldMap path. Progress resets to 0
 on set/switch; none clears. Selecting the already-active project or
 clearing an already-empty project rejects project_already_set with no
 mutation. Flat production yield (1 per city on owner end_turn) lives in
-city_production_rules; N8b does not tick it (N8c).
+city_production_rules. N8c feeds that SAME tick/delivery loop from world
+end_turn (flat yields + WorldMap spawn placement / defer) — never a copy.
 
 Validation is two-phase so the API layer can resolve + identity-verify the
 canonical WorldMap between them (world_match.resolve_world_map_for_snapshot):
@@ -96,7 +97,7 @@ from app.domain.combat_rules import resolve_combat
 from app.domain.content import unit_definitions
 from app.domain.hex_coord import DIRECTIONS
 from app.domain.turn_state import advance_turn_state
-from app.domain.world_map import EDGE_CLIFF, WorldMap
+from app.domain.world_map import EDGE_CLIFF, EDGE_SMOOTH, WorldMap
 
 SCHEMA_VERSION = 1
 SET_CITY_PRODUCTION_SCHEMA_VERSION = 2
@@ -588,18 +589,151 @@ def validate_end_turn(snap: dict[str, Any], action: dict[str, Any]) -> dict[str,
     return _ok()
 
 
-def apply_end_turn(snap: dict[str, Any]) -> dict[str, Any]:
-    """Turn advance + N7g.1 has_attacked reset for ALL units - no economy
-    ticks, no movement refresh (there are no movement points), no production
-    or delivery on the world path. Rows without the flag (pre-N7g snapshots;
-    alpha-store policy recreates those matches) pass through unchanged."""
-    new_units = [
+def _producing_city_facts(
+    cities: list[dict[str, Any]],
+) -> list[city_production_rules.ProducingCityFacts]:
+    facts: list[city_production_rules.ProducingCityFacts] = []
+    for row in cities:
+        proj = row.get("current_project", None)
+        facts.append(
+            city_production_rules.ProducingCityFacts(
+                city_id=int(row["id"]),
+                owner_id=int(row["owner_id"]),
+                position=(int(row["position"][0]), int(row["position"][1])),
+                current_project=proj if isinstance(proj, dict) else None,
+            )
+        )
+    return facts
+
+
+def resolve_production_spawn_tile(
+    world_map: WorldMap,
+    city_pos: tuple[int, int],
+    occupied: set[tuple[int, int]],
+) -> tuple[int, int] | None:
+    """N8c WorldMap placement fact: city tile if unit-unoccupied, else first
+    unit-unoccupied smooth-adjacent tile in canonical DIRECTIONS order.
+    Missing edge records and cliffs fail closed (skip that candidate)."""
+    if world_map.has_tile_coord(city_pos) and city_pos not in occupied:
+        return city_pos
+    cq, cr = int(city_pos[0]), int(city_pos[1])
+    for dq, dr in DIRECTIONS:
+        cand = (cq + dq, cr + dr)
+        if cand in occupied:
+            continue
+        if not world_map.has_tile_coord(cand):
+            continue
+        if not world_map.has_edge_between(city_pos, cand):
+            continue
+        if world_map.edge_between(city_pos, cand).transition != EDGE_SMOOTH:
+            continue
+        return cand
+    return None
+
+
+def apply_end_turn(
+    snap: dict[str, Any], world_map: WorldMap
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    """N8c locked end_turn apply (legacy-equivalent timing):
+
+    (1) production tick for the ending player's eligible cities via the
+        canonical loop + FLAT_PRODUCTION_PER_CITY;
+    (2) turn advance + N7g.1 has_attacked reset for ALL units;
+    (3) delivery for the player who has just become current, with WorldMap
+        spawn placement / defer through the SAME canonical delivery loop.
+
+    Returns (new_snap, unstamped production_progress events, unstamped
+    unit_produced events). The API stamps events and keeps the POST primary
+    event/index on the accepted end_turn row. No movement refresh (there
+    are no movement points on the world path).
+    """
+    ending_player = _current_player_id(snap)
+    city_rows = [dict(c) for c in snap.get("cities", [])]
+    city_facts = _producing_city_facts(city_rows)
+    yields = {
+        c.city_id: city_production_rules.FLAT_PRODUCTION_PER_CITY
+        for c in city_facts
+        if c.owner_id == ending_player
+    }
+    new_project_by_id, tick_events = city_production_rules.tick_production(
+        city_facts, ending_player, yields
+    )
+    if new_project_by_id:
+        updated: list[dict[str, Any]] = []
+        for row in city_rows:
+            cid = int(row["id"])
+            if cid in new_project_by_id:
+                updated.append({**row, "current_project": new_project_by_id[cid]})
+            else:
+                updated.append(row)
+        city_rows = updated
+
+    new_units: list[dict[str, Any]] = [
         {**u, "has_attacked": False} if "has_attacked" in u else dict(u)
         for u in snap["units"]
     ]
-    return {
+    new_turn = advance_turn_state(snap["turn_state"])
+    next_player = int(new_turn["players"][int(new_turn["current_index"])])
+
+    after_tick_facts = _producing_city_facts(city_rows)
+    occupied: set[tuple[int, int]] = {
+        (int(u["position"][0]), int(u["position"][1])) for u in new_units
+    }
+
+    def _resolve(
+        city: city_production_rules.ProducingCityFacts,
+        occ: set[tuple[int, int]],
+    ) -> tuple[int, int] | None:
+        return resolve_production_spawn_tile(world_map, city.position, occ)
+
+    # Alpha-store recreates matches on shape extension; defensive max+1 only
+    # covers hand-seeded fixtures that omit next_unit_id.
+    if "next_unit_id" in snap and _is_exact_int(snap["next_unit_id"]):
+        next_unit_id = int(snap["next_unit_id"])
+    elif new_units:
+        next_unit_id = max(int(u["id"]) for u in new_units) + 1
+    else:
+        next_unit_id = 1
+
+    spawns, delivery_events, new_next_unit_id = (
+        city_production_rules.deliver_completed_production(
+            after_tick_facts,
+            next_player,
+            next_unit_id,
+            occupied_positions=occupied,
+            resolve_spawn_position=_resolve,
+        )
+    )
+    delivered_city_ids = {int(s["city_id"]) for s in spawns}
+    if delivered_city_ids:
+        city_rows = [
+            {**row, "current_project": None}
+            if int(row["id"]) in delivered_city_ids
+            else row
+            for row in city_rows
+        ]
+    for s in spawns:
+        unit_type = str(s["unit_type_id"])
+        pos = s["position"]
+        new_units.append(
+            {
+                "id": int(s["unit_id"]),
+                "owner_id": int(s["owner_id"]),
+                "position": [int(pos[0]), int(pos[1])],
+                "type_id": unit_type,
+                "current_hp": unit_definitions.max_hp_for_type(unit_type),
+                "has_attacked": False,
+            }
+        )
+    new_units.sort(key=lambda u: int(u["id"]))
+    city_rows.sort(key=lambda c: int(c["id"]))
+
+    new_snap = {
         **snap,
         "revision": int(snap["revision"]) + 1,
-        "turn_state": advance_turn_state(snap["turn_state"]),
+        "turn_state": new_turn,
         "units": new_units,
+        "cities": city_rows,
+        "next_unit_id": int(new_next_unit_id),
     }
+    return new_snap, tick_events, delivery_events

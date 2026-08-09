@@ -166,7 +166,7 @@ def test_initial_snapshot_combat_fields_from_registry(client: TestClient) -> Non
             "id", "owner_id", "position", "type_id", "current_hp", "has_attacked",
         }
     assert data["snapshot"]["schema_version"] == 3
-    assert "next_unit_id" not in data["snapshot"]
+    assert data["snapshot"]["next_unit_id"] == 5
     assert data["snapshot"]["cities"] == []
     assert data["snapshot"]["next_city_id"] == 1
 

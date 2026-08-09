@@ -17,6 +17,8 @@ const ANCHORS := {
 	Vector2i(2, 1): Vector3(3.25, 1.6, -0.75),
 	Vector2i(2, 14): Vector3(2.75, 0.4, 12.5),
 	Vector2i(2, 13): Vector3(2.5, 0.8, 11.25),
+	# Extra tile for newly appearing unit-id reconciliation (N8c spawn).
+	Vector2i(3, 1): Vector3(4.0, 1.2, -0.5),
 }
 # Audited GLB idle clips (warrior_3d_animation_remap.gd): semantic Idle_3.
 const SETTLER_IDLE_CLIP := "Hit_Reaction_1"
@@ -124,6 +126,23 @@ func _run() -> void:
 		if view.root_for_unit(int(unit_id)).get_instance_id() != int(ids_before[unit_id]):
 			stable = false
 	_check(stable, "reapplied snapshot reuses the same root instances")
+
+	# A newly appearing unit id (production spawn) is placed at its supplied anchor.
+	var with_spawned := _spawn_units().duplicate(true)
+	with_spawned.append(
+		{"id": 5, "owner_id": 11, "position": [3, 1], "type_id": "warrior"}
+	)
+	view.apply_snapshot_units(with_spawned)
+	_check(view.unit_ids() == [1, 2, 3, 4, 5], "new unit id appears in reconciliation")
+	_check(
+		view.root_for_unit(5) != null
+			and view.root_for_unit(5).position == ANCHORS[Vector2i(3, 1)],
+		"newly appearing unit id sits exactly at its supplied tile anchor"
+	)
+	_check(
+		view.root_for_unit(1).get_instance_id() == int(ids_before[1]),
+		"existing roots stay stable when a new unit id appears"
+	)
 
 	# A moved unit keeps its instance and lands exactly on the new anchor.
 	var moved := _spawn_units()

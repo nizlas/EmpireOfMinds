@@ -99,10 +99,11 @@ def deliver_pending_for_player(scenario: Scenario, owner_id: int) -> tuple[Scena
     for s in spawns:
         cty = scenario.city_by_id(int(s["city_id"]))
         assert cty is not None
+        # Legacy path uses the default city-center placement (no resolver).
         new_units.append(
             Unit.make(
                 int(s["unit_id"]),
-                cty.owner_id,
+                int(s.get("owner_id", cty.owner_id)),
                 cty.position,
                 str(s["unit_type_id"]),
                 -1,
