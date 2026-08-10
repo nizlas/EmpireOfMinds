@@ -5,3 +5,5 @@
 content/maps/**/*.json -text
 game/content/maps/**/*.json -text
 server/content/maps/**/*.json -text
+*.glb filter=lfs diff=lfs merge=lfs -text
+game/assets/prototype/3d/cities/ancient_era/buildings/main_building/ancient_era_city_main_building_Baked_BaseColor.png filter=lfs diff=lfs merge=lfs -text

@@ -339,6 +339,8 @@ func _render_cities() -> void:
 		cities_view = WorldCitiesViewScript.new()
 		cities_view.name = "WorldCitiesView"
 		add_child(cities_view)
+	if not cities_view.has_surface_sampler():
+		cities_view.set_surface_sampler(WorldSurfaceSamplerScript.for_terrain_world(world))
 	cities_view.set_tile_anchors(world.tile_anchors)
 	var cities_variant = snapshot.get("cities", [])
 	cities_view.apply_snapshot_cities(cities_variant if cities_variant is Array else [])

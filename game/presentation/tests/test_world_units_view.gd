@@ -72,8 +72,8 @@ func _run() -> void:
 		_check(model_root != null, "unit %d has a ModelRoot child" % unit_id)
 		if model_root != null:
 			_check(
-				model_root.scale == Vector3.ONE * 0.5,
-				"unit %d ModelRoot scale is 0.5" % unit_id
+				model_root.scale == Vector3.ONE * WorldUnitsViewScript.MODEL_ROOT_SCALE,
+				"unit %d ModelRoot scale is MODEL_ROOT_SCALE" % unit_id
 			)
 			_check(
 				model_root.get_child_count() == 1,

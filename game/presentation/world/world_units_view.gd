@@ -15,7 +15,7 @@
 #   error, unit skipped.
 # - Visuals reuse the project's imported GLB scenes (settler/warrior) below
 #   a ModelRoot child, so the gameplay position (unit root) stays separate
-#   from the visual transform. ModelRoot scale is 0.5 for terrain scale S=1.
+#   from the visual transform. ModelRoot scale is 0.30 for terrain scale S=1.
 #   The locked EFFECTIVE model forward is local -Z (Vector3.FORWARD): both
 #   shipped rigs are AUTHORED facing +Z (glTF convention; audited 2026-08
 #   via the toe-vs-ankle rest direction), so the character instance is
@@ -124,7 +124,8 @@ const WorldUnitLegGrounderScript = preload("res://presentation/world/world_unit_
 
 const MODEL_ROOT_NAME := "ModelRoot"
 # Visual scale below the unit root, tuned for terrain scale S=1.
-const MODEL_ROOT_SCALE := 0.5
+# City preview scale reference: 0.30.
+const MODEL_ROOT_SCALE := 0.30
 const SEMANTIC_IDLE_CLIP := "Idle_3"
 const SEMANTIC_WALK_CLIP := "Walking"
 # N7g.3 semantic combat clips (resolved through the audited remap — the raw

@@ -436,8 +436,8 @@ func _run() -> void:
 		"ModelRoot stays upright while moving (yaw only, no slope tilt)"
 	)
 	_check(
-		settler_model.scale.is_equal_approx(Vector3.ONE * 0.5),
-		"ModelRoot keeps the locked 0.5 scale while oriented"
+		settler_model.scale.is_equal_approx(Vector3.ONE * WorldUnitsViewScript.MODEL_ROOT_SCALE),
+		"ModelRoot keeps the locked MODEL_ROOT_SCALE while oriented"
 	)
 	_check(
 		_effective_forward(settler_root).dot(Vector3(1, 0, 0)) > 0.99,

@@ -111,6 +111,8 @@ $Script:SliceTests = @{
 	# /selection interaction; existing world interaction state for regressions).
 	"n8a" = @(
 		"res://presentation/tests/test_world_cities_view.gd"
+		"res://presentation/tests/test_city_asset_preview.gd"
+		"res://presentation/tests/probe_world_city_scale.gd"
 		"res://cloud/tests/test_world_found_city_interaction.gd"
 		"res://cloud/tests/test_world_interaction_state.gd"
 		"res://cloud/tests/test_world_city_ui_components.gd"
