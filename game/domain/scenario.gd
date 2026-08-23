@@ -286,10 +286,13 @@ static func make_prototype_play_scenario():
 
 const DEBUG_NICLAS_UNIT_ID: int = 4
 const DEBUG_BRONZE_UNIT_ID: int = 5
+const DEBUG_GENERATED_WARRIOR_UNIT_ID: int = 6
 const DEBUG_NICLAS_HEX_Q: int = 0
 const DEBUG_NICLAS_HEX_R: int = 1
 const DEBUG_BRONZE_HEX_Q: int = 1
 const DEBUG_BRONZE_HEX_R: int = -1
+const DEBUG_GENERATED_WARRIOR_HEX_Q: int = -1
+const DEBUG_GENERATED_WARRIOR_HEX_R: int = 0
 
 
 static func debug_character_units() -> Array:
@@ -305,6 +308,12 @@ static func debug_character_units() -> Array:
 			0,
 			HexCoordScript.new(DEBUG_BRONZE_HEX_Q, DEBUG_BRONZE_HEX_R),
 			"bronze_armed_warrior",
+		),
+		UnitScript.new(
+			DEBUG_GENERATED_WARRIOR_UNIT_ID,
+			0,
+			HexCoordScript.new(DEBUG_GENERATED_WARRIOR_HEX_Q, DEBUG_GENERATED_WARRIOR_HEX_R),
+			"generated_warrior",
 		),
 	]
 

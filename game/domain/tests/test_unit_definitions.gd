@@ -19,6 +19,7 @@ const _ACTIVE_UNIT_IDS: Array[String] = [
 	"unit_cart_support",
 	"unit_siege_precursor",
 	"unit_niclas",
+	"unit_generated_warrior",
 ]
 
 var _total = 0
@@ -56,7 +57,7 @@ func _check(cond: bool, message: String) -> void:
 
 
 func _test_canonical_registry() -> void:
-	_check(UnitDefinitionsScript.unit_ids().size() == 13, "thirteen canonical unit ids")
+	_check(UnitDefinitionsScript.unit_ids().size() == 14, "fourteen canonical unit ids")
 	var i: int = 0
 	while i < _ACTIVE_UNIT_IDS.size():
 		var unit_id: String = _ACTIVE_UNIT_IDS[i]
@@ -67,7 +68,7 @@ func _test_canonical_registry() -> void:
 		_check(int(unit.get("hp", 0)) == 100, "hp 100 for %s" % unit_id)
 		i += 1
 	var all_units: Array[Dictionary] = UnitDefinitionsScript.all_units()
-	_check(all_units.size() == 13, "all_units count")
+	_check(all_units.size() == 14, "all_units count")
 
 
 func _test_key_stats() -> void:
@@ -178,8 +179,17 @@ func _test_legacy_gameplay_api() -> void:
 			== "unit_bronze_armed_warrior",
 		"bronze gameplay resolves to unit id",
 	)
+	_check(
+		UnitDefinitionsScript.resolve_unit_id_for_gameplay_type("generated_warrior")
+			== "unit_generated_warrior",
+		"generated_warrior gameplay resolves to unit id",
+	)
 	_check(UnitDefinitionsScript.max_hp_for_type("warrior") == 100, "legacy warrior max_hp")
 	_check(UnitDefinitionsScript.combat_strength_for_type("warrior") == 20, "legacy warrior str")
+	_check(
+		UnitDefinitionsScript.combat_strength_for_type("generated_warrior") == 20,
+		"generated_warrior combat strength",
+	)
 
 
 func _test_enrich_unit_row() -> void:

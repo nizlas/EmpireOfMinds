@@ -1,4 +1,4 @@
-# Headless: debug scenario preplaces Niclas + Bronze-Armed Warrior for player 0 only.
+# Headless: debug scenario preplaces Niclas + Bronze-Armed Warrior + Generated Warrior.
 extends SceneTree
 
 const ScenarioScript = preload("res://domain/scenario.gd")
@@ -53,18 +53,25 @@ func _test_normal_scenario_excludes_debug_units() -> void:
 		_unit_by_type(base, "bronze_armed_warrior") == null,
 		"prototype play excludes Bronze-Armed Warrior",
 	)
+	_check(
+		_unit_by_type(base, "generated_warrior") == null,
+		"prototype play excludes Generated Warrior",
+	)
 
 
 func _test_with_debug_character_units() -> void:
 	var base = ScenarioScript.make_prototype_play_scenario()
 	var debug_sc = ScenarioScript.with_debug_character_units(base)
-	_check(debug_sc.units().size() == 5, "debug scenario adds two units")
+	_check(debug_sc.units().size() == 6, "debug scenario adds three units")
 	var niclas = _unit_by_type(debug_sc, "niclas")
 	var bronze = _unit_by_type(debug_sc, "bronze_armed_warrior")
+	var generated = _unit_by_type(debug_sc, "generated_warrior")
 	_check(niclas != null, "Niclas exists in debug scenario")
 	_check(bronze != null, "Bronze-Armed Warrior exists in debug scenario")
+	_check(generated != null, "Generated Warrior exists in debug scenario")
 	_check(int(niclas.owner_id) == 0, "Niclas belongs to player 0")
 	_check(int(bronze.owner_id) == 0, "Bronze belongs to player 0")
+	_check(int(generated.owner_id) == 0, "Generated Warrior belongs to player 0")
 	_check(
 		int(niclas.position.q) == ScenarioScript.DEBUG_NICLAS_HEX_Q
 			and int(niclas.position.r) == ScenarioScript.DEBUG_NICLAS_HEX_R,
@@ -74,6 +81,11 @@ func _test_with_debug_character_units() -> void:
 		int(bronze.position.q) == ScenarioScript.DEBUG_BRONZE_HEX_Q
 			and int(bronze.position.r) == ScenarioScript.DEBUG_BRONZE_HEX_R,
 		"Bronze at deterministic hex",
+	)
+	_check(
+		int(generated.position.q) == ScenarioScript.DEBUG_GENERATED_WARRIOR_HEX_Q
+			and int(generated.position.r) == ScenarioScript.DEBUG_GENERATED_WARRIOR_HEX_R,
+		"Generated Warrior at deterministic hex",
 	)
 	_check(
 		debug_sc.units_at(HexCoordScript.new(0, 0)).size() == 1,
@@ -89,8 +101,16 @@ func _test_with_debug_character_units() -> void:
 		"Bronze gameplay type resolves",
 	)
 	_check(
+		UnitDefinitionsScript.has_gameplay_type("generated_warrior"),
+		"Generated Warrior gameplay type resolves",
+	)
+	_check(
 		UnitDefinitionsScript.max_movement_for_type("niclas") == 2,
 		"Niclas movement from definitions",
+	)
+	_check(
+		UnitDefinitionsScript.max_movement_for_type("generated_warrior") == 2,
+		"Generated Warrior movement from definitions",
 	)
 
 

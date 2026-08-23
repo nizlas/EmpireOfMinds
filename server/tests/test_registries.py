@@ -22,6 +22,15 @@ def test_unit_definitions_ids_and_rows() -> None:
     assert w is not None
     assert w["combat_strength"] == 20
     assert unit_definitions.can_found_city("warrior") is False
+    # Debug melee type: registered for world combat, not in production ids().
+    gw = unit_definitions.get_definition("generated_warrior")
+    assert gw is not None
+    assert gw["role"] == "basic_melee"
+    assert gw["combat_strength"] == 20
+    assert gw["max_hp"] == 100
+    assert unit_definitions.is_melee_combatant("warrior") is True
+    assert unit_definitions.is_melee_combatant("generated_warrior") is True
+    assert unit_definitions.is_melee_combatant("settler") is False
 
 
 def test_city_project_definitions() -> None:

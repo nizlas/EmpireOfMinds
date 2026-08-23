@@ -599,6 +599,36 @@ def test_attack_real_content_drift_500_no_mutation(
     assert file_store.read_events(match_id) == events_before
 
 
+def test_generated_warrior_can_attack_warrior(
+    client: TestClient, monkeypatch
+) -> None:
+    """Debug melee type uses the same World Combat 0.1 path as warrior."""
+    monkeypatch.setenv("EOM_DEBUG_EXTRA_3D_CHARACTERS", "1")
+    match_id, tokens, _ = _start_world_match(client)
+    snap = file_store.read_snapshot(match_id)
+    assert snap is not None
+    assert any(u["type_id"] == "generated_warrior" for u in snap["units"])
+    wm = load_world_map(REFERENCE_MAP_ID)
+    blocked = _blocked_positions(match_id, {5, 4})
+    edge = next(
+        e
+        for e in wm.all_edges()
+        if e.transition == EDGE_SMOOTH
+        and e.tile_a not in blocked
+        and e.tile_b not in blocked
+    )
+    _teleport_unit(match_id, 5, edge.tile_a)
+    _teleport_unit(match_id, 4, edge.tile_b)
+    r = _post(client, match_id, _attack(0, 5, 4), tokens[0])
+    body = r.json()
+    assert body["accepted"] is True, r.text
+    assert body["event"]["action_type"] == "attack_unit"
+    assert body["event"]["attacker_id"] == 5
+    assert body["event"]["defender_id"] == 4
+    assert body["event"]["attacker_strength"] == WARRIOR_STRENGTH
+    assert body["event"]["defender_strength"] == WARRIOR_STRENGTH
+
+
 # ------------------------------------------------------------ legacy intact
 
 

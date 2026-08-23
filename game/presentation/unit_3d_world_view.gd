@@ -20,6 +20,7 @@ const WARRIOR_TYPE_ID: String = "warrior"
 const SETTLER_TYPE_ID: String = "settler"
 const NICLAS_TYPE_ID: String = "niclas"
 const BRONZE_ARMED_WARRIOR_TYPE_ID: String = "bronze_armed_warrior"
+const GENERATED_WARRIOR_TYPE_ID: String = "generated_warrior"
 const NICLAS_DEBUG_CYCLE_KEY: Key = KEY_F10
 const MODEL_ROOT_NAME: String = "ModelRoot"
 
@@ -61,6 +62,14 @@ const MODEL_ROOT_NAME: String = "ModelRoot"
 @export var bronze_armed_warrior_model_pitch_degrees: float = 0.0
 @export var bronze_armed_warrior_model_offset_y_local: float = 0.0
 @export var bronze_armed_warrior_travel_facing_yaw_offset_deg: float = 69.0
+
+@export_group("Generated Warrior debug 3D")
+@export var generated_warrior_model_scale_3d: float = 75.0
+@export var generated_warrior_reference_world_y: float = 0.0
+@export var generated_warrior_model_yaw_degrees: float = 48.0
+@export var generated_warrior_model_pitch_degrees: float = 0.0
+@export var generated_warrior_model_offset_y_local: float = 0.0
+@export var generated_warrior_travel_facing_yaw_offset_deg: float = 69.0
 
 var scenario
 var layout
@@ -703,6 +712,8 @@ func _base_scale_for_type(type_id: String) -> float:
 			return niclas_model_scale_3d
 		BRONZE_ARMED_WARRIOR_TYPE_ID:
 			return bronze_armed_warrior_model_scale_3d
+		GENERATED_WARRIOR_TYPE_ID:
+			return generated_warrior_model_scale_3d
 		_:
 			return model_scale_3d
 
@@ -715,6 +726,8 @@ func _reference_world_y_for_type(type_id: String) -> float:
 			return niclas_reference_world_y
 		BRONZE_ARMED_WARRIOR_TYPE_ID:
 			return bronze_armed_warrior_reference_world_y
+		GENERATED_WARRIOR_TYPE_ID:
+			return generated_warrior_reference_world_y
 		_:
 			return reference_world_y
 
@@ -727,6 +740,8 @@ func _model_yaw_for_type(type_id: String) -> float:
 			return niclas_model_yaw_degrees
 		BRONZE_ARMED_WARRIOR_TYPE_ID:
 			return bronze_armed_warrior_model_yaw_degrees
+		GENERATED_WARRIOR_TYPE_ID:
+			return generated_warrior_model_yaw_degrees
 		_:
 			return model_yaw_degrees
 
@@ -739,6 +754,8 @@ func _model_pitch_for_type(type_id: String) -> float:
 			return niclas_model_pitch_degrees
 		BRONZE_ARMED_WARRIOR_TYPE_ID:
 			return bronze_armed_warrior_model_pitch_degrees
+		GENERATED_WARRIOR_TYPE_ID:
+			return generated_warrior_model_pitch_degrees
 		_:
 			return model_pitch_degrees
 
@@ -751,6 +768,8 @@ func _model_offset_y_local_for_type(type_id: String) -> float:
 			return niclas_model_offset_y_local
 		BRONZE_ARMED_WARRIOR_TYPE_ID:
 			return bronze_armed_warrior_model_offset_y_local
+		GENERATED_WARRIOR_TYPE_ID:
+			return generated_warrior_model_offset_y_local
 		_:
 			return model_offset_y_local
 
@@ -763,6 +782,8 @@ func _travel_facing_yaw_offset_for_type(type_id: String) -> float:
 			return niclas_travel_facing_yaw_offset_deg
 		BRONZE_ARMED_WARRIOR_TYPE_ID:
 			return bronze_armed_warrior_travel_facing_yaw_offset_deg
+		GENERATED_WARRIOR_TYPE_ID:
+			return generated_warrior_travel_facing_yaw_offset_deg
 		_:
 			return travel_facing_yaw_offset_deg
 

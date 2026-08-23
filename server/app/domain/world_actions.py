@@ -310,11 +310,12 @@ def validate_attack_unit_pre_map(snap: dict[str, Any], action: dict[str, Any]) -
         return _fail("unknown_defender")
     if int(attacker["owner_id"]) != int(action["actor_id"]):
         return _fail("actor_not_owner")
-    # Combat 0.1 is warrior-vs-warrior ONLY (locked): attacks on or by any
-    # other type are outside N7g by decision, not an open question.
-    if str(attacker["type_id"]) != WARRIOR_TYPE:
+    # Combat 0.1 is melee-combatant only (locked): production warrior plus
+    # debug generated_warrior (same role/stats). Settlers and other types stay
+    # outside N7g — rejection reasons keep the historical warrior wording.
+    if not unit_definitions.is_melee_combatant(str(attacker["type_id"])):
         return _fail("attacker_not_warrior")
-    if str(defender["type_id"]) != WARRIOR_TYPE:
+    if not unit_definitions.is_melee_combatant(str(defender["type_id"])):
         return _fail("defender_not_warrior")
     if int(attacker["owner_id"]) == int(defender["owner_id"]):
         return _fail("cannot_attack_own_unit")

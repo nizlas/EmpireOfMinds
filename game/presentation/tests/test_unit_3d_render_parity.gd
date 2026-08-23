@@ -10,7 +10,13 @@ const MapCameraScript = preload("res://presentation/map_camera.gd")
 const MapPlaneProjectionScript = preload("res://presentation/map_plane_projection.gd")
 
 const MAP_LAYER_ORIGIN: Vector2 = Vector2(400.0, 428.0)
-const UNIT_TYPES: Array[String] = ["warrior", "settler", "niclas", "bronze_armed_warrior"]
+const UNIT_TYPES: Array[String] = [
+	"warrior",
+	"settler",
+	"niclas",
+	"bronze_armed_warrior",
+	"generated_warrior",
+]
 const WARRIOR_GLB_IMPORT: String = (
 	"res://assets/prototype/3d/units/warrior/warrior_3d_animations.glb.import"
 )
@@ -67,6 +73,11 @@ func _test_import_metadata_parity() -> void:
 				"res://assets/prototype/3d/units/bronze_armed_warrior/"
 				+ "bronze_armed_warrior_3d_texture_0.png.import"
 			),
+		],
+		[
+			"generated_warrior",
+			"res://assets/prototype/3d/units/generated_warrior/generated_warrior_3d.glb.import",
+			"res://assets/prototype/3d/units/generated_warrior/generated_warrior_3d_texture_0.png.import",
 		],
 	]
 	for pair in asset_pairs:
@@ -177,6 +188,7 @@ func _test_composite_render_path() -> void:
 		"warrior": 2,
 		"niclas": ScenarioScript.DEBUG_NICLAS_UNIT_ID,
 		"bronze_armed_warrior": ScenarioScript.DEBUG_BRONZE_UNIT_ID,
+		"generated_warrior": ScenarioScript.DEBUG_GENERATED_WARRIOR_UNIT_ID,
 	}
 	for type_id in UNIT_TYPES:
 		var unit_id: int = int(unit_ids[type_id])

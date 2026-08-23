@@ -14,6 +14,7 @@ adjustment.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from app.domain.content import unit_definitions
@@ -21,6 +22,9 @@ from app.domain.hex_coord import DIRECTIONS
 from app.domain.world_map import EDGE_SMOOTH, WorldMap
 
 SUPPORTED_PLAYER_COUNT = 2
+
+# Env opt-in (same name as Godot): append debug melee units to world matches.
+ENV_DEBUG_EXTRA_3D_CHARACTERS = "EOM_DEBUG_EXTRA_3D_CHARACTERS"
 
 # Spawn rows per map: (unit_id, owner slot into player_ids, type_id, (q, r)).
 # handdrawn_test_map_full_01 tiles chosen from the fully smooth interior
@@ -35,6 +39,17 @@ _SPAWN_TABLES: dict[str, tuple[tuple[int, int, str, tuple[int, int]], ...]] = {
     ),
 }
 
+# Appended ONLY when EOM_DEBUG_EXTRA_3D_CHARACTERS=1. Validated against the
+# same tile/occupancy/smooth-neighbor contract as the base table. Unit id 5
+# is reserved for this debug row on the reference map.
+_DEBUG_EXTRA_SPAWN_TABLES: dict[
+    str, tuple[tuple[int, int, str, tuple[int, int]], ...]
+] = {
+    "handdrawn_test_map_full_01": (
+        (5, 0, "generated_warrior", (2, 0)),
+    ),
+}
+
 
 class WorldScenarioError(Exception):
     """Spawn table missing or diverged from canonical map content (server failure)."""
@@ -42,6 +57,10 @@ class WorldScenarioError(Exception):
 
 def supports_map(map_id: str) -> bool:
     return map_id in _SPAWN_TABLES
+
+
+def debug_extra_3d_characters_enabled() -> bool:
+    return os.environ.get(ENV_DEBUG_EXTRA_3D_CHARACTERS, "").strip() == "1"
 
 
 def build_starting_units(world_map: WorldMap, player_ids: list[int]) -> list[dict[str, Any]]:
@@ -63,9 +82,13 @@ def build_starting_units(world_map: WorldMap, player_ids: list[int]) -> list[dic
     if len(set(player_ids)) != SUPPORTED_PLAYER_COUNT:
         raise WorldScenarioError("world scenario player_ids must be distinct")
     map_id = world_map.identity.map_id
-    table = _SPAWN_TABLES.get(map_id)
-    if table is None:
+    base = _SPAWN_TABLES.get(map_id)
+    if base is None:
         raise WorldScenarioError(f"no world spawn table for map_id {map_id}")
+    extras: tuple[tuple[int, int, str, tuple[int, int]], ...] = ()
+    if debug_extra_3d_characters_enabled():
+        extras = _DEBUG_EXTRA_SPAWN_TABLES.get(map_id, ())
+    table = base + extras
 
     # N7g.1 additive combat state: current_hp comes from the server unit
     # registry (never a literal), has_attacked resets each own turn. No
@@ -82,15 +105,17 @@ def build_starting_units(world_map: WorldMap, player_ids: list[int]) -> list[dic
         for unit_id, owner_slot, type_id, pos in table
     ]
     units.sort(key=lambda u: int(u["id"]))
-    _validate_spawns(world_map, table)
+    _validate_spawns(world_map, base, extras)
     return units
 
 
 def _validate_spawns(
     world_map: WorldMap,
-    table: tuple[tuple[int, int, str, tuple[int, int]], ...],
+    base: tuple[tuple[int, int, str, tuple[int, int]], ...],
+    extras: tuple[tuple[int, int, str, tuple[int, int]], ...] = (),
 ) -> None:
     map_id = world_map.identity.map_id
+    table = base + extras
     positions = [pos for _, _, _, pos in table]
 
     for pos in positions:
@@ -100,10 +125,11 @@ def _validate_spawns(
     if len(set(positions)) != len(positions):
         raise WorldScenarioError(f"spawn positions are not unique on map {map_id}")
 
-    # Each player's spawn group (settler + warrior) must be connected by a
-    # smooth edge so the group is not split by a cliff.
+    # Each player's BASE spawn group (settler + warrior) must be connected by
+    # a smooth edge so the group is not split by a cliff. Debug extras are
+    # not part of that pair contract.
     by_slot: dict[int, list[tuple[int, int]]] = {}
-    for _, owner_slot, _, pos in table:
+    for _, owner_slot, _, pos in base:
         by_slot.setdefault(owner_slot, []).append(pos)
     for owner_slot, group in by_slot.items():
         a, b = group[0], group[1]

@@ -17,7 +17,7 @@ $GamePath = Join-Path $RepoRoot "game"
 
 $KnownGodotPath = "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"
 
-$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f", "n7f1", "n7g3", "n8a", "n8b", "cp1")
+$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f", "n7f1", "n7g3", "n8a", "n8b", "cp1", "a1", "a2")
 
 $Script:SliceTests = @{
 	"c13a" = @(
@@ -84,6 +84,19 @@ $Script:SliceTests = @{
 		"res://cloud/tests/test_cloud_world_play_interaction.gd"
 		"res://cloud/tests/test_cloud_one_pc_debug.gd"
 		"res://presentation/tests/test_world_units_arrival_event.gd"
+		"res://presentation/tests/test_world_debug_extra_units.gd"
+		"res://presentation/tests/test_generated_warrior_equipment.gd"
+	)
+	# A1 isolated Uthana retarget proof (Meshy Walking → 52-bone Uthana; no map).
+	"a1" = @(
+		"res://presentation/tests/test_uthana_a1_walking_retarget.gd"
+	)
+	# A2 isolated melee_1h club attachment + power_grip_v1 on Uthana (no map).
+	# The preview_runtime test gates the actual F6 scene (club present,
+	# renderable, in hand) — grip math alone is not sufficient.
+	"a2" = @(
+		"res://presentation/tests/test_uthana_a2_club_attachment_grip.gd",
+		"res://presentation/tests/test_uthana_a2_preview_runtime.gd"
 	)
 	# N7f focused subset (no terrain build; fast — locomotion/facing math,
 	# clip transitions, grounding, retargeting; slice n7 runs it too).

@@ -21,13 +21,22 @@ const BRONZE_ARMED_WARRIOR_GLB_PATH: String = (
 	"res://assets/prototype/3d/units/bronze_armed_warrior/bronze_armed_warrior_3d.glb"
 )
 const NICLAS_GLB_PATH: String = "res://assets/prototype/3d/units/niclas/niclas_3d.glb"
+const GENERATED_WARRIOR_GLB_PATH: String = (
+	"res://assets/prototype/3d/units/generated_warrior/generated_warrior_3d.glb"
+)
 const MAP_ANIMATION_ENV: String = "EOM_WARRIOR_3D_ANIM"
 const ANIM_AUDIT_ENV: String = "EOM_WARRIOR_3D_ANIM_AUDIT"
 ## TEMPORARY probe: built-in AnimationPlayer root_motion_track instead of manual anchor cancel.
 const SETTLER_BUILTIN_RM_ENV: String = "EOM_SETTLER_BUILTIN_RM"
 const DEFAULT_MAP_ANIMATION_NAME: String = "Idle_3"
-const SUPPORTED_3D_TYPE_IDS: Array = ["warrior", "settler", "niclas", "bronze_armed_warrior"]
-const DEBUG_3D_TYPE_IDS: Array = ["niclas", "bronze_armed_warrior"]
+const SUPPORTED_3D_TYPE_IDS: Array = [
+	"warrior",
+	"settler",
+	"niclas",
+	"bronze_armed_warrior",
+	"generated_warrior",
+]
+const DEBUG_3D_TYPE_IDS: Array = ["niclas", "bronze_armed_warrior", "generated_warrior"]
 
 static var _logged_flag_state: bool = false
 
@@ -64,6 +73,10 @@ static func animated_scene_path_for_type(type_id: String) -> String:
 	if tid == "bronze_armed_warrior":
 		if ResourceLoader.exists(BRONZE_ARMED_WARRIOR_GLB_PATH):
 			return BRONZE_ARMED_WARRIOR_GLB_PATH
+		return ""
+	if tid == "generated_warrior":
+		if ResourceLoader.exists(GENERATED_WARRIOR_GLB_PATH):
+			return GENERATED_WARRIOR_GLB_PATH
 		return ""
 	return ""
 
@@ -151,7 +164,9 @@ static func env_real_3d_units_enabled() -> bool:
 	return is_models_flag_enabled() and OS.get_environment(ENV_REAL_3D_UNITS).strip_edges() == "1"
 
 
-## Env **EOM_DEBUG_EXTRA_3D_CHARACTERS=1**: preplace Niclas + Bronze-Armed Warrior in local play scenario.
+## Env **EOM_DEBUG_EXTRA_3D_CHARACTERS=1**: legacy Scenario inject (Niclas/bronze/
+## generated_warrior); world_map server spawn of generated_warrior (move/attack)
+## plus presentation-only Niclas/bronze in cloud_world_play.
 static func env_debug_extra_3d_characters_enabled() -> bool:
 	return OS.get_environment(ENV_DEBUG_EXTRA_3D_CHARACTERS).strip_edges() == "1"
 

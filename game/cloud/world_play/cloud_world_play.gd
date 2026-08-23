@@ -56,6 +56,10 @@ const WorldUnitsViewScript = preload("res://presentation/world/world_units_view.
 const WorldCitiesViewScript = preload("res://presentation/world/world_cities_view.gd")
 const WorldSurfaceSamplerScript = preload("res://presentation/world/world_surface_sampler.gd")
 const WorldDestinationMarkersScript = preload("res://presentation/world/world_destination_markers.gd")
+const WorldDebugExtraUnitsScript = preload("res://presentation/world/world_debug_extra_units.gd")
+const GeneratedWarriorEquipmentScript = preload(
+	"res://presentation/world/generated_warrior_equipment.gd"
+)
 const Ts08HeightSolver = preload("res://domain/world/ts08_height_solver.gd")
 
 const FRONT_DOOR_SCENE := "res://cloud/cloud_front_door.tscn"
@@ -325,8 +329,23 @@ func _render_units() -> void:
 	if not units_view.has_surface_sampler():
 		units_view.set_surface_sampler(WorldSurfaceSamplerScript.for_terrain_world(world))
 	units_view.set_tile_anchors(world.tile_anchors)
+	# Authoritative snapshot units only for interaction; optional env-gated
+	# presentation extras (Niclas / bronze; generated_warrior if missing from
+	# the server snapshot) merge here. Equipment sockets sync after apply.
 	var units_variant = snapshot.get("units", [])
-	units_view.apply_snapshot_units(units_variant if units_variant is Array else [])
+	var units_array: Array = units_variant if units_variant is Array else []
+	units_view.apply_snapshot_units(
+		WorldDebugExtraUnitsScript.merge_into_units(units_array, world.tile_anchors)
+	)
+	# Equip immediately and again next frame (skeleton posed + in-tree).
+	GeneratedWarriorEquipmentScript.sync_units_view(units_view)
+	call_deferred("_sync_generated_warrior_equipment")
+
+
+func _sync_generated_warrior_equipment() -> void:
+	if units_view == null:
+		return
+	GeneratedWarriorEquipmentScript.sync_units_view(units_view)
 
 
 # N8a city projection: authoritative snapshot cities at the same N4 anchors.

@@ -38,6 +38,17 @@ const BRONZE_ARMED_WARRIOR_GLB_CLIP_FOR_VISUAL: Dictionary = {
 	"Walking": "Walking",
 }
 
+## Generated Warrior debug GLB: inspected clips match semantic names exactly (2026-08).
+## Identity table — do not reuse the historical Warrior swap remap.
+const GENERATED_WARRIOR_GLB_CLIP_FOR_VISUAL: Dictionary = {
+	"Idle_3": "Idle_3",
+	"Walking": "Walking",
+	"Running": "Running",
+	"Left_Slash": "Left_Slash",
+	"Hit_Reaction_1": "Hit_Reaction_1",
+	"Dead": "Dead",
+}
+
 
 static func glb_clip_for_visual(
 	visual_name: String, use_remap: bool, type_id: String = "warrior"
@@ -51,4 +62,6 @@ static func glb_clip_for_visual(
 		return str(NICLAS_GLB_CLIP_FOR_VISUAL.get(key, key))
 	if str(type_id) == "bronze_armed_warrior":
 		return str(BRONZE_ARMED_WARRIOR_GLB_CLIP_FOR_VISUAL.get(key, key))
+	if str(type_id) == "generated_warrior":
+		return str(GENERATED_WARRIOR_GLB_CLIP_FOR_VISUAL.get(key, key))
 	return str(GLB_CLIP_FOR_VISUAL.get(key, key))

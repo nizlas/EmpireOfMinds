@@ -18,6 +18,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.domain import world_actions, world_match, world_scenario
+from app.domain.content import unit_definitions
 from app.domain.map_content_loader import _index_map_files, load_world_map, resolve_content_root
 from app.domain.state_hash import state_hash
 from app.domain.world_map import EDGE_CLIFF, EDGE_SMOOTH
@@ -706,6 +707,34 @@ def test_mismatch_runs_after_pre_map_validation(client: TestClient) -> None:
     _tamper_content_hash(match_id)
     r = _post(client, match_id, _move(0, 99, (2, 1), (3, 1)), tokens[0])
     _assert_reject(r, "unknown_unit")
+
+
+def test_debug_extra_generated_warrior_spawn_and_move(
+    client: TestClient, monkeypatch
+) -> None:
+    """EOM_DEBUG_EXTRA_3D_CHARACTERS=1 adds authoritative generated_warrior
+    (id 5 at (2,0)); it can move like any other world unit."""
+    monkeypatch.setenv("EOM_DEBUG_EXTRA_3D_CHARACTERS", "1")
+    wm = load_world_map(REFERENCE_MAP_ID)
+    units = world_scenario.build_starting_units(wm, [0, 1])
+    assert len(units) == 5
+    gw = next(u for u in units if u["type_id"] == "generated_warrior")
+    assert gw["id"] == 5
+    assert gw["owner_id"] == 0
+    assert gw["position"] == [2, 0]
+    assert gw["current_hp"] == unit_definitions.max_hp_for_type("generated_warrior")
+
+    match_id, tokens, _ = _start_world_match(client)
+    snap = file_store.read_snapshot(match_id)
+    assert snap is not None
+    assert len(snap["units"]) == 5
+    assert snap["next_unit_id"] == 6
+    # Neighbor (3,0) is free and smooth from (2,0).
+    r = _post(client, match_id, _move(0, 5, (2, 0), (3, 0)), tokens[0])
+    body = r.json()
+    assert body["accepted"] is True, r.text
+    moved = next(u for u in body["snapshot"]["units"] if int(u["id"]) == 5)
+    assert moved["position"] == [3, 0]
 
 
 # ----------------------------------------------------------- legacy intact

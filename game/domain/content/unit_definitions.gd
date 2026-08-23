@@ -18,6 +18,7 @@ const ORDERED_UNIT_IDS: Array[String] = [
 	"unit_cart_support",
 	"unit_siege_precursor",
 	"unit_niclas",
+	"unit_generated_warrior",
 ]
 
 ## Active gameplay type_ids backed by canonical rows (engine `Unit.type_id` today).
@@ -300,6 +301,31 @@ static func _registry() -> Dictionary:
 			"gameplay_type_id": "niclas",
 			"debug_unit": true,
 			"glb_path": "res://assets/prototype/3d/units/niclas/niclas_3d.glb",
+			"model_scale_3d": 75.0,
+			"model_yaw_degrees": 48.0,
+			"idle_clip": "Idle_3",
+			"walk_clip": "Walking",
+		},
+	),
+	"unit_generated_warrior": _row(
+		"unit_generated_warrior",
+		"Generated Warrior",
+		"debug",
+		100,
+		0,
+		2,
+		20,
+		0,
+		0,
+		0,
+		["debug", "land", "military", "melee"],
+		"Debug-only generated warrior for animation and movement comparison.",
+		{
+			"gameplay_type_id": "generated_warrior",
+			"debug_unit": true,
+			"glb_path": (
+				"res://assets/prototype/3d/units/generated_warrior/generated_warrior_3d.glb"
+			),
 			"model_scale_3d": 75.0,
 			"model_yaw_degrees": 48.0,
 			"idle_clip": "Idle_3",

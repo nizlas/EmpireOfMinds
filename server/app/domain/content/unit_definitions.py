@@ -28,6 +28,19 @@ _DEFINITIONS: dict[str, dict[str, Any]] = {
         "combat_strength": 20,
         "max_hp": 100,
     },
+    # Debug-only melee type (not in ids()/production roster). Same combat
+    # contract as warrior so world attack_unit / legal-actions treat it as a
+    # combatant; presentation uses its own GLB on the Godot client.
+    "generated_warrior": {
+        "id": "generated_warrior",
+        "display_name": "Generated Warrior",
+        "can_found_city": False,
+        "production_cost": 2,
+        "role": "basic_melee",
+        "max_movement": 2,
+        "combat_strength": 20,
+        "max_hp": 100,
+    },
 }
 
 
@@ -69,3 +82,9 @@ def combat_strength_for_type(type_id: str) -> int:
     if d is None:
         return 0
     return int(d.get("combat_strength", 0))
+
+
+def is_melee_combatant(type_id: str) -> bool:
+    """World Combat 0.1 eligible attackers/defenders (warrior + debug melee)."""
+    d = get_definition(type_id)
+    return d is not None and str(d.get("role", "")) == "basic_melee"
