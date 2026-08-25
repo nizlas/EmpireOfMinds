@@ -1,6 +1,8 @@
 # Headless A2 preview RUNTIME smoke gate: loads the exact F6 scene
 # (uthana_a2_walking_preview.tscn), lets it initialize in a live SceneTree,
 # and verifies the club actually exists, renders, and sits in the hand.
+# A2.9: the runtime equipment owner must be the GENERIC EquipmentAssembler
+# (Uthana composition root) — the legacy club-attachment node must be gone.
 # Grip math being green is NOT enough — this gates the real user-facing scene.
 # godot --headless --path game -s res://presentation/tests/test_uthana_a2_preview_runtime.gd
 extends SceneTree
@@ -8,7 +10,8 @@ extends SceneTree
 const PREVIEW_SCENE := (
 	"res://assets/prototype/3d/units/generated_warrior/uthana_a2/uthana_a2_walking_preview.tscn"
 )
-const ATTACHMENT_NAME := "UthanaA2ClubAttachment"
+const ATTACHMENT_NAME := "UthanaA2EquipmentAssembler"
+const LEGACY_ATTACHMENT_NAME := "UthanaA2ClubAttachment"
 const CLUB_PATH_IN_ATTACHMENT := "WeaponSocket_R/SocketOffset/WoodenClub"
 const INIT_MAX_FRAMES := 240
 
@@ -49,9 +52,28 @@ func _run() -> void:
 	var equip: Dictionary = preview.equip_result()
 	_check(bool(equip.get("ok", false)), "equip result ok (%s)" % equip.get("reason", ""))
 
-	# 2. Club instance under the correct socket chain.
+	# 2. Club instance under the correct socket chain, owned by the GENERIC
+	# assembler (A2.9 runtime-ownership migration).
 	var attachment: Node = preview.get_node_or_null(ATTACHMENT_NAME)
-	_check(attachment != null, "attachment node present")
+	_check(attachment != null, "generic assembler node present")
+	_check(
+		preview.get_node_or_null(LEGACY_ATTACHMENT_NAME) == null,
+		"legacy club-attachment node is NOT instantiated"
+	)
+	_check(
+		preview.has_method("equipment_owner")
+		and str(preview.equipment_owner()) == "equipment_assembler",
+		"preview reports the generic assembler as runtime owner"
+	)
+	if attachment != null:
+		var owner_script: Script = attachment.get_script() as Script
+		_check(
+			owner_script != null
+			and str(owner_script.resource_path).ends_with(
+				"presentation/equipment/equipment_assembler.gd"
+			),
+			"runtime owner runs the GENERIC equipment_assembler.gd script"
+		)
 	if attachment == null:
 		_finish()
 		return
@@ -148,6 +170,85 @@ func _run() -> void:
 	# 10. G toggles finger pose but never removes or hides the club.
 	var grip = attachment.grip_modifier()
 	_check(grip != null, "grip modifier present")
+	var live_diag: Dictionary = grip.last_diagnostics()
+	var live_tw_gate: Dictionary = live_diag.get("thumb_wrap_gate", {})
+	_check(
+		bool(live_tw_gate.get("pass", false)),
+		"live thumb opposition gate R1-R4 PASS (%s)" % str(live_tw_gate.get("failures", []))
+	)
+	var live_tw: Dictionary = live_diag.get("thumb_wrap", {})
+	_check(
+		bool(live_tw.get("opposite_winding", false)),
+		"live thumb winds OPPOSITE fingers (Wt %+.0f vs Wf %+.0f)"
+		% [
+			float(live_tw.get("winding_thumb_deg", 0.0)),
+			float(live_tw.get("winding_finger_median_deg", 0.0)),
+		]
+	)
+	var live_cls: String = str(live_tw.get("direction_class", "?"))
+	_check(
+		live_cls == "TOWARD_INDEX" or live_cls == "INDEX_MIDDLE",
+		"live thumb directed toward index side (%s)" % live_cls
+	)
+	_check(
+		absf(float(live_tw.get("cmc_twist_deg", 999.0))) <= 100.0
+		and float(live_tw.get("mcp_flex_deg", -99.0)) >= -10.0
+		and float(live_tw.get("nail_out_dot", -9.0)) >= 0.3
+		and float(live_tw.get("pad_in_dot", -9.0)) >= 0.3,
+		"live thumb anatomical (CMC twist %.0f incl. opposition pronation, MCP flex %.0f, nail_out %.2f, pad_in %.2f)"
+		% [
+			float(live_tw.get("cmc_twist_deg", 999.0)),
+			float(live_tw.get("mcp_flex_deg", -99.0)),
+			float(live_tw.get("nail_out_dot", -9.0)),
+			float(live_tw.get("pad_in_dot", -9.0)),
+		]
+	)
+	# A2.6: the live preview scene must carry a PASSING distributed contour
+	# (measured skinned patches, no isolated middle gap) after equip.
+	var live_ct: Dictionary = grip.last_contour()
+	var live_cg: Dictionary = grip.last_contour_gate()
+	_check(
+		bool(live_ct.get("ok", false)) and bool(live_cg.get("pass", false)),
+		"live thumb contour gate PASS (%s)" % str(live_cg.get("failures", []))
+	)
+	var live_t2: Dictionary = (
+		live_ct.get("patches", {}) as Dictionary
+	).get("t2", {})
+	_check(
+		int(live_t2.get("n", 0)) >= 2
+		and float(live_ct.get("mid_excess_r", 9.0)) <= grip.CONTOUR_MID_EXCESS_MAX_R,
+		"live contour middle within corridor (T2 %d verts, mid excess %.2fr)"
+		% [int(live_t2.get("n", 0)), float(live_ct.get("mid_excess_r", 9.0))]
+	)
+	# A2.7: the live scene must carry a PASSING ground-truth surface gate
+	# measured on the DEFORMED skinned nail/pad patches at the same final
+	# pose the preview renders (fresh pose stamp).
+	var live_sg: Dictionary = grip.run_surface_truth_gate()
+	var live_surf: Dictionary = grip.last_surface()
+	_check(
+		bool(live_surf.get("ok", false)) and bool(live_sg.get("pass", false)),
+		"live ground-truth surface gate PASS (%s)" % str(live_sg.get("failures", []))
+	)
+	_check(
+		float(live_surf.get("nail_out_geom", -9.0)) >= grip.NAIL_GEOM_OUT_MIN
+		and float(live_surf.get("nail_axis_geom", 9.0)) <= grip.NAIL_GEOM_AX_MAX
+		and float(live_surf.get("pad_in_geom", -9.0)) >= grip.PAD_GEOM_IN_MIN,
+		"live GEOM nail out %+.2f / axis %.2f / pad in %+.2f within gates"
+		% [
+			float(live_surf.get("nail_out_geom", -9.0)),
+			float(live_surf.get("nail_axis_geom", 9.0)),
+			float(live_surf.get("pad_in_geom", -9.0)),
+		]
+	)
+	_check(
+		str(live_surf.get("closest_patch", "")) == "pad",
+		"live contact surface is the PAD (closest=%s)"
+		% str(live_surf.get("closest_patch", ""))
+	)
+	_check(
+		str(live_surf.get("pose_stamp", "")) == str(grip.pose_stamp()),
+		"live surface measurement fresh for the rendered pose"
+	)
 	var poses_on: Dictionary = _finger_poses(preview, grip)
 	_press_key(KEY_G)
 	await process_frame

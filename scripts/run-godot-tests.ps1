@@ -94,9 +94,13 @@ $Script:SliceTests = @{
 	# A2 isolated melee_1h club attachment + power_grip_v1 on Uthana (no map).
 	# The preview_runtime test gates the actual F6 scene (club present,
 	# renderable, in hand) — grip math alone is not sufficient.
+	# A2.8 adds the reusable bilateral pipeline test; A2.9 adds the
+	# legacy-vs-generic parity matrix (12 points + yaw invariance).
 	"a2" = @(
 		"res://presentation/tests/test_uthana_a2_club_attachment_grip.gd",
-		"res://presentation/tests/test_uthana_a2_preview_runtime.gd"
+		"res://presentation/tests/test_uthana_a2_preview_runtime.gd",
+		"res://presentation/tests/test_equipment_interaction_pipeline.gd",
+		"res://presentation/tests/test_uthana_a2_power_grip_parity.gd"
 	)
 	# N7f focused subset (no terrain build; fast — locomotion/facing math,
 	# clip transitions, grounding, retargeting; slice n7 runs it too).

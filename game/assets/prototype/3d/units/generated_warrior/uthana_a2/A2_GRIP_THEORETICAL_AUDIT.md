@@ -1,8 +1,10 @@
 # A2 Grip — Theoretical Audit (anatomical power grip for procedurally generated weapons)
 
-Status: **read-only planning/architecture audit.** No implementation performed.
-A2 remains **visually FAILED / ongoing**. Green automated tests in this slice must
-NOT be read as visual success.
+Status: **historical forensic evidence (read-only planning/architecture audit
+at the time of writing).** Canonical contract: `docs/EQUIPMENT_INTERACTION.md`.
+Do not rewrite the measurements below. A2.7 later implemented the hybrid;
+A2.8b preserved the causal rules. Green automated tests must NOT be read
+as visual success.
 
 Baseline cited from this session's runs (2026-08-22): `slice a1` 71 checks OK,
 `slice a2` 67 checks OK. Fresh baseline re-runs are step 0 of the next

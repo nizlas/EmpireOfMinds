@@ -225,6 +225,20 @@ func equip_club() -> Dictionary:
 		}
 
 	var grip_ok: Dictionary = attach_grip(frame_pose)
+	if not bool(grip_ok.get("ok", false)):
+		if str(grip_ok.get("error_class", "")) in [
+			"THUMB_OPPOSITION_GATE_FAILED", "THUMB_CONTOUR_GATE_FAILED",
+			"THUMB_SURFACE_TRUTH_GATE_FAILED",
+		]:
+			# The equip is REJECTED (ok=false, explicit failures), but the
+			# failed pose stays visible for debugging — the preview must
+			# classify it loudly as FAIL, never as an accepted grip.
+			pass
+		else:
+			# Configure/bind failures: fail closed with no club.
+			socket.queue_free()
+			_club_socket = null
+			_club_instance = null
 	return {
 		"ok": bool(grip_ok.get("ok", false)),
 		"analysis": _analysis,
@@ -236,6 +250,11 @@ func equip_club() -> Dictionary:
 		"grip": grip_ok,
 		"club_path": path,
 		"reason": grip_ok.get("reason", ""),
+		"error_class": grip_ok.get("error_class", ""),
+		"thumb_wrap": grip_ok.get("thumb_wrap", {}),
+		"thumb_wrap_failures": grip_ok.get("thumb_wrap_failures", []),
+		"thumb_contour": grip_ok.get("thumb_contour", {}),
+		"thumb_contour_failures": grip_ok.get("thumb_contour_failures", []),
 	}
 
 
@@ -375,6 +394,44 @@ func attach_grip(frame_pose: Dictionary) -> Dictionary:
 		return cfg
 	(_grip as Object).set_grip_enabled(true)
 	(_grip as Object).apply_now()
+	# A2.2: the achieved thumb must satisfy the opposition contract R1-R4
+	# (counter-winding, meeting sector, contact, approach) — fail closed if
+	# the bounded refinement could not satisfy it. No fallback pose.
+	var diag: Dictionary = (_grip as Object).last_diagnostics()
+	var tw_gate: Dictionary = diag.get("thumb_wrap_gate", {})
+	if not bool(tw_gate.get("pass", false)):
+		return {
+			"ok": false,
+			"reason": "thumb_opposition_gate_failed",
+			"error_class": "THUMB_OPPOSITION_GATE_FAILED",
+			"thumb_wrap": diag.get("thumb_wrap", {}),
+			"thumb_wrap_failures": tw_gate.get("failures", []),
+		}
+	# A2.6: the achieved SKINNED thumb contour must satisfy the distributed
+	# contact contract (no isolated middle gap/bulge, monotone signed wrap,
+	# volar middle flesh toward the shaft) — fail closed, no fallback pose.
+	var contour_gate: Dictionary = (_grip as Object).run_contour_gate(_character)
+	if not bool(contour_gate.get("pass", false)):
+		return {
+			"ok": false,
+			"reason": "thumb_contour_gate_failed",
+			"error_class": "THUMB_CONTOUR_GATE_FAILED",
+			"thumb_contour": (_grip as Object).last_contour(),
+			"thumb_contour_failures": contour_gate.get("failures", []),
+		}
+	# A2.7: ground-truth surface gate — the DEFORMED skinned nail/pad patch
+	# triangles at the achieved final pose must face radially out / in with
+	# the pad (never the nail) as the contact surface. Compiled normals are
+	# diagnostics only; this gate is the acceptance ground truth.
+	var surface_gate: Dictionary = (_grip as Object).run_surface_truth_gate()
+	if not bool(surface_gate.get("pass", false)):
+		return {
+			"ok": false,
+			"reason": "thumb_surface_truth_gate_failed",
+			"error_class": "THUMB_SURFACE_TRUTH_GATE_FAILED",
+			"thumb_surface": (_grip as Object).last_surface(),
+			"thumb_surface_failures": surface_gate.get("failures", []),
+		}
 	return cfg
 
 
@@ -548,6 +605,101 @@ func _update_debug_layer() -> void:
 		var fd: Dictionary = diag.get(finger, {})
 		if fd.has("pad_final"):
 			_add_debug_sphere(_debug_layer, fd["pad_final"], Color(0.2, 1.0, 0.4), 0.003)
+	_draw_contour_debug(diag)
+	_draw_surface_truth_debug()
+
+
+## A2.7 ground-truth debug: the verified SKINNED nail (magenta) and pad
+## (cyan) patch triangles at the achieved pose, their deformed geometric
+## aggregate normals, the local radial R (green) and the shaft axis D
+## (yellow) at the nail station.
+func _draw_surface_truth_debug() -> void:
+	var tris: Dictionary = (_grip as Object).surface_debug_triangles()
+	var surface: Dictionary = (_grip as Object).last_surface()
+	if tris.is_empty():
+		return
+	var colors := {
+		"nail": Color(1.0, 0.15, 0.95),
+		"pad": Color(0.15, 0.95, 1.0),
+	}
+	for patch in ["nail", "pad"]:
+		var col: Color = colors[patch]
+		for tri_v in (tris.get(patch, []) as Array):
+			var pts: Array = tri_v
+			for k in 3:
+				_add_debug_line(
+					_debug_layer, pts[k] as Vector3, pts[(k + 1) % 3] as Vector3, col
+				)
+		var pd: Dictionary = surface.get(patch, {})
+		if pd.has("c_agg") and pd.has("n_agg"):
+			_add_debug_line(
+				_debug_layer,
+				pd["c_agg"] as Vector3,
+				(pd["c_agg"] as Vector3) + (pd["n_agg"] as Vector3) * 0.02,
+				col
+			)
+	var nail_pd: Dictionary = surface.get("nail", {})
+	if nail_pd.has("c_agg"):
+		var o: Vector3 = primary_grip_world()
+		var d: Vector3 = (active_end_world() - grip_end_world()).normalized()
+		var c: Vector3 = nail_pd["c_agg"]
+		var w: Vector3 = c - o
+		var foot: Vector3 = o + d * w.dot(d)
+		var radial: Vector3 = c - foot
+		if radial.length_squared() > 1e-14:
+			_add_debug_line(
+				_debug_layer, foot, foot + radial.normalized() * 0.03,
+				Color(0.2, 1.0, 0.3)
+			)
+		_add_debug_line(
+			_debug_layer, foot - d * 0.03, foot + d * 0.03, Color(0.95, 0.85, 0.1)
+		)
+
+
+## A2.6 contour debug: thumb volar patches, colour-coded gap lines to the
+## nearest shaft-surface points, the interpolated contact corridor and the
+## patch-centroid curvature polyline.
+func _draw_contour_debug(diag: Dictionary) -> void:
+	var contour: Dictionary = (_grip as Object).last_contour()
+	if not bool(contour.get("ok", false)):
+		return
+	var patches: Dictionary = contour.get("patches", {})
+	var colors := {
+		"cmc": Color(1.0, 0.55, 0.15),
+		"t2": Color(0.35, 0.65, 1.0),
+		"t3": Color(0.85, 0.35, 1.0),
+	}
+	var poly: Array[Vector3] = []
+	for key in ["cmc", "t2", "t3"]:
+		var patch: Dictionary = patches.get(key, {})
+		if not patch.has("centroid"):
+			return
+		var centroid: Vector3 = patch["centroid"]
+		var min_p: Vector3 = patch["min_p"]
+		_add_debug_sphere(_debug_layer, centroid, colors[key], 0.0025)
+		var surf: Vector3 = (_grip as Object).shaft_surface_point(min_p)
+		var g: float = float(patch.get("min_r", 9.0))
+		var gap_col := Color(0.2, 1.0, 0.3)
+		if g > 0.35 or g < -0.30:
+			gap_col = Color(1.0, 0.2, 0.15)
+		elif g > 0.20:
+			gap_col = Color(1.0, 0.9, 0.2)
+		_add_debug_line(_debug_layer, min_p, surf, gap_col)
+		poly.append(centroid)
+	var td: Dictionary = diag.get("thumb", {})
+	if td.has("pad_final"):
+		poly.append(td["pad_final"])
+	for i in poly.size() - 1:
+		_add_debug_line(_debug_layer, poly[i], poly[i + 1], Color(0.95, 0.95, 0.95))
+	# Corridor: anchor contact (CMC) -> distal pad along the shaft surface.
+	var cmc_p: Vector3 = (patches.get("cmc", {}) as Dictionary).get("min_p", Vector3.ZERO)
+	if td.has("pad_final"):
+		_add_debug_line(
+			_debug_layer,
+			(_grip as Object).shaft_surface_point(cmc_p),
+			(_grip as Object).shaft_surface_point(td["pad_final"]),
+			Color(0.15, 0.9, 0.9)
+		)
 
 
 func _add_debug_sphere(parent: Node3D, pos: Vector3, color: Color, radius: float) -> void:
