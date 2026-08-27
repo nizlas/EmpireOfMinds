@@ -121,6 +121,91 @@ static func _skinned_vertex(
 	return acc
 
 
+## The blended skinning basis for one vertex, plus what a caller needs to
+## transform a DIRECTION with it (A2.13b).
+##
+## Positions blend affinely through `bone_global_pose * bind_pose` (see
+## `_skinned_vertex`). A normal is not a position: it must be carried by the
+## INVERSE TRANSPOSE of that same basis, or any non-uniform scale, shear or
+## 90-degree rest permutation in the skin silently rotates it. Until A2.13b the
+## fixture compiler carried imported normals with `bone_global_pose *
+## bone_global_rest.inverse()` — which omits the bind pose entirely and is the
+## IDENTITY at the rest pose, so an imported normal stayed in MESH space while
+## the geometric normal derived beside it was already in SKELETON space. On a
+## representation whose armature and mesh spaces coincide the two agreed by
+## accident; on a raw delivery whose skeleton space is a 90-degree permutation
+## of its mesh space they do not, and the winding decision taken from their dot
+## product is then arbitrary.
+##
+## `det` is returned rather than hidden: a skin that REFLECTS turns a
+## right-handed triangle winding into a left-handed one, so the caller must
+## decide explicitly what that means instead of inheriting a silent sign.
+static func skinned_normal_basis(
+	mesh_instance: MeshInstance3D,
+	skeleton: Skeleton3D,
+	surface: int,
+	vertex_index: int,
+	bpv: int,
+	bind_to_skel: PackedInt32Array
+) -> Dictionary:
+	var skin: Skin = mesh_instance.skin
+	var arrays: Array = mesh_instance.mesh.surface_get_arrays(surface)
+	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES] as PackedInt32Array
+	var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS] as PackedFloat32Array
+	var acc := Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
+	var wsum := 0.0
+	for j in bpv:
+		var w: float = weights[vertex_index * bpv + j]
+		if w <= 0.0:
+			continue
+		var bind_i: int = int(bones[vertex_index * bpv + j])
+		if bind_i < 0 or bind_i >= skin.get_bind_count():
+			continue
+		var skel_bone: int = bind_to_skel[bind_i]
+		if skel_bone < 0:
+			continue
+		var m: Basis = (
+			skeleton.get_bone_global_pose(skel_bone) * skin.get_bind_pose(bind_i)
+		).basis
+		acc = Basis(
+			acc.x + m.x * w, acc.y + m.y * w, acc.z + m.z * w
+		)
+		wsum += w
+	if wsum <= 1e-8:
+		return {"ok": false, "reason": "no_weight"}
+	acc = Basis(acc.x / wsum, acc.y / wsum, acc.z / wsum)
+	var det: float = acc.determinant()
+	if absf(det) <= 1e-20:
+		return {"ok": false, "reason": "degenerate_skin_basis", "det": det}
+	return {"ok": true, "basis": acc, "det": det}
+
+
+## One mesh-space normal carried into SKELETON space by the vertex's own
+## blended skin, inverse-transposed, with the reflection sign applied so the
+## OUTWARD sense survives a mirrored skin. Not normalised by the caller's
+## convenience: a zero-length result is reported rather than guessed.
+static func skinned_normal_local(
+	mesh_instance: MeshInstance3D,
+	skeleton: Skeleton3D,
+	surface: int,
+	vertex_index: int,
+	bpv: int,
+	bind_to_skel: PackedInt32Array,
+	mesh_normal: Vector3
+) -> Dictionary:
+	var nb: Dictionary = skinned_normal_basis(
+		mesh_instance, skeleton, surface, vertex_index, bpv, bind_to_skel
+	)
+	if not bool(nb.get("ok", false)):
+		return nb
+	var basis: Basis = nb["basis"]
+	var det: float = float(nb["det"])
+	var carried: Vector3 = (basis.inverse().transposed() * mesh_normal) * signf(det)
+	if carried.length_squared() < 1e-24:
+		return {"ok": false, "reason": "degenerate_carried_normal", "det": det}
+	return {"ok": true, "normal": carried.normalized(), "det": det}
+
+
 ## Ortho world transform matching equipment bone-follow (scale stripped).
 static func ortho_global_rest(skeleton: Skeleton3D, bone_idx: int) -> Transform3D:
 	var g: Transform3D = skeleton.global_transform * skeleton.get_bone_global_rest(bone_idx)

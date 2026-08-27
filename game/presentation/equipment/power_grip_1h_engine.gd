@@ -16,6 +16,8 @@ extends SkeletonModifier3D
 
 const GripShape = preload("res://presentation/equipment/melee_grip_shape.gd")
 const Skinning = preload("res://presentation/equipment/skinned_mesh_geometry.gd")
+const SurfaceAnatomy = preload("res://presentation/equipment/thumb_surface_anatomy.gd")
+const Compiler = preload("res://presentation/equipment/hand_fixture_compiler.gd")
 
 const GRIP_ID := "power_grip_v1"
 
@@ -184,6 +186,10 @@ var _last_contour_gate: Dictionary = {}
 ## ({"nail": [...], "pad": [...]}, each {si, i, bpv, flip}).
 var _patch_refs: Dictionary = {}
 var _patch_bind_failure := ""
+## The independent anatomical verdict on the patches a certified fixture
+## claims, and its named class when it refuses (A2.13b).
+var _patch_anatomy_failure := ""
+var _surface_anatomy: Dictionary = {}
 var _last_surface: Dictionary = {}
 var _last_surface_gate: Dictionary = {}
 ## Calibration/test-only override of the canonical anatomical thumb pose
@@ -380,13 +386,21 @@ func configure(
 	# verified patch identity.
 	_patch_refs = {}
 	_patch_bind_failure = ""
+	_patch_anatomy_failure = ""
+	_surface_anatomy = {}
 	_last_surface = {}
 	_last_surface_gate = {}
 	if not _bind_patches(character, skel):
 		return {
 			"ok": false,
 			"reason": _patch_bind_failure,
-			"error_class": "GRIP_PATCH_BIND_FAILED",
+			"error_class": (
+				"GRIP_SURFACE_ANATOMY_REJECTED"
+				if not _patch_anatomy_failure.is_empty()
+				else "GRIP_PATCH_BIND_FAILED"
+			),
+			"surface_anatomy_class": _patch_anatomy_failure,
+			"surface_anatomy": _surface_anatomy.duplicate(true),
 		}
 	_bound = true
 	return {
@@ -792,12 +806,17 @@ func _derive_thumb_anatomy(skel: Skeleton3D) -> void:
 		skel.global_transform.basis * skel.get_bone_global_pose(int(chain[2])).basis
 	)
 	var pad_rest_w: Vector3 = (t3_rest_basis * _pad_normal_local()).normalized()
-	# A2.7 sanity: the compiled plate relation must match the audited rest
-	# relation (the true plates are near-perpendicular, NOT opposed — the
-	# old "must be opposed" check was itself derived from the mislabeled
-	# A2.5 patch), and the verified patches must have bound cleanly.
+	# EVIDENCE COHERENCE, NOT ANATOMY (reclassified in A2.13b). This compares
+	# the fixture's own two normals against the fixture's own stored dot
+	# product of them, so it detects an INCOHERENTLY EDITED payload and
+	# nothing else: a surface classified onto the wrong side of the digit
+	# satisfies it perfectly by being consistent with itself. The question it
+	# used to be credited with answering is now answered by the independent
+	# anatomical validation in `_bind_patches`, from this rig's own chain and
+	# hand frame. The check is kept because payload coherence is still worth
+	# refusing on; the failure class now says what it means.
 	if absf(_nail_normal_local().dot(_pad_normal_local()) - _rest_nail_pad_dot()) > 0.15:
-		_thumb_axis_failure = "thumb_distal_frame_invalid"
+		_thumb_axis_failure = "thumb_surface_evidence_incoherent"
 		return
 	if not _patch_bind_failure.is_empty():
 		_thumb_axis_failure = _patch_bind_failure
@@ -1392,11 +1411,18 @@ static func evaluate_thumb_wrap(metrics: Dictionary, r_mean: float) -> Dictionar
 			failures.append("thumb_nail_axial_to_shaft")
 		if float(metrics.get("pad_in_dot", -9.0)) < PAD_IN_MIN:
 			failures.append("thumb_pad_faces_outward")
+		# DEFORMATION DRIFT, NOT ANATOMY (reclassified in A2.13b). The achieved
+		# plate relation is compared against the fixture's OWN compiled rest
+		# relation, so this measures how far posing and skinning moved the two
+		# plates relative to each other. It is a real and useful bound, and it
+		# is not evidence that the right surface was compiled -- a misclassified
+		# surface tracks its own recorded value just as faithfully. The
+		# anatomical question is owned by the independent validation at bind.
 		if (
 			absf(float(metrics.get("nail_pad_dot", 9.0)) - float(metrics.get("rest_nail_pad_dot", 0.0)))
 			> 0.15
 		):
-			failures.append("thumb_surface_orientation_inconsistent")
+			failures.append("thumb_surface_deformation_drift")
 		if absf(float(metrics.get("distal_roll_deg", 999.0))) > DISTAL_ROLL_MAX_DEG:
 			failures.append("thumb_distal_roll_excess")
 	return {"pass": failures.is_empty(), "failures": failures}
@@ -1819,8 +1845,17 @@ func _bind_patches(character: Node, skel: Skeleton3D) -> bool:
 	var t3_world_inv: Basis = (
 		skel.global_transform.basis * skel.get_bone_global_pose(t3).basis
 	).inverse()
+	# Full transform, not just the basis: the independent anatomical validation
+	# below judges WHERE each plate sits, which needs positions rather than
+	# directions.
+	var t3_pose_inv: Transform3D = (
+		skel.global_transform * skel.get_bone_global_pose(t3)
+	).affine_inverse()
 	var ok := true
 	var out_refs := {}
+	var anatomy_tris := {"nail": [], "pad": []}
+	var anatomy_keys := {"nail": [], "pad": []}
+	var anatomy_normals := {}
 	for pair in [["nail", _nail_tris()], ["pad", _pad_tris()]]:
 		var patch: String = pair[0]
 		var refs: Array = []
@@ -1842,6 +1877,7 @@ func _bind_patches(character: Node, skel: Skeleton3D) -> bool:
 			var uv_acc := Vector2.ZERO
 			var n_t3 := 0
 			var bad := false
+			var tri_weights: Array = []
 			for ii in idx:
 				var vi: int = int(ii)
 				if vi >= verts.size():
@@ -1860,6 +1896,7 @@ func _bind_patches(character: Node, skel: Skeleton3D) -> bool:
 				elif bb != t2:
 					bad = true
 					break
+				tri_weights.append(bw)
 			if bad or n_t3 < 2:
 				ok = false
 				break
@@ -1881,25 +1918,41 @@ func _bind_patches(character: Node, skel: Skeleton3D) -> bool:
 			var ng: Vector3 = (p1 - p0).cross(p2 - p0)
 			var area: float = ng.length() * 0.5
 			ng = ng.normalized() * float(tri["flip"])
+			# A2.13b: the imported normal is carried by the vertex's OWN
+			# inverse-transposed skin basis, in the same space `ng` lives in.
+			# The A2.13a form used `bone_pose * bone_rest.inverse()`, which
+			# omits the bind pose and is the identity at rest -- so on a
+			# delivery whose mesh space is a permutation of its skeleton space
+			# it compared two different frames and rejected a correctly
+			# compiled patch as `thumb_true_nail_patch_missing`.
 			var nv := Vector3.ZERO
+			var nv_carried := 0
 			for ii in idx:
-				var vi2: int = int(ii)
-				var bw2 := 0.0
-				var bb2 := -1
-				for k in bpv:
-					var w2: float = float(weights[vi2 * bpv + k])
-					if w2 > bw2:
-						bw2 = w2
-						bb2 = _patch_bind_map[bones[vi2 * bpv + k]]
-				nv += (
-					skel.global_transform.basis
-					* skel.get_bone_global_pose(bb2).basis
-					* skel.get_bone_global_rest(bb2).basis.inverse()
-				) * norms[vi2]
+				var carried: Dictionary = Skinning.skinned_normal_local(
+					mi, skel, si, int(ii), bpv, _patch_bind_map, norms[int(ii)]
+				)
+				if not bool(carried.get("ok", false)):
+					continue
+				nv += skel.global_transform.basis * (carried["normal"] as Vector3)
+				nv_carried += 1
+			if nv_carried == 0 or nv.length_squared() < 1e-16:
+				ok = false
+				break
 			if ng.dot(nv.normalized()) < 0.0:
 				ok = false
 				break
 			n_local_agg += (t3_world_inv * ng) * area
+			var lowest := 1.0
+			for wv in tri_weights:
+				lowest = minf(lowest, float(wv))
+			anatomy_tris[patch].append({
+				"centroid": t3_pose_inv * ((p0 + p1 + p2) / 3.0),
+				"normal": (t3_world_inv * ng).normalized(),
+				"area": area,
+				"distal_verts": n_t3,
+				"min_weight": lowest,
+			})
+			anatomy_keys[patch].append(_patch_key(idx))
 			refs.append({"si": si, "i": idx.duplicate(), "bpv": bpv, "flip": float(tri["flip"])})
 		if not ok:
 			break
@@ -1910,19 +1963,128 @@ func _bind_patches(character: Node, skel: Skeleton3D) -> bool:
 		if n_local_agg.normalized().dot(expected) < PATCH_REST_NORMAL_MIN_DOT:
 			ok = false
 			break
+		anatomy_normals[patch] = n_local_agg.normalized()
 		out_refs[patch] = refs
+	# INDEPENDENT ANATOMICAL RE-VALIDATION (A2.13b). A certificate can be
+	# forged, and a wrongly compiled surface is perfectly consistent with
+	# itself, so the runtime asks the SAME anatomical question the compiler
+	# asked - from this live rig's own chain and hand frame, not from anything
+	# the fixture declares about itself. Same module, same thresholds.
+	_surface_anatomy = {}
+	if ok:
+		var anat: Dictionary = _validate_patch_anatomy(
+			skel, t2, t3, anatomy_tris, anatomy_keys, anatomy_normals
+		)
+		_surface_anatomy = anat
+		if not bool(anat.get("ok", false)):
+			ok = false
+			_patch_anatomy_failure = str(
+				(anat.get("failure_classes", []) as Array)[0]
+			) if not (anat.get("failure_classes", []) as Array).is_empty() else "THUMB_ANATOMY_INVALID"
 	for i in chain.size():
 		skel.set_bone_pose_rotation(int(chain[i]), saved[i])
 	skel.force_update_all_bone_transforms()
 	if not ok:
 		_patch_bind_failure = "thumb_patch_frame_mismatch"
-		if not out_refs.has("nail"):
+		if not _patch_anatomy_failure.is_empty():
+			_patch_bind_failure = "thumb_surface_anatomy_rejected"
+		elif not out_refs.has("nail"):
 			_patch_bind_failure = "thumb_true_nail_patch_missing"
 		elif not out_refs.has("pad"):
 			_patch_bind_failure = "thumb_true_pad_patch_missing"
 		return false
 	_patch_refs = out_refs
 	return true
+
+
+## The live rig's own answer to "are these the nail and the pad", through the
+## one shared anatomy module. The frame comes from THIS hand's bones; nothing
+## the fixture stores about its own normals is an input to the verdict.
+func _validate_patch_anatomy(
+	skel: Skeleton3D,
+	t2: int,
+	t3: int,
+	tris: Dictionary,
+	keys: Dictionary,
+	normals: Dictionary
+) -> Dictionary:
+	var frame: Dictionary = _live_hand_frame(skel)
+	if not bool(frame.get("ok", false)):
+		return {
+			"ok": false,
+			"failure_classes": ["THUMB_ANATOMY_FRAME_UNDERIVABLE"],
+			"failures": [{
+				"class": "THUMB_ANATOMY_FRAME_UNDERIVABLE",
+				"detail": "the live hand frame could not be derived",
+			}],
+			"metrics": {},
+		}
+	var t3_world: Transform3D = skel.global_transform * skel.get_bone_global_pose(t3)
+	var t2_world: Transform3D = skel.global_transform * skel.get_bone_global_pose(t2)
+	var inv: Basis = t3_world.basis.inverse()
+	var radial_res: Dictionary = Compiler.frame_radial(frame)
+	if not bool(radial_res.get("ok", false)):
+		var cls: String = str(
+			radial_res.get("error_class", "THUMB_ANATOMY_FRAME_UNDERIVABLE")
+		)
+		return {
+			"ok": false,
+			"failure_classes": [cls],
+			"failures": [{
+				"class": cls,
+				"detail": str(radial_res.get("detail", "")),
+			}],
+			"metrics": {},
+		}
+	var radial_w: Vector3 = radial_res["radial"]
+	var volar: Vector3 = (inv * (frame["volar"] as Vector3)).normalized()
+	var radial: Vector3 = (inv * radial_w).normalized()
+	var axis_v: Vector3 = inv * (t3_world.origin - t2_world.origin)
+	return SurfaceAnatomy.validate(
+		Compiler.anatomy_context(
+			volar,
+			radial,
+			(radial - volar).normalized(),
+			axis_v.normalized(),
+			axis_v.length(),
+			_anatomy_rows(tris.get("nail", []), keys.get("nail", [])),
+			_anatomy_rows(tris.get("pad", []), keys.get("pad", [])),
+			normals.get("nail", Vector3.ZERO),
+			normals.get("pad", Vector3.ZERO)
+		)
+	)
+
+
+## Adapt the bind-time records onto the shape `Compiler.anatomy_context`
+## consumes, so both callers build one identical context.
+func _anatomy_rows(rows: Array, keys: Array) -> Array:
+	var out: Array = []
+	for i in rows.size():
+		var r: Dictionary = rows[i]
+		out.append({
+			"key": str(keys[i]) if i < keys.size() else str(i),
+			"centroid_local": r["centroid"],
+			"n_local": r["normal"],
+			"area": r["area"],
+			"distal_verts": int(r["distal_verts"]),
+			"dom_weights": [float(r["min_weight"])],
+		})
+	return out
+
+
+## Stable identity of a patch triangle, order-independent, so the two plates'
+## overlap is decided by identity rather than by proximity.
+static func _patch_key(idx: Array) -> String:
+	var s: Array = []
+	for i in idx:
+		s.append(int(i))
+	s.sort()
+	return "%08d_%08d_%08d" % [int(s[0]), int(s[1]), int(s[2])]
+
+
+## The independent anatomical verdict from the last bind. Diagnostics only.
+func last_surface_anatomy() -> Dictionary:
+	return _surface_anatomy.duplicate(true)
 
 
 ## Deterministic stamp of the pose the surface measurement belongs to:
@@ -2114,11 +2276,14 @@ static func evaluate_thumb_surface_truth(
 		failures.append("thumb_nail_is_contact_surface")
 	if pad_gap > PAD_CONTACT_GAP_MAX_R:
 		failures.append("thumb_pad_not_contact_surface")
+	# DEFORMATION DRIFT, NOT ANATOMY (reclassified in A2.13b): the achieved
+	# plate relation against the fixture's own compiled rest relation. See the
+	# note on the same comparison in `evaluate_thumb_wrap`.
 	if (
 		absf(float(surface.get("nail_pad_geom_dot", 9.0)) - float(surface.get("rest_nail_pad_dot", 0.0)))
 		> GEOM_NAIL_PAD_DOT_TOL
 	):
-		failures.append("thumb_patch_frame_mismatch")
+		failures.append("thumb_surface_geom_deformation_drift")
 	if absf(float(surface.get("distal_phys_roll_deg", 999.0))) > DISTAL_PHYS_ROLL_MAX_DEG:
 		failures.append("thumb_distal_physical_roll_excess")
 	return {"pass": failures.is_empty(), "failures": failures}

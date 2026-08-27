@@ -27,7 +27,7 @@
 # THREE STATES, ONE DIRECTION:
 #
 #   1. compiled evidence   -- `hand_fixture_compiler.gd` output, schema
-#      `hand_fixture_evidence_v3`, written to STAGING. Never runtime-valid.
+#      `hand_fixture_evidence_v4`, written to STAGING. Never runtime-valid.
 #   2. rejected diagnostic -- the same evidence for an asset the chain refused.
 #      Kept for traceability; can never be promoted, because no envelope exists.
 #   3. certified runtime fixture -- this envelope, schema

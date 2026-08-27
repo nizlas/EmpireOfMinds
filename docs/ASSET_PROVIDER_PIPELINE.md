@@ -499,16 +499,42 @@ representation the pose calibration was authored against. That is **refuted**:
 the two deliveries reach the same anatomical joint pose to within ~1.5° despite a
 90° difference in the hand's rest basis and a 100× armature scale, because the
 pose is applied as rest-relative deltas about axes derived from the rig, so the
-pipeline already normalises the representation difference. The real difference is
-the compiled surface — the rejected delivery resolves 7 pad triangles where the
-accepted one resolves 10, with materially different normals and winding, and the
-compiled pad normal feeds the derived anatomical axes, so the surface difference
-rotates the frame the approach is measured in. The accepted delivery clears the
-axial gate by only ~1%, so the margin is thin on both sides. Compiled
-thumb-surface invariance across deliveries is unresolved and is the next slice.
+pipeline already normalises the representation difference. The real difference was
+the compiled surface, and the compiled pad normal feeds the derived anatomical
+axes, so the surface difference rotated the frame the approach is measured in.
 
-Exactly **one** asset certifies, which is why the stage is still `CALIBRATING`
-and the paid multi-unit batch remains closed.
+**A2.13b — the raw delivery now certifies.** The divergence was one operation: the
+per-triangle winding decision compared a **skeleton-space** face normal against
+the imported shading normal carried by `pose · rest⁻¹`, which omits the bind pose
+and uses the basis where the **inverse-transpose** is required. Whether that
+flipped a triangle depended on the export's bind representation, which is the
+entire 7-versus-10 pad result. Ingestion now classifies in one canonical rest
+space with normals carried by the inverse-transposed blended skin basis, resolves
+winding once per surface by consensus of two independent authorities, and adds an
+**independent anatomical validation** step (`thumb_surface_anatomy.gd`) that both
+the compiler and the runtime bind ask from the live rig's own frame rather than
+from anything the fixture declares about itself.
+
+Both deliveries of the reference humanoid now report:
+
+| | raw delivery | retargeted delivery |
+| --- | --- | --- |
+| verdict | `ACCEPTED`, exit `0` | `ACCEPTED`, exit `0` |
+| right-hand plates | 4 nail / 10 pad | 4 nail / 10 pad |
+| achieved closest patch | `pad` | `pad` |
+| `approach_axial_fraction` | 0.593724 (limit 0.60) | 0.593774 (limit 0.60) |
+| `approach_radial_radii` | 0.055441 (limit 0.15) | 0.055421 (limit 0.15) |
+| left hand | `PAD_PATCH_AMBIGUOUS` | `PAD_PATCH_AMBIGUOUS` |
+
+The ingestion report now carries a `gate_metrics` block (limits, achieved
+approach/contact values, joint pose and socket metrics) so a rejection or a thin
+margin is readable from the report rather than from a log.
+
+**The R4 axial margin is ~1% on both** (`0.0063`). Nothing was tuned; τ, σ, the
+authored angles, the R4 limit and the approach thresholds are unchanged. Two
+deliveries of **one** humanoid agreeing is representation invariance, not batch
+robustness, so the stage is still `CALIBRATING` and the paid multi-unit batch
+remains closed. No provider, credential or network call was involved in A2.13b.
 
 ---
 

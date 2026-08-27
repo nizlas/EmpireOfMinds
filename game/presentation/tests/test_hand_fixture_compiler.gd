@@ -114,8 +114,8 @@ func _test_compiles_both_sides(ctx: Dictionary) -> void:
 		ctx["character"], ctx["skeleton"], Family, ["right", "left"], Skinning
 	)
 	_art_right = art
-	_check(str(art.get("compiler_version", "")) == "hand_fixture_compiler_v3", "compiler version")
-	_check(str(art.get("schema", "")) == "hand_fixture_evidence_v3", "artifact schema")
+	_check(str(art.get("compiler_version", "")) == "hand_fixture_compiler_v4", "compiler version")
+	_check(str(art.get("schema", "")) == "hand_fixture_evidence_v4", "artifact schema")
 	_check(str(art.get("family_id", "")) == "mixamo_52_humanoid", "injected family recorded")
 	_check(str(art.get("family_version", "")) == str(Family.FAMILY_VERSION), "family version")
 	_check(
@@ -524,7 +524,7 @@ func _test_artifact_verification_negatives(ctx: Dictionary) -> void:
 			% str(compiled_profile.get("failures", []))
 	)
 	_check(
-		str(compiled_profile.get("fixture_schema", "")) == "hand_fixture_evidence_v3",
+		str(compiled_profile.get("fixture_schema", "")) == "hand_fixture_evidence_v4",
 		"profile records the compiled artifact schema"
 	)
 
@@ -610,12 +610,8 @@ func _test_anatomical_direction_negatives(ctx: Dictionary) -> void:
 	)
 	print("A2_10_NEG_RADIAL_SWAP %s: %s" % [sw.get("error_class", ""), sw.get("detail", "")])
 	_check(
-		str(sw.get("error_class", "")) in [
-			"NAIL_PATCH_AMBIGUOUS", "NAIL_PAD_NOT_OPPOSED", "FIXTURE_CONFIDENCE_TOO_LOW",
-			"THUMB_SURFACE_CANDIDATES_MISSING", "HAND_VOLAR_AMBIGUOUS",
-			"HAND_CHIRALITY_AMBIGUOUS",
-		],
-		"radial/ulnar swap is classified by name (%s)" % str(sw.get("error_class", ""))
+		str(sw.get("error_class", "")) == "HAND_FRAME_RADIAL_INCONSISTENT",
+		"radial/ulnar swap is classified by exact name (%s)" % str(sw.get("error_class", ""))
 	)
 	# The thumb chain mapped onto bones that carry no thumb-tip skin: the
 	# bone-weight evidence must be missing rather than approximated.
@@ -720,7 +716,12 @@ func _test_tampered_patch_negatives(ctx: Dictionary) -> void:
 	sr["pad_normal_local"] = kn
 	swapped["content_hash"] = Compiler.content_hash(swapped)
 	await _check_assembler_refuses(
-		ctx, swapped, calib, "nail and pad swapped", "THUMB_OPPOSITION_GATE_FAILED", "thumb_opposition_gate_failed"
+		ctx,
+		swapped,
+		calib,
+		"nail and pad swapped",
+		"GRIP_SURFACE_ANATOMY_REJECTED",
+		"thumb_surface_anatomy_rejected"
 	)
 	# 3. Both plates declared on the same side: the pad relabelled as the
 	#    nail, which is what a brightness-only nail guess produces when the
@@ -732,7 +733,12 @@ func _test_tampered_patch_negatives(ctx: Dictionary) -> void:
 	sm["rest_nail_pad_dot"] = 1.0
 	same["content_hash"] = Compiler.content_hash(same)
 	await _check_assembler_refuses(
-		ctx, same, calib, "nail and pad on the same side", "THUMB_OPPOSITION_GATE_FAILED", "thumb_opposition_gate_failed"
+		ctx,
+		same,
+		calib,
+		"nail and pad on the same side",
+		"GRIP_SURFACE_ANATOMY_REJECTED",
+		"thumb_surface_anatomy_rejected"
 	)
 	# 4. An artifact whose right side actually holds the OTHER hand's data.
 	var other_hand: Dictionary = _art_right.duplicate(true)

@@ -110,6 +110,8 @@ $Script:SliceTests = @{
 		"res://presentation/tests/test_uthana_a2_preview_runtime.gd",
 		"res://presentation/tests/test_hand_fixture_compiler.gd",
 		"res://presentation/tests/test_hand_fixture_identity.gd",
+		"res://presentation/tests/test_thumb_surface_invariance.gd",
+		"res://presentation/tests/test_dual_certified_grip_preview.gd",
 		"res://presentation/tests/test_hand_fixture_certification.gd",
 		"res://presentation/tests/test_equipment_interaction_pipeline.gd",
 		"res://presentation/tests/test_uthana_a2_power_grip_parity.gd"

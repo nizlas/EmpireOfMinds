@@ -769,6 +769,126 @@ fail-close are unchanged.
 Stage: **CALIBRATING**. Exactly one asset certifies; the paid multi-unit batch
 remains closed and no external provider is connected.
 
+## A2.13b — representation-invariant thumb-surface compilation
+
+The surface slice A2.13a deferred. No pose change, no authored angle change, no
+threshold change, no new calibration, no left-T2 solution, no provider
+integration.
+
+**The actual root cause, measured rather than inferred.** A development
+diagnostic
+(`presentation/equipment/tools/thumb_surface_correspondence.gd`) maps every
+candidate triangle of two deliveries into one common space — the distal thumb
+bone's own rest frame, with every length divided by that digit's own length — and
+reports the **first operation** at which corresponding triangles diverge. The
+answer was not geometry, not the candidate set, not the tip component and not the
+station: it was the **per-triangle winding decision**. A2.13a decided a triangle's
+outward sense by comparing its skeleton-space face cross product against the
+imported shading normal carried by `pose · rest⁻¹`. That carry omits the bind
+pose and uses the basis where the inverse-transpose is required, so the two
+vectors being compared lived in different frames. Whether the mismatch flipped a
+given triangle depended on the delivery's bind representation, which is why one
+delivery kept 10 pad triangles and the other 7, and why the nail plates sat ~55°
+apart. **7 of 30 candidates** on the raw delivery are flipped by the superseded
+rule and not by the current one; the compiler still records the superseded
+decision per candidate purely so that number stays measurable.
+
+**Canonical surface space and the winding contract.** Classification happens in
+`thumb_distal_rest_local_v2`: positions are CPU-skinned vertices in skeleton
+space carried into the distal bone's frame, and directions are carried by each
+vertex's own **inverse-transposed blended skin basis** with the reflection sign
+applied (`skinned_mesh_geometry.gd::skinned_normal_basis` /
+`skinned_normal_local`). Winding is then resolved **once for the whole surface**
+by consensus between two independent authorities — the geometric outward
+direction and the transformed imported normals — and both must agree by a
+margin; disagreement is `PATCH_WINDING_UNDERIVABLE` rather than a silent
+geometry-only decision. There is no per-triangle auto-flip. The A2.6/A2.7
+contract that achieved-pose ground truth uses real CPU-skinned triangles with
+renderer-equivalent bind matrices is unchanged.
+
+**Result: the two deliveries compile the same surface.** Both now resolve
+**4 nail + 10 pad**, with `rest_nail_pad_dot ≈ −0.0177` on both, matching pad and
+nail normals and matching markers. The right-hand A2.7 oracle comparison still
+passes at `nail_dot 1.000000` / `pad_dot 1.000001`. Every achieved gate metric
+agrees across the two representations to ~5·10⁻⁵:
+
+| metric | raw delivery | retargeted delivery | limit |
+| --- | --- | --- | --- |
+| `approach_axial_fraction` | 0.593724 | 0.593774 | ≤ 0.60 |
+| `approach_radial_radii` | 0.055441 | 0.055421 | ≤ 0.15 |
+| `winding_thumb_deg` | 85.461849 | 85.460202 | ≥ 60 |
+| `nail_out_dot` | 0.749874 | 0.749885 | ≥ 0.30 |
+| `pad_in_dot` | 0.629504 | 0.629488 | ≥ 0.30 |
+| `nail_pad_dot` | −0.017712 | −0.017714 | — |
+
+**The R4 margin is thin, and that is the honest report.** The axial margin is
+`0.0063` on both (0.5937 against a 0.60 limit, ~1%). Nothing was tuned to
+achieve this: τ, σ, the authored angles, the R4 limit and the approach thresholds
+are the A2.2/A2.7 values. Two assets clearing a 1% margin is not evidence that an
+arbitrary humanoid will, and the paid batch verdict below reflects that.
+
+**Independent anatomical surface validation.** `thumb_surface_anatomy.gd` is one
+implementation called at both ends — by the compiler on the patches it just
+selected, and by the grip engine's patch bind on the patches a certified fixture
+claims. Every verdict comes from information the chosen patch's own normals do
+not produce: the resolved chain, this hand's chirality, the volar/radial frame,
+where each centroid sits off the digit's medial axis, the axial station measured
+from the distal joint in digit lengths, distal-segment weight dominance, and
+patch non-overlap by triangle identity. Named fail-close classes:
+`NAIL_PATCH_NOT_DORSAL_RADIAL`, `PAD_PATCH_NOT_VOLAR`, `NAIL_PAD_SAME_SIDE`,
+`NAIL_PAD_PATCH_OVERLAP`, `PATCH_NOT_DISTAL_STATION`,
+`PATCH_WEIGHT_BLEED_COMPONENT`, `PATCH_NORMAL_DISPERSED`,
+`THUMB_ANATOMY_FRAME_UNDERIVABLE`, `THUMB_ANATOMY_PATCH_MISSING`,
+`THUMB_ANATOMY_PATCH_ON_AXIS`, `THUMB_ANATOMY_PATCH_DEGENERATE`. A refused bind
+surfaces as `GRIP_SURFACE_ANATOMY_REJECTED` /
+`thumb_surface_anatomy_rejected`. The 0.35, 0.45 and 0.08 classification values
+are untouched.
+
+**The self-referential gates are reclassified, not deleted.** Two checks compared
+a fixture with itself: the bind-time `|nail·pad − rest_nail_pad_dot|` test and the
+achieved-pose equivalent. They are true statements about **deformation drift** and
+were never evidence that the right surface was chosen, so they keep running under
+names that say so — `thumb_surface_evidence_incoherent`,
+`thumb_surface_deformation_drift`, `thumb_surface_geom_deformation_drift` — and
+the "is this the nail" question is now answered only by the independent module.
+
+**Chirality is cross-checked rather than trusted.** A hand frame's transverse
+axis is unsigned geometry; which end is radial is a fact about the hand. The
+shared `hand_fixture_compiler.gd::frame_radial()` re-derives the sign from the
+frame's own thumb landmark and **compares** it with any declared `radial`:
+disagreement is `HAND_FRAME_RADIAL_INCONSISTENT`, not a quiet repair. A frame with
+index and pinky swapped is now refused by that exact class.
+
+**The pad normal keeps its role in the pose axes.** With the surface corrected,
+the two deliveries agree on the pad normal to `dot ≈ 1.0` (it was 6.7° apart), so
+the `pad_rest_w → v_flesh → f_hat` coupling in `_derive_thumb_anatomy()` is stable
+and produces equivalent axes from both. Option 1 of the review was therefore
+taken: the mesh-adaptive coupling stays, and the independent anatomy module is
+the input validation that was missing. No new joint basis, no copied quaternions,
+no per-asset angle.
+
+**Both deliveries now pass the whole chain.** Import, family resolution,
+normalization, compilation, independent surface validation, artifact integrity,
+rig binding, the generic `EquipmentAssembler`, achieved ground truth (`closest
+patch = pad` on both), certification, and reload plus live re-verification in a
+separate process. Both exit `0` and mint a loadable certificate. No authored
+oracle, no fallback.
+
+**A finding on the left hand.** The independent validator refuses the A2.8
+hand-authored **left** reference fixture, and refuses it earlier than the T2
+contour gate that used to classify it: its nail plate sits at −0.917 along the
+dorsal-radial bisector this hand's own frame derives, i.e. on the dorsal-*ulnar*
+flank. That authored surface was self-consistent and anatomically wrong — exactly
+the class this slice exists to catch. The left side remains unsolved by design;
+its compiler-side `PAD_PATCH_AMBIGUOUS` fail-close is unchanged.
+
+**Compiler version.** `hand_fixture_compiler_v4` / `hand_fixture_evidence_v4`;
+A2.13a evidence is refused rather than reinterpreted, and
+`uthana_a2_hand_fixture.tres` was regenerated by the authority.
+
+Stage: **CALIBRATING**. No provider, service, credential or network call was
+involved at any point in this slice.
+
 ## Preview
 `res://assets/prototype/3d/units/generated_warrior/uthana_a2/uthana_a2_walking_preview.tscn` (F6)
 
@@ -782,6 +902,53 @@ BODY/PALM/DORSAL/THUMB/TIPS/THUMB_AXIS/THUMB_DORSAL/THUMB_CONTACT views,
 HUD shows frame invariant status, encirclement coverage, thumb opposition,
 the A2.6 contour block, and per-finger
 gap/penetration/refine-delta/classification.
+
+## Second preview — A2.13b dual certified grip (F6)
+`res://assets/prototype/3d/units/generated_warrior/uthana_a2/uthana_a2_dual_certified_grip_preview.tscn`
+
+The walking preview above shows one delivery and is the scene the accepted A2.7
+grip was eyeballed in. This second scene exists because A2.13b's claim — that the
+compiled thumb surface is a property of the humanoid and not of the delivery —
+cannot be inspected in a scene that can only show one of them.
+
+It runs **both** deliveries through the real
+`hand_fixture_certification_authority.gd` and keeps the nodes that chain built,
+so the club is attached by the generic `EquipmentAssembler` exactly as during
+ingestion. Same camera framing (derived from the assembled club socket, not from a
+per-asset constant), same club, same socket, same static certified grip pose.
+**No authored oracle fixture is loaded**, and a headless test
+(`test_dual_certified_grip_preview.gd`) asserts that the script cannot reach one
+and that both deliveries reach a certificate with the club attached.
+
+Keys: `A` switch delivery (re-runs the whole chain on the other one), `C` switch
+view between the **grip close-up** and the **body overview**.
+
+HUD: delivery label, active view, `certified` status, fixture owner (compiler
+version + certification authority id), gate verdict, nail/pad triangle counts,
+approach axial and radial with their limits, the achieved closest patch, and the
+club's own attached/in-frame state.
+
+**Neither view hides the weapon.** Both cameras are placed relative to the club
+the assembler actually built, so both stand on the weapon's side of the body and
+an empty frame is a defect rather than a design choice. `view_diagnostics()`
+reports the club's attachment, mesh visibility, in-frustum state and its distance
+against the body's own vertical axis, and the headless test asserts all of it for
+both views and both deliveries.
+
+`closest patch` is read from the certification authority's record of the
+achieved-geometry step — the value the grip engine measured and the acceptance
+gate compared — and never re-measured for display. When that step was not
+reached the HUD says so explicitly instead of printing a patch name.
+
+### Visual gate result
+Accepted by the user on both deliveries: the two grips look practically
+identical, sit stably around the club and show no representation effect, float or
+gross penetration. Two preview defects were found by that check and fixed
+afterwards: `closest patch` displayed `?` because the HUD read a `surface` block
+from the assembler result, which does not carry one; and the overview camera
+stood on a fixed side of the scene, putting the torso between it and the gripped
+club, which made an occluded club indistinguishable from a missing one. Neither
+defect touched the compiler, the surface derivation, the grip engine or any gate.
 
 ## A1 baseline
 `Visually accepted baseline; gait slightly strutting but acceptable for feasibility.`

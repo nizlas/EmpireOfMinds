@@ -377,7 +377,7 @@ func _test_compiled_fixture_is_the_production_path(host: Node) -> void:
 	if fx == null:
 		return
 	_check(
-		str(fx.SCHEMA_VERSION) == "hand_fixture_evidence_v3",
+		str(fx.SCHEMA_VERSION) == "hand_fixture_evidence_v4",
 		"production fixture is a compiled artifact, not the authored script (%s)"
 			% str(fx.SCHEMA_VERSION)
 	)
@@ -391,7 +391,7 @@ func _test_compiled_fixture_is_the_production_path(host: Node) -> void:
 		"production fixture carries compiler evidence"
 	)
 	var art: Dictionary = fx.artifact
-	_check(str(art.get("compiler_version", "")) == "hand_fixture_compiler_v3", "compiler version")
+	_check(str(art.get("compiler_version", "")) == "hand_fixture_compiler_v4", "compiler version")
 	_check(str(art.get("family_id", "")) == "mixamo_52_humanoid", "artifact family id")
 	_check(str(art.get("source_geometry_sha256", "")).length() == 64, "artifact geometry sha256")
 	_check(str(art.get("source_rig_sha256", "")).length() == 64, "artifact rig sha256")
@@ -559,23 +559,44 @@ func _test_left_semantics(ctx: Dictionary) -> void:
 		(grip_info.get("thumb_wrap_failures", []) as Array).is_empty(),
 		"left wrap semantic gates empty (%s)" % str(grip_info.get("thumb_wrap_failures", []))
 	)
+	# A2.13b: the INDEPENDENT anatomical validator now refuses this side, and it
+	# refuses it EARLIER than the T2 contour gate that A2.8 recorded here. The
+	# authored left reference surface places the nail plate on the dorsal-ULNAR
+	# flank, opposite the dorsal-radial bisector this hand's own frame derives,
+	# so it is not a thumbnail at all — the A2.8 left oracle was self-consistent
+	# and anatomically wrong, which is exactly the class of surface this slice
+	# exists to catch. The left side remains unsolved by design.
 	var tw: Dictionary = grip_info.get("thumb_wrap", {})
-	if tw.is_empty():
-		var g = asm.grip_modifier()
-		if g != null:
-			tw = g.last_diagnostics().get("thumb_wrap", {})
-	_check(bool(tw.get("opposite_winding", false)), "left thumb opposite winding")
-	_check(str(tw.get("direction_class", "")) == "TOWARD_INDEX", "left thumb toward index")
-	_check(float(tw.get("nail_out_dot", -9.0)) > 0.3, "left nail faces out")
-	_check(float(tw.get("pad_in_dot", -9.0)) > 0.25, "left pad faces handle")
+	var anat: Dictionary = grip_info.get("surface_anatomy", {})
 	_check(
-		absf(float(tw.get("distal_roll_deg", 999.0))) <= 60.0,
-		"left distal roll bounded"
+		str(ctx["result"].get("error_class", "")) == "GRIP_SURFACE_ANATOMY_REJECTED",
+		"left assemble fail-closes on independent surface anatomy (%s)"
+			% str(ctx["result"].get("error_class", ""))
 	)
-	# Full assemble fail-closes on this asset's T2 contour vs distal station.
 	_check(
-		str(ctx["result"].get("error_class", "")) == "THUMB_CONTOUR_GATE_FAILED",
-		"left assemble fail-closes on classified T2 contour (not a silent pass)"
+		str(ctx["result"].get("reason", "")) == "thumb_surface_anatomy_rejected",
+		"...for the named bind reason (%s)" % str(ctx["result"].get("reason", ""))
+	)
+	var lclasses: Array = anat.get("failure_classes", [])
+	print("A2_13B_LEFT_ANATOMY %s" % str(lclasses))
+	for cls in ["NAIL_PATCH_NOT_DORSAL_RADIAL", "PAD_PATCH_NOT_VOLAR", "NAIL_PAD_SAME_SIDE"]:
+		_check(
+			lclasses.has(cls),
+			"the left refusal names %s (%s)" % [cls, str(lclasses)]
+		)
+	# The verdict is derived from THIS hand's own frame, not from anything the
+	# authored fixture declares about its own normals.
+	_check(
+		float((anat.get("metrics", {}) as Dictionary).get(
+			"nail_position_dorsal_radial", 9.0
+		)) < 0.0,
+		"the left authored nail plate measures on the wrong flank of the digit"
+	)
+	# The wrap gates never ran, because the bind refused first. Asserting that
+	# keeps this from silently becoming a "some gate said no" test.
+	_check(
+		tw.is_empty(),
+		"the achieved-pose wrap gates were never reached on the refused left side"
 	)
 
 

@@ -414,6 +414,9 @@ func run(context: Dictionary) -> Dictionary:
 		"mesh_binding_verified": bool(binding.get("verified", false)),
 	}
 	_diagnostics["grip_ground_truth"] = {"pass": closest == "pad", "closest_patch": closest}
+	# The exact achieved gate numbers, so a run's margins are reportable
+	# without a second measurement path. Pure output: no gate reads this.
+	_diagnostics["gate_metrics"] = _gate_metrics(asm, result, surface)
 	if closest != "pad":
 		_diagnostics["stage_failed"] = "assemble_and_measure"
 		_diagnostics["failed_gate"] = "grip_ground_truth"
@@ -694,6 +697,69 @@ func _stage_for(result: Dictionary) -> String:
 		"humanoid_height_landmarks_unresolved", "degenerate_height":
 			return "humanoid_normalization"
 	return "assemble_and_measure"
+
+
+## Every number a gate margin is computed from, with its own limit beside it,
+## read from the engine that produced them. Report-only (A2.13b §8): the slice
+## must be able to state exact margins for any delivery without re-deriving
+## them, and a margin that is nearly zero has to be visible rather than implied
+## by a PASS.
+func _gate_metrics(asm, result: Dictionary, surface: Dictionary) -> Dictionary:
+	var grip = asm.grip_modifier() if asm != null else null
+	var diag: Dictionary = {}
+	if grip != null and grip.has_method("last_diagnostics"):
+		diag = (grip as Object).last_diagnostics()
+	var wrap: Dictionary = diag.get("thumb_wrap", {})
+	var thumb: Dictionary = diag.get("thumb", {})
+	var out := {
+		"limits": {},
+		"achieved": {},
+		"joint_pose": {},
+		"surface": {},
+	}
+	if grip != null:
+		var engine_script: Script = (grip as Object).get_script() as Script
+		if engine_script != null:
+			var consts: Dictionary = engine_script.get_script_constant_map()
+			for k in [
+				"THUMB_APPROACH_AXIAL_FRAC_MAX", "THUMB_APPROACH_RADIAL_MAX_RADII",
+				"THUMB_WINDING_MIN_DEG", "THUMB_AXIAL_DOT_MAX",
+				"THUMB_GAP_MAX_RADII", "THUMB_PEN_MAX_RADII",
+			]:
+				if consts.has(k):
+					out["limits"][k] = consts[k]
+	for k in [
+		"approach_axial_fraction", "approach_radial_radii",
+		"approach_tangential_winding_radii", "transverse_over_axial",
+		"winding_thumb_deg", "opposition_dot", "nail_out_dot", "nail_axis_dot",
+		"pad_in_dot", "nail_pad_dot", "rest_nail_pad_dot", "distal_roll_deg",
+		"gap_final_signed", "chain_min_gap_radii", "volar_clearance_hand",
+	]:
+		if wrap.has(k):
+			out["achieved"][k] = wrap[k]
+	for k in [
+		"cmc_flex_deg", "cmc_abd_deg", "cmc_twist_deg",
+		"mcp_flex_deg", "ip_flex_deg",
+	]:
+		if wrap.has(k):
+			out["joint_pose"][k] = wrap[k]
+		elif thumb.has(k):
+			out["joint_pose"][k] = thumb[k]
+	for k in [
+		"nail_pad_geom_dot", "rest_nail_pad_dot", "nail_out_geom",
+		"nail_axis_geom", "pad_in_geom", "closest_patch",
+		"expected_nail_tris", "expected_pad_tris", "distal_phys_roll_deg",
+	]:
+		if surface.has(k):
+			out["surface"][k] = surface[k]
+	out["socket"] = {
+		"radius_mean": (result.get("invariants", {}) as Dictionary).get("radius_mean", null),
+		"hand_length": (result.get("invariants", {}) as Dictionary).get("hand_length", null),
+		"volar_offset_radii": (
+			(result.get("invariants", {}) as Dictionary).get("volar_offset_radii", null)
+		),
+	}
+	return out
 
 
 func _assembler_detail(result: Dictionary) -> Dictionary:

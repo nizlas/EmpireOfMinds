@@ -198,7 +198,7 @@ func _absorb(outcome: Dictionary) -> void:
 	for key in [
 		"family_diagnosis", "import_representation", "bone_map_resolution",
 		"humanoid_height", "sides", "compiler_pass", "certified_side", "assembler",
-		"assembler_detail", "grip_ground_truth", "failed_gate",
+		"assembler_detail", "grip_ground_truth", "gate_metrics", "failed_gate",
 	]:
 		if d.has(key):
 			_report[key] = d[key]

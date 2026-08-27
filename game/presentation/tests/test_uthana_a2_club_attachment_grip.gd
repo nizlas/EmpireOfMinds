@@ -1196,7 +1196,12 @@ func _run() -> void:
 		["nail_out_geom", 0.10, "thumb_nail_geom_faces_inward", "nail along +D (low out)"],
 		["nail_axis_geom", 0.95, "thumb_nail_geom_axial_to_shaft", "nail axial +/-D"],
 		["pad_in_geom", -0.50, "thumb_pad_geom_faces_outward", "pad outward"],
-		["nail_pad_geom_dot", 0.90, "thumb_patch_frame_mismatch", "patch frame mismatch"],
+		[
+			"nail_pad_geom_dot",
+			0.90,
+			"thumb_surface_geom_deformation_drift",
+			"achieved nail/pad opposition collapsed under deformation",
+		],
 		["distal_phys_roll_deg", 120.0, "thumb_distal_physical_roll_excess", "extreme distal twist"],
 	]
 	for spec_v in neg_specs:

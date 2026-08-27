@@ -45,12 +45,18 @@ const ArtifactResource = preload("res://presentation/equipment/hand_fixture_arti
 const DefaultCalibration = preload(
 	"res://presentation/equipment/hand_fixture_compiler_calibration.gd"
 )
+const SurfaceAnatomy = preload("res://presentation/equipment/thumb_surface_anatomy.gd")
 
-const COMPILER_VERSION := "hand_fixture_compiler_v3"
+## A2.13b: v4, because the surface classification contract changed. Winding is
+## now a property of the surface rather than of each triangle, imported normals
+## are carried into the classification space, and the artifact records both.
+## An A2.13a artifact must be refused rather than reinterpreted under the new
+## contract, so the version moves with the meaning.
+const COMPILER_VERSION := "hand_fixture_compiler_v4"
 ## A2.12: the compiler's own output is named for what it is — compiled
 ## EVIDENCE, i.e. staging data. It is deliberately NOT the schema the runtime
 ## loader accepts; see `CERTIFICATION_SCHEMA`.
-const ARTIFACT_SCHEMA := "hand_fixture_evidence_v3"
+const ARTIFACT_SCHEMA := "hand_fixture_evidence_v4"
 const SUPPORTED_SCHEMAS: Array[String] = [ARTIFACT_SCHEMA]
 ## What a compiler PASS means. Surface evidence for this mesh — NOT an
 ## accepted asset: bind sanity and the grip ground-truth gate are separate
@@ -84,13 +90,19 @@ const MIN_STRUCTURE_CONFIDENCE := 0.35
 ## against the live skeleton by the family itself. `calibration` is the
 ## versioned CALIBRATING threshold owner.
 ## Returns an artifact dictionary (see `_artifact`), never a GDScript file.
+## `diagnostics`, when a caller passes a dictionary, is filled with the FULL
+## per-candidate classification table for every compiled side (A2.13b). It is
+## development output for the correspondence tool and is deliberately not part
+## of the artifact: it must never enter the hashed payload, and no gate may read
+## it. Passing it changes nothing about the compile.
 static func compile(
 	character: Node,
 	skeleton: Skeleton3D,
 	family,
 	sides: Array = ["right", "left"],
 	skinning = null,
-	calibration = null
+	calibration = null,
+	diagnostics = null
 ) -> Dictionary:
 	var skin = skinning if skinning != null else DefaultSkinning
 	var calib = calibration if calibration != null else DefaultCalibration
@@ -115,9 +127,12 @@ static func compile(
 		var side: String = "left" if str(side_v) == "left" else "right"
 		var bones: Dictionary = HandProfile.family_bone_map(family, skeleton, side)
 		bone_maps[side] = bones
+		var side_diag: Dictionary = {}
 		var r: Dictionary = _compile_side(
-			character, skeleton, mi, family, side, skin, bones, calib
+			character, skeleton, mi, family, side, skin, bones, calib, side_diag
 		)
+		if diagnostics != null:
+			(diagnostics as Dictionary)[side] = side_diag
 		per_side[side] = r
 		if not bool(r.get("compiled", false)):
 			all_ok = false
@@ -157,7 +172,8 @@ static func _compile_side(
 	side: String,
 	skin,
 	bones: Dictionary,
-	calib
+	calib,
+	diag: Dictionary
 ) -> Dictionary:
 	# 1. complete finger and thumb chains
 	var chain_check: Dictionary = _verify_chains(skeleton, bones)
@@ -197,7 +213,7 @@ static func _compile_side(
 		return _fail(side, "HAND_VOLAR_AMBIGUOUS", str(volar_check.get("detail", "")))
 	# The skeleton is already pinned to rest by `compile`, so the compiled
 	# evidence is rest-anchored for the whole hand, not only the thumb chain.
-	return _compile_thumb_surface(skeleton, mi, frame, t2, t3, side, skin, calib)
+	return _compile_thumb_surface(skeleton, mi, frame, t2, t3, side, skin, calib, diag)
 
 
 static func _compile_thumb_surface(
@@ -208,24 +224,55 @@ static func _compile_thumb_surface(
 	t3: int,
 	side: String,
 	skin,
-	calib
+	calib,
+	diag: Dictionary
 ) -> Dictionary:
 	# Skeleton space throughout: no ancestor transform may reach the artifact.
 	var t3_world: Transform3D = skeleton.get_bone_global_pose(t3)
 	var t3_inv_basis: Basis = skeleton.get_bone_global_pose(t3).basis.inverse()
 	var t2_world: Transform3D = skeleton.get_bone_global_pose(t2)
 	# Anatomical directions expressed in the distal thumb's own local space.
+	var radial_frame: Dictionary = frame_radial(frame)
+	if not bool(radial_frame.get("ok", false)):
+		return {
+			"error_class": str(radial_frame.get("error_class", "HAND_FRAME_RADIAL_UNRESOLVED")),
+			"detail": str(radial_frame.get("detail", "")),
+		}
 	var volar_t3: Vector3 = (t3_inv_basis * (frame["volar"] as Vector3)).normalized()
-	var radial_t3: Vector3 = (t3_inv_basis * (frame["radial"] as Vector3)).normalized()
+	var radial_t3: Vector3 = (
+		t3_inv_basis * (radial_frame["radial"] as Vector3)
+	).normalized()
 	var nail_dir_t3: Vector3 = (radial_t3 - volar_t3).normalized()
 	var thumb_axis_t3: Vector3 = (
 		t3_inv_basis * (t3_world.origin - t2_world.origin)
 	).normalized()
+	# The digit's own length is the scale every diagnostic length is expressed
+	# in, so two deliveries whose bone-local units differ by 100x compare
+	# directly without either one's units appearing anywhere.
+	var digit_length: float = (
+		t3_inv_basis * (t3_world.origin - t2_world.origin)
+	).length()
+	diag["space"] = SURFACE_SPACE
+	diag["side"] = side
+	diag["digit_length"] = digit_length
+	diag["volar_t3"] = volar_t3
+	diag["radial_t3"] = radial_t3
+	diag["nail_dir_t3"] = nail_dir_t3
+	diag["thumb_axis_t3"] = thumb_axis_t3
+	diag["thresholds"] = {
+		"pad_volar_min": PAD_VOLAR_MIN,
+		"nail_bisector_min": NAIL_BISECTOR_MIN,
+		"nail_pad_max_dot": NAIL_PAD_MAX_DOT,
+		"min_classification_margin": float(calib.MIN_CLASSIFICATION_MARGIN),
+		"min_bone_dominance": MIN_BONE_DOMINANCE,
+	}
 	var bind_map: PackedInt32Array = skin.bind_to_skeleton_map(mi, skeleton)
 	# 5. gather candidate triangles by skin-weight dominance
 	var soup: Dictionary = _gather_thumb_triangles(
-		mi, skeleton, bind_map, t2, t3, t3_world, t3_inv_basis, skin
+		mi, skeleton, bind_map, t2, t3, t3_world, t3_inv_basis, skin, thumb_axis_t3
 	)
+	if soup.has("winding"):
+		diag["winding_resolution"] = soup["winding"]
 	if soup.has("error_class"):
 		return _fail(side, str(soup["error_class"]), str(soup.get("detail", "")))
 	var tris: Array = soup["tris"]
@@ -240,6 +287,7 @@ static func _compile_thumb_surface(
 	# 6/7. topological components; the thumb tip is the component that
 	# carries BOTH an opposed nail face and a volar pad face.
 	var components: Array = _connected_components(tris)
+	_record_candidates(diag, tris, components, digit_length)
 	var qualified: Array = []
 	for comp in components:
 		var has_nail := false
@@ -282,6 +330,7 @@ static func _compile_thumb_surface(
 		return _fail(side, "PAD_PATCH_AMBIGUOUS", str(pad_sel.get("detail", "")))
 	var nail_tris: Array = nail_sel["tris"]
 	var pad_tris: Array = pad_sel["tris"]
+	_record_selection(diag, tip, nail_tris, pad_tris)
 	# A triangle may never be claimed by both plates.
 	var pad_keys := {}
 	for tri in pad_tris:
@@ -303,6 +352,26 @@ static func _compile_thumb_surface(
 	# The nail must not be the surface that would contact a handle.
 	if pad_n.dot(volar_t3) <= nail_n.dot(volar_t3):
 		return _fail(side, "NAIL_PAD_NOT_OPPOSED", "nail is more volar than the pad")
+	# INDEPENDENT ANATOMICAL VALIDATION (A2.13b). Everything above this point
+	# reasons about the plates' own normals, so a surface classified onto the
+	# wrong side of the digit can satisfy all of it by being consistent with
+	# itself. This asks a different question, from the resolved chain, the hand
+	# frame, WHERE the plates sit and what they are weighted to, and it is the
+	# same check the grip engine re-runs against a certified fixture at bind.
+	var anatomy_ctx: Dictionary = anatomy_context(
+		volar_t3, radial_t3, nail_dir_t3, thumb_axis_t3, digit_length,
+		nail_tris, pad_tris, nail_n, pad_n
+	)
+	var anatomy: Dictionary = SurfaceAnatomy.validate(anatomy_ctx)
+	diag["anatomy"] = anatomy
+	diag["anatomy_context"] = anatomy_ctx
+	if not bool(anatomy.get("ok", false)):
+		var classes: Array = anatomy.get("failure_classes", [])
+		return _fail(
+			side,
+			str(classes[0]) if not classes.is_empty() else "THUMB_ANATOMY_INVALID",
+			str(anatomy.get("failures", []))
+		)
 	var confidence := {
 		"component": component_confidence,
 		"nail": float(nail_sel["confidence"]),
@@ -350,16 +419,288 @@ static func _compile_thumb_surface(
 			"thumb_axis_t3": thumb_axis_t3,
 			"min_bone_dominance": float(soup["min_dominance"]),
 			"winding_flips": soup["flip_histogram"],
+			# The independent verdict and its margins travel WITH the evidence,
+			# so a consumer can see how far the surface was from each
+			# anatomical bound rather than only that it passed.
+			"anatomy_validation_id": str(anatomy.get("validation_id", "")),
+			"anatomy_metrics": anatomy.get("metrics", {}),
+			# How the ONE surface winding was decided, from both authorities.
+			"surface_space": SURFACE_SPACE,
+			"winding_resolution": soup["winding"],
+			"reflected_skin_triangles": int(soup["reflected_skin_triangles"]),
+			"uncarried_normal_triangles": int(soup["uncarried_normal_triangles"]),
 			"classification_signals": ["skin_weight_dominance", "topology", "anatomical_direction"],
 			"texture_signals_used": [],
 		},
 	}
 
 
+## A hand whose thumb column sits this close to the palm's transverse midplane
+## has no resolvable radial side.
+const RADIAL_CHIRALITY_MIN_DOT := 0.05
+
+
+## The radial (thumb/index side) axis of a hand frame, with its SIGN resolved
+## from the frame's own thumb landmark rather than from a key name. A frame's
+## transverse axis is only unsigned geometry; which end is radial is a fact
+## about this hand's chirality, and the thumb column lies on the radial side of
+## the palm centre for both hands. Frames that publish `radial` already carry
+## that resolution, and a frame that publishes one is CROSS-CHECKED against the
+## landmark rather than overridden by it: a disagreement means the two
+## authorities describe different hands, which must fail closed and not be
+## quietly repaired. Returns the zero vector whenever the frame cannot answer.
+static func frame_radial(frame: Dictionary) -> Dictionary:
+	var across: Vector3 = frame.get("across", frame.get("radial", Vector3.ZERO))
+	if across.length_squared() < 1e-12:
+		return {
+			"ok": false,
+			"error_class": "HAND_FRAME_RADIAL_UNRESOLVED",
+			"detail": "the hand frame carries no transverse axis",
+		}
+	across = across.normalized()
+	var toward_thumb: Vector3 = (
+		(frame.get("thumb_ref", Vector3.ZERO) as Vector3)
+		- (frame.get("palm_centre", Vector3.ZERO) as Vector3)
+	)
+	if toward_thumb.length_squared() < 1e-16:
+		return {
+			"ok": false,
+			"error_class": "HAND_FRAME_RADIAL_UNRESOLVED",
+			"detail": "the hand frame carries no thumb landmark to resolve chirality",
+		}
+	var side_component: float = toward_thumb.normalized().dot(across)
+	if absf(side_component) < RADIAL_CHIRALITY_MIN_DOT:
+		return {
+			"ok": false,
+			"error_class": "HAND_FRAME_RADIAL_UNRESOLVED",
+			"detail": (
+				"the thumb column sits %.4f from the palm's transverse midplane,"
+				+ " below %.2f: this hand has no resolvable radial side"
+			) % [absf(side_component), RADIAL_CHIRALITY_MIN_DOT],
+		}
+	var resolved: Vector3 = across * signf(side_component)
+	var declared: Vector3 = frame.get("radial", Vector3.ZERO)
+	if declared.length_squared() >= 1e-12 and declared.normalized().dot(resolved) <= 0.0:
+		return {
+			"ok": false,
+			"error_class": "HAND_FRAME_RADIAL_INCONSISTENT",
+			"detail": (
+				"the frame declares a radial axis opposed to the side its own thumb"
+				+ " landmark sits on: the two describe different hands"
+			),
+		}
+	return {"ok": true, "radial": resolved, "thumb_side_component": side_component}
+
+
+## The ONE way an anatomy-validation context is assembled, so the compiler and
+## the grip engine's certified-fixture bind cannot drift into asking two
+## different questions. Public for that reason.
+##
+## `nail_tris` / `pad_tris` are patch triangle records carrying, in the distal
+## bone's own rest frame: `centroid_local`, `n_local`, `area`, `distal_verts`
+## and `dom_weights`.
+static func anatomy_context(
+	volar: Vector3,
+	radial: Vector3,
+	nail_dir: Vector3,
+	thumb_axis: Vector3,
+	digit_length: float,
+	nail_tris: Array,
+	pad_tris: Array,
+	nail_normal: Vector3,
+	pad_normal: Vector3
+) -> Dictionary:
+	return {
+		"volar": volar,
+		"radial": radial,
+		"nail_dir": nail_dir,
+		"thumb_axis": thumb_axis,
+		"digit_length": digit_length,
+		"nail": _anatomy_patch(nail_tris, nail_normal),
+		"pad": _anatomy_patch(pad_tris, pad_normal),
+	}
+
+
+static func _anatomy_patch(tris: Array, aggregate_normal: Vector3) -> Dictionary:
+	var rows: Array = []
+	var keys: Array = []
+	var acc := Vector3.ZERO
+	var w := 0.0
+	for tri in tris:
+		var weights: Array = tri.get("dom_weights", [])
+		var lowest := 1.0
+		for wv in weights:
+			lowest = minf(lowest, float(wv))
+		var a: float = float(tri["area"])
+		acc += (tri["centroid_local"] as Vector3) * a
+		w += a
+		keys.append(str(tri["key"]))
+		rows.append({
+			"centroid": tri["centroid_local"],
+			"normal": tri["n_local"],
+			"area": a,
+			"distal_verts": int(tri.get("distal_verts", 0)),
+			"min_weight": lowest,
+		})
+	return {
+		"centroid": (acc / w) if w > 0.0 else Vector3.ZERO,
+		"normal": aggregate_normal,
+		"keys": keys,
+		"triangles": rows,
+	}
+
+
+## Development record of every candidate triangle, in the canonical surface
+## space, with lengths in digit lengths so two representations of one humanoid
+## are directly comparable (A2.13b). Pure output: nothing here is read by a
+## gate, and the table never enters the hashed artifact.
+static func _record_candidates(
+	diag: Dictionary, tris: Array, components: Array, digit_length: float
+) -> void:
+	var comp_of := {}
+	for ci in components.size():
+		for tri in (components[ci] as Array):
+			comp_of[str(tri["key"])] = ci
+	# Topological neighbours: candidates sharing at least one vertex index.
+	var by_vertex := {}
+	for tri in tris:
+		for v in (tri["i"] as Array):
+			var vk: int = int(v)
+			if not by_vertex.has(vk):
+				by_vertex[vk] = []
+			(by_vertex[vk] as Array).append(str(tri["key"]))
+	var inv_len: float = 1.0 / maxf(digit_length, 1e-20)
+	var rows: Array = []
+	for tri in tris:
+		var neighbours := {}
+		for v in (tri["i"] as Array):
+			for nk in (by_vertex[int(v)] as Array):
+				if str(nk) != str(tri["key"]):
+					neighbours[str(nk)] = true
+		var nb: Array = neighbours.keys()
+		nb.sort()
+		var centroid: Vector3 = tri["centroid_local"]
+		var perp: Vector3 = tri["perp"]
+		rows.append({
+			"key": str(tri["key"]),
+			"surface": int(tri["si"]),
+			"vertices": (tri["i"] as Array).duplicate(),
+			"component": int(comp_of.get(str(tri["key"]), -1)),
+			"centroid_digits": centroid * inv_len,
+			"axial_station_digits": float(tri["axial_station"]) * inv_len,
+			"outward_lever_digits": perp.length() * inv_len,
+			# Area in digit-lengths squared, so a 100x unit difference cancels.
+			"area_digits2": float(tri["area"]) * inv_len * inv_len,
+			"normal_index_order": tri["n_index"],
+			"normal_imported_carried": tri["n_shade"],
+			"imported_normal_available": bool(tri["has_shade"]),
+			"index_vs_imported_dot": (
+				(tri["n_index"] as Vector3).dot(tri["n_shade"] as Vector3)
+				if bool(tri["has_shade"]) else 0.0
+			),
+			"skin_determinant_sign": float(tri["det_sign"]),
+			"winding_applied": float(tri["flip"]),
+			"winding_a213a_per_triangle": float(tri["legacy_flip"]),
+			"normal_classified": tri["n_local"],
+			"d_volar": float(tri["d_volar"]),
+			"d_nail": float(tri["d_nail"]),
+			"d_radial": float(tri["d_radial"]),
+			"d_axis": float(tri["d_axis"]),
+			"pad_score_margin": float(tri["d_volar"]) - PAD_VOLAR_MIN,
+			"nail_score_margin": float(tri["d_nail"]) - NAIL_BISECTOR_MIN,
+			"distal_vertices": int(tri["distal_verts"]),
+			"dominant_bones": (tri["dom_bones"] as Array).duplicate(),
+			"dominant_weights": (tri["dom_weights"] as Array).duplicate(),
+			"topological_neighbours": nb,
+		})
+	diag["candidates"] = rows
+	diag["candidate_count"] = rows.size()
+	var comp_rows: Array = []
+	for ci in components.size():
+		var area := 0.0
+		var keys: Array = []
+		for tri in (components[ci] as Array):
+			area += float(tri["area"]) * inv_len * inv_len
+			keys.append(str(tri["key"]))
+		comp_rows.append({"component": ci, "area_digits2": area, "keys": keys})
+	diag["components"] = comp_rows
+
+
+## Which candidates each plate took, and why every other one was left out.
+static func _record_selection(
+	diag: Dictionary, tip: Array, nail_tris: Array, pad_tris: Array
+) -> void:
+	var nail_keys := {}
+	for tri in nail_tris:
+		nail_keys[str(tri["key"])] = true
+	var pad_keys := {}
+	for tri in pad_tris:
+		pad_keys[str(tri["key"])] = true
+	var tip_keys := {}
+	for tri in tip:
+		tip_keys[str(tri["key"])] = true
+	for row in (diag.get("candidates", []) as Array):
+		var k: String = str(row["key"])
+		var in_tip: bool = tip_keys.has(k)
+		row["in_tip_component"] = in_tip
+		row["nail"] = nail_keys.has(k)
+		row["pad"] = pad_keys.has(k)
+		if not in_tip:
+			row["outcome"] = "not_in_tip_component"
+		elif nail_keys.has(k):
+			row["outcome"] = "nail"
+		elif pad_keys.has(k):
+			row["outcome"] = "pad"
+		elif float(row["d_volar"]) < PAD_VOLAR_MIN and float(row["d_nail"]) < NAIL_BISECTOR_MIN:
+			row["outcome"] = "below_both_thresholds"
+		elif float(row["d_nail"]) >= NAIL_BISECTOR_MIN and float(row["d_volar"]) >= 0.0:
+			row["outcome"] = "nail_score_but_volar_facing"
+		else:
+			row["outcome"] = "unclaimed"
+	diag["nail_keys"] = nail_keys.keys()
+	diag["pad_keys"] = pad_keys.keys()
+	diag["tip_keys"] = tip_keys.keys()
+	diag["tip_component_triangles"] = tip.size()
+
+
+## CANONICAL SURFACE SPACE (A2.13b). Classification happens in the distal
+## thumb bone's own rest space: every position is the CPU-skinned vertex in
+## skeleton space carried into that bone's frame, and every direction is
+## carried by the vertex's own inverse-transposed skin basis. The frame is
+## derived from the rig's own anatomy, so two deliveries of one humanoid land
+## in the same space regardless of armature scale, ancestor transform, bone
+## naming or which rest convention the exporter used.
+const SURFACE_SPACE := "thumb_distal_rest_local_v2"
+
+## WINDING IS A PROPERTY OF THE SURFACE, NOT OF A TRIANGLE (A2.13b).
+##
+## Until A2.13b each candidate triangle decided its own winding from
+## `sign(cross · imported_shading_normal)`, and the imported normal was not
+## carried into the space the cross product lives in (see
+## `skinned_mesh_geometry.skinned_normal_basis`). On a delivery whose mesh and
+## skeleton spaces coincide that comparison happened to be meaningful; on a raw
+## delivery whose skeleton space is a 90-degree permutation of its mesh space it
+## was arbitrary, and 7 of one hand's 30 candidates were wound against the other
+## 23. A consistently exported surface cannot have per-triangle winding, so the
+## sign is now decided ONCE for the whole candidate set, from two independent
+## authorities that must agree:
+##
+##   1. GEOMETRY. A tip-cap triangle's outward normal points away from the
+##      digit's own medial axis. Every candidate votes `sign(cross · outward)`
+##      weighted by its area and by how far off the axis it sits, so a triangle
+##      sitting almost on the axis contributes almost nothing instead of
+##      contributing noise.
+##   2. THE IMPORT. The same vote taken against the imported shading normals,
+##      each carried into this space by its own vertex's inverse-transposed
+##      skin basis with the reflection sign applied.
+##
+## Neither is sole authority. Both must reach a real majority, and they must
+## agree, or the surface is refused as `PATCH_WINDING_UNDERIVABLE` rather than
+## silently classified. Deformed triangles are still never auto-flipped later:
+## the sign is anchored here, at rest, and stored.
+const WINDING_CONSENSUS_MIN := 0.60
+
 ## Triangles whose vertices are dominated by the distal/middle thumb bones.
-## Rest normals are anchored here: the authored cross product is compared
-## against the imported shading normals ONCE, at rest, and the resulting
-## flip is stored. Deformed triangles are never auto-flipped later.
 static func _gather_thumb_triangles(
 	mi: MeshInstance3D,
 	skeleton: Skeleton3D,
@@ -368,13 +709,15 @@ static func _gather_thumb_triangles(
 	t3: int,
 	t3_world: Transform3D,
 	t3_inv_basis: Basis,
-	skin
+	skin,
+	thumb_axis_t3: Vector3
 ) -> Dictionary:
 	var out: Array = []
 	var min_dom := 1.0
-	var flips := {"authored": 0, "flipped": 0}
 	var t3_world_inv: Transform3D = t3_world.affine_inverse()
 	var missing_streams := {}
+	var reflected := 0
+	var normals_uncarried := 0
 	for si in mi.mesh.get_surface_count():
 		var arrays: Array = mi.mesh.surface_get_arrays(si)
 		if arrays.is_empty():
@@ -425,8 +768,12 @@ static func _gather_thumb_triangles(
 			var n_distal := 0
 			var ok := true
 			var weakest := 1.0
+			var dom_bones: Array = []
+			var dom_weights: Array = []
 			for vi2 in [a, b, c]:
 				var bb2: int = dom_bone[vi2]
+				dom_bones.append(bb2)
+				dom_weights.append(float(dom_w[vi2]))
 				if bb2 == t3:
 					n_distal += 1
 				elif bb2 != t2:
@@ -445,32 +792,62 @@ static func _gather_thumb_triangles(
 			var area: float = cross.length() * 0.5
 			if area <= MIN_TRIANGLE_AREA:
 				continue
-			# Imported shading normal, skinned exactly as the engine does.
+			# Both the index-order normal and the imported shading normal, in
+			# the SAME space: the distal bone's own rest frame.
+			var n_index: Vector3 = (t3_inv_basis * cross.normalized()).normalized()
 			var shade := Vector3.ZERO
+			var carried := 0
+			var det_sign := 0.0
 			for vi3 in [a, b, c]:
-				var bb3: int = dom_bone[vi3]
-				shade += (
-					skeleton.get_bone_global_pose(bb3).basis
-					* skeleton.get_bone_global_rest(bb3).basis.inverse()
-				) * normals[vi3]
-			if shade.length_squared() < 1e-16:
-				continue
-			shade = shade.normalized()
-			var authored: Vector3 = cross.normalized()
-			var flip: float = 1.0 if authored.dot(shade) >= 0.0 else -1.0
-			if flip > 0.0:
-				flips["authored"] = int(flips["authored"]) + 1
-			else:
-				flips["flipped"] = int(flips["flipped"]) + 1
+				var carried_n: Dictionary = skin.skinned_normal_local(
+					mi, skeleton, si, vi3, bpv, bind_map, normals[vi3]
+				)
+				if not bool(carried_n.get("ok", false)):
+					continue
+				shade += t3_inv_basis * (carried_n["normal"] as Vector3)
+				carried += 1
+				det_sign = signf(float(carried_n.get("det", 0.0)))
+			if det_sign < 0.0:
+				reflected += 1
+			var has_shade: bool = carried > 0 and shade.length_squared() >= 1e-16
+			if not has_shade:
+				normals_uncarried += 1
+			# FORENSIC ONLY: the A2.13a normal transform, which omitted the
+			# bind pose and is therefore the identity at the rest pose, leaving
+			# the imported normal in MESH space while the cross product beside
+			# it was already in SKELETON space. Recorded so the correspondence
+			# tool can show the operation that used to diverge. Nothing reads
+			# this, and it never enters the artifact.
+			var legacy := Vector3.ZERO
+			for vi4 in [a, b, c]:
+				var bb4: int = dom_bone[vi4]
+				legacy += (
+					skeleton.get_bone_global_pose(bb4).basis
+					* skeleton.get_bone_global_rest(bb4).basis.inverse()
+				) * normals[vi4]
+			var centroid: Vector3 = t3_world_inv * ((p0 + p1 + p2) / 3.0)
+			# Outward from the digit's medial axis at this triangle's own
+			# axial station. Length is the lever arm of this triangle's vote.
+			var perp: Vector3 = centroid - thumb_axis_t3 * centroid.dot(thumb_axis_t3)
 			out.append({
 				"si": si,
 				"i": [a, b, c],
 				"key": _tri_key([a, b, c]),
 				"area": area,
-				"flip": flip,
 				"uvc": (uv0[a] + uv0[b] + uv0[c]) / 3.0,
-				"n_local": (t3_inv_basis * (authored * flip)).normalized(),
-				"centroid_local": t3_world_inv * ((p0 + p1 + p2) / 3.0),
+				"n_index": n_index,
+				"n_shade": shade.normalized() if has_shade else Vector3.ZERO,
+				"has_shade": has_shade,
+				"det_sign": det_sign,
+				"centroid_local": centroid,
+				"axial_station": centroid.dot(thumb_axis_t3),
+				"perp": perp,
+				"distal_verts": n_distal,
+				"dom_bones": dom_bones,
+				"dom_weights": dom_weights,
+				"legacy_flip": (
+					1.0 if cross.normalized().dot(legacy.normalized()) >= 0.0 else -1.0
+				) if legacy.length_squared() >= 1e-16 else 0.0,
 			})
 	if out.is_empty():
 		if not missing_streams.is_empty():
@@ -484,7 +861,108 @@ static func _gather_thumb_triangles(
 		}
 	# Deterministic order, independent of mesh traversal.
 	out.sort_custom(func(x, y): return str(x["key"]) < str(y["key"]))
-	return {"tris": out, "min_dominance": min_dom, "flip_histogram": flips}
+	var winding: Dictionary = _resolve_surface_winding(out)
+	if not bool(winding.get("ok", false)):
+		return {
+			"error_class": "PATCH_WINDING_UNDERIVABLE",
+			"detail": str(winding.get("detail", "surface winding is not consistent")),
+			"winding": winding,
+		}
+	var sign_out: float = float(winding["sign"])
+	var flips := {"authored": 0, "flipped": 0}
+	for tri in out:
+		tri["flip"] = sign_out
+		tri["n_local"] = ((tri["n_index"] as Vector3) * sign_out).normalized()
+		if sign_out > 0.0:
+			flips["authored"] = int(flips["authored"]) + 1
+		else:
+			flips["flipped"] = int(flips["flipped"]) + 1
+	return {
+		"tris": out,
+		"min_dominance": min_dom,
+		"flip_histogram": flips,
+		"winding": winding,
+		"reflected_skin_triangles": reflected,
+		"uncarried_normal_triangles": normals_uncarried,
+	}
+
+
+## One winding sign for the whole candidate surface, from the outward geometry
+## and from the carried imported normals independently. Both must reach
+## `WINDING_CONSENSUS_MIN` and agree.
+static func _resolve_surface_winding(tris: Array) -> Dictionary:
+	var geom_for := 0.0
+	var geom_against := 0.0
+	var shade_for := 0.0
+	var shade_against := 0.0
+	var shade_tris := 0
+	for tri in tris:
+		var n: Vector3 = tri["n_index"]
+		var area: float = float(tri["area"])
+		var perp: Vector3 = tri["perp"]
+		var lever: float = perp.length()
+		if lever > 0.0:
+			var w: float = area * lever
+			if n.dot(perp / lever) >= 0.0:
+				geom_for += w
+			else:
+				geom_against += w
+		if bool(tri["has_shade"]):
+			shade_tris += 1
+			if n.dot(tri["n_shade"] as Vector3) >= 0.0:
+				shade_for += area
+			else:
+				shade_against += area
+	var geom_total: float = geom_for + geom_against
+	if geom_total <= 0.0:
+		return {
+			"ok": false,
+			"detail": "no candidate sits off the digit's medial axis, so outward is undefined",
+		}
+	var geom_sign: float = 1.0 if geom_for >= geom_against else -1.0
+	var geom_conf: float = maxf(geom_for, geom_against) / geom_total
+	var shade_total: float = shade_for + shade_against
+	if shade_tris == 0 or shade_total <= 0.0:
+		return {
+			"ok": false,
+			"detail": "no imported normal could be carried into the classification space",
+		}
+	var shade_sign: float = 1.0 if shade_for >= shade_against else -1.0
+	var shade_conf: float = maxf(shade_for, shade_against) / shade_total
+	var report := {
+		"space": SURFACE_SPACE,
+		"geometry_sign": geom_sign,
+		"geometry_consensus": geom_conf,
+		"import_sign": shade_sign,
+		"import_consensus": shade_conf,
+		"import_normal_triangles": shade_tris,
+		"triangles": tris.size(),
+	}
+	if geom_conf < WINDING_CONSENSUS_MIN:
+		report["ok"] = false
+		report["detail"] = (
+			"outward winding is not consistent across the candidate surface (%.4f < %.2f)"
+			% [geom_conf, WINDING_CONSENSUS_MIN]
+		)
+		return report
+	if shade_conf < WINDING_CONSENSUS_MIN:
+		report["ok"] = false
+		report["detail"] = (
+			"imported normals do not agree on a winding (%.4f < %.2f)"
+			% [shade_conf, WINDING_CONSENSUS_MIN]
+		)
+		return report
+	if geom_sign != shade_sign:
+		report["ok"] = false
+		report["detail"] = (
+			"outward geometry and the imported normals disagree on the winding"
+			+ " (geometry %.1f at %.4f, import %.1f at %.4f)"
+			% [geom_sign, geom_conf, shade_sign, shade_conf]
+		)
+		return report
+	report["ok"] = true
+	report["sign"] = geom_sign
+	return report
 
 
 ## Surface components sharing vertex indices. Purely topological.

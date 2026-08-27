@@ -1,9 +1,9 @@
 [gd_resource type="Resource" format=3]
 
-[ext_resource type="Script" path="res://presentation/equipment/certified_hand_fixture_artifact.gd" id="1_3151h"]
+[ext_resource type="Script" path="res://presentation/equipment/certified_hand_fixture_artifact.gd" id="1_plkrk"]
 
 [resource]
-script = ExtResource("1_3151h")
+script = ExtResource("1_plkrk")
 certification = {
 "acceptance_authority_id": "hand_fixture_certification_authority",
 "acceptance_authority_version": "1",
@@ -14,12 +14,12 @@ certification = {
 "chain": ["import", "family_resolution", "humanoid_normalization", "fixture_compilation", "artifact_integrity", "rig_binding", "assemble_and_measure"],
 "compiler_calibration_id": "hand_fixture_compiler_calibration_uthana_a2_7",
 "compiler_calibration_version": "1",
-"compiler_version": "hand_fixture_compiler_v3",
-"evidence_schema": "hand_fixture_evidence_v3",
+"compiler_version": "hand_fixture_compiler_v4",
+"evidence_schema": "hand_fixture_evidence_v4",
 "family_bone_map_digest": "F41B7927C7BE9689B30D73384E73A703",
 "family_id": "mixamo_52_humanoid",
 "family_version": "3",
-"fixture_content_hash": "438516D0138956E2AA0DC424681705BC6D05725118939BEE9BE0D6BA5BA10D51",
+"fixture_content_hash": "9304C2CBA455EDF7C4A55FC6E38F2C99A01506FE901BA0E6091165426068B933",
 "pass": true,
 "policy_calibration_id": "power_grip_1h_v1_canon_a27",
 "policy_calibration_version": "1",
@@ -33,8 +33,8 @@ certification = {
 "artifact_integrity": {
 "error_class": "",
 "observed": {
-"path": "user://a213_regen_evidence.tres",
-"reloaded_content_hash": "438516D0138956E2AA0DC424681705BC6D05725118939BEE9BE0D6BA5BA10D51",
+"path": "res://artifacts/fixtures/staging/uthana_a1_target_hand_fixture.tres",
+"reloaded_content_hash": "9304C2CBA455EDF7C4A55FC6E38F2C99A01506FE901BA0E6091165426068B933",
 "round_trip": "save_then_load"
 },
 "ok": true
@@ -48,7 +48,7 @@ certification = {
 "mesh_binding_verified": true,
 "policy_id": "power_grip_1h_v1",
 "policy_version": "1",
-"profile_key": "mixamo_52_humanoid|a1_uthana_target.glb|hand_fixture_evidence_v3|right",
+"profile_key": "mixamo_52_humanoid|uthana_a1_target|hand_fixture_evidence_v4|right",
 "side": "right",
 "volar_ok": true
 },
@@ -68,10 +68,10 @@ certification = {
 "error_class": "",
 "observed": {
 "compiled_sides": ["right"],
-"compiler_version": "hand_fixture_compiler_v3",
-"content_hash": "438516D0138956E2AA0DC424681705BC6D05725118939BEE9BE0D6BA5BA10D51",
-"evidence_schema": "hand_fixture_evidence_v3",
-"staging_path": "user://a213_regen_evidence.tres"
+"compiler_version": "hand_fixture_compiler_v4",
+"content_hash": "9304C2CBA455EDF7C4A55FC6E38F2C99A01506FE901BA0E6091165426068B933",
+"evidence_schema": "hand_fixture_evidence_v4",
+"staging_path": "res://artifacts/fixtures/staging/uthana_a1_target_hand_fixture.tres"
 },
 "ok": true
 },
@@ -108,31 +108,31 @@ certification = {
 }
 }
 },
-"acceptance_report_digest": "FEB9A614297F286826B55527A04BEF01C81609E0D38C761CB0EBE11A0F887036",
+"acceptance_report_digest": "DEDE1D8A72A7954D63F0E849F246E70FFC4AC404B46F19AD546FF19343AB1E23",
 "acceptance_schema": "hand_fixture_acceptance_v2",
 "acceptance_version": "2",
-"certification_hash": "84E586617069D9ED54209EEEB56F7BC46AE43578535AD16AAA1F3E06ED4F9D79",
+"certification_hash": "B283262506A5A0D2941ED13541565BAB141FC48255C61F5622FC53189B3933AC",
 "certified": true,
 "certified_side": "right",
 "chain": ["import", "family_resolution", "humanoid_normalization", "fixture_compilation", "artifact_integrity", "rig_binding", "assemble_and_measure"],
 "compiler_calibration_id": "hand_fixture_compiler_calibration_uthana_a2_7",
 "compiler_calibration_version": "1",
-"compiler_version": "hand_fixture_compiler_v3",
+"compiler_version": "hand_fixture_compiler_v4",
 "evidence": {
 "acceptance_scope": "compiler_surface_evidence_only",
 "calibration_id": "hand_fixture_compiler_calibration_uthana_a2_7",
 "calibration_version": "1",
 "compile_pose": "skeleton_rest",
 "compile_space": "skeleton",
-"compiler_version": "hand_fixture_compiler_v3",
-"content_hash": "438516D0138956E2AA0DC424681705BC6D05725118939BEE9BE0D6BA5BA10D51",
+"compiler_version": "hand_fixture_compiler_v4",
+"content_hash": "9304C2CBA455EDF7C4A55FC6E38F2C99A01506FE901BA0E6091165426068B933",
 "family_bone_map_digest": "F41B7927C7BE9689B30D73384E73A703",
 "family_id": "mixamo_52_humanoid",
 "family_version": "3",
 "min_classification_margin": 0.08,
 "ok": false,
 "rig_identity_schema": "source_rig_identity_v1",
-"schema": "hand_fixture_evidence_v3",
+"schema": "hand_fixture_evidence_v4",
 "sides": {
 "left": {
 "compiled": false,
@@ -151,6 +151,34 @@ certification = {
 "pad": 0.456126
 },
 "evidence": {
+"anatomy_metrics": {
+"nail_area_digits2": 0.212059,
+"nail_distal_vertex_fraction": 1.0,
+"nail_min_bone_weight": 0.6454719999999999,
+"nail_normal_concentration": 0.8935599999999999,
+"nail_position_dorsal_radial": 0.437685,
+"nail_position_margin": 0.23768499999999998,
+"nail_station_digits": 0.085544,
+"nail_station_margin": 0.585544,
+"pad_area_digits2": 0.477778,
+"pad_distal_vertex_fraction": 1.0,
+"pad_min_bone_weight": 0.6454719999999999,
+"pad_normal_concentration": 0.833581,
+"pad_position_margin": 0.473557,
+"pad_position_volar": 0.673557,
+"pad_station_digits": -0.055684,
+"pad_station_margin": 0.444316,
+"patch_separation_digits": 0.278017,
+"patch_separation_margin": 0.258017,
+"patch_side_dot": 0.917268,
+"separation_nail_margin": 0.694785,
+"separation_toward_nail_dir": -0.9947849999999999,
+"separation_toward_volar": 0.748764,
+"separation_volar_margin": 0.448764,
+"shared_triangles": 0,
+"validation_id": "thumb_surface_anatomy_v1"
+},
+"anatomy_validation_id": "thumb_surface_anatomy_v1",
 "candidate_triangles": 30,
 "classification_signals": ["skin_weight_dominance", "topology", "anatomical_direction"],
 "components": 3,
@@ -162,13 +190,27 @@ certification = {
 "pad_margin": 0.25087,
 "qualified_components": 1,
 "radial_t3": Vector3(0.979011, -0.058448, -0.195246),
+"reflected_skin_triangles": 0,
+"surface_space": "thumb_distal_rest_local_v2",
 "texture_signals_used": [],
 "thumb_axis_t3": Vector3(0.052249, 0.998617, 0.005793),
 "thumb_tip_triangles": 20,
+"uncarried_normal_triangles": 0,
 "volar_t3": Vector3(0.199632, 0.082101, 0.976425),
 "winding_flips": {
 "authored": 0,
 "flipped": 30
+},
+"winding_resolution": {
+"geometry_consensus": 0.8017989999999999,
+"geometry_sign": -1.0,
+"import_consensus": 1.0,
+"import_normal_triangles": 30,
+"import_sign": -1.0,
+"ok": true,
+"sign": -1.0,
+"space": "thumb_distal_rest_local_v2",
+"triangles": 30
 }
 },
 "nail_marker_local": Vector3(0.012946, 0.000908, 0.001779),
@@ -249,7 +291,7 @@ certification = {
 }],
 "rest_nail_pad_dot": -0.017714999999999998,
 "side": "right",
-"source": "hand_fixture_compiler_v3_right"
+"source": "hand_fixture_compiler_v4_right"
 }
 },
 "skeleton_bone_count": 52,
@@ -257,11 +299,11 @@ certification = {
 "source_geometry_sha256": "24071738F4AAB550CA51368574E1F410AEED9807B84CC3980C7202A354361D77",
 "source_rig_sha256": "FB740A7ABA70675C35987A95FC725CF6A3F6CF86BD706A2CC2BFA0D44607E7C1"
 },
-"evidence_schema": "hand_fixture_evidence_v3",
+"evidence_schema": "hand_fixture_evidence_v4",
 "family_bone_map_digest": "F41B7927C7BE9689B30D73384E73A703",
 "family_id": "mixamo_52_humanoid",
 "family_version": "3",
-"fixture_content_hash": "438516D0138956E2AA0DC424681705BC6D05725118939BEE9BE0D6BA5BA10D51",
+"fixture_content_hash": "9304C2CBA455EDF7C4A55FC6E38F2C99A01506FE901BA0E6091165426068B933",
 "policy_calibration_id": "power_grip_1h_v1_canon_a27",
 "policy_calibration_version": "1",
 "policy_id": "power_grip_1h_v1",

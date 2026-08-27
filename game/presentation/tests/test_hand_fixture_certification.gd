@@ -55,9 +55,19 @@ const A0_RAW_GLB := (
 ## space. Pinned: a change here means the measurement moved, not the rig.
 const EXPECTED_HUMANOID_HEIGHT := 0.888740688562393
 const HEIGHT_TOLERANCE := 1e-9
+## Two deliveries of one humanoid are not bit-identical meshes: vertex positions
+## differ in the last places after a 100x scale round-trip. This is the band
+## inside which the two achieved approach metrics count as the same measurement.
+const REPRESENTATION_GATE_TOLERANCE := 0.02
 
 var _total := 0
 var _any_fail := false
+## Captured from the two subprocess ingestions so the equivalence check below
+## compares what the REAL CLI actually reported for each representation.
+var _a0_gate_metrics: Dictionary = {}
+var _a0_surface: Dictionary = {}
+var _a1_gate_metrics: Dictionary = {}
+var _a1_surface: Dictionary = {}
 
 
 func _init() -> void:
@@ -77,6 +87,7 @@ func _run() -> void:
 	await _test_authored_oracle_is_test_only()
 	await _test_raw_a0_full_chain()
 	await _test_a1_full_chain_accepts_and_publishes()
+	_test_two_representations_agree()
 	print("test_hand_fixture_certification: %d checks, %s" % [
 		_total, "FAIL" if _any_fail else "OK"
 	])
@@ -1001,38 +1012,32 @@ func _test_authored_oracle_is_test_only() -> void:
 
 
 ## The real ingestion step on the raw Mixamo delivery, in a SEPARATE Godot
-## process. This pins a0's honest full-chain result: the height blocker is gone
-## and the asset now reaches the grip gate, where it is classified on a real,
-## rig-specific fact rather than a false measurement.
+## process. A2.13b turns this from a pinned rejection into a pinned ACCEPTANCE:
+## once the compiled thumb surface is derived in a canonical space, the raw
+## delivery resolves the same anatomical patches as the retargeted one and
+## clears the same unchanged gates.
 func _test_raw_a0_full_chain() -> void:
+	var certified_out := "user://a213b_a0_certified.tres"
 	var run: Dictionary = _ingest(
-		A0_RAW_GLB, "user://a2_12_a0_evidence.tres", "user://a2_12_a0_certified.tres"
+		A0_RAW_GLB, "user://a2_12_a0_evidence.tres", certified_out
 	)
 	var code: int = int(run["code"])
 	var report: Dictionary = run["report"]
 	_check(not report.is_empty(), "the a0 ingestion produced a machine-readable report")
 	if report.is_empty():
 		return
-	# Exit 2 is the CLASSIFIED protocol slot: an expected asset rejection, not
-	# a tool failure.
-	_check(code == 2, "raw a0 exits 2 (classified asset failure), got %d" % code)
-	_check(
-		str(report.get("failure_kind", "")) == "classified_asset_failure",
-		"raw a0 is a classified asset failure, not infrastructure"
-	)
+	_check(code == 0, "raw a0 exits 0 (accepted), got %d — %s"
+		% [code, str(report.get("error_class", ""))])
+	_check(bool(report.get("accepted", false)), "raw a0 is accepted")
+	_check(bool(report.get("certified", false)), "raw a0 minted a certificate")
 	_check(
 		str(report.get("import_representation", "")) == "raw_mixamo",
 		"the raw delivery is recognised as the raw Mixamo representation"
 	)
-	# Every link up to the grip gate now runs on this asset.
-	for step in [
-		"import", "family_resolution", "humanoid_normalization", "fixture_compilation",
-		"artifact_integrity", "rig_binding",
-	]:
-		_check(
-			(report.get("chain", []) as Array).has(step),
-			"raw a0 completes '%s'" % step
-		)
+	_check(
+		(report.get("chain", []) as Array) == Certification.REQUIRED_CHAIN,
+		"raw a0 completed exactly the acceptance chain (%s)" % str(report.get("chain", []))
+	)
 	# The height blocker is gone, measured in a separate process.
 	var height: Dictionary = report.get("humanoid_height", {})
 	_check(bool(height.get("ok", false)), "raw a0's humanoid height resolves")
@@ -1063,69 +1068,42 @@ func _test_raw_a0_full_chain() -> void:
 		and str(binding.get("binding", "")) == "certified_bound",
 		"raw a0's rig binding verified against the live rig"
 	)
-	# THE CURRENT HONEST CLASSIFICATION. a0 reaches the achieved-geometry gate
-	# and is refused there on its thumb APPROACH direction.
-	#
-	# A2.13a CORRECTS THE A2.11/A2.12 DIAGNOSIS. It was recorded here that a0's
-	# thumb chain rest orientations are 90 degrees from the representation the
-	# A2.7 pose was calibrated on, and that the authored angles therefore land
-	# wrong. Direct measurement refuted that: a0 and a1 reach the same
-	# anatomical joint pose to within ~1.5 degrees despite a 90-degree
-	# difference in the hand's rest basis and a 100x armature scale, because the
-	# pose is applied as rest-relative deltas about axes derived from the rig.
-	# What differs is the COMPILED SURFACE — a0 resolves 7 pad triangles where
-	# a1 resolves 10, with materially different normals — and the compiled pad
-	# normal is an input to the derived anatomical axes, so the surface
-	# difference rotates the frame the approach is measured in. That is surface
-	# work and is deliberately out of this trust-boundary slice.
+	# A2.13b: the raw delivery now clears the achieved-geometry gate it used to
+	# fail. The A2.11/A2.12 restpose diagnosis was refuted in A2.13a (a0 and a1
+	# reach the same anatomical joint pose to ~1.5 degrees despite a 90-degree
+	# rest-basis difference and a 100x armature scale); the real cause was the
+	# COMPILED SURFACE, whose winding was decided by comparing a skeleton-space
+	# face normal against a mesh-space shading normal. With the surface derived
+	# in one canonical space, a0 resolves the same patches as a1.
 	_check(
-		str(report.get("stage_failed", "")) == "assemble_and_measure",
-		"raw a0 reaches the assemble-and-measure step (%s)"
-			% str(report.get("stage_failed", ""))
+		str(report.get("stage_failed", "")).is_empty(),
+		"raw a0 fails no chain step (%s)" % str(report.get("stage_failed", ""))
 	)
 	_check(
-		str(report.get("failed_gate", "")) == "grip_ground_truth"
-		or str(report.get("error_class", "")).begins_with("THUMB_"),
-		"...and is refused by that step's achieved-geometry gate"
+		bool((report.get("assembler", {}) as Dictionary).get("ok", false)),
+		"raw a0 assembles through the real assembler (%s)"
+			% str((report.get("assembler", {}) as Dictionary).get("error_class", ""))
 	)
 	_check(
-		str(report.get("error_class", "")) == "THUMB_OPPOSITION_GATE_FAILED",
-		"raw a0 is classified THUMB_OPPOSITION_GATE_FAILED (%s)"
-			% str(report.get("error_class", ""))
-	)
-	var detail: Dictionary = report.get("assembler_detail", {})
-	var wrap: Array = detail.get("thumb_wrap_failures", [])
-	# Both approach invariants fail on a0. Pinned individually: a disjunction
-	# here would stay green if one of them started passing for the wrong reason.
-	_check(
-		wrap.has("thumb_approach_axial"),
-		"the rejection names thumb_approach_axial (%s)" % str(wrap)
+		bool((report.get("grip_ground_truth", {}) as Dictionary).get("pass", false)),
+		"raw a0 passes the achieved-geometry ground-truth gate"
 	)
 	_check(
-		wrap.has("thumb_approach_radially_outward"),
-		"the rejection names thumb_approach_radially_outward (%s)" % str(wrap)
+		str((report.get("grip_ground_truth", {}) as Dictionary).get("closest_patch", ""))
+			== "pad",
+		"raw a0's achieved contact is the volar pad, not the nail"
 	)
+	# The certificate it minted is a real, loadable one for THIS rig.
+	var cert: Dictionary = Certification.load_certified(certified_out)
+	_check(bool(cert.get("ok", false)),
+		"raw a0's published certificate reloads in this process (%s)"
+			% str(cert.get("error_class", "")))
 	_check(
-		(detail.get("thumb_surface_failures", []) as Array).is_empty(),
-		"a0 passes the compiler's own surface gates (the difference is in what it compiled)"
+		not str(report.get("certification_hash", "")).is_empty(),
+		"raw a0's report carries a certification hash"
 	)
-	_check(
-		bool((detail.get("invariants", {}) as Dictionary).get("pass", false)),
-		"a0's geometric grip invariants pass, so this is a direction fact"
-	)
-	# No certificate exists, so nothing publishable was produced.
-	_check(not bool(report.get("certified", false)), "raw a0 minted no certificate")
-	_check(not bool(report.get("accepted", false)), "raw a0 is not accepted")
-	_check(
-		str(report.get("certification_hash", "")).is_empty(),
-		"raw a0's report carries no certification hash"
-	)
-	_check(
-		not ResourceLoader.exists("user://a2_12_a0_certified.tres")
-		or not bool(Certification.load_certified("user://a2_12_a0_certified.tres")
-			.get("ok", false)),
-		"raw a0 published no loadable certificate"
-	)
+	_a0_gate_metrics = report.get("gate_metrics", {})
+	_a0_surface = (report.get("sides", {}) as Dictionary).get("right", {})
 	# The left hand keeps its own, unchanged classification.
 	var sides: Dictionary = report.get("sides", {})
 	_check(
@@ -1225,7 +1203,65 @@ func _test_a1_full_chain_accepts_and_publishes() -> void:
 			)
 		(ctx["host"] as Node).queue_free()
 		await process_frame
+	_a1_gate_metrics = report.get("gate_metrics", {})
+	_a1_surface = (report.get("sides", {}) as Dictionary).get("right", {})
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(certified_out))
+
+
+## THE SLICE'S CENTRAL CLAIM, measured across the two real CLI runs: two
+## deliveries of one humanoid, one raw and one retargeted, 100x apart in
+## armature scale and 90 degrees apart in hand rest basis, must resolve the SAME
+## anatomical surface and therefore land on the same side of the same unchanged
+## gates. Triangle indices may be renumbered by the export; the compiled surface
+## may not differ.
+func _test_two_representations_agree() -> void:
+	if _a0_surface.is_empty() or _a1_surface.is_empty():
+		_check(false, "both representations reported a right-hand surface")
+		return
+	for field in ["nail_tris", "pad_tris"]:
+		_check(
+			int(_a0_surface.get(field, -1)) == int(_a1_surface.get(field, -2)),
+			"both representations resolve the same %s (%d vs %d)" % [
+				field, int(_a0_surface.get(field, -1)), int(_a1_surface.get(field, -2))
+			]
+		)
+	var a0a: Dictionary = _a0_gate_metrics.get("achieved", {})
+	var a1a: Dictionary = _a1_gate_metrics.get("achieved", {})
+	var limits: Dictionary = _a1_gate_metrics.get("limits", {})
+	_check(not a0a.is_empty() and not a1a.is_empty(),
+		"both runs reported achieved gate metrics")
+	# Reported, then bounded. A pair that agrees to a few thousandths is the
+	# evidence; the printed values are what the slice report quotes.
+	for field in [
+		"approach_axial_fraction", "approach_radial_radii", "winding_thumb_deg",
+		"nail_out_dot", "pad_in_dot", "nail_pad_dot",
+	]:
+		var v0: float = float(a0a.get(field, NAN))
+		var v1: float = float(a1a.get(field, NAN))
+		print("A213B_GATE %s a0=%.6f a1=%.6f" % [field, v0, v1])
+	for field in ["approach_axial_fraction", "approach_radial_radii"]:
+		var gap: float = absf(float(a0a.get(field, 0.0)) - float(a1a.get(field, 1.0)))
+		_check(
+			gap <= REPRESENTATION_GATE_TOLERANCE,
+			"the two representations agree on %s to %.6f (<= %.4f)"
+				% [field, gap, REPRESENTATION_GATE_TOLERANCE]
+		)
+	# The R4 margin is thin on BOTH assets, and saying so is part of the result.
+	var axial_limit: float = float(limits.get("THUMB_APPROACH_AXIAL_FRAC_MAX", 0.60))
+	for pair in [["a0", a0a], ["a1", a1a]]:
+		var m: Dictionary = pair[1]
+		print("A213B_R4_MARGIN %s axial=%.6f limit=%.4f margin=%.6f radial=%.6f" % [
+			str(pair[0]),
+			float(m.get("approach_axial_fraction", NAN)),
+			axial_limit,
+			axial_limit - float(m.get("approach_axial_fraction", NAN)),
+			float(m.get("approach_radial_radii", NAN)),
+		])
+		_check(
+			float(m.get("approach_axial_fraction", 9.0)) <= axial_limit,
+			"%s clears the UNCHANGED R4 axial limit (%.6f <= %.4f)"
+				% [str(pair[0]), float(m.get("approach_axial_fraction", 9.0)), axial_limit]
+		)
 
 
 # ---------------------------------------------------------------------- helpers

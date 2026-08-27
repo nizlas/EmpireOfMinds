@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://assets/prototype/3d/units/generated_warrior/uthana_a2/uthana_a2_dual_certified_grip_preview.gd" id="1_dual"]
+
+[node name="UthanaA2DualCertifiedGripPreview" type="Node3D"]
+script = ExtResource("1_dual")
