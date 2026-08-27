@@ -52,7 +52,39 @@ static func bind_to_skeleton_map(mi: MeshInstance3D, skeleton: Skeleton3D) -> Pa
 	return out
 
 
+## Skinned vertex in the SKELETON's own space, i.e. before any ancestor
+## transform. Identical arithmetic to `skinned_vertex_world` minus the final
+## `to_global`, so a caller that must be independent of how the character
+## happens to be scaled or placed in a scene can work in this space and get
+## bit-identical numbers in every context. Used by the fixture compiler for
+## the geometry that ends up in a hashed artifact.
+static func skinned_vertex_local(
+	mesh_instance: MeshInstance3D,
+	skeleton: Skeleton3D,
+	surface: int,
+	vertex_index: int,
+	bpv: int,
+	bind_to_skel: PackedInt32Array
+) -> Vector3:
+	return _skinned_vertex(
+		mesh_instance, skeleton, surface, vertex_index, bpv, bind_to_skel
+	)
+
+
 static func skinned_vertex_world(
+	mesh_instance: MeshInstance3D,
+	skeleton: Skeleton3D,
+	surface: int,
+	vertex_index: int,
+	bpv: int,
+	bind_to_skel: PackedInt32Array
+) -> Vector3:
+	return skeleton.to_global(
+		_skinned_vertex(mesh_instance, skeleton, surface, vertex_index, bpv, bind_to_skel)
+	)
+
+
+static func _skinned_vertex(
 	mesh_instance: MeshInstance3D,
 	skeleton: Skeleton3D,
 	surface: int,
@@ -86,7 +118,7 @@ static func skinned_vertex_world(
 		acc = local_v
 	else:
 		acc /= wsum
-	return skeleton.to_global(acc)
+	return acc
 
 
 ## Ortho world transform matching equipment bone-follow (scale stripped).
@@ -103,31 +135,112 @@ static func ortho_global_pose(skeleton: Skeleton3D, bone_idx: int) -> Transform3
 ## Bind-pose humanoid height in the same world-metric space used for
 ## equipped props (ortho bone-follow): head − lowest toe via global rest.
 ## Bone-name candidates are FAMILY data and must be injected.
-static func measure_humanoid_height(
-	skeleton: Skeleton3D, head_candidates: Array, floor_candidates: Array
-) -> float:
-	if skeleton == null or head_candidates.is_empty() or floor_candidates.is_empty():
-		return 0.0
-	var head_i := -1
-	for hname in head_candidates:
-		head_i = skeleton.find_bone(str(hname))
-		if head_i >= 0:
-			break
+## The ONE canonical space humanoid height is measured in: the skeleton's own
+## global space, i.e. rest-pose bone origins with `skeleton.global_transform`
+## applied. Declared explicitly because the number feeds weapon normalisation
+## and the socket is built in the same space — measuring in bone-local or
+## ancestor-free skeleton space would silently rescale every grip by whatever
+## the import left on the armature node (a raw Mixamo armature carries 0.01).
+## Rest pose, not the current pose, so an animation frame cannot change it.
+const HEIGHT_MEASURE_SPACE := "skeleton_global_rest"
+
+## Measure the humanoid from RESOLVED SEMANTIC LANDMARKS.
+##
+## `landmarks` is the injected skeleton family's own resolution
+## (`resolved_height_landmarks`): `{"roles": {role: [bone names]}}` plus the
+## role keys to read. This utility never names a bone, a rig prefix or an
+## import representation — it only measures between roles that someone else
+## already resolved.
+##
+## Fail-closed and truthful, which is the whole point of the A2.12 repair:
+##   * landmarks missing or unresolvable -> `HUMANOID_HEIGHT_LANDMARKS_UNRESOLVED`
+##   * landmarks resolved but the geometry between them is degenerate (zero or
+##     inverted extent) -> `DEGENERATE_HEIGHT`
+## The second class may never again absorb the first.
+static func measure_humanoid_height_from_landmarks(
+	skeleton: Skeleton3D, landmarks: Dictionary
+) -> Dictionary:
+	if skeleton == null:
+		return _height_unresolved("no skeleton", [])
+	if not bool(landmarks.get("ok", false)):
+		return _height_unresolved(
+			str(landmarks.get("detail", "landmarks were not resolved")),
+			landmarks.get("unresolved", [])
+		)
+	var roles: Dictionary = landmarks.get("roles", {})
+	var head_role: String = str(landmarks.get("head_role", ""))
+	var floor_role: String = str(landmarks.get("floor_role", ""))
+	if head_role.is_empty() or floor_role.is_empty():
+		return _height_unresolved("landmark roles were not declared", [])
+	var head_bones: Array = roles.get(head_role, [])
+	var floor_bones: Array = roles.get(floor_role, [])
+	if head_bones.is_empty():
+		return _height_unresolved("no bone resolved for '%s'" % head_role, [head_role])
+	if floor_bones.is_empty():
+		return _height_unresolved("no bone resolved for '%s'" % floor_role, [floor_role])
+	var head_i: int = skeleton.find_bone(str(head_bones[0]))
 	if head_i < 0:
-		return 0.0
-	var ymin := INF
-	for toe_name in floor_candidates:
-		var ti: int = skeleton.find_bone(str(toe_name))
-		if ti < 0:
+		return _height_unresolved(
+			"'%s' resolved to '%s', which is not on this skeleton"
+				% [head_role, head_bones[0]],
+			[head_role]
+		)
+	var head_y: float = _rest_y(skeleton, head_i)
+	var floor_y := INF
+	var used_floor: Array[String] = []
+	for bn in floor_bones:
+		var fi: int = skeleton.find_bone(str(bn))
+		if fi < 0:
 			continue
-		var y: float = (skeleton.global_transform * skeleton.get_bone_global_rest(ti)).origin.y
-		ymin = minf(ymin, y)
-	if ymin >= INF:
-		return 0.0
-	var ymax: float = (
-		skeleton.global_transform * skeleton.get_bone_global_rest(head_i)
-	).origin.y
-	return maxf(0.0, ymax - ymin)
+		used_floor.append(str(bn))
+		floor_y = minf(floor_y, _rest_y(skeleton, fi))
+	if used_floor.is_empty():
+		return _height_unresolved(
+			"no '%s' bone is on this skeleton" % floor_role, [floor_role]
+		)
+	var height: float = head_y - floor_y
+	# Landmarks resolved, so a non-positive extent is a real geometric fact
+	# about the rig (or a landmark role pointing at the wrong end of it).
+	if height < MIN_HUMANOID_HEIGHT:
+		return {
+			"ok": false,
+			"error_class": "DEGENERATE_HEIGHT",
+			"space": HEIGHT_MEASURE_SPACE,
+			"detail": "resolved landmarks span %.9f in %s" % [height, HEIGHT_MEASURE_SPACE],
+			"height": maxf(0.0, height),
+			"head_bone": str(head_bones[0]),
+			"floor_bones": used_floor,
+			"head_y": head_y,
+			"floor_y": floor_y,
+		}
+	return {
+		"ok": true,
+		"height": height,
+		"space": HEIGHT_MEASURE_SPACE,
+		"head_bone": str(head_bones[0]),
+		"floor_bones": used_floor,
+		"head_y": head_y,
+		"floor_y": floor_y,
+	}
+
+
+## Below this the rig has no usable vertical extent between its landmarks.
+const MIN_HUMANOID_HEIGHT := 1e-6
+
+
+static func _rest_y(skeleton: Skeleton3D, bone_i: int) -> float:
+	return (skeleton.global_transform * skeleton.get_bone_global_rest(bone_i)).origin.y
+
+
+static func _height_unresolved(detail: String, unresolved) -> Dictionary:
+	return {
+		"ok": false,
+		"error_class": "HUMANOID_HEIGHT_LANDMARKS_UNRESOLVED",
+		"space": HEIGHT_MEASURE_SPACE,
+		"detail": detail,
+		"unresolved": unresolved,
+		"height": 0.0,
+	}
 
 
 static func tip_bone_index(

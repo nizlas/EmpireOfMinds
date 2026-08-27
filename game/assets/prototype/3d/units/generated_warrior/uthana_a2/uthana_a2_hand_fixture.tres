@@ -1,0 +1,275 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://presentation/equipment/certified_hand_fixture_artifact.gd" id="1_3151h"]
+
+[resource]
+script = ExtResource("1_3151h")
+certification = {
+"acceptance_authority_id": "hand_fixture_certification_authority",
+"acceptance_authority_version": "1",
+"acceptance_report": {
+"authority_id": "hand_fixture_certification_authority",
+"authority_version": "1",
+"certified_side": "right",
+"chain": ["import", "family_resolution", "humanoid_normalization", "fixture_compilation", "artifact_integrity", "rig_binding", "assemble_and_measure"],
+"compiler_calibration_id": "hand_fixture_compiler_calibration_uthana_a2_7",
+"compiler_calibration_version": "1",
+"compiler_version": "hand_fixture_compiler_v3",
+"evidence_schema": "hand_fixture_evidence_v3",
+"family_bone_map_digest": "F41B7927C7BE9689B30D73384E73A703",
+"family_id": "mixamo_52_humanoid",
+"family_version": "3",
+"fixture_content_hash": "438516D0138956E2AA0DC424681705BC6D05725118939BEE9BE0D6BA5BA10D51",
+"pass": true,
+"policy_calibration_id": "power_grip_1h_v1_canon_a27",
+"policy_calibration_version": "1",
+"policy_id": "power_grip_1h_v1",
+"policy_version": "1",
+"provisional": false,
+"required_sides": ["right"],
+"source_geometry_sha256": "24071738F4AAB550CA51368574E1F410AEED9807B84CC3980C7202A354361D77",
+"source_rig_sha256": "FB740A7ABA70675C35987A95FC725CF6A3F6CF86BD706A2CC2BFA0D44607E7C1",
+"steps": {
+"artifact_integrity": {
+"error_class": "",
+"observed": {
+"path": "user://a213_regen_evidence.tres",
+"reloaded_content_hash": "438516D0138956E2AA0DC424681705BC6D05725118939BEE9BE0D6BA5BA10D51",
+"round_trip": "save_then_load"
+},
+"ok": true
+},
+"assemble_and_measure": {
+"error_class": "",
+"observed": {
+"closest_patch": "pad",
+"invariants_pass": true,
+"mesh_binding": "certified_bound",
+"mesh_binding_verified": true,
+"policy_id": "power_grip_1h_v1",
+"policy_version": "1",
+"profile_key": "mixamo_52_humanoid|a1_uthana_target.glb|hand_fixture_evidence_v3|right",
+"side": "right",
+"volar_ok": true
+},
+"ok": true
+},
+"family_resolution": {
+"error_class": "",
+"observed": {
+"family_id": "mixamo_52_humanoid",
+"family_version": "3",
+"import_representation": "godot_humanoid_retarget",
+"resolved_hand_bone": "RightHand"
+},
+"ok": true
+},
+"fixture_compilation": {
+"error_class": "",
+"observed": {
+"compiled_sides": ["right"],
+"compiler_version": "hand_fixture_compiler_v3",
+"content_hash": "438516D0138956E2AA0DC424681705BC6D05725118939BEE9BE0D6BA5BA10D51",
+"evidence_schema": "hand_fixture_evidence_v3",
+"staging_path": "user://a213_regen_evidence.tres"
+},
+"ok": true
+},
+"humanoid_normalization": {
+"error_class": "",
+"observed": {
+"floor_bones": ["LeftToes", "RightToes", "LeftFoot", "RightFoot"],
+"head_bone": "Head",
+"height": 0.888741,
+"ok": true,
+"space": "skeleton_global_rest",
+"unresolved_roles": []
+},
+"ok": true
+},
+"import": {
+"error_class": "",
+"observed": {
+"asset": "res://assets/prototype/3d/units/generated_warrior/uthana_a1/import_sources/a1_uthana_target.glb",
+"skeleton_bone_count": 52,
+"skeleton_node": "GeneralSkeleton"
+},
+"ok": true
+},
+"rig_binding": {
+"error_class": "",
+"observed": {
+"derived_from": "asset_on_disk",
+"geometry_sha256": "24071738F4AAB550CA51368574E1F410AEED9807B84CC3980C7202A354361D77",
+"rig_identity_schema": "source_rig_identity_v1",
+"rig_sha256": "FB740A7ABA70675C35987A95FC725CF6A3F6CF86BD706A2CC2BFA0D44607E7C1"
+},
+"ok": true
+}
+}
+},
+"acceptance_report_digest": "FEB9A614297F286826B55527A04BEF01C81609E0D38C761CB0EBE11A0F887036",
+"acceptance_schema": "hand_fixture_acceptance_v2",
+"acceptance_version": "2",
+"certification_hash": "84E586617069D9ED54209EEEB56F7BC46AE43578535AD16AAA1F3E06ED4F9D79",
+"certified": true,
+"certified_side": "right",
+"chain": ["import", "family_resolution", "humanoid_normalization", "fixture_compilation", "artifact_integrity", "rig_binding", "assemble_and_measure"],
+"compiler_calibration_id": "hand_fixture_compiler_calibration_uthana_a2_7",
+"compiler_calibration_version": "1",
+"compiler_version": "hand_fixture_compiler_v3",
+"evidence": {
+"acceptance_scope": "compiler_surface_evidence_only",
+"calibration_id": "hand_fixture_compiler_calibration_uthana_a2_7",
+"calibration_version": "1",
+"compile_pose": "skeleton_rest",
+"compile_space": "skeleton",
+"compiler_version": "hand_fixture_compiler_v3",
+"content_hash": "438516D0138956E2AA0DC424681705BC6D05725118939BEE9BE0D6BA5BA10D51",
+"family_bone_map_digest": "F41B7927C7BE9689B30D73384E73A703",
+"family_id": "mixamo_52_humanoid",
+"family_version": "3",
+"min_classification_margin": 0.08,
+"ok": false,
+"rig_identity_schema": "source_rig_identity_v1",
+"schema": "hand_fixture_evidence_v3",
+"sides": {
+"left": {
+"compiled": false,
+"detail": "margin 0.0511 below 0.08 (worst kept 0.4971, best rejected 0.4460)",
+"error_class": "PAD_PATCH_AMBIGUOUS",
+"side": "left"
+},
+"right": {
+"compiled": true,
+"confidence": {
+"bone_weight": 0.531197,
+"component": 1.0,
+"nail": 0.854783,
+"opposition": 1.0,
+"overall": 0.456126,
+"pad": 0.456126
+},
+"evidence": {
+"candidate_triangles": 30,
+"classification_signals": ["skin_weight_dominance", "topology", "anatomical_direction"],
+"components": 3,
+"min_bone_dominance": 0.531197,
+"nail_best_rejected": 0.112249,
+"nail_dir_t3": Vector3(0.551104, -0.099383, -0.828497),
+"nail_margin": 0.5556099999999999,
+"pad_best_rejected": 0.31892899999999996,
+"pad_margin": 0.25087,
+"qualified_components": 1,
+"radial_t3": Vector3(0.979011, -0.058448, -0.195246),
+"texture_signals_used": [],
+"thumb_axis_t3": Vector3(0.052249, 0.998617, 0.005793),
+"thumb_tip_triangles": 20,
+"volar_t3": Vector3(0.199632, 0.082101, 0.976425),
+"winding_flips": {
+"authored": 0,
+"flipped": 30
+}
+},
+"nail_marker_local": Vector3(0.012946, 0.000908, 0.001779),
+"nail_normal_local": Vector3(0.844382, -0.028366, -0.53499),
+"nail_tris": [{
+"flip": -1.0,
+"i": [5486, 3302, 3301],
+"si": 0,
+"uvc": Vector2(0.923572, 0.030563)
+}, {
+"flip": -1.0,
+"i": [3302, 5489, 5484],
+"si": 0,
+"uvc": Vector2(0.936114, 0.033419)
+}, {
+"flip": -1.0,
+"i": [5486, 5488, 3302],
+"si": 0,
+"uvc": Vector2(0.930995, 0.032087)
+}, {
+"flip": -1.0,
+"i": [3302, 5488, 5489],
+"si": 0,
+"uvc": Vector2(0.933836, 0.033164)
+}],
+"pad_marker_local": Vector3(0.010229, -0.00161, 0.006254),
+"pad_normal_local": Vector3(0.50628, -0.186105, 0.842048),
+"pad_tris": [{
+"flip": -1.0,
+"i": [3300, 5485, 5481],
+"si": 0,
+"uvc": Vector2(0.934737, 0.021865)
+}, {
+"flip": -1.0,
+"i": [5487, 5485, 3300],
+"si": 0,
+"uvc": Vector2(0.934695, 0.02445)
+}, {
+"flip": -1.0,
+"i": [5482, 3301, 5483],
+"si": 0,
+"uvc": Vector2(0.920574, 0.017876)
+}, {
+"flip": -1.0,
+"i": [5486, 3301, 5482],
+"si": 0,
+"uvc": Vector2(0.922155, 0.023965)
+}, {
+"flip": -1.0,
+"i": [5480, 5481, 5482],
+"si": 0,
+"uvc": Vector2(0.932028, 0.01394)
+}, {
+"flip": -1.0,
+"i": [5480, 5482, 5483],
+"si": 0,
+"uvc": Vector2(0.928115, 0.010751)
+}, {
+"flip": -1.0,
+"i": [5482, 5481, 5485],
+"si": 0,
+"uvc": Vector2(0.931609, 0.020589)
+}, {
+"flip": -1.0,
+"i": [5486, 5482, 5485],
+"si": 0,
+"uvc": Vector2(0.929277, 0.02349)
+}, {
+"flip": -1.0,
+"i": [5486, 5485, 5488],
+"si": 0,
+"uvc": Vector2(0.930595, 0.026941)
+}, {
+"flip": -1.0,
+"i": [5487, 5488, 5485],
+"si": 0,
+"uvc": Vector2(0.932885, 0.026626)
+}],
+"rest_nail_pad_dot": -0.017714999999999998,
+"side": "right",
+"source": "hand_fixture_compiler_v3_right"
+}
+},
+"skeleton_bone_count": 52,
+"source_asset": "res://assets/prototype/3d/units/generated_warrior/uthana_a1/import_sources/a1_uthana_target.glb",
+"source_geometry_sha256": "24071738F4AAB550CA51368574E1F410AEED9807B84CC3980C7202A354361D77",
+"source_rig_sha256": "FB740A7ABA70675C35987A95FC725CF6A3F6CF86BD706A2CC2BFA0D44607E7C1"
+},
+"evidence_schema": "hand_fixture_evidence_v3",
+"family_bone_map_digest": "F41B7927C7BE9689B30D73384E73A703",
+"family_id": "mixamo_52_humanoid",
+"family_version": "3",
+"fixture_content_hash": "438516D0138956E2AA0DC424681705BC6D05725118939BEE9BE0D6BA5BA10D51",
+"policy_calibration_id": "power_grip_1h_v1_canon_a27",
+"policy_calibration_version": "1",
+"policy_id": "power_grip_1h_v1",
+"policy_version": "1",
+"required_sides": ["right"],
+"rig_identity_schema": "source_rig_identity_v1",
+"schema": "hand_fixture_certification_v1",
+"source_asset": "res://assets/prototype/3d/units/generated_warrior/uthana_a1/import_sources/a1_uthana_target.glb",
+"source_geometry_sha256": "24071738F4AAB550CA51368574E1F410AEED9807B84CC3980C7202A354361D77",
+"source_rig_sha256": "FB740A7ABA70675C35987A95FC725CF6A3F6CF86BD706A2CC2BFA0D44607E7C1"
+}

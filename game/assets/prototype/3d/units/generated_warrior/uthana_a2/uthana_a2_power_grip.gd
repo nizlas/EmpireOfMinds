@@ -10,7 +10,7 @@
 # History of the calibrated pose (A2.3 -> A2.7, incl. the A2.6 nail-surface
 # ground-truth audit and the rejected tau=-90 overpronation) lives in
 # A2_NOTES.md, A2_6_NAIL_SURFACE_GROUND_TRUTH_AUDIT.md and the versioned
-# fixture res://presentation/equipment/uthana_warrior_hand_fixture.gd.
+# fixture uthana_warrior_hand_fixture.gd next to this file.
 class_name UthanaA2PowerGrip
 extends "res://presentation/equipment/power_grip_1h_engine.gd"
 

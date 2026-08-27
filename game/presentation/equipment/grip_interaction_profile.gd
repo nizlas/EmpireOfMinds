@@ -1,161 +1,61 @@
-# Reusable grip-policy boundary. Implemented now: power_grip_1h_v1.
-# Future policies reuse hand anatomy, surface sampling, transforms, contact
-# measurement and failure classification — they differ in contact roles,
-# free fingers, targets, joint limits and state transitions.
+# Grip-policy REGISTRY. This file owns no grip mechanism: it maps a policy
+# id to the policy script that owns the socket construction and the hard
+# preconditions for that interaction, and it declares which ids are
+# reserved (fail-closed) and whether they need a second transform owner.
+#
+# A future policy is a new sibling file plus one row here — it never edits
+# the solver flow, the assembler or another policy. Callers may also inject
+# a `policies` dictionary to resolve ids without touching this file at all.
+#
+# Implemented now: power_grip_1h_v1 (power_grip_1h_policy.gd).
 extends RefCounted
 
-const POLICY_POWER_GRIP_1H := "power_grip_1h_v1"
+const PowerGrip1h = preload("res://presentation/equipment/power_grip_1h_policy.gd")
+
+const POLICY_POWER_GRIP_1H := PowerGrip1h.POLICY_ID
+
+## id -> policy script. Only implemented policies appear here.
+const POLICIES: Dictionary = {
+	POLICY_POWER_GRIP_1H: PowerGrip1h,
+}
 
 const IMPLEMENTED: Array[String] = [POLICY_POWER_GRIP_1H]
-const RESERVED: Array[String] = [
-	"power_grip_2h_support_v1",
-	"shield_grip_v1",
-	"bow_hold_v1",
-	"bow_draw_hook_v1",
-	"sling_grip_v1",
-	"firearm_trigger_v1",
-	"firearm_support_v1",
-]
 
-## Socket mapping (canonical power grip).
-const KAPPA_DEG := 12.0
-const VOLAR_OFFSET_RADII := 1.2
-const DISTAL_SHIFT_HAND := 0.15
-
-## Hard anatomical preconditions (dimensionless).
-const DOT_DA_MIN := 0.90
-const DOT_DL_MAX := 0.35
-const DOT_DV_MAX := 0.25
-const VOLAR_OFFSET_MIN_RADII := 0.4
-const VOLAR_OFFSET_MAX_RADII := 2.2
-const CENTRE_ALONG_L_MAX_HAND := 0.5
-const CENTRE_ALONG_A_MAX_BREADTH := 0.6
-const MCP_SPREAD_MIN_BREADTH := 0.6
-const HINGE_DOT_MIN := 0.80
-const STATION_REACH_MIN := 0.35
-const STATION_REACH_MAX := 0.95
-
-## power_grip_1h_v1 semantic contract (acceptance, not solver knobs).
-const REQUIRES_FOUR_FINGERS := true
-const THUMB_MUST_TOUCH_INDEX := false
-const THUMB_REQUIRED := true
-const NAIL_FACES_OUT := true
-const PAD_FACES_IN := true
-const MEASURE_ACHIEVED_SKIN := true
-const SIDE_INVARIANT := true
+## Reserved ids fail closed. `requires_secondary` marks interactions that
+## would need a second transform owner, which is forbidden in this slice.
+const RESERVED: Dictionary = {
+	"power_grip_2h_support_v1": {"requires_secondary": true},
+	"shield_grip_v1": {"requires_secondary": false},
+	"bow_hold_v1": {"requires_secondary": false},
+	"bow_draw_hook_v1": {"requires_secondary": true},
+	"sling_grip_v1": {"requires_secondary": false},
+	"firearm_trigger_v1": {"requires_secondary": false},
+	"firearm_support_v1": {"requires_secondary": true},
+}
 
 
-static func is_implemented(policy_id: String) -> bool:
-	return policy_id in IMPLEMENTED
+## Resolve the policy that OWNS this interaction. `injected` (optional)
+## takes precedence so a caller can supply a policy the registry has never
+## heard of. Returns null for reserved/unknown ids — callers fail closed.
+static func resolve(policy_id: String, injected: Dictionary = {}) -> Script:
+	if injected.has(policy_id):
+		return injected[policy_id] as Script
+	if POLICIES.has(policy_id):
+		return POLICIES[policy_id] as Script
+	return null
 
 
-static func requires_secondary(policy_id: String) -> bool:
-	return policy_id == "power_grip_2h_support_v1"
+static func is_implemented(policy_id: String, injected: Dictionary = {}) -> bool:
+	return resolve(policy_id, injected) != null
 
 
-static func build_grip_socket_world(frame: Dictionary, radius_mean: float) -> Transform3D:
-	var a: Vector3 = frame["radial"] if frame.has("radial") else frame["across"]
-	var l: Vector3 = frame["longitudinal"]
-	var v: Vector3 = frame["volar"]
-	var d: Vector3 = (a + tan(deg_to_rad(KAPPA_DEG)) * l).normalized()
-	var z: Vector3 = (v - d * v.dot(d)).normalized()
-	var x: Vector3 = d.cross(z)
-	var c: Vector3 = (
-		(frame["palm_centre"] as Vector3)
-		+ v * (VOLAR_OFFSET_RADII * radius_mean)
-		+ l * (DISTAL_SHIFT_HAND * float(frame["hand_length"]))
-	)
-	return Transform3D(Basis(x, d, z), c)
-
-
-static func evaluate_grip_invariants(
-	frame: Dictionary, socket_world: Transform3D, radius_mean: float
-) -> Dictionary:
-	var failures: Array[String] = []
-	if not bool(frame.get("ok", false)):
-		return {"pass": false, "failures": ["hand_frame_invalid"]}
-	var a: Vector3 = frame["radial"] if frame.has("radial") else frame["across"]
-	var l: Vector3 = frame["longitudinal"]
-	var v: Vector3 = frame["volar"]
-	var p: Vector3 = frame["palm_centre"]
-	var hand_length: float = float(frame["hand_length"])
-	var breadth: float = float(frame["knuckle_breadth"])
-	var r: float = maxf(radius_mean, 1e-9)
-	var det_frame: float = float(frame.get("det", 0.0))
-	if det_frame < 0.99:
-		failures.append("palm_basis_det")
-	var det_socket: float = socket_world.basis.determinant()
-	if det_socket < 0.99:
-		failures.append("socket_det")
-	var d: Vector3 = socket_world.basis.y.normalized()
-	var c: Vector3 = socket_world.origin
-	var dot_da: float = d.dot(a)
-	var dot_dl: float = d.dot(l)
-	var dot_dv: float = d.dot(v)
-	if absf(dot_da) < DOT_DA_MIN:
-		failures.append("shaft_not_transverse")
-	if dot_da <= 0.0:
-		failures.append("head_side_not_radial")
-	if absf(dot_dl) > DOT_DL_MAX:
-		failures.append("shaft_along_fingers")
-	if absf(dot_dv) > DOT_DV_MAX:
-		failures.append("shaft_through_palm")
-	var offset_vec: Vector3 = c - p
-	var volar_offset: float = offset_vec.dot(v)
-	if volar_offset < VOLAR_OFFSET_MIN_RADII * r or volar_offset > VOLAR_OFFSET_MAX_RADII * r:
-		failures.append("volar_offset_out_of_band")
-	if absf(offset_vec.dot(l)) > CENTRE_ALONG_L_MAX_HAND * hand_length:
-		failures.append("centre_outside_hand_longitudinal")
-	if absf(offset_vec.dot(a)) > CENTRE_ALONG_A_MAX_BREADTH * breadth:
-		failures.append("centre_outside_hand_transverse")
-	var mcp: Dictionary = frame["mcp"]
-	var hinge: Dictionary = frame["hinge"]
-	var chain_length: Dictionary = frame["chain_length"]
-	var projections := {}
-	var prev := INF
-	var monotonic := true
-	for finger in ["index", "middle", "ring", "pinky"]:
-		var proj: float = (mcp[finger] as Vector3).dot(d)
-		projections[finger] = proj
-		if proj >= prev:
-			monotonic = false
-		prev = proj
-	if not monotonic:
-		failures.append("mcp_projection_not_monotonic")
-	var spread: float = float(projections["index"]) - float(projections["pinky"])
-	if spread < MCP_SPREAD_MIN_BREADTH * breadth:
-		failures.append("mcp_projection_spread")
-	var hinge_dots := {}
-	var station_reach := {}
-	for finger in ["index", "middle", "ring", "pinky"]:
-		var hd: float = absf(d.dot(hinge[finger] as Vector3))
-		hinge_dots[finger] = hd
-		if hd < HINGE_DOT_MIN:
-			failures.append("hinge_axis_%s" % finger)
-		var w: Vector3 = (mcp[finger] as Vector3) - c
-		var radial: Vector3 = w - d * w.dot(d)
-		var reach: float = radial.length() / maxf(float(chain_length[finger]), 1e-9)
-		station_reach[finger] = reach
-		if reach < STATION_REACH_MIN or reach > STATION_REACH_MAX:
-			failures.append("station_reach_%s" % finger)
-	return {
-		"pass": failures.is_empty(),
-		"failures": failures,
-		"det_frame": det_frame,
-		"det_socket": det_socket,
-		"dot_da": dot_da,
-		"dot_dl": dot_dl,
-		"dot_dv": dot_dv,
-		"volar_offset": volar_offset,
-		"volar_offset_radii": volar_offset / r,
-		"centre_along_l": offset_vec.dot(l),
-		"centre_along_a": offset_vec.dot(a),
-		"mcp_projections": projections,
-		"mcp_spread": spread,
-		"mcp_spread_over_breadth": spread / maxf(breadth, 1e-9),
-		"hinge_dots": hinge_dots,
-		"station_reach": station_reach,
-		"radius_mean": r,
-		"hand_length": hand_length,
-		"knuckle_breadth": breadth,
-	}
+## Declared by the policy itself when one exists, otherwise by the
+## reserved-id table. Unknown ids are treated as not needing a secondary
+## owner — they still fail closed on `is_implemented`.
+static func requires_secondary(policy_id: String, injected: Dictionary = {}) -> bool:
+	var policy: Script = resolve(policy_id, injected)
+	if policy != null:
+		return bool(policy.REQUIRES_SECONDARY)
+	if RESERVED.has(policy_id):
+		return bool((RESERVED[policy_id] as Dictionary).get("requires_secondary", false))
+	return false

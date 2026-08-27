@@ -43,3 +43,29 @@ server/data/
 *.py[cod]
 .pytest_cache/
 .venv/
+
+# Local provider credentials (C1). Only `.env.example` is versioned, and it may
+# contain variable names and descriptions but never a value.
+.env
+.env.*
+!.env.example
+
+# Asset-generation job artifacts (C1). Provider outputs are large binaries and
+# are reproducible from the manifests, which ARE versioned so a job stays
+# resumable and auditable after a clean checkout.
+artifacts/assetgen/jobs/*/outputs/
+artifacts/assetgen/jobs/*/response/
+
+# Local run reports (C1/A2.11). Per-asset ingestion verdicts, the pre-upload gate
+# and shield plans are written by the CLI on every run and are reproducible by
+# rerunning it on the same local asset, so they are diagnostics of one machine's
+# run rather than sources. No test reads them.
+artifacts/assetgen/rig_ingest/
+artifacts/assetgen/humanoid/
+artifacts/assetgen/shield/
+
+# Staged hand-fixture artifacts (A2.11). Everything here is compiler output for a
+# candidate rig, including CLASSIFIED-FAIL artifacts kept for diagnostics. Only
+# an ACCEPTED chain publishes an artifact to its unit's asset folder, and that
+# published file IS versioned. Staging must never look like an accepted fixture.
+game/artifacts/fixtures/staging/

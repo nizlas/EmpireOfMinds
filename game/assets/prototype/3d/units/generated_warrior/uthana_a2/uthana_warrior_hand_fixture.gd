@@ -3,14 +3,39 @@
 # pose stay HERE — never in generic solver/policy code. A future generated
 # unit must compile or load its own fixture and fail closed when confidence
 # is insufficient.
+#
+# This file lives with the asset, not under res://presentation/equipment/:
+# the generic core must never be able to reach a unit fixture. It is handed
+# to the core by the A2 composition root. A future fixture compiler emits
+# exactly this shape of data without touching any core file.
+#
+# The fixture does not SELECT a skeleton family — the composition root
+# does. `EXPECTED_FAMILY_ID` only records which family conventions these
+# triangle IDs and pose numbers were compiled against.
+#
+# A2.12 — TEST-ONLY REFERENCE. This hand-authored fixture is the development
+# oracle and the negative regression for the compiler, and nothing else. It
+# declares the `test_only_reference_v1` verification contract, which the
+# assembler accepts ONLY when a caller explicitly asks for reference mode AND
+# the environment permits it (`EOM_ALLOW_REFERENCE_FIXTURE=1`). The production
+# composition and the F6 preview inject the certified compiled fixture, so this
+# file can no longer be assembled by a normal production path — previously it
+# could, with `verified: false`, because verification was opt-in.
 extends RefCounted
 
-const Family = preload("res://presentation/equipment/mixamo_52_hand_family.gd")
+const CompiledFixture = preload("res://presentation/equipment/compiled_hand_fixture.gd")
+
+
+## The explicit verification contract. Declared, not inferred, and deliberately
+## the test-only one: this fixture carries no source-rig identity and therefore
+## cannot be verified against a live rig.
+static func fixture_verification_contract() -> String:
+	return CompiledFixture.CONTRACT_TEST_ONLY_REFERENCE
 
 ## Versioned evidence for THIS generated asset — not generic solver constants.
 const SCHEMA_VERSION := "uthana_hand_fixture_v1"
 const ASSET_ID := "uthana_warrior_a1_target"
-const FAMILY_ID := Family.FAMILY_ID
+const EXPECTED_FAMILY_ID := "mixamo_52_humanoid"
 const GLB_PATH := (
 	"res://assets/prototype/3d/units/generated_warrior/uthana_a1/import_sources/a1_uthana_target.glb"
 )
@@ -151,19 +176,26 @@ static func finger_flex() -> Dictionary:
 ## Bind-time rest-frame compilation of the LEFT compiled triangle lists.
 ## Runtime never reads albedo; this only CPU-skins the authored IDs.
 static func compile_left_from_mesh(
-	character: Node, skeleton: Skeleton3D
+	character: Node, skeleton: Skeleton3D, bone_map: Dictionary = {}
 ) -> Dictionary:
 	if not _left_cache.is_empty() and bool(_left_cache.get("compiled", false)):
 		return _left_cache.duplicate(true)
 	var out := {"compiled": false, "error_class": "LEFT_PATCH_COMPILE_FAILED"}
 	if character == null or skeleton == null:
 		return out
+	# Thumb bone names are INJECTED family data. This unit fixture carries
+	# triangle ids and rest evidence only, never a naming convention, and
+	# fails closed rather than guessing a name.
+	var thumb_chain: Array = bone_map.get("thumb", []) as Array
+	if thumb_chain.size() < 3:
+		out["error_class"] = "LEFT_THUMB_BONE_MAP_REQUIRED"
+		return out
 	var Skinning = load("res://presentation/equipment/skinned_mesh_geometry.gd")
 	var mi: MeshInstance3D = Skinning.find_skinned_mesh(character)
 	if mi == null or mi.mesh == null or mi.skin == null:
 		out["error_class"] = "LEFT_PATCH_NO_MESH"
 		return out
-	var t3: int = skeleton.find_bone("mixamorig_LeftHandThumb3")
+	var t3: int = skeleton.find_bone(str(thumb_chain[2]))
 	if t3 < 0:
 		out["error_class"] = "LEFT_THUMB_BONES_MISSING"
 		return out
@@ -179,8 +211,11 @@ static func compile_left_from_mesh(
 		arrays[Mesh.ARRAY_BONES], (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
 	)
 	var saved: Array = []
-	for bn in ["mixamorig_LeftHandThumb1", "mixamorig_LeftHandThumb2", "mixamorig_LeftHandThumb3"]:
-		var bi2: int = skeleton.find_bone(bn)
+	for bn in thumb_chain:
+		var bi2: int = skeleton.find_bone(str(bn))
+		if bi2 < 0:
+			out["error_class"] = "LEFT_THUMB_BONES_MISSING"
+			return out
 		saved.append([bi2, skeleton.get_bone_pose_rotation(bi2)])
 		skeleton.reset_bone_pose(bi2)
 	skeleton.force_update_all_bone_transforms()
@@ -252,8 +287,10 @@ static func _agg_rest_centroid(
 	return acc / maxf(wsum, 1.0)
 
 
-static func left_surface(character: Node, skeleton: Skeleton3D) -> Dictionary:
-	return compile_left_from_mesh(character, skeleton)
+static func left_surface(
+	character: Node, skeleton: Skeleton3D, bone_map: Dictionary = {}
+) -> Dictionary:
+	return compile_left_from_mesh(character, skeleton, bone_map)
 
 
 static func thumb_anat_for_side(side: String) -> Dictionary:
@@ -262,7 +299,9 @@ static func thumb_anat_for_side(side: String) -> Dictionary:
 	return CANON_THUMB_ANAT.duplicate()
 
 
-static func surface_for_side(side: String, character: Node, skeleton: Skeleton3D) -> Dictionary:
+static func surface_for_side(
+	side: String, character: Node, skeleton: Skeleton3D, bone_map: Dictionary = {}
+) -> Dictionary:
 	if side == "left":
-		return left_surface(character, skeleton)
+		return left_surface(character, skeleton, bone_map)
 	return right_surface()

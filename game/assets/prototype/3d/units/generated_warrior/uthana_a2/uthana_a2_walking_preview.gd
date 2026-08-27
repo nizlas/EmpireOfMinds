@@ -16,7 +16,13 @@ const PlaybackScript = preload(
 const Composition = preload(
 	"res://assets/prototype/3d/units/generated_warrior/uthana_a2/uthana_a2_equipment_composition.gd"
 )
-const Policy = preload("res://presentation/equipment/grip_interaction_profile.gd")
+## A2.10 CALIBRATION ONLY: the hand-authored A2.7 fixture is loaded here so
+## this development preview can show compiled-vs-authored side by side. The
+## runtime equipment path uses the compiled artifact via the composition and
+## never reads this.
+const Oracle = preload(
+	"res://assets/prototype/3d/units/generated_warrior/uthana_a2/uthana_warrior_hand_fixture.gd"
+)
 
 const ASSEMBLER_NODE_NAME := "UthanaA2EquipmentAssembler"
 const DEBUG_LAYER_NAME := "A2GripDebugLayer"
@@ -444,11 +450,15 @@ func _thumb_status_line() -> String:
 	var s_ok: bool = not (
 		(mcp_flex > 15.0 and ip_flex < -5.0) or (mcp_flex < -5.0 and ip_flex > 15.0)
 	)
+	# Read the socket mapping off the policy the assembler actually resolved,
+	# so the HUD cannot drift from the policy that ran.
+	var active_policy: Script = _assembler.policy_script()
 	var socket_line := (
-		"Socket KEPT (generic assembler): distal shift %.2fh | kappa %.0f° | transversality %.3f"
+		"Socket KEPT (generic assembler, %s): distal shift %.2fh | kappa %.0f° | transversality %.3f"
 		% [
-			Policy.DISTAL_SHIFT_HAND,
-			Policy.KAPPA_DEG,
+			str(_assembler.last_result().get("policy", "?")),
+			float(active_policy.DISTAL_SHIFT_HAND),
+			float(active_policy.KAPPA_DEG),
 			absf(float(_assembler.measure_grip_invariants().get("dot_da", 0.0))),
 		]
 	)
@@ -509,6 +519,7 @@ func _thumb_status_line() -> String:
 		line += "\nFAILED: %s" % str(twg.get("failures", []))
 	line += "\n" + _contour_status_line(grip)
 	line += "\n" + _surface_status_line(grip)
+	line += "\n" + _fixture_provenance_line()
 	return line
 
 
@@ -543,6 +554,55 @@ func _surface_status_line(grip) -> String:
 	if not bool(sgate.get("pass", false)):
 		line += "\nGEOM FAILED: %s" % str(sgate.get("failures", []))
 	return line
+
+
+## A2.10 DEVELOPMENT diagnostic: which patches the fixture compiler chose
+## automatically, with what confidence, on what evidence, and how the
+## compiled artifact compares with the hand-authored A2.7 oracle.
+##
+## This is calibration read-out only. Nothing here is a production approval
+## step: an ingested asset is accepted or fail-closed by the compiler and the
+## grip gates without anyone reading this HUD.
+func _fixture_provenance_line() -> String:
+	var fx = _assembler.fixture_script() if _assembler.has_method("fixture_script") else null
+	if fx == null:
+		return "Fixture: —"
+	var schema := str(fx.SCHEMA_VERSION)
+	if not fx.has_method("evidence_for_side"):
+		return "Fixture: %s (hand-authored reference)" % schema
+	var art: Dictionary = fx.artifact
+	var ev: Dictionary = fx.evidence_for_side("right")
+	var conf: Dictionary = fx.confidence_for_side("right")
+	var surf: Dictionary = fx.surface_for_side("right", null, null)
+	var nail_n: Vector3 = surf.get("nail_normal_local", Vector3.ZERO)
+	var pad_n: Vector3 = surf.get("pad_normal_local", Vector3.ZERO)
+	var oracle: Dictionary = Oracle.right_surface()
+	var on: Vector3 = oracle["nail_normal_local"]
+	var op: Vector3 = oracle["pad_normal_local"]
+	return (
+		"Fixture COMPILED %s / %s: auto nail %d tris, pad %d tris "
+		+ "from %d candidates in %d components (%d qualified)\n"
+		+ "confidence overall %.3f (nail %.3f pad %.3f component %.3f bone-weight %.3f) "
+		+ "| signals %s | texture signals %s\n"
+		+ "rest normals nail %s pad %s | rest nail·pad %+.4f | winding stored per triangle\n"
+		+ "vs authored A2.7 oracle: nail dot %.6f pad dot %.6f | mesh %s… | hash %s…"
+	) % [
+		str(art.get("compiler_version", "?")), schema,
+		(surf.get("nail_tris", []) as Array).size(),
+		(surf.get("pad_tris", []) as Array).size(),
+		int(ev.get("candidate_triangles", 0)),
+		int(ev.get("components", 0)),
+		int(ev.get("qualified_components", 0)),
+		float(conf.get("overall", 0.0)), float(conf.get("nail", 0.0)),
+		float(conf.get("pad", 0.0)), float(conf.get("component", 0.0)),
+		float(conf.get("bone_weight", 0.0)),
+		str(ev.get("classification_signals", [])),
+		"none" if (ev.get("texture_signals_used", []) as Array).is_empty() else "USED",
+		str(nail_n), str(pad_n), float(surf.get("rest_nail_pad_dot", 0.0)),
+		nail_n.dot(on), pad_n.dot(op),
+		str(art.get("source_mesh_sha256", "")).substr(0, 8),
+		str(art.get("content_hash", "")).substr(0, 8),
+	]
 
 
 ## A2.6 distributed-contour HUD: per-patch skinned volar gaps, isolated

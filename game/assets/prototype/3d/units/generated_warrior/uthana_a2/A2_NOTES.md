@@ -447,6 +447,328 @@ the acceptance bands.
 Left is unchanged: DERIVED BUT FULL ASSEMBLE NOT ACCEPTED (classified
 T2 contour fail-closed). No per-unit fixture compiler exists yet.
 
+## A2.9b — policy-owned dispatch + fixture moved out of the generic core
+
+Two ownership leftovers from A2.9 are closed.
+
+1. **Grip mechanism is policy-owned.**
+   `res://presentation/equipment/grip_interaction_profile.gd` is now only a
+   REGISTRY: policy id → policy script, the reserved-id table with a
+   `requires_secondary` declaration, and an optional injected `policies`
+   override. The socket mapping (`KAPPA_DEG` 12°, `VOLAR_OFFSET_RADII` 1.2,
+   `DISTAL_SHIFT_HAND` 0.15), the hard anatomical preconditions and the
+   semantic contract moved verbatim into
+   `res://presentation/equipment/power_grip_1h_policy.gd`, which
+   `EquipmentAssembler` resolves and calls. A future profile is a new
+   sibling file, not an edit to shared solver flow. Reserved ids (two-hand
+   support, shield, bow hold/draw, sling, firearm trigger/support) resolve
+   to no policy and fail closed.
+
+2. **This warrior's fixture lives with this warrior.**
+   `uthana_warrior_hand_fixture.gd` moved from
+   `res://presentation/equipment/` to this directory and no longer
+   preloads `mixamo_52_hand_family.gd`; it records `EXPECTED_FAMILY_ID`
+   (`mixamo_52_humanoid`) as data while
+   `uthana_a2_equipment_composition.gd` selects the family. The generic
+   core can no longer reach a unit fixture by path — a structural test
+   fails if any unit/asset-specific file appears in the core directory.
+
+The preview HUD now reads the socket numbers off the policy the assembler
+actually resolved, so the displayed mapping cannot drift from the policy
+that ran.
+
+Nothing was recalibrated. Right A2.7 through the live generic path:
+`dot(D,A)` 0.97815, volar 1.20000r, contact 119.63/135.68/151.01/152.95°,
+thumb winding +85.74° against the fingers' −72.59° median, `TOWARD_INDEX`,
+`nail_out_geom` 0.9337, `pad_in_geom` 0.3033, `closest_patch = pad` — all
+within the pinned parity tolerances (deltas ≤3e-6). Left still fail-closes
+on the same classified T2 contour; the ownership change does not mask it.
+Bilateral runtime is NOT established.
+
+## A2.10 — automatic hand-fixture compilation from the rigged mesh
+
+The last manual, unit-specific step in the accepted right-hand grip is gone.
+This warrior's nail and pad triangle IDs are no longer hand-authored: they are
+compiled from the rigged mesh plus the injected skeleton family by
+`res://presentation/equipment/hand_fixture_compiler.gd`.
+
+**What separates a nail from a pad here, and what does not.** Nothing samples
+albedo, brightness or saturation — this asset's right nail texture is
+practically absent, so an appearance heuristic would guess exactly where it
+matters most. The classification is skin-weight dominance + surface topology +
+the hand's own anatomical directions:
+
+- 30 triangles on this mesh are dominated by the right T2/T3 thumb segments, but
+  they form **three topologically separate components**. Only one (20 triangles)
+  is the thumb tip; the other two — UV regions near (0.76, 0.01) and
+  (0.18, 0.30) — are auto-rig weight bleed. A naive "all T3-weighted triangles"
+  compile would average them in and corrupt both plate normals while still
+  looking like a success. The tip is selected as the component carrying **both**
+  an opposed dorsal-radial nail face and a volar pad face, which disqualifies
+  the other two.
+- Inside it: `pad = n·volar ≥ 0.45` picks exactly the authored 10 (next
+  candidate sits at 0.319 — a clear gap); `nail = n·normalize(radial − volar) ≥
+  0.35` picks exactly the authored 4 (0.668–0.882 against a next candidate at
+  0.050 — a very large gap).
+
+**Oracle agreement (right hand).** Identical triangle sets (4 nail, 10 pad),
+nail rest normal dot 1.000000, pad 1.000001, and the area-weighted pad marker
+reproducing the authored `RIGHT_PAD_MARKER_LOCAL` to 0.000000. The authored
+constant turned out to *be* the area-weighted surface centroid; the compiler
+derives it independently.
+
+Confidence (right): component 1.000, nail 0.855, pad 0.456, opposition 1.000,
+bone weight 0.531 → overall 0.456.
+
+**The production path now uses the compiled artifact.**
+`uthana_a2_equipment_composition.gd` loads
+`uthana_a2_hand_fixture.tres` and injects it; it no longer loads
+`uthana_warrior_hand_fixture.gd` at all. That fixture is now a development
+oracle and negative regression only. Pose calibration moved to
+`power_grip_1h_calibration.gd` as interaction-policy data, pinned by test to the
+A2.7/A2.8 constants.
+
+Nothing was recalibrated. Right A2.7 measured **through the compiled fixture**:
+`dot(D,A)` 0.978148, volar 1.199998r, `nail_out_geom` 0.933697,
+`nail_axis_geom` 0.237668, `pad_in_geom` 0.303286, `closest_patch = pad`,
+distal physical roll 1.10°, rest nail·pad −0.01771, 4 nail / 10 pad triangles,
+fresh pose stamp. Full 4×3 matrix + surface ground truth + 137° yaw invariance
+pass through the artifact.
+
+**Left hand: `PAD_PATCH_AMBIGUOUS`.** Its volar pad has no stable geometric
+separation on this mesh — best kept candidate 0.4971 against best rejected
+0.4460, a margin of 0.051 against the 0.08 requirement. Certifying it would mean
+silently picking a best pad out of a continuum. This is *upstream of and
+separate from* the known T2/distal-station conflict, which is neither masked nor
+moved: the left fail-close through the authored reference path is unchanged.
+
+The authored left reference also does not follow the right hand's convention —
+its nail island faces **ulnar** (`n·radial = −0.8609`) and its pad set contains
+dorsal-facing triangles (`n·volar = −0.560`). That is reported, not reproduced,
+and is independent evidence about the left-hand problem.
+
+The remaining hardcoded `mixamorig_LeftHandThumb*` names were removed from the
+fixture, which now takes thumb bone names from the injected family map and fails
+`LEFT_THUMB_BONE_MAP_REQUIRED` rather than guessing.
+
+The preview HUD gained a development-calibration block showing the
+automatically selected patches, per-structure confidence, the classification
+signals used (and that no texture signal was), rest normals versus the authored
+oracle, mesh hash and artifact hash. It is read-out only — an ingested asset is
+accepted or fail-closed by the compiler and the grip gates without anyone
+reading it.
+
+Stage: **CALIBRATING**. One reference rig. Not batch-certified, not production
+certified.
+
+## A2.11 — fixture identity, mandatory live-mesh binding, canonical ingestion
+
+A blocker-repair slice after the forensic review
+(`docs/reviews/HAND_FIXTURE_COMPILER_FORENSIC_REVIEW.md`). No surface
+recalibration, no pose change, no new interaction profile.
+
+**B1 — the content hash was context-dependent.** The same GLB hashed
+`4D8D3B5DCC…` in the test context and `54DE1B64D6…` in a separate headless run,
+with an identical `source_mesh_sha256` and identical selected triangle IDs. Root
+cause: patch geometry was derived in **world space from the achieved pose**
+(`skinned_vertex_world` + `derive_frame` on global bone poses), so the preview's
+0.30 ancestor scale and whatever pose the scene happened to be in entered the
+hashed floats — the identity described *a rendering of* the fixture, not the
+fixture.
+
+Fixed by making the compile context canonical instead of by widening a quantum:
+
+- geometry in **skeleton space** (`skinned_vertex_local`,
+  `derive_frame(..., SPACE_SKELETON)`);
+- the whole skeleton **pinned to rest** for the compile and restored afterwards;
+- one declared precision (`IDENTITY_QUANTUM = 1e-6`) applied to the stored
+  values, so the hashed representation is the one the engine runs on;
+- the hash covers the **entire** payload except `content_hash` and the
+  declared-provenance `source_asset`.
+
+Measured after the fix — one hash, `2A07A3FA4F…`, in all of:
+unscaled, `preview_scale_0_30`, `scaled_2_5`, `placed_and_rotated`, a posed
+character, the committed artifact, and a **separate Godot process** running the
+real ingestion chain. A geometric change above the quantum still changes it;
+sub-quantum noise does not.
+
+**B2 — live-mesh binding is mandatory.** The composition used to pass
+`expected_mesh_sha256 = ""`, which silently disabled the check.
+`uthana_a2_equipment_composition.gd` now derives the expected identity from the
+asset with `Compiler.mesh_identity_of_asset(SOURCE_GLB_PATH)` — no Uthana hash is
+duplicated here — and `EquipmentAssembler.assemble()` verifies it against the
+`MeshInstance3D` it is about to pose as its first action. A correctly rehashed
+artifact carrying `AAAA…` as `source_mesh_sha256` is rejected as
+`FIXTURE_MESH_HASH_MISMATCH` and never reaches `thumb_patch_frame_mismatch`.
+
+**Three identity levels** are now separate: source mesh identity, fixture
+semantic identity, acceptance result. See `docs/EQUIPMENT_INTERACTION.md`.
+
+**A2.7 parity preserved.** Nothing was recalibrated: right A2.7 numbers, the 4×3
+matrix, surface ground truth, 137° yaw invariance, the A2.6 `tau = −90°`
+rejection and the left `PAD_PATCH_AMBIGUOUS` fail-close are all unchanged. The
+0.08 margin was **not** changed; it moved to
+`hand_fixture_compiler_calibration.gd` and is declared CALIBRATING data measured
+on this rig's two hands only.
+
+Stage: **CALIBRATING**. Multi-unit batch certification has not started.
+
+## A2.12 — raw-Uthana ingestion and the certified fixture trust boundary
+
+A blocker-repair slice after
+`docs/reviews/HAND_FIXTURE_IDENTITY_INGEST_REPAIR_REVIEW.md`, before provider
+integration and the paid multi-unit batch. No grip recalibration, no left-hand
+T2 solution, no new interaction profile, no provider connected.
+
+**The blocker — a false geometric claim.** `uthana_a0_rigged` was rejected as
+`DEGENERATE_HEIGHT` although its mesh AABB is bit-identical to a1's and its
+height is measurable. `HEIGHT_FLOOR_CANDIDATES` had been given prefix variants
+but `HEIGHT_HEAD_CANDIDATES = ["head_end", "Head"]` had not, so on a raw Mixamo
+rig (`mixamorig_Head`) `measure_humanoid_height()` returned `0.0` and the code
+then blamed the geometry.
+
+Adding `mixamorig_Head` to the list was rejected: it is the same defect one asset
+later. Height landmarks are now **semantic roles** (`head_top`, `foot_floor`)
+resolved by the injected family through the alias table it already owned, and
+measured in a declared canonical space (skeleton space — the same space the
+fixture compiles in). `skinned_mesh_geometry.gd`, `humanoid_hand_profile.gd` and
+`equipment_assembler.gd` contain no rig prefix at all, and a test reads those
+three files as text to keep it that way. Both representations of this humanoid
+measure `0.888740688562393` within `1e-9`. A landmark that cannot be found is
+`HUMANOID_HEIGHT_LANDMARKS_UNRESOLVED`; `DEGENERATE_HEIGHT` now means what it
+says.
+
+**Geometry identity vs rig identity.** `source_mesh_sha256` was blind to skin
+bind poses, bone mappings, rest poses and hierarchy, so the same vertex mesh
+could reuse an artifact after the *deformation* changed. It is replaced by
+`source_geometry_sha256` (surfaces, vertices, indices, normals, UVs) and
+`source_rig_sha256` (skin bone indices, weights, bind matrices, bone names,
+parent hierarchy, every rest transform, the imported mesh–skeleton relation).
+Changed bind pose, rest pose, hierarchy, weights or bone indices all invalidate;
+runtime pose, ancestor transform, scale and a fresh process do not.
+
+**Staging is never runtime-valid.** a0's rejected artifact used to load, bind
+against its own mesh and be kept out of the game only by its directory. Compiled
+evidence, rejected diagnostic and certified fixture are now three states with one
+direction, and `hand_fixture_certification.gd` — not the compiler — mints the
+`hand_fixture_certification_v1` envelope. An evidence file renamed onto the
+published path is refused by resource type. The envelope binds the fixture
+content hash (evidence embedded verbatim), both source identities, family
+id + version, compiler/schema/calibration versions, policy id + version,
+acceptance schema + version, the completed eight-step chain and a digest of the
+acceptance report — all inside its own hash. Publishing is atomic and a rejection
+never touches an accepted artifact.
+
+**Family version and fixture verification are enforced, not implied.** The
+runtime caller supplies the expected family id and version independently of the
+artifact (`FIXTURE_FAMILY_MISMATCH`, `FIXTURE_FAMILY_VERSION_MISMATCH`; an empty
+expectation is a refusal), and fixtures must **declare**
+`certified_runtime_v1` or `test_only_reference_v1` instead of being probed with
+`has_method` — which is how the authored oracle used to assemble with
+`verified: false`. The oracle is now test-only behind two independent gates
+(injected reference mode **and** `EOM_ALLOW_REFERENCE_FIXTURE=1`) and is
+`FIXTURE_NOT_CERTIFIED` through the production assembler. F6 keeps using the
+certified compiled fixture.
+
+**a0's new full-chain result.** Through the real CLI ingestion it passes import,
+family resolution, humanoid normalization, right-hand compilation (4 nail / 7 pad
+triangles), artifact integrity and rig binding, and is then classified
+`THUMB_OPPOSITION_GATE_FAILED` — verdict `CLASSIFIED`, exit `2`, nothing
+published. It was **not** forced to ACCEPTED. The remaining difference from a1 is
+concrete rig data: a0's compiled thumb surface passes and every magnitude
+invariant passes, but its thumb-chain rest orientations differ from the
+Godot-retargeted representation the A2.7 joint angles were authored against, so
+the rejection names the thumb **approach** invariants. The two deliveries also
+have different geometry identities (`D4738C86…` vs `24071738…`) despite the same
+AABB. Fixing a0's approach direction is grip calibration, deliberately outside
+this slice.
+
+**A2.7 parity preserved.** Right A2.7 numbers, the 4×3 matrix, surface ground
+truth, 137° yaw invariance, rest-anchored winding, the A2.6 `tau = −90°`
+rejection, the left `PAD_PATCH_AMBIGUOUS` fail-close and the 0.35 / 0.45 / 0.08
+thresholds with their calibration id/version are all unchanged.
+
+Stage: **CALIBRATING**. Exactly one asset certifies; the paid multi-unit batch
+has not started and no external provider is connected.
+
+## A2.13a — certification authority and independent acceptance evidence
+
+A bounded trust-boundary slice after
+`docs/reviews/HAND_FIXTURE_CERTIFICATION_AND_A0_THUMB_REVIEW.md`. No pose
+change, no surface derivation change, no angle change, no grip threshold change,
+no provider integration.
+
+**The blocker — the certifier recorded a claim instead of making one.** A2.12
+moved certification out of the compiler but left the *chain* in the CLI, and
+`Certification.certify()` took the completed `chain` and the acceptance verdict
+as parameters. So this minted a certificate:
+
+```gdscript
+Certification.certify(evidence, {
+    "chain": Certification.REQUIRED_CHAIN,
+    "acceptance_report": {"pass": true},
+    ...
+})
+```
+
+It verified, loaded through the real runtime loader, assembled as
+`certified_bound`, reported `verified = true` and survived save/load — with zero
+gates run. The A2.12 note above is corrected accordingly: **the envelope proved
+integrity after minting, not that the chain had been executed.**
+
+**The chain moved to the certification side.**
+`hand_fixture_certification_authority.gd` is now the only public certification
+entry point. It takes an asset path, a staging path, the hands, a policy id and a
+weapon — and nothing else. It resolves the family and the policy from its own
+registries and itself imports the asset, measures the humanoid, compiles the
+evidence, re-reads it from disk, derives both source identities from the file,
+drives the real production assembler and reads the achieved contact out of the
+real grip engine. There is no parameter through which a caller can assert a
+chain, a gate result or a verdict; `certify_hand_fixture_headless.gd` is reduced
+to a CLI adapter. The acceptance report is an **output**, one entry per step
+carrying that step's own observation, and the verdict is re-derived from those
+entries at every verification.
+
+**`bind_sanity` and `grip_ground_truth` were merged into `assemble_and_measure`.**
+They were never two gates: the surface-truth gate runs inside `assemble()` and
+the second step only re-read `closest_patch` out of the first's result.
+`ACCEPTANCE_SCHEMA` is now `hand_fixture_acceptance_v2`, so A2.12 certificates
+are refused rather than reinterpreted, and `uthana_a2_hand_fixture.tres` was
+regenerated by the new authority. The bind-sanity bootstrap fixture the chain
+needs before a certificate exists now carries a distinct acceptance schema that
+`Certification.save()` refuses to write.
+
+**a0's diagnosis is corrected.** The A2.12 note above says a0's thumb-chain rest
+orientations differ from the representation the A2.7 angles were authored
+against, and that this is why the approach invariants fail. **That is refuted.**
+Direct measurement shows a0 and a1 reach the same anatomical joint pose to
+within ~1.5°, despite a 90° difference in the hand's rest basis and a 100×
+armature scale, because the pose is applied as rest-relative deltas about axes
+derived from the rig — the pipeline already normalises the representation
+difference. What actually differs is the **compiled surface**: a0 resolves 7 pad
+triangles where a1 resolves 10, with materially different normals and winding,
+and the compiled pad normal is an input to the derived anatomical axes, so the
+surface difference rotates the frame the approach is measured in. a1 also clears
+the axial gate by only ~1%, so the margin is thin on both sides. Compiled
+thumb-surface invariance is the next slice's subject and is untouched here.
+
+**a0's result is unchanged.** Import, family resolution, normalization,
+right-hand compilation (4 nail / 7 pad), artifact integrity and rig binding all
+pass; it reaches `assemble_and_measure` and is refused
+`THUMB_OPPOSITION_GATE_FAILED` on both `thumb_approach_axial` and
+`thumb_approach_radially_outward`; verdict `CLASSIFIED`, exit `2`, no
+certificate, nothing published. The only reported difference is the stage name,
+which is now the honest one.
+
+**A2.7 parity preserved.** a1 certifies through the real chain, re-verifies
+against the live rig in a second process and assembles as `certified_bound`. All
+A2.7 numbers, thresholds, the 4×3 matrix, 137° yaw invariance, rest-anchored
+winding, the A2.6 `tau = −90°` rejection and the left `PAD_PATCH_AMBIGUOUS`
+fail-close are unchanged.
+
+Stage: **CALIBRATING**. Exactly one asset certifies; the paid multi-unit batch
+remains closed and no external provider is connected.
+
 ## Preview
 `res://assets/prototype/3d/units/generated_warrior/uthana_a2/uthana_a2_walking_preview.tscn` (F6)
 

@@ -8,6 +8,11 @@ extends RefCounted
 const DIGITS: Array[String] = ["thumb", "index", "middle", "ring", "pinky"]
 const FINGER_ORDER: Array[String] = ["index", "middle", "ring", "pinky"]
 
+## Reference space for `derive_frame`. World is what the grip engine consumes;
+## skeleton space is ancestor-transform independent (fixture identity).
+const SPACE_WORLD := "world"
+const SPACE_SKELETON := "skeleton"
+
 const VOLAR_PROBE_RADIUS_FRAC := 0.5
 const VOLAR_PROBE_MIN_VERTS := 24
 const PALM_CENTRE_FRACTION := 0.5
@@ -64,7 +69,7 @@ func _compile(
 	_family = family
 	_skinning = skinning
 	family_id = str(family.FAMILY_ID)
-	bones = family.bone_map(side)
+	bones = family_bone_map(family, skeleton, side)
 	asset_id = str(fixture.ASSET_ID)
 	fixture_schema = str(fixture.SCHEMA_VERSION)
 	if skeleton == null:
@@ -79,7 +84,9 @@ func _compile(
 			if skeleton.find_bone(str(bname)) < 0:
 				compile_failures.append("HAND_PROFILE_CHAIN_MISSING")
 				return _result(false)
-	surface = fixture.surface_for_side(side, character, skeleton)
+	# The family bone map is injected into the fixture too: a fixture must
+	# never carry its own copy of a bone-naming convention.
+	surface = fixture.surface_for_side(side, character, skeleton, bones)
 	thumb_anat = fixture.thumb_anat_for_side(side)
 	if fixture.has_method("finger_flex"):
 		finger_flex = fixture.finger_flex()
@@ -124,17 +131,82 @@ func _result(ok: bool) -> Dictionary:
 	}
 
 
+## Single generic resolution point for family bone names. A family that owns
+## import-name aliases resolves them itself against the live skeleton
+## (`resolved_bone_map`); families without aliases keep the plain map. No
+## generic consumer ever knows an alias, a rig prefix or an asset name.
+static func family_bone_map(family, skeleton: Skeleton3D, side: String) -> Dictionary:
+	if family == null:
+		return {}
+	if skeleton != null and family.has_method("resolved_bone_map"):
+		return family.resolved_bone_map(skeleton, side)
+	return family.bone_map(side)
+
+
+## Single generic resolution point for SEMANTIC SKELETON LANDMARKS (A2.12).
+##
+## Height landmarks are family data addressed by role, exactly like bone names:
+## the family resolves its own spellings against the live skeleton and no
+## generic consumer carries a name list. A family that cannot resolve landmarks
+## fails closed — this is a required family capability, not an optional one, so
+## there is no path where a missing resolver silently means "height is zero".
+static func family_height_landmarks(family, skeleton: Skeleton3D) -> Dictionary:
+	if family == null:
+		return {
+			"ok": false,
+			"error_class": "HUMANOID_HEIGHT_LANDMARKS_UNRESOLVED",
+			"detail": "no skeleton family was injected",
+			"unresolved": [],
+			"roles": {},
+		}
+	if not family.has_method("resolved_height_landmarks"):
+		return {
+			"ok": false,
+			"error_class": "HUMANOID_HEIGHT_LANDMARKS_UNRESOLVED",
+			"detail": "family '%s' declares no semantic height landmarks" % family.FAMILY_ID,
+			"unresolved": [],
+			"roles": {},
+		}
+	return family.resolved_height_landmarks(skeleton)
+
+
 ## Anatomical palm frame from THIS side's bones. A = index − pinky so
 ## radial always means the thumb/index side of that hand. Never a copied
 ## right-hand quaternion and never a blind coordinate negation.
 func compute_frame(skeleton: Skeleton3D, use_rest: bool) -> Dictionary:
+	if _family == null:
+		return {"ok": false, "error_class": "HAND_PROFILE_FAMILY_REQUIRED"}
+	return derive_frame(skeleton, _family, bones, side, use_rest)
+
+
+## Frame derivation WITHOUT a compiled fixture, so the fixture compiler can
+## derive the same anatomical frame it is about to compile patches against
+## (a fixture-requiring frame would make compilation circular). Identical
+## math to `compute_frame`; `bone_map` and `family` are injected.
+## `space` selects the reference space of every derived point and direction:
+## `SPACE_WORLD` (default, what the grip engine consumes) or `SPACE_SKELETON`,
+## which excludes every ancestor transform so the result cannot depend on how
+## the character is scaled or placed. The fixture compiler uses the skeleton
+## space for the geometry it hashes; the volar mesh dual-check keeps using the
+## world frame because it samples world-space skinned vertices.
+static func derive_frame(
+	skeleton: Skeleton3D,
+	family,
+	bone_map: Dictionary,
+	side_in: String,
+	use_rest: bool,
+	space: String = SPACE_WORLD
+) -> Dictionary:
+	var side: String = "left" if side_in == "left" else "right"
+	var bones: Dictionary = bone_map
 	if skeleton == null:
 		return {"ok": false, "error_class": "HAND_FRAME_NO_SKELETON"}
+	if family == null:
+		return {"ok": false, "error_class": "HAND_PROFILE_FAMILY_REQUIRED"}
 	var hand_i: int = skeleton.find_bone(str(bones["hand"]))
 	if hand_i < 0:
 		return {"ok": false, "error_class": "HAND_FRAME_HAND_BONE_MISSING"}
-	if _family == null:
-		return {"ok": false, "error_class": "HAND_PROFILE_FAMILY_REQUIRED"}
+	var _family = family
 	var mcp := {}
 	var hinge := {}
 	var chain_length := {}
@@ -145,9 +217,9 @@ func compute_frame(skeleton: Skeleton3D, use_rest: bool) -> Dictionary:
 		var dst_i: int = skeleton.find_bone(str(chain[2]))
 		if mcp_i < 0 or mid_i < 0 or dst_i < 0:
 			return {"ok": false, "error_class": "HAND_FRAME_FINGER_CHAIN_MISSING", "finger": finger}
-		var mcp_xf: Transform3D = _bone_xf(skeleton, mcp_i, use_rest)
-		var mid_p: Vector3 = _bone_xf(skeleton, mid_i, use_rest).origin
-		var dst_p: Vector3 = _bone_xf(skeleton, dst_i, use_rest).origin
+		var mcp_xf: Transform3D = _bone_xf(skeleton, mcp_i, use_rest, space)
+		var mid_p: Vector3 = _bone_xf(skeleton, mid_i, use_rest, space).origin
+		var dst_p: Vector3 = _bone_xf(skeleton, dst_i, use_rest, space).origin
 		mcp[finger] = mcp_xf.origin
 		hinge[finger] = (mcp_xf.basis * (_family.MCP_HINGE_LOCAL as Vector3)).normalized()
 		var seg1: float = mcp_xf.origin.distance_to(mid_p)
@@ -158,9 +230,9 @@ func compute_frame(skeleton: Skeleton3D, use_rest: bool) -> Dictionary:
 		var ti: int = skeleton.find_bone(str(tb))
 		if ti < 0:
 			return {"ok": false, "error_class": "HAND_FRAME_THUMB_CHAIN_MISSING"}
-		thumb_pts.append(_bone_xf(skeleton, ti, use_rest).origin)
+		thumb_pts.append(_bone_xf(skeleton, ti, use_rest, space).origin)
 	var thumb_ref: Vector3 = (thumb_pts[1] + thumb_pts[2]) * 0.5
-	var hand_xf: Transform3D = _bone_xf(skeleton, hand_i, use_rest)
+	var hand_xf: Transform3D = _bone_xf(skeleton, hand_i, use_rest, space)
 	var wrist: Vector3 = hand_xf.origin
 	var knuckle := Vector3.ZERO
 	for finger in FINGER_ORDER:
@@ -199,6 +271,7 @@ func compute_frame(skeleton: Skeleton3D, use_rest: bool) -> Dictionary:
 	return {
 		"ok": true,
 		"use_rest": use_rest,
+		"space": space,
 		"side": side,
 		"hand_bone_index": hand_i,
 		"hand_transform": hand_xf,
@@ -269,6 +342,15 @@ func verify_volar(skeleton: Skeleton3D, character: Node, frame: Dictionary) -> D
 func _skinned_palm_flesh_probe(
 	skeleton: Skeleton3D, character: Node, frame: Dictionary
 ) -> Dictionary:
+	return skinned_palm_flesh_probe(skeleton, character, frame, _skinning)
+
+
+## Static so the fixture compiler can run the same volar dual-check without
+## a compiled profile.
+static func skinned_palm_flesh_probe(
+	skeleton: Skeleton3D, character: Node, frame: Dictionary, skinning
+) -> Dictionary:
+	var _skinning = skinning
 	if _skinning == null:
 		return {"ok": false, "error_class": "HAND_PROFILE_SKINNING_REQUIRED"}
 	var mi: MeshInstance3D = _skinning.find_skinned_mesh(character)
@@ -334,10 +416,12 @@ func _skinned_palm_flesh_probe(
 	}
 
 
-static func _bone_xf(skeleton: Skeleton3D, idx: int, use_rest: bool) -> Transform3D:
-	var g: Transform3D
-	if use_rest:
-		g = skeleton.global_transform * skeleton.get_bone_global_rest(idx)
-	else:
-		g = skeleton.global_transform * skeleton.get_bone_global_pose(idx)
+static func _bone_xf(
+	skeleton: Skeleton3D, idx: int, use_rest: bool, space: String = SPACE_WORLD
+) -> Transform3D:
+	var b: Transform3D = (
+		skeleton.get_bone_global_rest(idx) if use_rest
+		else skeleton.get_bone_global_pose(idx)
+	)
+	var g: Transform3D = b if space == SPACE_SKELETON else skeleton.global_transform * b
 	return Transform3D(g.basis.orthonormalized(), g.origin)

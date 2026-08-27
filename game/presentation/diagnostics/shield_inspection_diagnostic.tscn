@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://c1shielddiag001"]
+
+[ext_resource type="Script" path="res://presentation/diagnostics/shield_inspection_diagnostic.gd" id="1_c1diag"]
+
+[node name="ShieldInspectionDiagnostic" type="Node3D"]
+script = ExtResource("1_c1diag")

@@ -17,7 +17,7 @@ $GamePath = Join-Path $RepoRoot "game"
 
 $KnownGodotPath = "C:\Users\nicla\tools\Godot_v4.6.2-stable_win64.exe\Godot_v4.6.2-stable_win64_console.exe"
 
-$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f", "n7f1", "n7g3", "n8a", "n8b", "cp1", "a1", "a2")
+$Script:SupportedSlices = @("c13a", "c14a", "c14c", "c14d", "c14d-dev", "n6", "n7", "n7d", "n7f", "n7f1", "n7g3", "n8a", "n8b", "cp1", "a1", "a2", "c1")
 
 $Script:SliceTests = @{
 	"c13a" = @(
@@ -95,12 +95,30 @@ $Script:SliceTests = @{
 	# The preview_runtime test gates the actual F6 scene (club present,
 	# renderable, in hand) — grip math alone is not sufficient.
 	# A2.8 adds the reusable bilateral pipeline test; A2.9 adds the
-	# legacy-vs-generic parity matrix (12 points + yaw invariance).
+	# legacy-vs-generic parity matrix (12 points + yaw invariance);
+	# A2.10 adds automatic hand-fixture compilation from the rigged mesh
+	# (oracle agreement, determinism, fail-closed classification).
+	# A2.11 adds fixture identity and mandatory live-mesh binding: the
+	# identity test starts a SEPARATE Godot process running the canonical
+	# ingestion chain, so it is slower than the rest of the profile.
+	# A2.12 adds the certification trust boundary: family-resolved height
+	# landmarks, rig/deformation identity, staging-vs-certified separation,
+	# mandatory family version and fixture verification. It also starts a
+	# SEPARATE Godot process for the raw-a0 full-chain check.
 	"a2" = @(
 		"res://presentation/tests/test_uthana_a2_club_attachment_grip.gd",
 		"res://presentation/tests/test_uthana_a2_preview_runtime.gd",
+		"res://presentation/tests/test_hand_fixture_compiler.gd",
+		"res://presentation/tests/test_hand_fixture_identity.gd",
+		"res://presentation/tests/test_hand_fixture_certification.gd",
 		"res://presentation/tests/test_equipment_interaction_pipeline.gd",
 		"res://presentation/tests/test_uthana_a2_power_grip_parity.gd"
+	)
+	# C1 cloud asset-provider slice. The Godot side is only the shield
+	# inspection diagnostic that tomorrow's visual review is opened from;
+	# the provider adapters are Python and covered by pytest.
+	"c1" = @(
+		"res://presentation/tests/test_shield_inspection_diagnostic.gd"
 	)
 	# N7f focused subset (no terrain build; fast — locomotion/facing math,
 	# clip transitions, grounding, retargeting; slice n7 runs it too).
