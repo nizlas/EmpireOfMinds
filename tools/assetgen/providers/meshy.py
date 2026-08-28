@@ -25,9 +25,15 @@ import mimetypes
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..artifact_paths import write_verified_bytes
+from ..capability import OperationClass
+from ..capability import require as require_capability
+from ..endpoint import parse_endpoint
 from ..errors import ErrorKind, ProviderError, classify_http_status
+from ..live_gate import credential_state
 from ..secret_guard import Credential, load_credential
 from ..transport import (
+    NO_RETRY,
     HttpRequest,
     HttpResponse,
     HttpTransport,
@@ -48,6 +54,23 @@ PROVIDER_NAME = "meshy"
 CREDENTIAL_ENV_VAR = "MESHY_API_KEY"
 DEFAULT_BASE_URL = "https://api.meshy.ai"
 BASE_URL_ENV_VAR = "MESHY_API_BASE"
+
+#: The paid operations this adapter can perform, named the same way the plan
+#: builder names them. One table means a capability's scope and a plan's
+#: `operation` cannot drift apart, which is what would let an approval for one
+#: paid job authorize another.
+PAID_OPERATIONS: dict[str, str] = {
+    "shield_multiview": "shield_multiview_image",
+    "shield_candidate_3d": "shield_multi_image_to_3d",
+}
+
+
+def paid_operation_name(request) -> str:
+    """The plan/capability operation name for a paid request."""
+    label = str(getattr(request, "label", "") or "")
+    if label in PAID_OPERATIONS:
+        return PAID_OPERATIONS[label]
+    return f"{PROVIDER_NAME}_{request.task_type.value}"
 
 #: Neutral task type -> documented endpoint path.
 ENDPOINTS: dict[TaskType, str] = {
@@ -124,9 +147,11 @@ class MeshyProvider:
         import os
 
         self.base_url = (self.base_url or os.environ.get(BASE_URL_ENV_VAR, "") or DEFAULT_BASE_URL).rstrip("/")
-        self._credential: Credential | None = load_credential(
-            CREDENTIAL_ENV_VAR, required=self.require_credential
-        )
+        self._credential: Credential | None = None
+        # See the note in the Uthana adapter: constructing an adapter must not
+        # read a key, because every offline command constructs one.
+        if self.require_credential:
+            load_credential(CREDENTIAL_ENV_VAR, required=True)
 
     # ------------------------------------------------------------------ identity
 
@@ -136,10 +161,15 @@ class MeshyProvider:
 
     @property
     def has_credential(self) -> bool:
-        return self._credential is not None
+        """`present`/`missing` only: the value is never materialised here."""
+        return credential_state(CREDENTIAL_ENV_VAR) == "present"
 
     def supports(self, task_type: TaskType) -> bool:
         return task_type in ENDPOINTS
+
+    def paid_operation_name(self, request: JobRequest) -> str:
+        """The operation name a plan and a capability must both use."""
+        return paid_operation_name(request)
 
     def endpoint_for(self, task_type: TaskType) -> str:
         self._require_supported(task_type)
@@ -245,9 +275,15 @@ class MeshyProvider:
 
     # --------------------------------------------------------------- operations
 
-    def auth_smoke(self) -> AuthSmokeResult:
-        """GET /openapi/v1/balance - documented, read-only and free."""
-        if self._credential is None:
+    def auth_smoke(self, capability=None) -> AuthSmokeResult:
+        """GET /openapi/v1/balance - documented, read-only and free.
+
+        Free of charge is not free of policy: this call proves a credential works
+        and is real traffic on a billed account, so it needs `--live` and the
+        machine opt-in like any other network read.
+        """
+        self._authorize(capability, "auth_smoke", OperationClass.NETWORK_READ)
+        if not self.has_credential:
             return AuthSmokeResult(
                 provider=self.name,
                 ok=False,
@@ -255,7 +291,12 @@ class MeshyProvider:
                 detail={"blocked": "BLOCKED_MISSING_CREDENTIAL"},
             )
         response = self._send(
-            HttpRequest(method="GET", url=f"{self.base_url}/openapi/v1/balance", headers=self._headers())
+            HttpRequest(
+                method="GET",
+                url=f"{self.base_url}/openapi/v1/balance",
+                headers=self._headers(),
+                capability=capability,
+            )
         )
         payload = response.json()
         return AuthSmokeResult(
@@ -265,7 +306,12 @@ class MeshyProvider:
             message="balance endpoint reachable",
         )
 
-    def submit(self, request: JobRequest) -> tuple[str, dict]:
+    def submit(self, request: JobRequest, capability=None) -> tuple[str, dict]:
+        # The review (BLOCKER 2) measured both shield submits creating paid Meshy
+        # tasks with `--live` and the opt-in but NO plan confirmation and no ledger
+        # claim. A paid capability cannot exist without both, so demanding one here
+        # closes that path structurally rather than by adding a fourth check.
+        self._authorize(capability, paid_operation_name(request), OperationClass.PAID_CREATE)
         self.validate_request(request)
         body = self._build_body(request, inline_images=True)
         response = self._send(
@@ -274,7 +320,9 @@ class MeshyProvider:
                 url=f"{self.base_url}{self.endpoint_for(request.task_type)}",
                 headers=self._headers(json_body=True),
                 body=json.dumps(body).encode("utf-8"),
-            )
+                capability=capability,
+            ),
+            retry=False,
         )
         payload = response.json()
         task_id = payload.get("result")
@@ -287,32 +335,45 @@ class MeshyProvider:
             )
         return task_id, {"http_status": response.status, "result": task_id}
 
-    def fetch(self, task_type: TaskType, provider_task_id: str) -> ProviderTaskState:
+    def fetch(
+        self, task_type: TaskType, provider_task_id: str, capability=None
+    ) -> ProviderTaskState:
+        self._authorize(capability, "poll", OperationClass.NETWORK_READ)
         endpoint = self.endpoint_for(task_type)
         response = self._send(
             HttpRequest(
                 method="GET",
                 url=f"{self.base_url}{endpoint}/{provider_task_id}",
                 headers=self._headers(),
+                capability=capability,
             )
         )
         return self._parse_task(task_type, provider_task_id, response.json())
 
-    def cancel(self, task_type: TaskType, provider_task_id: str) -> dict:
+    def cancel(self, task_type: TaskType, provider_task_id: str, capability=None) -> dict:
         """DELETE removes the task and its data. Only ever an explicit command."""
+        self._authorize(capability, "cancel", OperationClass.REMOTE_MUTATION)
         endpoint = self.endpoint_for(task_type)
         response = self._send(
             HttpRequest(
                 method="DELETE",
                 url=f"{self.base_url}{endpoint}/{provider_task_id}",
                 headers=self._headers(),
+                capability=capability,
             )
         )
         return {"http_status": response.status}
 
-    def download(self, url: str, destination: Path) -> int:
-        """Fetch a signed artifact URL. Signed URLs expire; classify that clearly."""
-        response = self.transport.send(HttpRequest(method="GET", url=url, timeout_s=300.0))
+    def download(self, url: str, destination: Path, capability=None) -> int:
+        """Fetch a signed artifact URL. Signed URLs expire; classify that clearly.
+
+        No credential is attached: the URL's own signature is the authorization,
+        which is why this one request may legitimately leave the API origin.
+        """
+        self._authorize(capability, "download", OperationClass.NETWORK_READ)
+        response = self.transport.send(
+            HttpRequest(method="GET", url=url, timeout_s=300.0, capability=capability)
+        )
         if response.status in (403, 404, 410):
             raise ProviderError(
                 ErrorKind.EXPIRED_URL,
@@ -324,11 +385,24 @@ class MeshyProvider:
         error = self._classify(response)
         if error is not None:
             raise error
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(response.body)
+        write_verified_bytes(destination, response.body)
         return len(response.body)
 
     # ------------------------------------------------------------------ internals
+
+    def _authorize(self, capability, operation: str, operation_class: OperationClass):
+        """Refuse before any credential read, body build or send."""
+        return require_capability(
+            capability,
+            provider=self.name,
+            operation=operation,
+            operation_class=operation_class,
+            endpoint=self.endpoint_identity(),
+        )
+
+    def endpoint_identity(self):
+        """The normalised destination this adapter will actually use."""
+        return parse_endpoint(self.name, self.base_url, require_https=False)
 
     def _require_supported(self, task_type: TaskType) -> None:
         if task_type not in ENDPOINTS:
@@ -348,6 +422,9 @@ class MeshyProvider:
         return request.model_version
 
     def _headers(self, *, json_body: bool = False) -> dict[str, str]:
+        """The one place a credential value is read. Only reached on a live call."""
+        if self._credential is None:
+            self._credential = load_credential(CREDENTIAL_ENV_VAR, required=False)
         if self._credential is None:
             raise ProviderError(
                 ErrorKind.AUTH,
@@ -372,11 +449,18 @@ class MeshyProvider:
             error.retry_after_s = parse_retry_after(response)
         return error
 
-    def _send(self, request: HttpRequest) -> HttpResponse:
+    def _send(self, request: HttpRequest, *, retry: bool = True) -> HttpResponse:
+        """Send a request. `retry=False` is mandatory for anything that creates.
+
+        A transport failure or a 5xx on a create is AMBIGUOUS - the task may
+        already exist and be billable - so retrying it risks paying twice for one
+        approved unit of work. Meshy exposes no idempotency key for task
+        creation, so the ambiguity is reported rather than retried away.
+        """
         response, _retries = send_with_retry(
             self.transport,
             request,
-            policy=self.retry_policy,
+            policy=self.retry_policy if retry else NO_RETRY,
             provider=self.name,
             classify=self._classify,
         )

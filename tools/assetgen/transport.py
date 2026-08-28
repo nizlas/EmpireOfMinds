@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Protocol
 
 from .errors import ErrorKind, ProviderError
-from .secret_guard import scrub
+from .secret_guard import SECRET_HEADER_NAMES, redact_headers, scrub
 
 DEFAULT_TIMEOUT_S = 60.0
 
@@ -28,10 +28,38 @@ class HttpRequest:
     headers: dict[str, str] = field(default_factory=dict)
     body: bytes | None = None
     timeout_s: float = DEFAULT_TIMEOUT_S
+    #: The authorization this request was built under. The production transport
+    #: refuses to send without one; the offline double ignores it.
+    capability: object | None = None
 
     def describe(self) -> str:
         """Loggable description. Headers are never included - they carry auth."""
         return f"{self.method} {scrub(self.url)}"
+
+    def safe_headers(self) -> dict:
+        """Header names with secret-bearing values redacted by semantics."""
+        return redact_headers(self.headers)
+
+    def __repr__(self) -> str:
+        """Never print headers or body.
+
+        A dataclass' generated `__repr__` prints every field, and the review
+        (HIGH 7) measured the base64 Basic token leaking through exactly that
+        route - one `logging.debug(request)` or one traceback with locals is
+        enough. Body is omitted too: a multipart upload embeds a whole mesh, and
+        an image job body inlines a base64 data URI.
+        """
+        auth = "authenticated" if any(
+            k.lower() in SECRET_HEADER_NAMES for k in self.headers
+        ) else "unauthenticated"
+        size = len(self.body) if self.body else 0
+        return (
+            f"HttpRequest(method={self.method!r}, url={scrub(self.url)!r}, "
+            f"headers=<{len(self.headers)} headers, {auth}, redacted>, "
+            f"body=<{size} bytes>, timeout_s={self.timeout_s})"
+        )
+
+    __str__ = __repr__
 
 
 @dataclass(frozen=True)
@@ -72,10 +100,87 @@ class HttpTransport(Protocol):
     def send(self, request: HttpRequest) -> HttpResponse: ...
 
 
+class RefuseRedirects(urllib.request.HTTPRedirectHandler):
+    """Refuse every redirect on an authenticated provider request.
+
+    A 3xx that moves an authenticated request to another origin hands the
+    credential to a host the plan never approved, and urllib follows redirects by
+    default. Same-origin redirects are refused too: every endpoint this repository
+    talks to is documented and stable, so a redirect is a change of contract, not
+    a routine hop, and refusing is cheaper than reasoning about which hop is safe.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ProviderError(
+            ErrorKind.CONTRACT,
+            f"provider answered HTTP {code} redirecting to {scrub(str(newurl))}. An "
+            "authenticated request is never followed to another location: the approved "
+            "plan named one endpoint and the credential belongs only to it.",
+            status=int(code),
+        )
+
+
 class UrllibTransport:
-    """Real transport, stdlib only so no new dependency is introduced."""
+    """Real transport, stdlib only so no new dependency is introduced.
+
+    Two policies are enforced here because this is the last place they can be:
+
+    ENVIRONMENT PROXIES ARE DISABLED. `urllib` silently honours `HTTP_PROXY`,
+    `HTTPS_PROXY` and `ALL_PROXY`, which means a variable nobody audited could
+    route an authenticated upload through an arbitrary host - and the socket
+    tripwire would not fire, because a loopback proxy is a permitted connection
+    (review MEDIUM 15). An empty `ProxyHandler` removes that channel entirely. A
+    proxy is not supported; if one is ever needed it must be an explicit,
+    plan-bound configuration rather than an inherited variable.
+
+    A CAPABILITY IS REQUIRED. This is the real egress boundary, so the ticket is
+    checked here as well as in the adapters. A request that reaches this method
+    without authorization is a bug in a call path, and it fails loudly instead of
+    reaching the network.
+    """
+
+    def __init__(self) -> None:
+        # No ProxyHandler entries => no environment proxy lookup at all.
+        self._opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}), RefuseRedirects()
+        )
 
     def send(self, request: HttpRequest) -> HttpResponse:
+        from .capability import CAPABILITY_REQUIRED, CapabilityRefused, ProviderCapability
+
+        capability = request.capability
+        if not isinstance(capability, ProviderCapability):
+            raise CapabilityRefused(
+                CAPABILITY_REQUIRED,
+                f"the production transport refused {request.describe()}: no provider "
+                "capability was attached. Every outbound request must carry authorization "
+                "minted by the live gate.",
+            )
+        capability.authorizes(
+            provider=capability.provider,
+            operation=capability.operation,
+            operation_class=capability.operation_class,
+        )
+        authenticated = any(k.lower() in SECRET_HEADER_NAMES for k in request.headers)
+        if authenticated and not capability.endpoint.covers(request.url):
+            # An artifact download from a signed CDN URL legitimately leaves the
+            # API origin, and carries no credential. An AUTHENTICATED request may
+            # not: that is how a redirected or misconfigured base URL would hand
+            # the key to someone else.
+            raise CapabilityRefused(
+                "PROVIDER_CAPABILITY_SCOPE_MISMATCH",
+                f"an authenticated request targets {scrub(request.url)} which is not on the "
+                f"approved origin {capability.endpoint.origin}. A credential is never sent "
+                "to an unapproved host.",
+                detail={"approved_origin": capability.endpoint.origin},
+            )
+        if not request.url.lower().startswith("https://"):
+            raise CapabilityRefused(
+                "PROVIDER_CAPABILITY_INVALID",
+                f"refusing plaintext request {request.describe()}: live provider traffic "
+                "requires https.",
+            )
+
         req = urllib.request.Request(
             url=request.url,
             data=request.body,
@@ -83,7 +188,7 @@ class UrllibTransport:
             method=request.method,
         )
         try:
-            with urllib.request.urlopen(req, timeout=request.timeout_s) as resp:
+            with self._opener.open(req, timeout=request.timeout_s) as resp:
                 return HttpResponse(
                     status=int(resp.status),
                     headers={k: v for k, v in resp.headers.items()},
@@ -137,6 +242,13 @@ class RetryPolicy:
         ceiling = min(uncapped, self.max_delay_s)
         half = ceiling / 2.0
         return half + rng.uniform(0.0, half)
+
+
+#: The policy every CREATING call must use. One attempt, so a transport failure
+#: on a paid create can never be turned into a second paid task by this layer.
+#: Poll and download keep the retrying policy: they read a task that has already
+#: been paid for and cannot create another one.
+NO_RETRY = RetryPolicy(max_attempts=1)
 
 
 def parse_retry_after(response: HttpResponse) -> float | None:

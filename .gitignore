@@ -63,6 +63,15 @@ artifacts/assetgen/jobs/*/response/
 artifacts/assetgen/rig_ingest/
 artifacts/assetgen/humanoid/
 artifacts/assetgen/shield/
+# Provider pre-plans. Deterministic: the same input and configuration always
+# regenerate the same plan and the same digest, so the digest quoted in a review
+# is verifiable by rerunning `provider-plan` rather than by trusting a file.
+artifacts/assetgen/plans/
+
+# Submission ledger. One file per approved plan digest, created with O_EXCL so
+# one approval buys exactly one paid job. It is per-machine spend history, not a
+# source, and committing it would let a checkout resurrect or block a claim.
+artifacts/assetgen/submissions/
 
 # Staged hand-fixture artifacts (A2.11). Everything here is compiler output for a
 # candidate rig, including CLASSIFIED-FAIL artifacts kept for diagnostics. Only

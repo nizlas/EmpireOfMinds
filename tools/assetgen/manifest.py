@@ -19,7 +19,10 @@ from pathlib import Path
 from . import CONTRACT_VERSION
 from .secret_guard import scrub_obj
 
-MANIFEST_SCHEMA_VERSION = 1
+#: Bumped to 2 when `submission_outcome` was added. An older manifest is refused
+#: rather than silently upgraded: it predates the ambiguity tracking, so reading
+#: it as if it had one would fabricate a claim about whether money was spent.
+MANIFEST_SCHEMA_VERSION = 2
 MANIFEST_FILENAME = "manifest.json"
 
 
@@ -95,6 +98,10 @@ class OutputRef:
     sha256: str
     size_bytes: int
     source_url_host: str = ""
+    #: What the provider called this file. Kept for the audit trail so a mismatch
+    #: is visible, and deliberately NOT what the local path is built from - the
+    #: review turned exactly this string into an arbitrary write.
+    provider_suggested_filename: str = ""
 
 
 def compute_idempotency_key(
@@ -152,6 +159,11 @@ class JobManifest:
     output_urls: dict = field(default_factory=dict)
     outputs: list[OutputRef] = field(default_factory=list)
     structural_validation: dict = field(default_factory=dict)
+    #: Whether the CREATING call is known to have produced a provider task.
+    #: `UNKNOWN` is the important value: a transport failure or 5xx on a create
+    #: may have been accepted upstream, and that ambiguity must be visible rather
+    #: than collapsed into FAILED, which would read as safe to rerun.
+    submission_outcome: str = "NOT_ATTEMPTED"
     visual_status: str = VISUAL_PENDING
     created_at: str = ""
     started_at: str | None = None

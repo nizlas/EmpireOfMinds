@@ -28,9 +28,15 @@ import secrets as _stdlib_secrets
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..artifact_paths import write_verified_bytes
+from ..capability import OperationClass
+from ..capability import require as require_capability
+from ..endpoint import parse_endpoint
 from ..errors import ErrorKind, ProviderError, classify_http_status
+from ..live_gate import credential_state
 from ..secret_guard import Credential, load_credential
 from ..transport import (
+    NO_RETRY,
     HttpRequest,
     HttpResponse,
     HttpTransport,
@@ -52,6 +58,10 @@ CREDENTIAL_ENV_VAR = "UTHANA_API_KEY"
 DEFAULT_BASE_URL = "https://uthana.com"
 BASE_URL_ENV_VAR = "UTHANA_API_BASE"
 GRAPHQL_PATH = "/graphql"
+
+#: The single paid operation this adapter can perform. Shared with the plan
+#: builder so the plan's `operation` and the capability's scope cannot drift.
+PAID_OPERATION = "character_autorig"
 
 #: Documented character-upload formats.
 SUPPORTED_MODEL_SUFFIXES = frozenset({".glb", ".gltf", ".fbx"})
@@ -108,9 +118,14 @@ class UthanaProvider:
         self.base_url = (
             self.base_url or os.environ.get(BASE_URL_ENV_VAR, "") or DEFAULT_BASE_URL
         ).rstrip("/")
-        self._credential: Credential | None = load_credential(
-            CREDENTIAL_ENV_VAR, required=self.require_credential
-        )
+        self._credential: Credential | None = None
+        # Constructing an adapter must not read a key. Building the adapter is
+        # what every offline command does - dry-run, plan, list, inspect - and a
+        # run that is going to be refused at a barrier should never have touched
+        # a credential at all. The value is loaded lazily in `_headers()`, which
+        # only runs on the authorized live path.
+        if self.require_credential:
+            load_credential(CREDENTIAL_ENV_VAR, required=True)
 
     # ------------------------------------------------------------------ identity
 
@@ -120,10 +135,15 @@ class UthanaProvider:
 
     @property
     def has_credential(self) -> bool:
-        return self._credential is not None
+        """`present`/`missing` only: the value is never materialised here."""
+        return credential_state(CREDENTIAL_ENV_VAR) == "present"
 
     def supports(self, task_type: TaskType) -> bool:
         return task_type is TaskType.CHARACTER_AUTORIG
+
+    def paid_operation_name(self, request: JobRequest) -> str:
+        """The operation name a plan and a capability must both use."""
+        return PAID_OPERATION
 
     def endpoint_for(self, task_type: TaskType) -> str:
         self._require_supported(task_type)
@@ -184,16 +204,23 @@ class UthanaProvider:
 
     # --------------------------------------------------------------- operations
 
-    def auth_smoke(self) -> AuthSmokeResult:
-        """`org` query - read-only, consumes no character slot."""
-        if self._credential is None:
+    def auth_smoke(self, capability=None) -> AuthSmokeResult:
+        """`org` query - read-only, consumes no character slot.
+
+        The capability check precedes even the presence check, because the review
+        (BLOCKER 1) measured `auth-smoke --live` reaching this method and issuing a
+        real request with the machine opt-in absent. Whether a key happens to be
+        configured is not permission to use it.
+        """
+        self._authorize(capability, "auth_smoke", OperationClass.NETWORK_READ)
+        if not self.has_credential:
             return AuthSmokeResult(
                 provider=self.name,
                 ok=False,
                 message=f"{CREDENTIAL_ENV_VAR} is not set",
                 detail={"blocked": "BLOCKED_MISSING_CREDENTIAL"},
             )
-        payload = self._graphql(ORG_QUERY)
+        payload = self._graphql(ORG_QUERY, capability=capability)
         org = (payload.get("data") or {}).get("org") or {}
         return AuthSmokeResult(
             provider=self.name,
@@ -206,13 +233,17 @@ class UthanaProvider:
             message="org query reachable",
         )
 
-    def list_characters(self) -> list[dict]:
+    def list_characters(self, capability=None) -> list[dict]:
         """Read-only inventory; used to avoid re-rigging something already present."""
-        payload = self._graphql(CHARACTERS_QUERY)
+        self._authorize(capability, "list_characters", OperationClass.NETWORK_READ)
+        payload = self._graphql(CHARACTERS_QUERY, capability=capability)
         characters = (payload.get("data") or {}).get("characters") or []
         return [c for c in characters if isinstance(c, dict)]
 
-    def submit(self, request: JobRequest) -> tuple[str, dict]:
+    def submit(self, request: JobRequest, capability=None) -> tuple[str, dict]:
+        # Authorization first, validation second, credential third. The order is
+        # the point: a refusal here has read no key and built no multipart body.
+        self._authorize(capability, PAID_OPERATION, OperationClass.PAID_CREATE)
         self.validate_request(request)
         model_path = request.inputs[0].path
         variables = self._variables(request)
@@ -231,7 +262,9 @@ class UthanaProvider:
                 headers={**self._headers(), "Content-Type": content_type},
                 body=body,
                 timeout_s=600.0,
-            )
+                capability=capability,
+            ),
+            retry=False,
         )
         payload = self._require_graphql_ok(response)
         result = (payload.get("data") or {}).get("create_character") or {}
@@ -251,10 +284,15 @@ class UthanaProvider:
             "auto_rig_confidence": result.get("auto_rig_confidence"),
         }
 
-    def fetch(self, task_type: TaskType, provider_task_id: str) -> ProviderTaskState:
+    def fetch(
+        self, task_type: TaskType, provider_task_id: str, capability=None
+    ) -> ProviderTaskState:
         """Poll the character until a downloadable bundle asset exists."""
+        self._authorize(capability, "poll", OperationClass.NETWORK_READ)
         self._require_supported(task_type)
-        payload = self._graphql(CHARACTER_QUERY, variables={"id": provider_task_id})
+        payload = self._graphql(
+            CHARACTER_QUERY, variables={"id": provider_task_id}, capability=capability
+        )
         character = (payload.get("data") or {}).get("character")
         if not isinstance(character, dict) or not character.get("id"):
             raise ProviderError(
@@ -289,6 +327,10 @@ class UthanaProvider:
                 OutputUrl(
                     kind="rigged_character_glb",
                     url=self.character_bundle_url(provider_task_id, "glb"),
+                    # ADVISORY ONLY. This string is provider-controlled and is
+                    # never used as a path: the review turned exactly this field
+                    # into an arbitrary write. The local filename is derived from
+                    # the job id and the neutral `kind` instead.
                     suggested_filename=f"{provider_task_id}_rigged.glb",
                 ),
             ),
@@ -300,8 +342,9 @@ class UthanaProvider:
             self._invalid(f"character bundle format {file_format!r} invalid; expected glb or fbx")
         return f"{self.base_url}/motion/bundle/{character_id}/character.{file_format}"
 
-    def cancel(self, task_type: TaskType, provider_task_id: str) -> dict:
+    def cancel(self, task_type: TaskType, provider_task_id: str, capability=None) -> dict:
         """Uthana exposes no documented character-cancel mutation."""
+        self._authorize(capability, "cancel", OperationClass.REMOTE_MUTATION)
         self._require_supported(task_type)
         raise ProviderError(
             ErrorKind.INVALID_REQUEST,
@@ -310,19 +353,47 @@ class UthanaProvider:
             provider=self.name,
         )
 
-    def download(self, url: str, destination: Path) -> int:
-        """Bundle downloads are authenticated, unlike Meshy's signed URLs."""
+    def download(self, url: str, destination: Path, capability=None) -> int:
+        """Bundle downloads are authenticated, unlike Meshy's signed URLs.
+
+        Because the credential travels with this request, the capability's endpoint
+        is what keeps it from travelling to somewhere else.
+        """
+        self._authorize(capability, "download", OperationClass.NETWORK_READ)
         response = self.transport.send(
-            HttpRequest(method="GET", url=url, headers=self._headers(), timeout_s=600.0)
+            HttpRequest(
+                method="GET",
+                url=url,
+                headers=self._headers(),
+                timeout_s=600.0,
+                capability=capability,
+            )
         )
         error = self._classify(response)
         if error is not None:
             raise error
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(response.body)
+        write_verified_bytes(destination, response.body)
         return len(response.body)
 
     # ------------------------------------------------------------------ internals
+
+    def _authorize(self, capability, operation: str, operation_class: OperationClass):
+        """Refuse before anything is read, built or sent."""
+        return require_capability(
+            capability,
+            provider=self.name,
+            operation=operation,
+            operation_class=operation_class,
+            endpoint=self.endpoint_identity(),
+        )
+
+    def endpoint_identity(self):
+        """The normalised destination this adapter will actually use.
+
+        Recomputed from the adapter's own `base_url`, so a capability minted for a
+        different endpoint cannot be spent here even if it is otherwise valid.
+        """
+        return parse_endpoint(self.name, self.base_url, require_https=False)
 
     def _require_supported(self, task_type: TaskType) -> None:
         if not self.supports(task_type):
@@ -346,6 +417,9 @@ class UthanaProvider:
         }
 
     def _headers(self) -> dict[str, str]:
+        """The one place a credential value is read. Only reached on a live call."""
+        if self._credential is None:
+            self._credential = load_credential(CREDENTIAL_ENV_VAR, required=False)
         if self._credential is None:
             raise ProviderError(
                 ErrorKind.AUTH, f"{CREDENTIAL_ENV_VAR} is not set", provider=self.name
@@ -361,17 +435,25 @@ class UthanaProvider:
             error.retry_after_s = parse_retry_after(response)
         return error
 
-    def _send(self, request: HttpRequest) -> HttpResponse:
+    def _send(self, request: HttpRequest, *, retry: bool = True) -> HttpResponse:
+        """Send a request. `retry=False` is mandatory for anything that creates.
+
+        A timeout or a dropped connection on a create is AMBIGUOUS: the character
+        may well have been accepted and be rigging right now. Retrying would then
+        buy a second one. Uthana publishes no idempotency key for
+        `create_character`, so there is no safe retry to make and the ambiguity is
+        surfaced instead of being papered over.
+        """
         response, _retries = send_with_retry(
             self.transport,
             request,
-            policy=self.retry_policy,
+            policy=self.retry_policy if retry else NO_RETRY,
             provider=self.name,
             classify=self._classify,
         )
         return response
 
-    def _graphql(self, query: str, variables: dict | None = None) -> dict:
+    def _graphql(self, query: str, variables: dict | None = None, capability=None) -> dict:
         body = {"query": query}
         if variables is not None:
             body["variables"] = variables
@@ -381,6 +463,7 @@ class UthanaProvider:
                 url=f"{self.base_url}{GRAPHQL_PATH}",
                 headers={**self._headers(), "Content-Type": "application/json"},
                 body=json.dumps(body).encode("utf-8"),
+                capability=capability,
             )
         )
         return self._require_graphql_ok(response)

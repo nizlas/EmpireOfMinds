@@ -22,10 +22,27 @@ import json
 import sys
 from pathlib import Path
 
+from .artifact_paths import UnsafeOutputPath
+from .capability import CapabilityRefused
+from .command_risk import UnclassifiedCommand, risk_for
 from .errors import ProviderError
 from .humanoid_gate import evaluate_candidates
+from .live_gate import (
+    OPT_IN_ENV_VAR,
+    OPT_IN_REQUIRED_VALUE,
+    LiveAuthorization,
+    LiveGateRefusal,
+)
 from .manifest import JobStatus
 from .orchestrator import JobOrchestrator, LiveCallNotAuthorized, provider_factory_for
+from .paid_executor import PaidSubmission, execute_paid_submission
+from .provider_plan import (
+    PLAN_DIGEST_KEY,
+    build_autorig_plan,
+    build_meshy_multiview_plan,
+    build_meshy_shield_3d_plan,
+)
+from .provider_plan import write_plan as write_provider_plan
 from .providers import KNOWN_PROVIDERS, PROVIDER_MESHY, PROVIDER_UTHANA
 from .providers.base import TaskType
 from .rig_ingest import (
@@ -51,6 +68,14 @@ def emit(payload: object) -> None:
     print(json.dumps(scrub_obj(payload), indent=2, sort_keys=True, default=str))
 
 
+def authorization_for(args) -> LiveAuthorization:
+    """Collect the three barriers. Reads the opt-in variable, never a credential."""
+    return LiveAuthorization.from_environment(
+        live=bool(getattr(args, "live", False)),
+        confirmed_plan_digest=str(getattr(args, "confirm_plan", "") or ""),
+    )
+
+
 def build_orchestrator(args) -> JobOrchestrator:
     store = JobStore.create(repo_root_from_here())
     factory = provider_factory_for(
@@ -58,17 +83,60 @@ def build_orchestrator(args) -> JobOrchestrator:
         retry_policy=RetryPolicy(),
         require_credential=False,
     )
-    return JobOrchestrator(store=store, provider_factory=factory, live=bool(args.live))
+    return JobOrchestrator(
+        store=store,
+        provider_factory=factory,
+        # The gate object itself, not a pair of booleans. It is the only thing
+        # that can mint a capability, and it cannot mint a paid one.
+        authorization=authorization_for(args),
+    )
+
+
+def assert_command_classified(command: str):
+    """Every command declares its risk class centrally, or nothing runs.
+
+    Called on the way into `main()` so the failure mode for a new unclassified
+    command is a loud refusal rather than an unguarded provider call.
+    """
+    return risk_for(command)
 
 
 # --------------------------------------------------------------------- commands
 
 
 def cmd_auth_smoke(args) -> int:
+    """A free, read-only credential probe - which is still real provider traffic.
+
+    The review (BLOCKER 1) measured this command issuing a live request with only
+    `--live`, because it checked its own flag instead of the central gate. It now
+    mints a NETWORK_READ capability like every other network command, so both
+    non-paid barriers apply and the refusal happens before the credential is read.
+    """
     orchestrator = build_orchestrator(args)
+    authorization = authorization_for(args)
     results = []
     for name in args.providers or list(KNOWN_PROVIDERS):
         provider = orchestrator.provider_factory(name)
+        try:
+            capability = authorization.mint_network_capability(
+                provider=name,
+                operation="auth_smoke",
+                endpoint=provider.endpoint_identity(),
+            )
+        except LiveGateRefusal as exc:
+            # Reported per provider rather than raised, so `auth-smoke` still
+            # answers for every provider in one run. Nothing was sent.
+            results.append(
+                {
+                    "provider": name,
+                    "ok": False,
+                    "status": "NOT_AUTHORIZED",
+                    "credential_env_var": provider.credential_env_var,
+                    "refused": exc.code,
+                    "message": exc.message,
+                }
+            )
+            continue
         if not provider.has_credential:
             results.append(
                 {
@@ -80,19 +148,8 @@ def cmd_auth_smoke(args) -> int:
                 }
             )
             continue
-        if not args.live:
-            results.append(
-                {
-                    "provider": name,
-                    "ok": False,
-                    "status": "NOT_ATTEMPTED",
-                    "credential_env_var": provider.credential_env_var,
-                    "message": "credential present; re-run with --live to probe the provider",
-                }
-            )
-            continue
         try:
-            outcome = provider.auth_smoke()
+            outcome = provider.auth_smoke(capability)
             results.append(
                 {
                     "provider": name,
@@ -113,7 +170,87 @@ def cmd_auth_smoke(args) -> int:
                     "error": exc.to_manifest_dict(),
                 }
             )
-    emit({"command": "auth-smoke", "live": bool(args.live), "results": results})
+    emit(
+        {
+            "command": "auth-smoke",
+            "declared_risk": getattr(args, "declared_risk", ""),
+            "live": authorization.live,
+            "results": results,
+        }
+    )
+    return 0
+
+
+def cmd_provider_plan(args) -> int:
+    """Produce the canonical plan for a paid operation. Fully offline.
+
+    This is the only way to obtain the digest that barrier 3 accepts, and it
+    deliberately cannot submit anything: the operator reads the plan, then passes
+    its digest back on a separate authorized command.
+    """
+    repo_root = repo_root_from_here()
+    path = Path(args.glb) if Path(args.glb).is_absolute() else repo_root / args.glb
+    plan = build_autorig_plan(
+        repo_root=repo_root,
+        input_path=path,
+        character_name=args.name or "",
+    )
+    if args.out:
+        destination = repo_root / args.out
+        plan["plan_path"] = (
+            write_provider_plan(plan, destination).relative_to(repo_root).as_posix()
+        )
+    emit(
+        {
+            "command": "provider-plan",
+            "network_used": False,
+            "credential_read": False,
+            "plan": plan,
+            "confirm_with": f"--confirm-plan {plan[PLAN_DIGEST_KEY]}",
+            "next_step": (
+                "read the plan; if it is correct, run the paid command with --live, "
+                f"{OPT_IN_ENV_VAR}={OPT_IN_REQUIRED_VALUE} and --confirm-plan "
+                f"{plan[PLAN_DIGEST_KEY]}"
+            ),
+        }
+    )
+    # A plan whose own preflight refuses the input is a document, not permission.
+    return 0 if plan["executable"] else 3
+
+
+def run_paid_command(
+    args,
+    *,
+    command: str,
+    provider: str,
+    build_plan,
+    build_request,
+) -> int:
+    """The one way a CLI command may spend money.
+
+    Every paid command hands over a plan builder and a request builder and gets the
+    same ordering: recompute, verify executable, verify the confirmed digest, verify
+    the endpoint, claim exclusively, mint the paid capability, submit exactly once.
+    None of that lives in the command any more, which is what stopped the three
+    paid commands from drifting apart.
+    """
+    orchestrator = build_orchestrator(args)
+    result = execute_paid_submission(
+        PaidSubmission(
+            command=command,
+            provider=provider,
+            build_plan=build_plan,
+            build_request=build_request,
+        ),
+        authorization=authorization_for(args),
+        orchestrator=orchestrator,
+        provider_factory=orchestrator.provider_factory,
+    )
+    report = orchestrator.inspect(result.manifest.job_id)
+    report["approved_plan_sha256"] = result.digest
+    emit(report)
+    if result.manifest.status_enum is JobStatus.BLOCKED_MISSING_CREDENTIAL:
+        return 3
     return 0
 
 
@@ -155,12 +292,28 @@ def cmd_shield_multiview(args) -> int:
         )
         return 3
 
-    request = build_multiview_request(provider=PROVIDER_MESHY, front_reference=repo_root / front)
+    front_path = repo_root / front
+    request = build_multiview_request(provider=PROVIDER_MESHY, front_reference=front_path)
     if args.submit:
-        manifest = orchestrator.submit(request, force_new_attempt=args.force_new_attempt)
-        emit(orchestrator.inspect(manifest.job_id))
-        return 0 if manifest.status_enum is not JobStatus.BLOCKED_MISSING_CREDENTIAL else 3
-    emit({"command": "shield-multiview", "mode": "dry-run", "plan": orchestrator.dry_run(request)})
+        return run_paid_command(
+            args,
+            command="shield-multiview",
+            provider=PROVIDER_MESHY,
+            build_plan=lambda: build_meshy_multiview_plan(
+                repo_root=repo_root, front_reference=front_path
+            ),
+            build_request=lambda: request,
+        )
+    plan = build_meshy_multiview_plan(repo_root=repo_root, front_reference=front_path)
+    emit(
+        {
+            "command": "shield-multiview",
+            "mode": "dry-run",
+            "plan": orchestrator.dry_run(request),
+            "provider_plan": plan,
+            "confirm_with": f"--confirm-plan {plan[PLAN_DIGEST_KEY]}",
+        }
+    )
     return 0
 
 
@@ -205,9 +358,17 @@ def cmd_shield_3d(args) -> int:
         emit({"command": "shield-3d", "mode": "dry-run", "plan": orchestrator.dry_run(request)})
         return 0
 
-    manifest = orchestrator.submit(request, force_new_attempt=args.force_new_attempt)
-    emit(orchestrator.inspect(manifest.job_id))
-    return 0
+    return run_paid_command(
+        args,
+        command="shield-3d",
+        provider=PROVIDER_MESHY,
+        build_plan=lambda: build_meshy_shield_3d_plan(
+            repo_root=repo_root,
+            ordered_views=tuple(views),
+            input_task_id=args.input_task_id,
+        ),
+        build_request=lambda: request,
+    )
 
 
 def cmd_submit(args) -> int:
@@ -452,9 +613,17 @@ def cmd_autorig(args) -> int:
     if not args.submit:
         emit({"command": "autorig", "mode": "dry-run", "gate": candidate, "plan": orchestrator.dry_run(request)})
         return 0
-    manifest = orchestrator.submit(request, force_new_attempt=args.force_new_attempt)
-    emit(orchestrator.inspect(manifest.job_id))
-    return 0
+
+    # Paid from here on, through the same executor as the two shield commands.
+    return run_paid_command(
+        args,
+        command="autorig",
+        provider=PROVIDER_UTHANA,
+        build_plan=lambda: build_autorig_plan(
+            repo_root=repo_root, input_path=path, character_name=args.name or ""
+        ),
+        build_request=lambda: request,
+    )
 
 
 # ----------------------------------------------------------------------- parser
@@ -468,6 +637,22 @@ def _add_rig_ingest_flags(node) -> None:
         help="do not run the hand-fixture ingestion chain on a downloaded rig",
     )
     node.add_argument("--godot", help="explicit Godot executable for the ingestion chain")
+
+
+def _add_confirm_plan_flag(node) -> None:
+    """Barrier 3, spelled identically on every paid command.
+
+    It used to exist only on `autorig`, which is precisely why the two shield
+    submits could not be asked to confirm anything.
+    """
+    node.add_argument(
+        "--confirm-plan",
+        default="",
+        help=(
+            "sha256 of the exact plan this command prints in dry-run mode; required for "
+            "--submit. A stale, foreign or edited plan is refused"
+        ),
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -490,6 +675,7 @@ def build_parser() -> argparse.ArgumentParser:
     multiview.add_argument("--front", help="canonical front reference, relative to the repo root")
     multiview.add_argument("--submit", action="store_true", help="PAID: create the image task")
     multiview.add_argument("--force-new-attempt", action="store_true")
+    _add_confirm_plan_flag(multiview)
     multiview.set_defaults(func=cmd_shield_multiview)
 
     three_d = sub.add_parser("shield-3d", help="multi-image-to-3D job for the shield candidate")
@@ -502,12 +688,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="record that a human verified every visual check; required before submitting",
     )
     three_d.add_argument("--force-new-attempt", action="store_true")
+    _add_confirm_plan_flag(three_d)
     three_d.set_defaults(func=cmd_shield_3d)
+
+    provider_plan_cmd = sub.add_parser(
+        "provider-plan",
+        help=(
+            "OFFLINE: produce the canonical plan and its sha256 for a paid operation. "
+            "Exit 0 executable, 3 the plan's own preflight refuses the input"
+        ),
+    )
+    provider_plan_cmd.add_argument("glb", help="local humanoid mesh the plan would upload")
+    provider_plan_cmd.add_argument("--name", help="character name; defaults to the filename")
+    provider_plan_cmd.add_argument("--out", help="also write the plan to this path")
+    provider_plan_cmd.set_defaults(func=cmd_provider_plan)
 
     autorig = sub.add_parser("autorig", help="auto-rig a humanoid after the pre-upload gate")
     autorig.add_argument("glb")
     autorig.add_argument("--name", help="character name at the provider; defaults to the filename")
     autorig.add_argument("--submit", action="store_true", help="PAID: upload and rig")
+    _add_confirm_plan_flag(autorig)
     autorig.add_argument("--force-new-attempt", action="store_true")
     autorig.set_defaults(func=cmd_autorig)
 
@@ -588,9 +788,30 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        # Structural, not advisory: a command with no declared risk class does not
+        # run at all, so the next command cannot arrive unguarded by omission.
+        risk = assert_command_classified(str(args.command))
+    except UnclassifiedCommand as exc:
+        emit({"error": "COMMAND_RISK_UNDECLARED", "message": str(exc)})
+        return 7
+    try:
+        args.declared_risk = risk.value
         return int(args.func(args) or 0)
+    except LiveGateRefusal as exc:
+        # A barrier refusal: nothing was sent, no credential was read.
+        emit({"error": exc.code, **exc.to_dict()})
+        return 4
+    except CapabilityRefused as exc:
+        # An outbound operation reached the boundary without authorization. Same
+        # exit code as a barrier refusal: from an operator's view it is the same
+        # answer - nothing was sent.
+        emit({"error": exc.code, **exc.to_dict()})
+        return 4
+    except UnsafeOutputPath as exc:
+        emit({"error": exc.code, "message": str(exc), "network_reached": False})
+        return 4
     except LiveCallNotAuthorized as exc:
-        emit({"error": "LIVE_NOT_AUTHORIZED", "message": str(exc)})
+        emit({"error": exc.code, "message": str(exc), "network_reached": False})
         return 4
     except ProviderError as exc:
         emit({"error": "PROVIDER_ERROR", "detail": exc.to_manifest_dict()})

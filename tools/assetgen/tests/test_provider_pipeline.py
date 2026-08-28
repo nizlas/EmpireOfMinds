@@ -17,7 +17,9 @@ from pathlib import Path
 import pytest
 
 from tools.assetgen import CONTRACT_VERSION
+from tools.assetgen.capability import CAPABILITY_REQUIRED, CapabilityRefused
 from tools.assetgen.errors import ErrorKind, ProviderError
+from tools.assetgen.live_gate import LiveGateRefusal
 from tools.assetgen.manifest import JobStatus
 from tools.assetgen.orchestrator import JobOrchestrator, LiveCallNotAuthorized
 from tools.assetgen.providers import build_provider
@@ -25,6 +27,12 @@ from tools.assetgen.providers.base import ImageInput, JobRequest, TaskStatus, Ta
 from tools.assetgen.secret_guard import reset_registered_secrets_for_tests, scrub
 from tools.assetgen.store import JobStore
 from tools.assetgen.transport import HttpRequest, HttpResponse, RetryPolicy
+
+from tools.assetgen.tests.authorization_support import (
+    granted_authorization,
+    paid_capability,
+    submit_authorized,
+)
 
 FAKE_MESHY_KEY = "test-not-a-real-meshy-key-0000"
 FAKE_UTHANA_KEY = "test-not-a-real-uthana-key-0000"
@@ -134,8 +142,14 @@ def orchestrator(tmp_path: Path):
                 )
             return cache[name]
 
+        # Authority is an object, not a pair of booleans. `live=False` means the
+        # run holds NO authorization at all, which is what a default developer
+        # command line produces: every network operation must refuse.
         return JobOrchestrator(
-            store=store, provider_factory=factory, live=live, sleep=lambda _s: None
+            store=store,
+            provider_factory=factory,
+            authorization=granted_authorization(live=True, opt_in=True) if live else None,
+            sleep=lambda _s: None,
         )
 
     return build
@@ -205,7 +219,7 @@ def test_pending_to_in_progress_to_succeeded_downloads_immediately(orchestrator,
         transport.prime("GET", url, HttpResponse(status=200, body=b"\x89PNG-bytes"))
 
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
     assert manifest.provider_task_id == "task-abc-123"
     assert manifest.status == JobStatus.SUBMITTED.value
 
@@ -236,7 +250,7 @@ def test_resume_uses_stored_task_id_and_does_not_resubmit(orchestrator, png):
     transport.prime("GET", "https://cdn.meshy.test/v1.png", HttpResponse(status=200, body=b"png"))
 
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
     # Simulate an interrupted run: the task exists remotely, nothing downloaded.
     orch.poll(manifest.job_id, interval_s=0.0, download=False)
 
@@ -260,8 +274,8 @@ def test_identical_rerun_resumes_instead_of_paying_twice(orchestrator, png):
     transport.prime("GET", "https://cdn.meshy.test/v1.png", HttpResponse(status=200, body=b"png"))
 
     orch = orchestrator(transport)
-    first = orch.submit(image_request(png))
-    second = orch.submit(image_request(png))
+    first = submit_authorized(orch, image_request(png))
+    second = submit_authorized(orch, image_request(png))
 
     assert second.job_id == first.job_id
     assert second.provider_task_id == "task-abc-123"
@@ -281,8 +295,8 @@ def test_force_new_attempt_creates_a_distinct_job(orchestrator, png):
     )
 
     orch = orchestrator(transport)
-    first = orch.submit(image_request(png))
-    forced = orch.submit(image_request(png), force_new_attempt=True)
+    first = submit_authorized(orch, image_request(png))
+    forced = submit_authorized(orch, image_request(png), force_new_attempt=True)
 
     assert forced.job_id != first.job_id
     assert forced.attempt_id != first.attempt_id
@@ -337,7 +351,7 @@ def test_rate_limit_retries_the_same_task_without_resubmitting(orchestrator, png
     transport.prime("GET", "https://cdn.meshy.test/v1.png", HttpResponse(status=200, body=b"png"))
 
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
     final = orch.poll(manifest.job_id, interval_s=0.0)
 
     assert final.status == JobStatus.DOWNLOADED.value
@@ -350,7 +364,7 @@ def test_insufficient_credits_is_blocking_not_retryable(orchestrator, png):
         "POST", IMAGE_ENDPOINT, json_response(402, {"message": "insufficient credits"})
     )
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
 
     assert manifest.status == JobStatus.FAILED.value
     assert manifest.error["kind"] == ErrorKind.PAYMENT.value
@@ -364,12 +378,22 @@ def test_auth_failure_is_classified_and_blocking(orchestrator, png):
     transport = FakeTransport()
     transport.prime("POST", IMAGE_ENDPOINT, json_response(401, {"message": "unauthorized"}))
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
     assert manifest.error["kind"] == ErrorKind.AUTH.value
     assert transport.count("POST", IMAGE_ENDPOINT) == 1
 
 
-def test_transient_5xx_retries_then_succeeds(orchestrator, png):
+def test_a_5xx_on_a_paid_create_is_never_retried_into_a_second_task(orchestrator, png):
+    """A create is not retried, even on a kind that is retryable elsewhere.
+
+    A 503 from a task-creation endpoint is ambiguous: the provider may have
+    accepted and started billing the task before failing to answer. Retrying
+    would then buy a second one. This test used to assert the opposite - that the
+    create retried and succeeded - which is precisely the behaviour that turns one
+    approved job into two charges, so it now asserts the refusal instead.
+
+    Poll and download keep retrying; they read an already-paid task.
+    """
     transport = FakeTransport()
     transport.prime(
         "POST",
@@ -378,8 +402,15 @@ def test_transient_5xx_retries_then_succeeds(orchestrator, png):
         json_response(202, {"result": "task-abc-123"}),
     )
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
-    assert manifest.provider_task_id == "task-abc-123"
+    manifest = submit_authorized(orch, image_request(png))
+
+    assert transport.count("POST", IMAGE_ENDPOINT) == 1, "the create must be attempted exactly once"
+    assert manifest.provider_task_id is None
+    # The outcome is UNKNOWN rather than FAILED: "failed" would read as safe to
+    # rerun, and rerunning an ambiguous create is how you pay twice.
+    assert manifest.submission_outcome == "UNKNOWN"
+    assert manifest.error["kind"] == ErrorKind.TRANSIENT.value
+    assert any("second create could pay twice" in note for note in manifest.notes)
 
 
 def test_provider_failure_is_recorded_with_the_task_id_preserved(orchestrator, png):
@@ -394,7 +425,7 @@ def test_provider_failure_is_recorded_with_the_task_id_preserved(orchestrator, p
         ),
     )
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
     final = orch.poll(manifest.job_id, interval_s=0.0)
 
     assert final.status == JobStatus.FAILED.value
@@ -411,7 +442,7 @@ def test_succeeded_without_output_is_a_missing_output_error(orchestrator, png):
         json_response(200, task_payload("SUCCEEDED", progress=100, image_urls=[])),
     )
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
     final = orch.poll(manifest.job_id, interval_s=0.0)
     assert final.error["kind"] == ErrorKind.MISSING_OUTPUT.value
 
@@ -428,7 +459,7 @@ def test_expired_download_url_is_distinguished_from_a_generic_failure(orchestrat
         "GET", "https://cdn.meshy.test/v1.png", HttpResponse(status=403, body=b"expired")
     )
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
     final = orch.poll(manifest.job_id, interval_s=0.0)
 
     assert final.error["kind"] == ErrorKind.EXPIRED_URL.value
@@ -443,7 +474,7 @@ def test_unknown_status_is_a_contract_error_not_a_guess(orchestrator, png):
         "GET", f"{IMAGE_ENDPOINT}/task-abc-123", json_response(200, task_payload("QUEUED_MAYBE"))
     )
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
     final = orch.poll(manifest.job_id, interval_s=0.0)
     assert final.error["kind"] == ErrorKind.CONTRACT.value
 
@@ -493,7 +524,7 @@ def test_3d_job_collects_both_remeshed_and_pre_remeshed_models(orchestrator, png
         transport.prime("GET", url, HttpResponse(status=200, body=b"bytes"))
 
     orch = orchestrator(transport)
-    manifest = orch.submit(model_3d_request(png))
+    manifest = submit_authorized(orch, model_3d_request(png))
     final = orch.poll(manifest.job_id, interval_s=0.0)
 
     kinds = {ref.kind for ref in final.outputs}
@@ -516,7 +547,7 @@ def test_pre_remesh_flag_without_remesh_is_rejected_before_spending(orchestrator
         parameters={"should_remesh": False, "save_pre_remeshed_model": True},
         label="bad_3d",
     )
-    manifest = orch.submit(request)
+    manifest = submit_authorized(orch, request)
     assert manifest.status == JobStatus.BLOCKED_PREFLIGHT.value
     assert manifest.provider_task_id is None
     assert transport.calls == [], "local validation must reject before any network call"
@@ -525,7 +556,7 @@ def test_pre_remesh_flag_without_remesh_is_rejected_before_spending(orchestrator
 def test_multi_view_with_aspect_ratio_is_rejected_before_spending(orchestrator, png):
     orch = orchestrator(FakeTransport())
     request = image_request(png, parameters={"aspect_ratio": "1:1"})
-    manifest = orch.submit(request)
+    manifest = submit_authorized(orch, request)
     assert manifest.status == JobStatus.BLOCKED_PREFLIGHT.value
     assert "aspect_ratio" in manifest.error["message"]
 
@@ -543,7 +574,7 @@ def test_images_to_3d_accepts_chaining_from_an_image_task(orchestrator, png):
         label="chained_3d",
         input_task_id="task-abc-123",
     )
-    manifest = orch.submit(request)
+    manifest = submit_authorized(orch, request)
     assert manifest.provider_task_id == "task-3d-2"
     body = json.loads(transport.calls[-1].body.decode("utf-8"))
     assert body["input_task_id"] == "task-abc-123"
@@ -554,9 +585,20 @@ def test_images_to_3d_accepts_chaining_from_an_image_task(orchestrator, png):
 
 
 def test_network_operations_refuse_without_the_live_flag(orchestrator, png):
-    orch = orchestrator(FakeTransport(), live=False)
-    with pytest.raises(LiveCallNotAuthorized):
+    """A run with no authorization cannot create paid work, minted or not.
+
+    Both halves matter. `submit` with no capability is refused at the boundary,
+    and a run that holds no authorization cannot mint one in the first place - so
+    there is no order of operations that gets a request out.
+    """
+    transport = FakeTransport()
+    orch = orchestrator(transport, live=False)
+    with pytest.raises(CapabilityRefused) as refusal:
         orch.submit(image_request(png))
+    assert refusal.value.code == CAPABILITY_REQUIRED
+    with pytest.raises(LiveGateRefusal):
+        paid_capability(orch, image_request(png), live=False)
+    assert transport.calls == []
 
 
 def test_dry_run_never_touches_the_network(orchestrator, png):
@@ -576,7 +618,7 @@ def test_missing_credential_blocks_without_fabricating_a_task_id(orchestrator, p
     monkeypatch.delenv("MESHY_API_KEY", raising=False)
     transport = FakeTransport()
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
 
     assert manifest.status == JobStatus.BLOCKED_MISSING_CREDENTIAL.value
     assert manifest.provider_task_id is None
@@ -594,7 +636,7 @@ def test_cancel_is_only_ever_explicit(orchestrator, png):
     transport.prime("DELETE", f"{IMAGE_ENDPOINT}/task-abc-123", HttpResponse(status=204))
 
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
     orch.poll(manifest.job_id, interval_s=0.0)
     # A failed poll must not have cancelled anything on its own.
     assert transport.count("DELETE", f"{IMAGE_ENDPOINT}/task-abc-123") == 0
@@ -615,7 +657,7 @@ def test_no_secret_reaches_a_manifest_or_a_response_snapshot(orchestrator, png):
     transport.prime("GET", "https://cdn.meshy.test/v1.png", HttpResponse(status=200, body=b"png"))
 
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
     orch.poll(manifest.job_id, interval_s=0.0)
 
     for path in orch.store.job_dir(manifest.job_id).rglob("*.json"):
@@ -644,7 +686,7 @@ def test_error_message_never_echoes_the_credential(orchestrator, png):
         json_response(401, {"message": f"bad key {FAKE_MESHY_KEY}"}),
     )
     orch = orchestrator(transport)
-    manifest = orch.submit(image_request(png))
+    manifest = submit_authorized(orch, image_request(png))
     assert FAKE_MESHY_KEY not in json.dumps(manifest.error)
 
 
