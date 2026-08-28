@@ -35,6 +35,9 @@ COMMAND_RISK: dict[str, OperationClass] = {
     "validate-shield": OperationClass.OFFLINE,
     "humanoid-gate": OperationClass.OFFLINE,
     "ingest-rig": OperationClass.OFFLINE,
+    # Runs the local Godot binary to bake a rest pose. A subprocess is not
+    # network access: it takes a local file and writes a local file.
+    "static-export": OperationClass.OFFLINE,
     # ---- reaches the provider, changes nothing there
     "auth-smoke": OperationClass.NETWORK_READ,
     "poll": OperationClass.NETWORK_READ,

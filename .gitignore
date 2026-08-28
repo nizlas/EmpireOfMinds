@@ -78,3 +78,4 @@ artifacts/assetgen/submissions/
 # an ACCEPTED chain publishes an artifact to its unit's asset folder, and that
 # published file IS versioned. Staging must never look like an accepted fixture.
 game/artifacts/fixtures/staging/
+game/artifacts/static_export/staging/

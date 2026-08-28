@@ -47,6 +47,12 @@ FORBIDDEN_NAME_CHARS = set('<>:"|?*\\/\x00')
 #: What a trusted generated name is allowed to look like, and nothing else.
 SAFE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$")
 
+#: `os.open` defaults to TEXT mode on Windows, where every 0x0A in the payload is
+#: written as 0x0D 0x0A. A GLB, a PNG or a provider bundle written that way is
+#: silently corrupted and longer than its own declared header says. `O_BINARY`
+#: does not exist on POSIX, hence the lookup.
+_BINARY_FLAG = getattr(os, "O_BINARY", 0)
+
 
 class UnsafeOutputPath(ValueError):
     """A destination that is not provably inside the intended artifact root."""
@@ -167,7 +173,7 @@ def write_verified_bytes(destination: Path, payload: bytes) -> Path:
     target = Path(destination)
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_name(target.name + ".partial")
-    handle = os.open(temporary, os.O_CREAT | os.O_TRUNC | os.O_WRONLY)
+    handle = os.open(temporary, os.O_CREAT | os.O_TRUNC | os.O_WRONLY | _BINARY_FLAG)
     try:
         os.write(handle, payload)
         os.fsync(handle)
@@ -187,7 +193,7 @@ def write_bytes_within(root: Path, name: str, payload: bytes) -> Path:
     destination = resolve_within(root, name)
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name(destination.name + ".partial")
-    handle = os.open(temporary, os.O_CREAT | os.O_TRUNC | os.O_WRONLY)
+    handle = os.open(temporary, os.O_CREAT | os.O_TRUNC | os.O_WRONLY | _BINARY_FLAG)
     try:
         os.write(handle, payload)
         os.fsync(handle)

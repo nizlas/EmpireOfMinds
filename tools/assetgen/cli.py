@@ -52,6 +52,12 @@ from .rig_ingest import (
 )
 from .secret_guard import scrub_obj
 from .shield_analysis import analyze_shield_file, compare_pre_and_post_remesh
+from .static_export import (
+    DEFAULT_CANDIDATE_ROOT,
+    GodotNotAvailable,
+    StaticExportError,
+    export_static_candidate,
+)
 from .shield_pipeline import (
     build_multiview_request,
     build_shield_3d_request,
@@ -573,6 +579,57 @@ def cmd_humanoid_gate(args) -> int:
     return 0 if report["conclusion"] == "SAFE_INPUT_AVAILABLE" else 3
 
 
+def cmd_static_export(args) -> int:
+    """OFFLINE: bake a rigged humanoid into a static unrigged candidate.
+
+    Reaches no provider, reads no credential and constructs no request: the only
+    subprocess is the local Godot binary, which evaluates the rest pose.
+    """
+    repo_root = repo_root_from_here()
+    source = Path(args.glb) if Path(args.glb).is_absolute() else repo_root / args.glb
+    candidate_root = (
+        Path(args.candidate_root)
+        if Path(args.candidate_root).is_absolute()
+        else repo_root / args.candidate_root
+    )
+    workspace = candidate_root / "_work"
+    try:
+        provenance = export_static_candidate(
+            source_glb=source,
+            project_path=repo_root / "game",
+            candidate_root=candidate_root,
+            output_name=args.out_name,
+            workspace=workspace,
+            godot_executable=args.godot,
+            verify_reimport=not args.no_verify_reimport,
+        )
+    except StaticExportError as exc:
+        emit({"command": "static-export", "refused": exc.code, "detail": exc.detail})
+        return 3
+    except GodotNotAvailable as exc:
+        emit({"command": "static-export", "refused": "GODOT_NOT_AVAILABLE", "detail": str(exc)})
+        return 1
+    finally:
+        # Intermediates only, each removed by exact name inside the workspace.
+        for leftover in ("bake_report.json", "bake_arrays.bin", "reimport_report.json"):
+            candidate = workspace / leftover
+            if candidate.is_file():
+                candidate.unlink()
+        if workspace.is_dir() and not any(workspace.iterdir()):
+            workspace.rmdir()
+
+    emit({"command": "static-export", **provenance})
+    structural = provenance.get("structural_validation") or {}
+    geometry = provenance.get("geometry_comparison") or {}
+    reimport = provenance.get("godot_reimport") or {}
+    accepted = (
+        bool(structural.get("passed"))
+        and bool(geometry.get("passed"))
+        and (not reimport.get("performed") or bool(reimport.get("passed")))
+    )
+    return 0 if accepted else 3
+
+
 def cmd_autorig(args) -> int:
     """Auto-rig a humanoid. Gated on the pre-upload checks passing first."""
     orchestrator = build_orchestrator(args)
@@ -781,6 +838,31 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("paths", nargs="*")
     gate.add_argument("--out", help="also write the report to this path")
     gate.set_defaults(func=cmd_humanoid_gate)
+
+    static_export = sub.add_parser(
+        "static-export",
+        help=(
+            "OFFLINE: bake a rigged humanoid's rest pose into a static, unrigged GLB "
+            "candidate. Exit 0 validated, 3 the export or its validation refused"
+        ),
+    )
+    static_export.add_argument("glb", help="rigged humanoid inside the Godot project")
+    static_export.add_argument(
+        "--out-name",
+        help="output filename inside the candidate root; defaults to a trusted derived name",
+    )
+    static_export.add_argument(
+        "--candidate-root",
+        default=str(DEFAULT_CANDIDATE_ROOT),
+        help="ignored local directory the candidate and its provenance are written to",
+    )
+    static_export.add_argument(
+        "--no-verify-reimport",
+        action="store_true",
+        help="skip the Godot re-import check (only for a machine without the engine)",
+    )
+    static_export.add_argument("--godot", help="explicit Godot executable")
+    static_export.set_defaults(func=cmd_static_export)
 
     return parser
 

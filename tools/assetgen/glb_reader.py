@@ -57,6 +57,7 @@ class Primitive:
     triangles: np.ndarray  # (T, 3) int64 into positions
     has_normals: bool
     has_uvs: bool
+    has_tangents: bool = False
 
     @property
     def triangle_count(self) -> int:
@@ -407,4 +408,5 @@ def _extract_one_primitive(
         triangles=triangles,
         has_normals="NORMAL" in attributes,
         has_uvs="TEXCOORD_0" in attributes,
+        has_tangents="TANGENT" in attributes,
     )
