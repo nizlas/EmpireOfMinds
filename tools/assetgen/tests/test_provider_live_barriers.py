@@ -371,7 +371,7 @@ def gate_passing_cli(monkeypatch, plan, mesh):
     monkeypatch.setattr(
         cli,
         "evaluate_candidates",
-        lambda paths: {
+        lambda paths, confirmations=None: {
             "candidates": [{"upload_allowed": True, "verdict": "PASS", "blocking_checks": []}]
         },
     )

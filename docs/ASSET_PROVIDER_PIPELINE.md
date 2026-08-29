@@ -412,14 +412,17 @@ genuinely different hand morphology — at the smallest possible cost.
 
 ### Candidate inventory (offline `humanoid-gate`, 10 local meshes)
 
-The honest result is **`NO_SAFE_UNRIGGED_CHARACTER_INPUT`: no local mesh currently
-qualifies.** Every humanoid in the repository is a Meshy delivery that is *already*
-skinned to a 24-joint fingerless rig and carries animation clips, so all ten fail
-`no_existing_rig`, `no_animation` and `not_a_fingerless_provider_rig`.
+The honest result is **`NO_SAFE_UNRIGGED_CHARACTER_INPUT`: no local mesh as
+delivered qualifies.** Every humanoid in the repository is a Meshy delivery that is
+*already* skinned to a 24-joint fingerless rig and carries animation clips, so all
+ten fail `no_existing_rig`, `no_animation` and `not_a_fingerless_provider_rig`. The
+offline static export in 2b.1 produces a candidate that passes those three; it does
+not and cannot resolve the three human confirmations, which were recorded
+separately after a person looked (2b.2).
 
 | Mesh | Size | Tris | Why it is not the candidate |
 |---|---|---|---|
-| `units/warrior/warrior_3d.glb` | 10.2 MB | 30126 | **Best candidate.** Blocked only by being a rigged/animated bundle |
+| `units/warrior/warrior_3d.glb` | 10.2 MB | 30126 | **Chosen candidate.** Was blocked only by being a rigged/animated bundle; the static export in 2b.1 clears that |
 | `units/settler/settler.glb` | 29.4 MB | 30522 | Also fails `neutral_a_or_t_pose` (0.74); near the 30 MB ceiling |
 | `units/niclas/niclas_3d.glb` | 40.9 MB | 30946 | Over the 30 MB upload limit |
 | `units/bronze_armed_warrior/*.glb` | 60.5 MB | 31122 | Over the 30 MB upload limit |
@@ -447,59 +450,221 @@ Classified precisely, and no more strongly than that:
 
 Its **only** blockers are consequences of it being a delivered bundle rather than
 a source mesh. The precondition for the first live smoke is therefore a free, local,
-offline step that does not exist yet: producing a static, un-rigged, un-animated
-export of that geometry. That is a separate slice, and it is **not** implemented
-here — inventing a GLB rig-stripper was outside this slice's scope.
+offline step: producing a static, un-rigged, un-animated export of that geometry.
+**That step now exists** — see 2b.1 — and running it clears `no_existing_rig`,
+`no_animation` and `not_a_fingerless_provider_rig`.
 
-Two checks would additionally need an explicit human waiver, because the tooling
-refuses to guess them from geometry: `bipedal_humanoid` and
-`hands_and_legs_separated`.
+Three checks still need an explicit human observation, because the tooling refuses
+to guess them: `bipedal_humanoid`, `hands_and_legs_separated` and — for a candidate
+baked from another asset — `visual_equivalence`. All three were recorded on
+2026-08-29; see 2b.2.
+
+### 2b.1 The static-unrigged export (offline, implemented)
+
+```powershell
+# Offline, free, no credential, no network. Requires a local Godot.
+python -m tools.assetgen static-export `
+  game/assets/prototype/3d/units/warrior/warrior_3d.glb `
+  --prove-determinism
+```
+
+**Why it exists.** Uthana's auto-rig takes an *unrigged* mesh, and every humanoid
+delivery in this repository is already skinned and animated. Baking an existing
+skin at its own rest pose produces a static candidate **without redesigning,
+decimating or re-authoring the mesh**, which is the only version of this step that
+keeps the geometry comparable to the source.
+
+**Bake semantics, exactly.** Godot headless imports the asset; animation is
+suspended and every skeleton is pinned to its **declared rest pose** (not frame
+zero of a clip, which is a pose an animator chose); each visible mesh surface is
+evaluated with the renderer's own bind matrices and weights; positions are baked
+into static geometry, normals and tangents carried through the inverse-transpose of
+the same basis; topology, indices, UVs, vertex colours, surface boundaries,
+materials and embedded textures are preserved; skeletons, skins, `JOINTS_0`,
+`WEIGHTS_0`, animation players, cameras, lights and non-drawn helper nodes are
+dropped. Helper exclusion is **structural** — anything the renderer would not draw
+as character geometry — never by node name. The scene is restored to the state it
+arrived in on every return path, including classified failure.
+
+**No Blender.** Not as a production dependency and not as a development one. The
+deformation is evaluated by the engine that renders it, so the exported rest pose
+is the pose the game would draw.
+
+**Output coordinate contract.** Vertices are expressed in the space of the node the
+asset is instanced under, composed from the local transforms between that node and
+each mesh or skeleton. Handedness unchanged, up axis `+Y`, no yaw introduced,
+ground relation preserved, **no height or unit normalisation**, node transforms
+baked exactly once, and the output node carries no transform. Scene placement,
+ancestor rotation, uniform and non-uniform ancestor scale and an animation left
+playing are all excluded by construction.
+
+**Why the winding is reversed on the way out.** Godot's front faces are wound the
+opposite way from glTF's. Writing the engine's index buffer unchanged produces a
+file that re-imports into Godot looking perfect — the same convention is applied on
+the way back — while every other consumer, including the provider, sees an
+inside-out model. The conversion happens at that one boundary and is guarded by a
+signed-volume comparison against a specification-level evaluation of the source.
+
+**What is proven, and how.** Three independent verdicts, none able to borrow a pass
+from another: the output's own glTF JSON is checked for skins, animations, joint
+attributes, skin references, external URIs and accessor bounds; the geometry is
+compared against an **independent Python evaluation of the source skin** rather
+than against the bake that produced it; and Godot re-imports the written file to
+report what the engine actually builds from it. Tolerances are derived from the
+float32 representation (2⁻²³ per accumulated term), not fitted to observed error,
+and serialisation is required to be **exact**. Because the importer rebuilds vertex
+order, the geometric comparisons are order-independent: Hausdorff distance between
+vertex sets, sorted per-triangle areas, exact UV multiset equality, signed volume,
+and stored normals against their own winding.
+
+**Determinism.** `--prove-determinism` bakes the asset once per caller context, each
+in its own fresh Godot process, and requires **byte-identical** output plus the
+digest the plan would bind. Measured for `warrior_3d.glb`: identical bytes across
+seven processes, maximum positional deviation `0.0`.
+
+**Where the output goes.** `artifacts/assetgen/provider_candidates/`, which is
+git-ignored: a generated calibration probe must not sit among committed runtime
+assets where a scene could pick it up by accident. A machine-readable provenance
+report is written beside it and **makes no certification claim**.
+
+**Polygon count is unchanged, on purpose.** The candidate is ~30k triangles because
+the export is geometry-preserving; the certified a0/a1 mesh is ~6.4k. The
+repository declares **no polygon-budget contract**, so no triangle gate was added.
+Decimating before the provider call would create a different surface whose hand
+anatomy would need separate validation, so it is not done here.
+
+### 2b.2 How a human answer enters the pipeline
+
+```powershell
+# Offline, free. Records what a person observed; authorises nothing by itself.
+python -m tools.assetgen record-human-confirmation `
+  artifacts/assetgen/provider_candidates/warrior_3d__static_unrigged.glb `
+  --check visual_equivalence --observer Niclas `
+  --method "<what was reviewed and in which views>" `
+  --statement "<what was observed>"
+```
+
+The gate always *declared* that an unverifiable check needed a human waiver, but
+until now there was no way to give one, so the plan could never become executable.
+The mechanism is `tools/assetgen/human_confirmations.py` writing a **committed**
+ledger at `tools/assetgen/human_confirmations/humanoid_gate.json` — committed
+because a paid call is authorised partly by these records, and they belong in
+history where they can be read, attributed and disputed. The candidate they
+describe stays git-ignored; the decision about it does not.
+
+Four properties do the work:
+
+- **Bound to exact bytes.** A confirmation names the digest it was given for. Re-run
+  the export and every confirmation stops applying, because nobody has looked at the
+  new bytes yet — they are reported as ignored, with the reason, never dropped
+  silently.
+- **Only for checks that asked.** A confirmation may resolve a check the gate itself
+  reported `UNVERIFIABLE`. Naming a measured check is refused at record time
+  (`HUMAN_CONFIRMATION_CHECK_NOT_WAIVABLE`) *and* ignored if hand-written into the
+  ledger, so an animated, already-skinned bundle cannot be talked past the gate.
+- **Never laundered into a measurement.** A resolved check reads `WAIVED`, never
+  `PASS`, and carries the observer, the date, the method and the statement. A report
+  cannot present an observation as something this tooling established.
+- **Inside the approval.** Who observed what, on which bytes, is part of the plan
+  digest, so a second review produces a different digest and one review cannot
+  authorise the consequences of another.
+
+`visual_equivalence` is asked only of a candidate whose provenance describes the
+exact bytes on disk — a mesh that was not derived from anything has nothing to be
+equivalent to, and the check is **absent** there rather than passed. Recorded for
+this candidate on 2026-08-29 by Niclas, from the F6 scene below: the export matched
+the original across the supplied side-by-side and overlaid views, with only
+negligible pixel-level rendering variation and no pose, silhouette, material,
+texture, winding, missing-surface or deformation discrepancy.
+
+**What the confirmations do not change.** The classification is untouched: still a
+`possible morphological calibration probe`, still not certified, still not
+production-representative batch evidence, still ~30k triangles outside any declared
+polygon contract, still useful only for the first different-morphology grip
+calibration smoke. And the three live barriers are untouched: an executable plan is
+a document that may now be confirmed, not a call that has been authorised.
 
 ### The exact plan for that future call
 
 ```powershell
 # Regenerate and read it (offline, free, deterministic):
 python -m tools.assetgen provider-plan `
-  game/assets/prototype/3d/units/warrior/warrior_3d.glb `
-  --name eom_first_live_smoke_warrior `
-  --out artifacts/assetgen/plans/first_live_smoke_warrior_3d.json
+  artifacts/assetgen/provider_candidates/warrior_3d__static_unrigged.glb `
+  --name warrior_3d_static_calibration `
+  --out artifacts/assetgen/plans/warrior_3d_static_calibration.plan.json
 ```
 
 | Field | Value |
 |---|---|
 | provider / operation | `uthana` / `character_autorig` |
-| input | `game/assets/prototype/3d/units/warrior/warrior_3d.glb` |
-| input SHA-256 | `a8070743e639f04a037d4162a44f956092a2ab7252c996afd0b160be6fcafa62` |
-| input size | 10 199 504 bytes (limit 31 457 280) |
+| input | `artifacts/assetgen/provider_candidates/warrior_3d__static_unrigged.glb` |
+| input SHA-256 | `de0cea4aab3f3093762247a7152b6481e971892f7ea828573eb92c710fa0cea7` |
+| baked from | `warrior_3d.glb` @ `a8070743e639f04a037d4162a44f956092a2ab7252c996afd0b160be6fcafa62` |
+| input size | 9 618 328 bytes (limit 31 457 280) |
 | parameters | `auto_rig`, `auto_rig_front_facing`, `include_fingers` all true |
 | max submissions | 1 (create retries: 0) |
 | poll / download attempts | 60 / 3 |
 | timeouts | submit 600 s, poll total 1800 s, download 600 s |
 | credential needed | `UTHANA_API_KEY` (name only; no value read) |
 | cost | **unknown** — one character slot, price not declared locally |
-| endpoint | `uthana\|https://uthana.com:443` — now inside the digest |
-| plan SHA-256 | `d9d3bbe17e41c0dfe80fbd89a9d6c1872e90fd83019b678fa524ffd3a80f726e` |
-| `executable` | **false** — its own preflight refuses the input |
+| endpoint | `uthana\|https://uthana.com:443` — inside the digest |
+| input classification | `possible morphological calibration probe`, not certified, not batch evidence — **inside the digest** |
+| provenance SHA-256 | `f2d89bc608c584f9941e64bbd04e43f276fb9a922c6a4b0b7db64c5ee6a4b3f8` — **inside the digest** |
+| human confirmations | `bipedal_humanoid`, `hands_and_legs_separated`, `visual_equivalence` — observed by Niclas 2026-08-29, **inside the digest** |
+| plan SHA-256 | `30c6070f966da742ca04c0a590f67c3d2a9ce3e953404fb56532f4b52f98cede` |
+| `executable` | **true** — every automated check passes and all three human checks are recorded as `WAIVED` |
 
-The digest recorded before the live-safety repair,
-`57c6338999196d87a01ac9ff466f1be7973c7dc7dfbf81f89b1a897c6d52a6d0`, belonged to plan
-schema v1. Binding endpoint identity into the digest moved every plan to
-`provider_plan_v2`, so the old value no longer names anything. Both digests are
-non-executable and neither may be authorized.
+**What an approval binds now includes what the input IS.** Authorising a
+morphological calibration probe is not authorising a production asset, so
+`input_classification` is part of the digest. It is read from the candidate's own
+provenance and matched **by digest, not by filename**: a stale record beside a
+rewritten file classifies as `unclassified_local_asset` rather than inheriting a
+description that no longer applies.
 
-That digest is for the mesh **as it is today**. Once the static export precondition
-is met the input hash changes, so the plan must be regenerated and re-read, and this
-digest becomes invalid by design.
+Three earlier digests are historical diagnostics only and none may be authorized:
+`d9d3bbe17e41c0dfe80fbd89a9d6c1872e90fd83019b678fa524ffd3a80f726e` (the rigged
+bundle as input), `57c6338999196d87a01ac9ff466f1be7973c7dc7dfbf81f89b1a897c6d52a6d0`
+(plan schema v1, before endpoint identity entered the digest) and
+`17f4d181c2e9b9dd92a17ad73cf03d0f95157d1a029161eb84f825b859559087` (this candidate
+before the human confirmations existed, when the plan was not executable).
 
-Because `executable` is false, confirming this digest today is refused with
-`PROVIDER_PLAN_NOT_EXECUTABLE`. The plan is a document, not an authorization.
+**`executable: true` is not authorization.** It means the plan's own preflight no
+longer refuses the input, so barrier 3 would now accept this digest instead of
+answering `PROVIDER_PLAN_NOT_EXECUTABLE`. Barriers 1 and 2 are untouched and no
+credential has been read: the call still requires `--live`,
+`EOM_ALLOW_PAID_PROVIDER_CALLS=1` and `--confirm-plan` on this exact digest, from a
+person who decides to spend the slot.
+
+### The visual checkpoint before that call
+
+```
+res://assets/prototype/3d/units/warrior/provider_candidate_static_preview.tscn
+```
+
+Development-only F6 scene. The original at its rest pose and the static export
+under one camera and one light, side by side or overlaid, with a HUD stating each
+side's hash prefix, triangles, surfaces, height and ground, rig present, animations
+present, material/texture status, the three automated verdicts, the determinism
+result, plan executability and the human confirmations, under the
+banner `MORPHOLOGY CALIBRATION ONLY — NOT PRODUCTION BATCH EVIDENCE`. Controls:
+`1`–`5` camera presets (including a hand close-up), `Tab` side-by-side/overlay,
+`O`/`P` per-side visibility, `A`/`D` orbit, `W`/`S` zoom, `R` reset.
+
+**The scene asserts no visual equivalence.** Everything the exporter can prove is
+numerical, and the question that decides whether a paid call is worth making — does
+this look like the same character, in a pose an auto-rigger can use, with separated
+fingers — is the human's to answer there. That review happened on 2026-08-29 and its
+answer is recorded as data, not as a passing test (2b.2).
 
 ### Where the stop point is
 
 **Niclas must give new, explicit authorization before any of this runs.** The
-tooling cannot proceed on its own: it needs the static-export precondition, the two
-human waivers, a regenerated plan, `--live`, `EOM_ALLOW_PAID_PROVIDER_CALLS=1` and
-the new `--confirm-plan` digest. No paid batch is open, and the stage stays
+static-export precondition is met, the F6 review is done and the three human
+confirmations are recorded, so the plan is now `executable: true`. What remains is
+the deliberate part: `--live`, `EOM_ALLOW_PAID_PROVIDER_CALLS=1` and
+`--confirm-plan 30c6070f…` on the digest above. Nothing has been confirmed, no claim
+has been acquired, no credential has been read and Uthana has still never been
+contacted from this repository. No paid batch is open and the stage stays
 `CALIBRATING`.
 
 ---
@@ -734,11 +899,15 @@ The gate refuses:
 - proportions inconsistent with an upright standing figure, or an arm-span ratio
   outside both the A-pose and T-pose bands
 
-Two checks are reported `UNVERIFIABLE` rather than passed: whether the mesh is
-genuinely **bipedal**, and whether **hands and legs are separated** well enough
-to rig. Neither can be established from geometry by this tooling, so they need an
-explicit human waiver. The gate is fail-closed: an unverifiable claim blocks the
-upload instead of being assumed.
+Three checks are reported `UNVERIFIABLE` rather than passed: whether the mesh is
+genuinely **bipedal**, whether **hands and legs are separated** well enough to rig,
+and — for a candidate derived from another asset — whether it is still **visually
+equivalent** to its source. None can be established from geometry by this tooling,
+so each needs an explicit human observation recorded through
+`record-human-confirmation` (2b.2), which resolves it to `WAIVED` rather than to
+`PASS`. The gate is fail-closed: an unverifiable claim blocks the upload instead of
+being assumed, and a confirmation can only resolve a check the gate itself declared
+unverifiable — a measured failure stays failed.
 
 When nothing in the worktree qualifies, the gate reports
 `NO_SAFE_UNRIGGED_CHARACTER_INPUT`.
@@ -1009,6 +1178,33 @@ The shield analyser is tested against synthetic meshes with a **known** answer,
 including the adversarial case of a grip that is only embossed. A validator that
 accepted a flat plate would be worse than none, because it would authorise
 attaching a shield that can never be held.
+
+`test_static_export.py` follows the same principle for the static-unrigged export.
+The risk there is not a crash but an export that **looks** right: correct triangle
+count, correct bounding box, re-imports and renders, and is nonetheless the wrong
+pose, mirrored, inside-out, double-transformed or missing its texture. Every
+geometric claim therefore has a sabotage that breaks exactly that claim and must be
+refused — an animation frame baked instead of the rest pose, a doubled node
+transform, altered scale, changed yaw, reflected handedness, inverted normals, an
+unconverted engine winding, a missing UV channel, a lost material, a lost texture, a
+dropped surface, included helper geometry, smuggled skin or joint data, a residual
+animation, an external texture URI, a transform left on the output node, and a
+single float step between the evaluated arrays and the written file. The engine is
+replaced by a double that emits what the real adapter emits; what the double cannot
+prove — that Godot's deformation agrees with the specification — is established only
+by running the real engine on the real asset, which is recorded in the candidate's
+provenance.
+
+`test_human_confirmations.py` tests the recording mechanism the same way, because a
+human answer is now part of what makes a paid plan executable. Most of it is about
+refusals: a confirmation given for one file must not resolve a check on the same path
+after a re-export, a confirmation must never overturn something the tooling measured
+(refused when recorded, ignored *and reported* when hand-written into the ledger),
+an anonymous or unexplained observation is refused, a corrupted ledger raises instead
+of reading as empty — silently empty would look like "no confirmations", which reads
+as a refusal and would hide the corruption — and a resolved check is never reported
+or digested as a `PASS`. The plan side asserts that executability arrives only when
+every question is answered, and that a second review yields a different digest.
 
 ---
 

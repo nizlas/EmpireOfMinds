@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://dev/provider_candidate_preview/provider_candidate_static_preview.gd" id="1_provider_candidate_static_preview"]
+
+[node name="ProviderCandidateStaticPreview" type="Node3D"]
+script = ExtResource("1_provider_candidate_static_preview")

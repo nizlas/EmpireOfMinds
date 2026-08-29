@@ -213,6 +213,26 @@ static func bake(root: Node, base: Node3D) -> Dictionary:
 	return result
 
 
+## Hold a live scene at its declared rest pose, for DISPLAY rather than for a bake.
+##
+## The visual comparison needs one side to be the SOURCE as the engine deforms it,
+## not a second bake — a comparison between two bakes could agree while both were
+## wrong. Returns a token to hand back to `release_rest_pose`; the same suspend and
+## pin the bake uses, so the two sides cannot drift apart.
+static func hold_rest_pose(root: Node) -> Dictionary:
+	if root == null:
+		return {}
+	return {"players": _suspend_animation(root), "poses": _pin_rest_pose(root)}
+
+
+## Undo `hold_rest_pose`. Safe on an empty or already-released token.
+static func release_rest_pose(token: Dictionary) -> void:
+	if token.is_empty():
+		return
+	_restore_rest_pose(token.get("poses", []))
+	_resume_animation(token.get("players", []))
+
+
 ## The bake itself, with the scene already pinned to rest. Split out so the
 ## restore above cannot be skipped by an early return in here.
 static func _bake_pinned(root: Node, base: Node3D) -> Dictionary:

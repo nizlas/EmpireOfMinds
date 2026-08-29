@@ -26,7 +26,9 @@ from .artifact_paths import UnsafeOutputPath
 from .capability import CapabilityRefused
 from .command_risk import UnclassifiedCommand, risk_for
 from .errors import ProviderError
-from .humanoid_gate import evaluate_candidates
+from .human_confirmations import DEFAULT_LEDGER, ConfirmationRefused, load_ledger
+from .human_confirmations import record as record_human_confirmation
+from .humanoid_gate import evaluate_candidates, evaluate_humanoid_candidate
 from .live_gate import (
     OPT_IN_ENV_VAR,
     OPT_IN_REQUIRED_VALUE,
@@ -567,7 +569,7 @@ def cmd_humanoid_gate(args) -> int:
         candidates = sorted(
             p for p in search.rglob("*") if p.suffix.lower() in {".glb", ".gltf", ".fbx"}
         )
-    report = evaluate_candidates(candidates)
+    report = evaluate_candidates(candidates, load_ledger(repo_root / DEFAULT_LEDGER))
     if args.out:
         destination = repo_root / args.out
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -577,6 +579,67 @@ def cmd_humanoid_gate(args) -> int:
         report["report_path"] = destination.relative_to(repo_root).as_posix()
     emit(report)
     return 0 if report["conclusion"] == "SAFE_INPUT_AVAILABLE" else 3
+
+
+def cmd_record_human_confirmation(args) -> int:
+    """OFFLINE: record one human observation against a candidate's exact bytes.
+
+    The gate refuses to guess whether a mesh is a biped, whether its limbs are
+    separated, or whether a derived candidate still reads as its source. This is
+    how the answer of a person who looked enters the pipeline. It resolves only a
+    check that is currently asking, it is bound to the digest it was given for, and
+    it is never rewritten into a measurement.
+    """
+    repo_root = repo_root_from_here()
+    candidate = Path(args.glb) if Path(args.glb).is_absolute() else repo_root / args.glb
+    ledger_path = repo_root / (args.ledger or DEFAULT_LEDGER)
+    try:
+        before = evaluate_humanoid_candidate(candidate, load_ledger(ledger_path))
+        entry = record_human_confirmation(
+            ledger_path=ledger_path,
+            candidate=candidate,
+            check=args.check,
+            observer=args.observer,
+            method=args.method,
+            statement=args.statement,
+            observed_on=args.observed_on or "",
+            # Already-confirmed checks stay answerable so a second look can
+            # supersede a first without hand-editing the ledger.
+            answerable_checks=[
+                *(before.get("waivable_checks") or []),
+                *(before.get("human_confirmed_checks") or []),
+            ],
+        )
+    except ConfirmationRefused as exc:
+        emit(
+            {
+                "command": "record-human-confirmation",
+                "refused": exc.code,
+                "detail": exc.detail,
+            }
+        )
+        return 3
+    after = evaluate_humanoid_candidate(candidate, load_ledger(ledger_path))
+    emit(
+        {
+            "command": "record-human-confirmation",
+            "network_used": False,
+            "credential_read": False,
+            "ledger_path": ledger_path.relative_to(repo_root).as_posix(),
+            "recorded": entry.to_dict(),
+            "gate_after": {
+                "verdict": after["verdict"],
+                "upload_allowed": after["upload_allowed"],
+                "human_confirmed_checks": after["human_confirmed_checks"],
+                "still_blocking": after["blocking_checks"],
+            },
+            "note": (
+                "A recorded observation is reported as WAIVED, never as PASS: the "
+                "tooling did not verify it and does not claim to have."
+            ),
+        }
+    )
+    return 0
 
 
 def cmd_static_export(args) -> int:
@@ -602,6 +665,7 @@ def cmd_static_export(args) -> int:
             workspace=workspace,
             godot_executable=args.godot,
             verify_reimport=not args.no_verify_reimport,
+            prove_determinism=args.prove_determinism,
         )
     except StaticExportError as exc:
         emit({"command": "static-export", "refused": exc.code, "detail": exc.detail})
@@ -610,24 +674,46 @@ def cmd_static_export(args) -> int:
         emit({"command": "static-export", "refused": "GODOT_NOT_AVAILABLE", "detail": str(exc)})
         return 1
     finally:
-        # Intermediates only, each removed by exact name inside the workspace.
-        for leftover in ("bake_report.json", "bake_arrays.bin", "reimport_report.json"):
-            candidate = workspace / leftover
-            if candidate.is_file():
-                candidate.unlink()
-        if workspace.is_dir() and not any(workspace.iterdir()):
-            workspace.rmdir()
+        # Intermediates only, each removed by exact name inside the workspace. No
+        # recursive deletion and no pattern that could expand past it.
+        _remove_workspace_files(workspace / "determinism")
+        _remove_workspace_files(workspace)
 
     emit({"command": "static-export", **provenance})
     structural = provenance.get("structural_validation") or {}
     geometry = provenance.get("geometry_comparison") or {}
     reimport = provenance.get("godot_reimport") or {}
+    determinism = provenance.get("determinism") or {}
     accepted = (
         bool(structural.get("passed"))
         and bool(geometry.get("passed"))
         and (not reimport.get("performed") or bool(reimport.get("passed")))
+        and (
+            not determinism.get("performed")
+            or (
+                bool(determinism.get("byte_identical"))
+                and bool(determinism.get("candidate_digest_reproduced"))
+            )
+        )
     )
     return 0 if accepted else 3
+
+
+def _remove_workspace_files(workspace: Path) -> None:
+    """Delete the bake intermediates by exact name, then the directory if empty.
+
+    Named files rather than a recursive delete: this runs in a `finally`, where a
+    wrong or half-resolved path would be at its most dangerous.
+    """
+    if not workspace.is_dir():
+        return
+    for entry in sorted(workspace.iterdir()):
+        if entry.is_file() and (
+            entry.name.startswith("bake_") or entry.name == "reimport_report.json"
+        ):
+            entry.unlink()
+    if not any(workspace.iterdir()):
+        workspace.rmdir()
 
 
 def cmd_autorig(args) -> int:
@@ -635,7 +721,9 @@ def cmd_autorig(args) -> int:
     orchestrator = build_orchestrator(args)
     repo_root = orchestrator.store.repo_root
     path = Path(args.glb) if Path(args.glb).is_absolute() else repo_root / args.glb
-    gate = evaluate_candidates([path])
+    # Same committed ledger the plan was built from, so the command that would
+    # spend money and the document that approved it read one source of truth.
+    gate = evaluate_candidates([path], load_ledger(repo_root / DEFAULT_LEDGER))
     candidate = gate["candidates"][0]
     if not candidate["upload_allowed"]:
         emit(
@@ -839,6 +927,32 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("--out", help="also write the report to this path")
     gate.set_defaults(func=cmd_humanoid_gate)
 
+    confirm = sub.add_parser(
+        "record-human-confirmation",
+        help=(
+            "OFFLINE: record one human observation that resolves a pre-upload check "
+            "this tooling refuses to guess. Bound to the candidate's current bytes"
+        ),
+    )
+    confirm.add_argument("glb", help="the exact candidate the observation was made on")
+    confirm.add_argument(
+        "--check",
+        required=True,
+        help="the waivable check being answered, e.g. visual_equivalence",
+    )
+    confirm.add_argument("--observer", required=True, help="who looked")
+    confirm.add_argument(
+        "--method", required=True, help="how it was reviewed, e.g. the preview scene and views"
+    )
+    confirm.add_argument("--statement", required=True, help="what was observed, in their words")
+    confirm.add_argument(
+        "--observed-on", help="ISO date of the review; defaults to today"
+    )
+    confirm.add_argument(
+        "--ledger", help="alternative ledger path, relative to the repository root"
+    )
+    confirm.set_defaults(func=cmd_record_human_confirmation)
+
     static_export = sub.add_parser(
         "static-export",
         help=(
@@ -860,6 +974,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-verify-reimport",
         action="store_true",
         help="skip the Godot re-import check (only for a machine without the engine)",
+    )
+    static_export.add_argument(
+        "--prove-determinism",
+        action="store_true",
+        help=(
+            "additionally bake the asset in one fresh Godot process per caller "
+            "context and require byte-identical output; slow, and required before a "
+            "provider plan may bind the candidate's digest"
+        ),
     )
     static_export.add_argument("--godot", help="explicit Godot executable")
     static_export.set_defaults(func=cmd_static_export)

@@ -758,19 +758,6 @@ def _read_attribute(document: GlbDocument, attribute: str) -> list[np.ndarray]:
     return out
 
 
-def _max_normal_angle(left: list, right: list) -> dict:
-    worst = 0.0
-    dots: list[float] = []
-    for a, b in zip(left, right, strict=False):
-        a = _normalise(np.asarray(a, dtype=np.float64))
-        b = _normalise(np.asarray(b, dtype=np.float64))
-        if a.shape != b.shape:
-            return {"max_abs": float("inf"), "mean_dot": -1.0}
-        worst = max(worst, float(np.abs(a - b).max()))
-        dots.append(float(np.sum(a * b, axis=1).mean()))
-    return {"max_abs": worst, "mean_dot": float(np.mean(dots)) if dots else -1.0}
-
-
 def _aggregate_comparison(reference: list[dict], output: GlbDocument) -> dict:
     reference_vertices = (
         np.concatenate([np.asarray(r["positions"]) for r in reference])

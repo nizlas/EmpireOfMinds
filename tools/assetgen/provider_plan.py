@@ -34,6 +34,7 @@ import json
 import os
 from pathlib import Path
 
+from .candidate_provenance import provenance_digest, read_provenance
 from .manifest import canonical_json, sha256_file
 
 #: Bumped by the live-safety repair: a v1 plan has no endpoint identity, so its
@@ -94,6 +95,15 @@ DIGESTED_KEYS: tuple[str, ...] = (
     # behaviour-affecting as what it contains, so the normalised endpoint identity
     # is now inside the digest and is recompared at submission time.
     "endpoint",
+    # Added with the static-unrigged export. What the input IS changes what an
+    # approval means: authorising a morphological calibration probe is not
+    # authorising a production asset, and the two are now different documents
+    # even when the bytes are otherwise identically described.
+    "input_classification",
+    # Added when the pre-upload gate gained a real waiver mechanism. These checks
+    # are the reason the plan is executable at all, so the approval binds WHO
+    # observed WHAT on WHICH bytes. A different review is a different approval.
+    "human_confirmations",
 )
 
 PLAN_DIGEST_KEY = "plan_sha256"
@@ -118,6 +128,8 @@ def build_plan(
     max_poll_attempts: int = DEFAULT_MAX_POLL_ATTEMPTS,
     max_download_attempts: int = DEFAULT_MAX_DOWNLOAD_ATTEMPTS,
     request_description: dict | None = None,
+    input_classification: dict | None = None,
+    human_confirmations: list[dict] | None = None,
     notes: tuple[str, ...] = (),
 ) -> dict:
     """Build the plan. Reads the input file to hash it; touches nothing else."""
@@ -154,8 +166,15 @@ def build_plan(
             "path": relative,
             "sha256": sha256_file(resolved),
             "size_bytes": resolved.stat().st_size,
+            # The account of where these bytes came from. `None` for an asset that
+            # carries none. Binding it means editing the provenance invalidates the
+            # approval, which is correct: the classification and the human visual
+            # review both rest on that document.
+            "provenance_sha256": provenance_digest(resolved),
         },
         "output_destination": str(output_destination),
+        "input_classification": classify_plan_input(resolved, input_classification),
+        "human_confirmations": list(human_confirmations or []),
         # The normalised destination. `None` only for a plan built without a
         # resolvable endpoint, which is never executable.
         "endpoint": endpoint.to_dict() if endpoint is not None else None,
@@ -196,6 +215,49 @@ def build_plan(
     return plan
 
 
+#: What an input is called when nothing declares otherwise. Deliberately not
+#: "production asset": absence of a classification is not evidence of one.
+UNCLASSIFIED_INPUT = {
+    "role": "unclassified_local_asset",
+    "certified": False,
+    "production_representative_batch_evidence": False,
+    "derived_from": None,
+    "provenance_path": None,
+}
+
+
+def classify_plan_input(resolved: Path, override: dict | None = None) -> dict:
+    """What the plan's input is, read from the input's own provenance if it has one.
+
+    A generated candidate carries a provenance record beside it. When that record
+    describes THIS file — matched by digest, not by filename — its classification
+    is bound into the plan, so an approval cannot silently be reused for a
+    different kind of asset. A file with no provenance is classified as unknown
+    rather than as production-ready.
+    """
+    if override is not None:
+        return dict(override)
+    # `read_provenance` returns nothing for a missing, malformed OR stale record: a
+    # document beside a rewritten file describes bytes that no longer exist.
+    record, provenance = read_provenance(resolved)
+    if record is None or provenance is None:
+        return dict(UNCLASSIFIED_INPUT)
+    classification = record.get("candidate_classification") or {}
+    source = record.get("source") or {}
+    return {
+        "role": str(classification.get("role", "unclassified_local_asset")),
+        "certified": bool(classification.get("certified", False)),
+        "production_representative_batch_evidence": bool(
+            classification.get("production_representative_batch_evidence", False)
+        ),
+        "derived_from": {
+            "path": source.get("path"),
+            "sha256": source.get("sha256"),
+        },
+        "provenance_path": provenance.name,
+    }
+
+
 def build_autorig_plan(
     *,
     repo_root: Path,
@@ -211,6 +273,12 @@ def build_autorig_plan(
     were built separately, an approval could bind a document that differs from
     what runs.
     """
+    from .human_confirmations import (
+        DEFAULT_LEDGER,
+        confirmations_for,
+        digest_payload,
+        load_ledger,
+    )
     from .humanoid_gate import evaluate_humanoid_candidate
     from .providers.base import ImageInput, JobRequest, TaskType
     from .providers.uthana import CREDENTIAL_ENV_VAR as UTHANA_CREDENTIAL
@@ -219,7 +287,14 @@ def build_autorig_plan(
 
     resolved = Path(input_path)
     name = character_name or resolved.stem
-    gate = evaluate_humanoid_candidate(resolved)
+    # The ledger is read from the repository, not from an argument, so the plan an
+    # operator reads and the plan a submission is checked against consult the same
+    # committed record. A caller cannot supply confirmations of its own.
+    ledger = load_ledger(Path(repo_root) / DEFAULT_LEDGER)
+    gate = evaluate_humanoid_candidate(resolved, ledger)
+    applicable = (
+        confirmations_for(ledger, sha256_file(resolved)) if resolved.is_file() else {}
+    )
     endpoint = _resolve_endpoint_or_none(UTHANA, explicit_base_url=base_url)
     parameters = {
         "name": name,
@@ -263,6 +338,7 @@ def build_autorig_plan(
         preflight=gate,
         declared_cost=None,  # Uthana publishes no per-character price locally.
         request_description=description,
+        human_confirmations=digest_payload(applicable),
         notes=(
             f"consumes one character slot; upload ceiling {MAX_UPLOAD_BYTES} bytes",
             "include_fingers is mandatory: the hand/equipment pipeline grips with finger joints",

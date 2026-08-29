@@ -387,6 +387,7 @@ def export_static_candidate(
     workspace: Path,
     godot_executable: str | None = None,
     verify_reimport: bool = True,
+    prove_determinism: bool = False,
     runner=subprocess.run,
 ) -> dict:
     """Bake, write and validate one static candidate; return its provenance.
@@ -453,6 +454,24 @@ def export_static_candidate(
             runner=runner,
         )
 
+    determinism: dict = {"performed": False, "reason": "not requested"}
+    if prove_determinism:
+        determinism = prove_context_independence(
+            source_glb=source,
+            project_path=Path(project_path),
+            workspace=workspace / "determinism",
+            godot_executable=godot_executable,
+            runner=runner,
+        )
+        determinism["performed"] = True
+        # The digest a provider plan would bind must be the one the contexts
+        # reproduce. Without this the proof could hold for a file nobody kept.
+        digest = hashlib.sha256(payload).hexdigest()
+        determinism["candidate_digest_reproduced"] = digest in set(
+            determinism["distinct_digests"]
+        )
+        determinism["candidate_sha256"] = digest
+
     provenance = build_provenance(
         source=source,
         document=document,
@@ -464,6 +483,7 @@ def export_static_candidate(
         structural=structural,
         equivalence=equivalence,
         reimport=reimport,
+        determinism=determinism,
     )
     provenance_name = name.rsplit(".", 1)[0] + ".provenance.json"
     provenance_path = write_bytes_within(
@@ -670,6 +690,7 @@ def build_provenance(
     structural: dict,
     equivalence: dict,
     reimport: dict,
+    determinism: dict | None = None,
 ) -> dict:
     """The machine-readable record beside the candidate.
 
@@ -750,6 +771,7 @@ def build_provenance(
         "structural_validation": structural,
         "geometry_comparison": equivalence,
         "godot_reimport": reimport,
+        "determinism": determinism or {"performed": False, "reason": "not requested"},
         "bake_measurement": run.report.get("measurement") or {},
         "scene_state_restored": bool(run.report.get("post_bake_inspection_matches", False)),
         "candidate_classification": {

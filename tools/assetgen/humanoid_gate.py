@@ -8,6 +8,12 @@ is explicitly waived by a human.
 The gate is deliberately FAIL-CLOSED on anything it cannot verify. In particular
 it never guesses that a mesh is a bipedal humanoid: an unverifiable claim is a
 refusal, not a pass.
+
+An unverifiable check may be resolved by a **human confirmation** bound to the
+candidate's exact bytes (`human_confirmations.py`). Such a check becomes `WAIVED`,
+never `PASS`: the distinction is the whole point, because one verdict was measured
+here and the other was observed by a person elsewhere. A confirmation can only
+resolve a check this gate declared unverifiable — a measured `FAIL` stays failed.
 """
 
 from __future__ import annotations
@@ -17,7 +23,10 @@ from pathlib import Path
 
 import numpy as np
 
+from .candidate_provenance import read_provenance
 from .glb_reader import GlbParseError, load_glb
+from .human_confirmations import Confirmation, confirmations_for
+from .manifest import sha256_file
 from .mesh_metrics import bounds
 from .providers.uthana import MAX_UPLOAD_BYTES, SUPPORTED_MODEL_SUFFIXES
 
@@ -25,6 +34,9 @@ from .providers.uthana import MAX_UPLOAD_BYTES, SUPPORTED_MODEL_SUFFIXES
 GATE_PASS = "PASS"
 GATE_FAIL = "FAIL"
 GATE_UNVERIFIABLE = "UNVERIFIABLE"
+#: Resolved by a person, not by this tooling. Non-blocking, and never printed as
+#: PASS, so no report can present an observation as a measurement.
+GATE_WAIVED = "WAIVED"
 
 #: Slice-level outcome when nothing in the worktree may be uploaded.
 NO_SAFE_UNRIGGED_CHARACTER_INPUT = "NO_SAFE_UNRIGGED_CHARACTER_INPUT"
@@ -64,8 +76,14 @@ class Check:
         }
 
 
-def evaluate_humanoid_candidate(path: Path) -> dict:
-    """Run every pre-upload check on one candidate file."""
+def evaluate_humanoid_candidate(
+    path: Path, confirmations: list[Confirmation] | None = None
+) -> dict:
+    """Run every pre-upload check on one candidate file.
+
+    `confirmations` is the human ledger. Entries are matched against this file's
+    current digest, so a stale confirmation resolves nothing.
+    """
     resolved = Path(path)
     checks: list[Check] = []
 
@@ -84,13 +102,13 @@ def evaluate_humanoid_candidate(path: Path) -> dict:
                 "each structural check explicitly after manual inspection",
             )
         )
-        return _summarise(resolved, checks, document=None)
+        return _summarise(resolved, checks, document=None, confirmations=confirmations)
 
     try:
         document = load_glb(resolved)
     except (GlbParseError, ValueError, OSError) as exc:
         checks.append(Check("parses_as_gltf", GATE_FAIL, f"could not parse: {exc}"))
-        return _summarise(resolved, checks, document=None)
+        return _summarise(resolved, checks, document=None, confirmations=confirmations)
 
     checks.append(
         Check(
@@ -105,7 +123,10 @@ def evaluate_humanoid_candidate(path: Path) -> dict:
     checks.append(_check_fingerless_provider_rig(document))
     checks.append(_check_textured_static_mesh(document))
     checks.extend(_check_pose_and_proportions(document))
-    return _summarise(resolved, checks, document=document)
+    visual = _check_visual_equivalence(resolved)
+    if visual is not None:
+        checks.append(visual)
+    return _summarise(resolved, checks, document=document, confirmations=confirmations)
 
 
 # ------------------------------------------------------------------------ checks
@@ -288,28 +309,142 @@ def _check_pose_and_proportions(document) -> list[Check]:
     return checks
 
 
+def _check_visual_equivalence(candidate: Path) -> Check | None:
+    """Does a DERIVED candidate still look like the asset it was baked from?
+
+    Only asked of a candidate whose provenance describes these exact bytes, because
+    only such a file has a source to be equivalent to. Absent for an ordinary mesh
+    rather than silently passed: a check that is not applicable and a check that
+    succeeded are different states, and conflating them is how a gate quietly stops
+    gating.
+
+    Never automated. The static export proves geometric equivalence numerically —
+    vertex sets, triangle areas, UV sets, winding, bounds — and none of that can
+    answer whether the thing on screen reads as the same character. Only a person
+    who looked can, so this check waits for one.
+    """
+    record, _ = read_provenance(candidate)
+    if record is None:
+        return None
+    source = record.get("source") if isinstance(record.get("source"), dict) else {}
+    return Check(
+        "visual_equivalence",
+        GATE_UNVERIFIABLE,
+        "this candidate was derived from another asset, and whether it still reads as "
+        "the same character cannot be established from geometry; requires an explicit "
+        "human observation after side-by-side and overlaid review",
+        {
+            "derived_from": source.get("path"),
+            "derived_from_sha256": source.get("sha256"),
+            "automated_geometry_verdicts": {
+                key: bool((record.get(key) or {}).get("passed"))
+                for key in ("structural_validation", "geometry_comparison", "godot_reimport")
+                if isinstance(record.get(key), dict)
+            },
+        },
+    )
+
+
 # ----------------------------------------------------------------------- summary
 
 
-def _summarise(path: Path, checks: list[Check], document) -> dict:
-    blocking = [c for c in checks if c.blocking]
+def _summarise(
+    path: Path,
+    checks: list[Check],
+    document,
+    confirmations: list[Confirmation] | None = None,
+) -> dict:
+    resolved, ignored = _apply_confirmations(path, checks, confirmations)
+    blocking = [c for c in resolved if c.blocking]
     return {
         "file": str(path),
         "relative_name": path.name,
-        "checks": [c.to_dict() for c in checks],
+        "checks": [c.to_dict() for c in resolved],
         "verdict": GATE_PASS if not blocking else GATE_FAIL,
         "blocking_checks": [c.name for c in blocking],
-        "failed_checks": [c.name for c in checks if c.verdict == GATE_FAIL],
-        "unverifiable_checks": [c.name for c in checks if c.verdict == GATE_UNVERIFIABLE],
-        "waivable_checks": [c.name for c in checks if c.verdict == GATE_UNVERIFIABLE],
+        "failed_checks": [c.name for c in resolved if c.verdict == GATE_FAIL],
+        "unverifiable_checks": [c.name for c in resolved if c.verdict == GATE_UNVERIFIABLE],
+        "waivable_checks": [c.name for c in resolved if c.verdict == GATE_UNVERIFIABLE],
+        "human_confirmed_checks": [c.name for c in resolved if c.verdict == GATE_WAIVED],
+        "ignored_confirmations": ignored,
         "upload_allowed": not blocking,
         "triangle_count": document.triangle_count if document is not None else None,
     }
 
 
-def evaluate_candidates(paths: list[Path]) -> dict:
+def _apply_confirmations(
+    path: Path, checks: list[Check], confirmations: list[Confirmation] | None
+) -> tuple[list[Check], list[dict]]:
+    """Resolve unverifiable checks that a person has answered for THESE bytes.
+
+    Anything that cannot be applied is reported in `ignored_confirmations` rather
+    than dropped. A confirmation that silently does nothing is worse than one that
+    is refused, because the operator believes the question was settled.
+    """
+    if not confirmations:
+        return checks, []
+    subject = sha256_file(path) if Path(path).is_file() else ""
+    applicable = confirmations_for(confirmations, subject)
+    if not applicable:
+        stale = sorted({c.check for c in confirmations})
+        return checks, (
+            [
+                {
+                    "check": name,
+                    "reason": "recorded against different bytes than the file on disk",
+                }
+                for name in stale
+            ]
+            if stale
+            else []
+        )
+
+    by_name = {c.name: c for c in checks}
+    ignored: list[dict] = []
+    for name, entry in sorted(applicable.items()):
+        target = by_name.get(name)
+        if target is None:
+            ignored.append({"check": name, "reason": "no such check ran for this candidate"})
+        elif target.verdict != GATE_UNVERIFIABLE:
+            ignored.append(
+                {
+                    "check": name,
+                    "reason": (
+                        f"the check is {target.verdict}; a human observation may resolve "
+                        "an unverifiable check and may never overturn a measurement"
+                    ),
+                }
+            )
+
+    resolved: list[Check] = []
+    for check in checks:
+        entry = applicable.get(check.name)
+        if entry is None or check.verdict != GATE_UNVERIFIABLE:
+            resolved.append(check)
+            continue
+        resolved.append(
+            Check(
+                check.name,
+                GATE_WAIVED,
+                f"{entry.describe()} (the gate itself did not and cannot verify this)",
+                {
+                    **check.measured,
+                    "evidence_class": entry.to_dict()["evidence_class"],
+                    "observer": entry.observer,
+                    "observed_on": entry.observed_on,
+                    "method": entry.method,
+                    "subject_sha256": entry.subject_sha256,
+                },
+            )
+        )
+    return resolved, ignored
+
+
+def evaluate_candidates(
+    paths: list[Path], confirmations: list[Confirmation] | None = None
+) -> dict:
     """Gate every candidate and produce the slice-level conclusion."""
-    reports = [evaluate_humanoid_candidate(path) for path in paths]
+    reports = [evaluate_humanoid_candidate(path, confirmations) for path in paths]
     passing = [r for r in reports if r["upload_allowed"]]
     return {
         "candidates_examined": len(reports),
