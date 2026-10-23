@@ -2543,3 +2543,21 @@ Caveat:
 - **The classification is unchanged.** Still a `possible morphological calibration probe`: not certified, not production-representative batch evidence, ~30k triangles, outside any declared polygon contract, and useful only for the first different-morphology grip and R4 calibration smoke.
 - Stage stays **CALIBRATING** and no paid batch is open.
 
+## 2026-10-23 - Agent governance: Claude Code replaces Cursor as the execution environment
+
+Context: agent work moved from Cursor to Claude Code because running several parallel projects in Cursor became too expensive. The workflow lived in `.cursor/rules/empire-of-minds.mdc` (always-applied rule), `.cursor/skills/empire-of-minds-constrained-implementer/SKILL.md` and `.cursor/skills/empire-of-minds-player-guide-writer/SKILL.md`, and the constrained-implementer skill had also accumulated copies of N-slice boundary detail that `docs/` already owns.
+
+Decision:
+
+- **One authority per concern.** Root `CLAUDE.md` is the short always-loaded routing layer; `.claude/skills/empire-of-minds-constrained-implementer/SKILL.md` owns the reusable workflow (invoked as `/empire-of-minds-constrained-implementer`); `.claude/skills/empire-of-minds-player-guide-writer/SKILL.md` owns player-facing writing; canonical knowledge stays in `docs/`. The layering is recorded in [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) (**Agent Execution Environment**).
+- **The Cursor files are removed, not kept as pointers.** No current requirement supports Cursor, and a second copy would drift. Every still-valid safeguard was carried into the new skill; the terrain/map/N-slice boundary paragraphs were not copied, because `CURRENT_ARCHITECTURE.md`, `MAP_MODEL.md`, `TERRAIN_SURFACE_TARGET.md`, `UNITS.md` and `PHASE_PLAN.md` own them and the skill now routes there. The Phase 1 guardrails are retired as obsolete; their lasting parts (no unrequested cloud/LLM/networking/provider dependencies) remain as general rules.
+- **The workflow names modes explicitly:** planning/audit, implementation, verification, documentation-only, and review of an existing report or diff, where a report is a claim until the diff and verification are checked.
+- **Delivery is tool-neutral.** Local (no staging, commit, push or PR) stays the default. The former `Delivery mode: isolated Cursor Cloud task` becomes `Delivery mode: isolated branch` with the same rules: baseline from `origin/main`, named branch only, draft PR, never merge or write to `main`.
+- **Model selection is made in the session, not in task prompts,** unless a task explicitly requires a model.
+
+Caveat:
+
+- No hooks, permission rules or `.claude/settings.json` were added; every safeguard is expressible in `CLAUDE.md` and the skill.
+- The external process document *Empire of Minds — Prompt-, skill- och styrdokumentsflöde* is not tracked in this repository and must be updated by hand to match.
+- Earlier entries that mention the Cursor rule or skill, and the Phase 0 deliverable list in [PHASE_PLAN.md](PHASE_PLAN.md), are historical records and were left as written.
+

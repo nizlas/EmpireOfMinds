@@ -13,6 +13,24 @@ If gaps, ambiguities, hidden assumptions, or architectural risks are found, the 
 5. reassess
 6. only then continue
 
+## Agent Execution Environment
+
+Agent work runs in **Claude Code**. Steering is layered so that each concern has exactly one owner:
+
+| Layer | Owner | Holds |
+|---|---|---|
+| Always-loaded routing | root `CLAUDE.md` | Role, pre-flight, preservation and safety rules, default delivery policy, pointers. Kept short; no workflow or architecture detail. |
+| Reusable workflow | `.claude/skills/empire-of-minds-constrained-implementer/SKILL.md` | Task modes (planning/audit, implementation, verification, documentation-only, review), document routing, pre-task checklist, verification and reporting rules, delivery modes. |
+| Player-facing writing | `.claude/skills/empire-of-minds-player-guide-writer/SKILL.md` | Tone and boundaries for guides, civilopedia, and tooltip copy. |
+| Canonical knowledge | `docs/` | Architecture, domain models, phases, decisions, test policy. |
+| Task prompt | the prompt | Only the current delta: scope, mode, stopping boundary, and any explicitly authorized deviation from the defaults. |
+
+A task invokes the workflow explicitly with `/empire-of-minds-constrained-implementer`. The model is selected in the Claude Code session, not in the task prompt, unless a task explicitly requires a specific model.
+
+Delivery is local by default: no staging, commit, push, or PR. Isolated branch/PR delivery happens only when the prompt explicitly says `Delivery mode: isolated branch` and names the branch; its rules live in the skill. An agent's report is a claim until the actual diff and verification have been reviewed.
+
+A permanent change to how agents work updates the owning layer above and removes contradictions elsewhere; it is never introduced through a task prompt alone.
+
 ## Steering Document Change Rule
 
 The agent must not silently rewrite its own steering constraints as part of implementation work.

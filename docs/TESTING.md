@@ -17,7 +17,7 @@ No profile deletes or weakens tests. Failures are not suppressed.
 
 **Final report on a small/local slice:** run the **slice** profile again; add **smoke** only when shared boot/session/helper code was touched. **Do not** run **cloud**, **presentation**, or **full** unless the user explicitly asks or you are doing a release/deploy checkpoint (see below).
 
-**Future Composer/Cursor prompts** should state the intended validation level, for example:
+**Task prompts** should state the intended validation level when it differs from this default, for example:
 
 ```text
 Validation:

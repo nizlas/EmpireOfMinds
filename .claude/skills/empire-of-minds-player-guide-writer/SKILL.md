@@ -1,3 +1,8 @@
+---
+name: empire-of-minds-player-guide-writer
+description: Writes player-facing Empire of Minds text — playtest guides, tutorial-style explanations, civilopedia entries, tooltip copy, and concept explanations — aligned with steering and without becoming an architecture or implementation authority. Use when the user asks for player-facing or tester-facing copy.
+---
+
 # Empire of Minds Player Guide & Civilopedia Writer
 
 ## Purpose
